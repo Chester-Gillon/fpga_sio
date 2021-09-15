@@ -1,0 +1,195 @@
+The conclusion of the tests is that:
+a. Memory in each region persists after runs of the program, and across re-boots of the PC.
+   A reeboot is expected to assert a PCIe reset but on the design there is no reset passed to the block ram.
+b. When the FPGA is re-loaded the blkram is initialised to all zeros.
+
+-------------------------
+
+1. Initial run from the debugger, reporting all the memory was zeros:
+Now: Wed Sep 15 18:34:40 2021
+
+BAR 0
+  Uninitialised memory region of 1048576 bytes all zeros
+  initialised_text=This is BAR zero memory initialised at Wed Sep 15 18:34:40 2021
+  last_accessed_text=Wed Sep 15 18:34:40 2021
+  accessed_count=1
+BAR 2
+  Uninitialised memory region of 131072 bytes all zeros
+  initialised_text=This is BAR two memory initialised at Wed Sep 15 18:34:40 2021
+  last_accessed_text=Wed Sep 15 18:34:40 2021
+  accessed_count=1
+BAR 4
+  Uninitialised memory region of 65536 bytes all zeros
+  initialised_text=This is BAR four memory initialised at Wed Sep 15 18:34:40 2021
+  last_accessed_text=Wed Sep 15 18:34:40 2021
+  accessed_count=1
+
+
+2. Second run from the debugger:
+Now: Wed Sep 15 18:48:47 2021
+
+BAR 0
+  Memory already initialised
+  initialised_text=This is BAR zero memory initialised at Wed Sep 15 18:34:40 2021
+  last_accessed_text=Wed Sep 15 18:48:47 2021
+  accessed_count=2
+BAR 2
+  Memory already initialised
+  initialised_text=This is BAR two memory initialised at Wed Sep 15 18:34:40 2021
+  last_accessed_text=Wed Sep 15 18:48:47 2021
+  accessed_count=2
+BAR 4
+  Memory already initialised
+  initialised_text=This is BAR four memory initialised at Wed Sep 15 18:34:40 2021
+  last_accessed_text=Wed Sep 15 18:48:47 2021
+  accessed_count=2
+
+
+3. Run release build from command line:
+Now: Wed Sep 15 18:51:40 2021
+
+BAR 0
+  Memory already initialised
+  initialised_text=This is BAR zero memory initialised at Wed Sep 15 18:34:40 2021
+  last_accessed_text=Wed Sep 15 18:51:40 2021
+  accessed_count=3
+BAR 2
+  Memory already initialised
+  initialised_text=This is BAR two memory initialised at Wed Sep 15 18:34:40 2021
+  last_accessed_text=Wed Sep 15 18:51:40 2021
+  accessed_count=3
+BAR 4
+  Memory already initialised
+  initialised_text=This is BAR four memory initialised at Wed Sep 15 18:34:40 2021
+  last_accessed_text=Wed Sep 15 18:51:40 2021
+  accessed_count=3
+
+
+4. PC rebooted into Windows twice to perform some updates. Run release built after rebooted back into CentOS:
+Now: Wed Sep 15 20:12:47 2021
+
+BAR 0
+  Memory already initialised
+  initialised_text=This is BAR zero memory initialised at Wed Sep 15 18:34:40 2021
+  last_accessed_text=Wed Sep 15 20:12:47 2021
+  accessed_count=4
+BAR 2
+  Memory already initialised
+  initialised_text=This is BAR two memory initialised at Wed Sep 15 18:34:40 2021
+  last_accessed_text=Wed Sep 15 20:12:47 2021
+  accessed_count=4
+BAR 4
+  Memory already initialised
+  initialised_text=This is BAR four memory initialised at Wed Sep 15 18:34:40 2021
+  last_accessed_text=Wed Sep 15 20:12:47 2021
+  accessed_count=4
+
+
+5. Run ~/fpga_sio-before-git/software_tests/memory_mapped_bar_test/Debug/memory_mapped_bar_test which is a non-checked in
+program which increments increments the first 32-bit word of each memory region
+
+
+6. Run the release build again, which re-initialised the memory after indicating some non-zero bytes:
+Now: Wed Sep 15 20:16:07 2021
+
+BAR 0
+  Uninitialised memory region of 1048576 contains 1048486 zero bytes
+  initialised_text=This is BAR zero memory initialised at Wed Sep 15 20:16:07 2021
+  last_accessed_text=Wed Sep 15 20:16:07 2021
+  accessed_count=1
+BAR 2
+  Uninitialised memory region of 131072 contains 130983 zero bytes
+  initialised_text=This is BAR two memory initialised at Wed Sep 15 20:16:07 2021
+  last_accessed_text=Wed Sep 15 20:16:07 2021
+  accessed_count=1
+BAR 4
+  Uninitialised memory region of 65536 contains 65446 zero bytes
+  initialised_text=This is BAR four memory initialised at Wed Sep 15 20:16:07 2021
+  last_accessed_text=Wed Sep 15 20:16:07 2021
+  accessed_count=1
+
+
+7. Modified the software to report the last_accessed_text if the memory is already initialised, rather than just after modified.
+
+Performed multiple runs of the release build ending with:
+Now: Wed Sep 15 20:28:04 2021
+
+BAR 0
+  Memory already initialised - existing last_accessed_text=Wed Sep 15 20:27:39 2021
+  initialised_text=This is BAR zero memory initialised at Wed Sep 15 20:16:07 2021
+  new last_accessed_text=Wed Sep 15 20:28:04 2021
+  accessed_count=6
+BAR 2
+  Memory already initialised - existing last_accessed_text=Wed Sep 15 20:27:39 2021
+  initialised_text=This is BAR two memory initialised at Wed Sep 15 20:16:07 2021
+  new last_accessed_text=Wed Sep 15 20:28:04 2021
+  accessed_count=6
+BAR 4
+  Memory already initialised - existing last_accessed_text=Wed Sep 15 20:27:39 2021
+  initialised_text=This is BAR four memory initialised at Wed Sep 15 20:16:07 2021
+  new last_accessed_text=Wed Sep 15 20:28:04 2021
+  accessed_count=6
+
+
+8. Verified the FPGA program.
+
+
+9. Running the release build indicated the FPGA verification hadn't changed the memory
+
+Now: Wed Sep 15 20:36:44 2021
+
+BAR 0
+  Memory already initialised - existing last_accessed_text=Wed Sep 15 20:28:04 2021
+  initialised_text=This is BAR zero memory initialised at Wed Sep 15 20:16:07 2021
+  new last_accessed_text=Wed Sep 15 20:36:44 2021
+  accessed_count=7
+BAR 2
+  Memory already initialised - existing last_accessed_text=Wed Sep 15 20:28:04 2021
+  initialised_text=This is BAR two memory initialised at Wed Sep 15 20:16:07 2021
+  new last_accessed_text=Wed Sep 15 20:36:44 2021
+  accessed_count=7
+BAR 4
+  Memory already initialised - existing last_accessed_text=Wed Sep 15 20:28:04 2021
+  initialised_text=This is BAR four memory initialised at Wed Sep 15 20:16:07 2021
+  new last_accessed_text=Wed Sep 15 20:36:44 2021
+  accessed_count=7
+
+
+10. Reloaded the FPGA while the PC was still running CentOS
+
+No errors showed up in dmesg or /var/log/messages but the memory is now reading as all ones:
+
+Now: Wed Sep 15 20:41:32 2021
+
+BAR 0
+  Uninitialised memory region of 1048576 contains 0 zero bytes
+  initialised_text=������������������������������������������������������������������������������������������������������������������������  new last_accessed_text=����������������������������������������  accessed_count=4294967295
+BAR 2
+  Uninitialised memory region of 131072 contains 0 zero bytes
+  initialised_text=������������������������������������������������������������������������������������������������������������������������  new last_accessed_text=����������������������������������������  accessed_count=4294967295
+BAR 4
+  Uninitialised memory region of 65536 contains 0 zero bytes
+  initialised_text=������������������������������������������������������������������������������������������������������������������������  new last_accessed_text=����������������������������������������  accessed_count=4294967295
+
+
+11. Rebooted the PC.
+
+Memory was all zeros:
+Now: Wed Sep 15 20:51:01 2021
+
+BAR 0
+  Uninitialised memory region of 1048576 bytes all zeros
+  initialised_text=This is BAR zero memory initialised at Wed Sep 15 20:51:01 2021
+  new last_accessed_text=Wed Sep 15 20:51:01 2021
+  accessed_count=1
+BAR 2
+  Uninitialised memory region of 131072 bytes all zeros
+  initialised_text=This is BAR two memory initialised at Wed Sep 15 20:51:01 2021
+  new last_accessed_text=Wed Sep 15 20:51:01 2021
+  accessed_count=1
+BAR 4
+  Uninitialised memory region of 65536 bytes all zeros
+  initialised_text=This is BAR four memory initialised at Wed Sep 15 20:51:01 2021
+  new last_accessed_text=Wed Sep 15 20:51:01 2021
+  accessed_count=1
+

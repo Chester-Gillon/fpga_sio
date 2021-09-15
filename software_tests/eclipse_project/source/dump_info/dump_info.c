@@ -11,6 +11,8 @@
 
 #include <pciaccess.h>
 
+#include "fpga_sio_pci_ids.h"
+
 
 int main (int argc, char *argv[])
 {
@@ -25,7 +27,7 @@ int main (int argc, char *argv[])
 
     struct pci_id_match match =
     {
-        .vendor_id = 0x10ee, /* Xilinx */
+        .vendor_id = FPGA_SIO_VENDOR_ID,
         .device_id = PCI_MATCH_ANY,
         .subvendor_id = PCI_MATCH_ANY,
         .subdevice_id = PCI_MATCH_ANY,
@@ -47,7 +49,7 @@ int main (int argc, char *argv[])
                     device->vendor_id, pci_device_get_vendor_name (device),
                     device->device_id, pci_device_get_device_name (device),
                     device->subvendor_id, device->subdevice_id);
-            for (unsigned bar_index = 0; bar_index < 6; bar_index++)
+            for (unsigned bar_index = 0; bar_index < PCI_STD_NUM_BARS; bar_index++)
             {
                 const struct pci_mem_region *const region = &device->regions[bar_index];
 
