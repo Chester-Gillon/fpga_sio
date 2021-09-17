@@ -119,8 +119,8 @@
        reg                   [0:15]     pdu_lfsr_r2; 
        reg                   [0:7]      ifg_size_r; 
        reg                   first_tx_dst_rdy_n;
-       reg                   [0:3]      frame_size_r; 
-       reg                   [0:3]      bytes_sent_r; 
+       reg                   [0:6]      frame_size_r; 
+       reg                   [0:6]      bytes_sent_r; 
        reg    [0:REM_BUS-1]           rem_r;
  
  //State registers for one-hot state machine
@@ -212,7 +212,7 @@
      //Use a counter to determine the size of the next frame to send
      always @(posedge USER_CLK)
          if(RESET_ii)
-             frame_size_r    <=  `DLY    4'h0;
+             frame_size_r    <=  `DLY    4'h7f;
          else if(single_cycle_frame_r || eof_r)
              frame_size_r    <=  `DLY    frame_size_r + 1;
  
