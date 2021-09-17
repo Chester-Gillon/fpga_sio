@@ -1,0 +1,4 @@
+.Xil/
+vivado*.log
+vivado*.jou
+vivado_pid*.str

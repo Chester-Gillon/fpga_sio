@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wave_config>
+   <wave_state>
+   </wave_state>
+   <db_ref_list>
+      <db_ref path="aurora_64b66b_0_TB_behav.wdb" id="1">
+         <top_modules>
+            <top_module name="aurora_64b66b_0_TB" />
+            <top_module name="glbl" />
+         </top_modules>
+      </db_ref>
+   </db_ref_list>
+   <zoom_setting>
+      <ZoomStartTime time="999,999 ps"></ZoomStartTime>
+      <ZoomEndTime time="1,000,002 ps"></ZoomEndTime>
+      <Cursor1Time time="1,000,000 ps"></Cursor1Time>
+   </zoom_setting>
+   <column_width_setting>
+      <NameColumnWidth column_width="175"></NameColumnWidth>
+      <ValueColumnWidth column_width="106"></ValueColumnWidth>
+   </column_width_setting>
+   <WVObjectSize size="63" />
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/reference_clk_1_n_r">
+      <obj_property name="ElementShortName">reference_clk_1_n_r</obj_property>
+      <obj_property name="ObjectShortName">reference_clk_1_n_r</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/reference_clk_2_n_r">
+      <obj_property name="ElementShortName">reference_clk_2_n_r</obj_property>
+      <obj_property name="ObjectShortName">reference_clk_2_n_r</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/init_clk_1_n_r">
+      <obj_property name="ElementShortName">init_clk_1_n_r</obj_property>
+      <obj_property name="ObjectShortName">init_clk_1_n_r</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/init_clk_2_n_r">
+      <obj_property name="ElementShortName">init_clk_2_n_r</obj_property>
+      <obj_property name="ObjectShortName">init_clk_2_n_r</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/drp_clk_1_r">
+      <obj_property name="ElementShortName">drp_clk_1_r</obj_property>
+      <obj_property name="ObjectShortName">drp_clk_1_r</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/drp_clk_2_r">
+      <obj_property name="ElementShortName">drp_clk_2_r</obj_property>
+      <obj_property name="ObjectShortName">drp_clk_2_r</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/drp_clk_1">
+      <obj_property name="ElementShortName">drp_clk_1</obj_property>
+      <obj_property name="ObjectShortName">drp_clk_1</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/drp_clk_2">
+      <obj_property name="ElementShortName">drp_clk_2</obj_property>
+      <obj_property name="ObjectShortName">drp_clk_2</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/gsr_r">
+      <obj_property name="ElementShortName">gsr_r</obj_property>
+      <obj_property name="ObjectShortName">gsr_r</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/gts_r">
+      <obj_property name="ElementShortName">gts_r</obj_property>
+      <obj_property name="ObjectShortName">gts_r</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/reset_tx">
+      <obj_property name="ElementShortName">reset_tx</obj_property>
+      <obj_property name="ObjectShortName">reset_tx</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/reset_rx">
+      <obj_property name="ElementShortName">reset_rx</obj_property>
+      <obj_property name="ObjectShortName">reset_rx</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/pma_init_r">
+      <obj_property name="ElementShortName">pma_init_r</obj_property>
+      <obj_property name="ObjectShortName">pma_init_r</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/gsr_done">
+      <obj_property name="ElementShortName">gsr_done</obj_property>
+      <obj_property name="ObjectShortName">gsr_done</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/reference_clk_1_p_r">
+      <obj_property name="ElementShortName">reference_clk_1_p_r</obj_property>
+      <obj_property name="ObjectShortName">reference_clk_1_p_r</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/reference_clk_2_p_r">
+      <obj_property name="ElementShortName">reference_clk_2_p_r</obj_property>
+      <obj_property name="ObjectShortName">reference_clk_2_p_r</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/init_clk_1_p_r">
+      <obj_property name="ElementShortName">init_clk_1_p_r</obj_property>
+      <obj_property name="ObjectShortName">init_clk_1_p_r</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/init_clk_2_p_r">
+      <obj_property name="ElementShortName">init_clk_2_p_r</obj_property>
+      <obj_property name="ObjectShortName">init_clk_2_p_r</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/tx_hard_err_1_i">
+      <obj_property name="ElementShortName">tx_hard_err_1_i</obj_property>
+      <obj_property name="ObjectShortName">tx_hard_err_1_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/tx_soft_err_1_i">
+      <obj_property name="ElementShortName">tx_soft_err_1_i</obj_property>
+      <obj_property name="ObjectShortName">tx_soft_err_1_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/rx_hard_err_1_i">
+      <obj_property name="ElementShortName">rx_hard_err_1_i</obj_property>
+      <obj_property name="ObjectShortName">rx_hard_err_1_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/soft_err_1_i">
+      <obj_property name="ElementShortName">soft_err_1_i</obj_property>
+      <obj_property name="ObjectShortName">soft_err_1_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/frame_err_1_i">
+      <obj_property name="ElementShortName">frame_err_1_i</obj_property>
+      <obj_property name="ObjectShortName">frame_err_1_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/tx_channel_up_1_i">
+      <obj_property name="ElementShortName">tx_channel_up_1_i</obj_property>
+      <obj_property name="ObjectShortName">tx_channel_up_1_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/tx_lane_up_1_i">
+      <obj_property name="ElementShortName">tx_lane_up_1_i</obj_property>
+      <obj_property name="ObjectShortName">tx_lane_up_1_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/rx_channel_up_1_i">
+      <obj_property name="ElementShortName">rx_channel_up_1_i</obj_property>
+      <obj_property name="ObjectShortName">rx_channel_up_1_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/rx_lane_up_1_i">
+      <obj_property name="ElementShortName">rx_lane_up_1_i</obj_property>
+      <obj_property name="ObjectShortName">rx_lane_up_1_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/rxp_1_i">
+      <obj_property name="ElementShortName">rxp_1_i</obj_property>
+      <obj_property name="ObjectShortName">rxp_1_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/rxn_1_i">
+      <obj_property name="ElementShortName">rxn_1_i</obj_property>
+      <obj_property name="ObjectShortName">rxn_1_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/txp_1_i">
+      <obj_property name="ElementShortName">txp_1_i</obj_property>
+      <obj_property name="ObjectShortName">txp_1_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/txn_1_i">
+      <obj_property name="ElementShortName">txn_1_i</obj_property>
+      <obj_property name="ObjectShortName">txn_1_i</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/aurora_64b66b_0_TB/data_err_count_1_o">
+      <obj_property name="ElementShortName">data_err_count_1_o[0:7]</obj_property>
+      <obj_property name="ObjectShortName">data_err_count_1_o[0:7]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/tx_hard_err_2_i">
+      <obj_property name="ElementShortName">tx_hard_err_2_i</obj_property>
+      <obj_property name="ObjectShortName">tx_hard_err_2_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/tx_soft_err_2_i">
+      <obj_property name="ElementShortName">tx_soft_err_2_i</obj_property>
+      <obj_property name="ObjectShortName">tx_soft_err_2_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/rx_hard_err_2_i">
+      <obj_property name="ElementShortName">rx_hard_err_2_i</obj_property>
+      <obj_property name="ObjectShortName">rx_hard_err_2_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/soft_err_2_i">
+      <obj_property name="ElementShortName">soft_err_2_i</obj_property>
+      <obj_property name="ObjectShortName">soft_err_2_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/frame_err_2_i">
+      <obj_property name="ElementShortName">frame_err_2_i</obj_property>
+      <obj_property name="ObjectShortName">frame_err_2_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/tx_channel_up_2_i">
+      <obj_property name="ElementShortName">tx_channel_up_2_i</obj_property>
+      <obj_property name="ObjectShortName">tx_channel_up_2_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/tx_lane_up_2_i">
+      <obj_property name="ElementShortName">tx_lane_up_2_i</obj_property>
+      <obj_property name="ObjectShortName">tx_lane_up_2_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/rx_channel_up_2_i">
+      <obj_property name="ElementShortName">rx_channel_up_2_i</obj_property>
+      <obj_property name="ObjectShortName">rx_channel_up_2_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/rx_lane_up_2_i">
+      <obj_property name="ElementShortName">rx_lane_up_2_i</obj_property>
+      <obj_property name="ObjectShortName">rx_lane_up_2_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/rxp_2_i">
+      <obj_property name="ElementShortName">rxp_2_i</obj_property>
+      <obj_property name="ObjectShortName">rxp_2_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/rxn_2_i">
+      <obj_property name="ElementShortName">rxn_2_i</obj_property>
+      <obj_property name="ObjectShortName">rxn_2_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/txp_2_i">
+      <obj_property name="ElementShortName">txp_2_i</obj_property>
+      <obj_property name="ObjectShortName">txp_2_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/txn_2_i">
+      <obj_property name="ElementShortName">txn_2_i</obj_property>
+      <obj_property name="ObjectShortName">txn_2_i</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/aurora_64b66b_0_TB/data_err_count_2_o">
+      <obj_property name="ElementShortName">data_err_count_2_o[0:7]</obj_property>
+      <obj_property name="ObjectShortName">data_err_count_2_o[0:7]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/crc_pass_fail_n_1">
+      <obj_property name="ElementShortName">crc_pass_fail_n_1</obj_property>
+      <obj_property name="ObjectShortName">crc_pass_fail_n_1</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/crc_pass_fail_n_2">
+      <obj_property name="ElementShortName">crc_pass_fail_n_2</obj_property>
+      <obj_property name="ObjectShortName">crc_pass_fail_n_2</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/crc_valid_1">
+      <obj_property name="ElementShortName">crc_valid_1</obj_property>
+      <obj_property name="ObjectShortName">crc_valid_1</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/crc_valid_2">
+      <obj_property name="ElementShortName">crc_valid_2</obj_property>
+      <obj_property name="ObjectShortName">crc_valid_2</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/flag_rxtvalid1">
+      <obj_property name="ElementShortName">flag_rxtvalid1</obj_property>
+      <obj_property name="ObjectShortName">flag_rxtvalid1</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/flag_rxtvalid2">
+      <obj_property name="ElementShortName">flag_rxtvalid2</obj_property>
+      <obj_property name="ObjectShortName">flag_rxtvalid2</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/channel_up1">
+      <obj_property name="ElementShortName">channel_up1</obj_property>
+      <obj_property name="ObjectShortName">channel_up1</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/channel_up2">
+      <obj_property name="ElementShortName">channel_up2</obj_property>
+      <obj_property name="ObjectShortName">channel_up2</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/channel_up3">
+      <obj_property name="ElementShortName">channel_up3</obj_property>
+      <obj_property name="ObjectShortName">channel_up3</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/channel_up4">
+      <obj_property name="ElementShortName">channel_up4</obj_property>
+      <obj_property name="ObjectShortName">channel_up4</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/flag">
+      <obj_property name="ElementShortName">flag</obj_property>
+      <obj_property name="ObjectShortName">flag</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/flag_1">
+      <obj_property name="ElementShortName">flag_1</obj_property>
+      <obj_property name="ObjectShortName">flag_1</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/flag_2">
+      <obj_property name="ElementShortName">flag_2</obj_property>
+      <obj_property name="ObjectShortName">flag_2</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/flag_3">
+      <obj_property name="ElementShortName">flag_3</obj_property>
+      <obj_property name="ObjectShortName">flag_3</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/flag_4">
+      <obj_property name="ElementShortName">flag_4</obj_property>
+      <obj_property name="ObjectShortName">flag_4</obj_property>
+   </wvobject>
+   <wvobject type="group" fp_name="group236">
+      <obj_property name="label">frame gen 1</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <obj_property name="isExpanded"></obj_property>
+      <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/aurora_example_1_i/\ll_to_axi_core_traffic.frame_gen_ll_to_axi_data_i /axis_reg_i/aclk">
+         <obj_property name="ElementShortName">aclk</obj_property>
+         <obj_property name="ObjectShortName">aclk</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/aurora_example_1_i/\ll_to_axi_core_traffic.frame_gen_ll_to_axi_data_i /axis_reg_i/s_axis_tready">
+         <obj_property name="ElementShortName">s_axis_tready</obj_property>
+         <obj_property name="ObjectShortName">s_axis_tready</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/aurora_example_1_i/\ll_to_axi_core_traffic.frame_gen_ll_to_axi_data_i /axis_reg_i/s_axis_tvalid">
+         <obj_property name="ElementShortName">s_axis_tvalid</obj_property>
+         <obj_property name="ObjectShortName">s_axis_tvalid</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/aurora_example_1_i/\ll_to_axi_core_traffic.frame_gen_ll_to_axi_data_i /axis_reg_i/s_axis_tlast">
+         <obj_property name="ElementShortName">s_axis_tlast</obj_property>
+         <obj_property name="ObjectShortName">s_axis_tlast</obj_property>
+      </wvobject>
+      <wvobject type="array" fp_name="/aurora_64b66b_0_TB/aurora_example_1_i/\ll_to_axi_core_traffic.frame_gen_ll_to_axi_data_i /axis_reg_i/s_axis_tdata">
+         <obj_property name="ElementShortName">s_axis_tdata[63:0]</obj_property>
+         <obj_property name="ObjectShortName">s_axis_tdata[63:0]</obj_property>
+      </wvobject>
+      <wvobject type="array" fp_name="/aurora_64b66b_0_TB/aurora_example_1_i/\ll_to_axi_core_traffic.frame_gen_ll_to_axi_data_i /axis_reg_i/s_axis_tkeep">
+         <obj_property name="ElementShortName">s_axis_tkeep[7:0]</obj_property>
+         <obj_property name="ObjectShortName">s_axis_tkeep[7:0]</obj_property>
+      </wvobject>
+   </wvobject>
+   <wvobject type="group" fp_name="group244">
+      <obj_property name="label">frame gen 2</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <obj_property name="isExpanded"></obj_property>
+      <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/aurora_example_2_i/\ll_to_axi_core_traffic.frame_gen_ll_to_axi_data_i /axis_reg_i/aclk">
+         <obj_property name="ElementShortName">aclk</obj_property>
+         <obj_property name="ObjectShortName">aclk</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/aurora_example_2_i/\ll_to_axi_core_traffic.frame_gen_ll_to_axi_data_i /axis_reg_i/s_axis_tready">
+         <obj_property name="ElementShortName">s_axis_tready</obj_property>
+         <obj_property name="ObjectShortName">s_axis_tready</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/aurora_example_2_i/\ll_to_axi_core_traffic.frame_gen_ll_to_axi_data_i /axis_reg_i/s_axis_tvalid">
+         <obj_property name="ElementShortName">s_axis_tvalid</obj_property>
+         <obj_property name="ObjectShortName">s_axis_tvalid</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/aurora_64b66b_0_TB/aurora_example_2_i/\ll_to_axi_core_traffic.frame_gen_ll_to_axi_data_i /axis_reg_i/s_axis_tlast">
+         <obj_property name="ElementShortName">s_axis_tlast</obj_property>
+         <obj_property name="ObjectShortName">s_axis_tlast</obj_property>
+      </wvobject>
+      <wvobject type="array" fp_name="/aurora_64b66b_0_TB/aurora_example_2_i/\ll_to_axi_core_traffic.frame_gen_ll_to_axi_data_i /axis_reg_i/s_axis_tkeep">
+         <obj_property name="ElementShortName">s_axis_tkeep[7:0]</obj_property>
+         <obj_property name="ObjectShortName">s_axis_tkeep[7:0]</obj_property>
+      </wvobject>
+      <wvobject type="array" fp_name="/aurora_64b66b_0_TB/aurora_example_2_i/\ll_to_axi_core_traffic.frame_gen_ll_to_axi_data_i /axis_reg_i/s_axis_tdata">
+         <obj_property name="ElementShortName">s_axis_tdata[63:0]</obj_property>
+         <obj_property name="ObjectShortName">s_axis_tdata[63:0]</obj_property>
+      </wvobject>
+   </wvobject>
+</wave_config>
