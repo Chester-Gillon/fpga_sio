@@ -119,9 +119,12 @@ int main (int argc, char *argv[])
                         }
                         else
                         {
-                            /* The memory doesn't start with the initialised text, determine if all zeros to see if blkram starts
-                             * from a known value */
+                            /* The memory doesn't start with the initialised text, determine if:
+                             * a. All zeros to see if blkram starts from a known value.
+                             * b. All ones to see the effect of a surprise PCIe device removal caused by re-loading the FPGA
+                             *    after Linux has booted. */
                             pciaddr_t num_zero_bytes = 0;
+                            pciaddr_t num_all_ones_bytes = 0;
                             const uint8_t *const memory_bytes = addr;
 
                             for (pciaddr_t byte_index = 0; byte_index < region->size; byte_index++)
@@ -129,6 +132,10 @@ int main (int argc, char *argv[])
                                 if (memory_bytes[byte_index] == 0)
                                 {
                                     num_zero_bytes++;
+                                }
+                                else if (memory_bytes[byte_index] == 0xff)
+                                {
+                                    num_all_ones_bytes++;
                                 }
                             }
 
@@ -138,8 +145,8 @@ int main (int argc, char *argv[])
                             }
                             else
                             {
-                                printf ("  Uninitialised memory region of %" PRIu64 " contains %" PRIu64 " zero bytes\n",
-                                        region->size, num_zero_bytes);
+                                printf ("  Uninitialised memory region of %" PRIu64 " contains %" PRIu64 " zero bytes and %" PRIu64 " 0xff bytes\n",
+                                        region->size, num_zero_bytes, num_all_ones_bytes);
                             }
 
                             /* Initialise the memory */
