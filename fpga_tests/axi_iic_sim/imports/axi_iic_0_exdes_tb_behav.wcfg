@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wave_config>
+   <wave_state>
+   </wave_state>
+   <db_ref_list>
+      <db_ref path="axi_iic_0_exdes_tb_behav.wdb" id="1">
+         <top_modules>
+            <top_module name="axi_iic_0_exdes_tb" />
+            <top_module name="glbl" />
+            <top_module name="iic_pkg" />
+            <top_module name="ipif_pkg" />
+         </top_modules>
+      </db_ref>
+   </db_ref_list>
+   <zoom_setting>
+      <ZoomStartTime time="0.000000 us"></ZoomStartTime>
+      <ZoomEndTime time="476.812501 us"></ZoomEndTime>
+      <Cursor1Time time="70.327320 us"></Cursor1Time>
+   </zoom_setting>
+   <column_width_setting>
+      <NameColumnWidth column_width="175"></NameColumnWidth>
+      <ValueColumnWidth column_width="102"></ValueColumnWidth>
+   </column_width_setting>
+   <WVObjectSize size="45" />
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/clock">
+      <obj_property name="ElementShortName">clock</obj_property>
+      <obj_property name="ObjectShortName">clock</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/clock_n">
+      <obj_property name="ElementShortName">clock_n</obj_property>
+      <obj_property name="ObjectShortName">clock_n</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/reset">
+      <obj_property name="ElementShortName">reset</obj_property>
+      <obj_property name="ObjectShortName">reset</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/start">
+      <obj_property name="ElementShortName">start</obj_property>
+      <obj_property name="ObjectShortName">start</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/status">
+      <obj_property name="ElementShortName">status</obj_property>
+      <obj_property name="ObjectShortName">status</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/test">
+      <obj_property name="ElementShortName">test</obj_property>
+      <obj_property name="ObjectShortName">test</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/done">
+      <obj_property name="ElementShortName">done</obj_property>
+      <obj_property name="ObjectShortName">done</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/axi_iic_0_exdes_tb/led">
+      <obj_property name="ElementShortName">led[0:0]</obj_property>
+      <obj_property name="ObjectShortName">led[0:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/axi_iic_0_exdes_tb/all_zero">
+      <obj_property name="ElementShortName">all_zero[0:0]</obj_property>
+      <obj_property name="ObjectShortName">all_zero[0:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/scl_io">
+      <obj_property name="ElementShortName">scl_io</obj_property>
+      <obj_property name="ObjectShortName">scl_io</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/sda_io">
+      <obj_property name="ElementShortName">sda_io</obj_property>
+      <obj_property name="ObjectShortName">sda_io</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/scl_o">
+      <obj_property name="ElementShortName">scl_o</obj_property>
+      <obj_property name="ObjectShortName">scl_o</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/scl_i">
+      <obj_property name="ElementShortName">scl_i</obj_property>
+      <obj_property name="ObjectShortName">scl_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/scl_tri">
+      <obj_property name="ElementShortName">scl_tri</obj_property>
+      <obj_property name="ObjectShortName">scl_tri</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/sda_o">
+      <obj_property name="ElementShortName">sda_o</obj_property>
+      <obj_property name="ObjectShortName">sda_o</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/sda_i">
+      <obj_property name="ElementShortName">sda_i</obj_property>
+      <obj_property name="ObjectShortName">sda_i</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/sda_tri">
+      <obj_property name="ElementShortName">sda_tri</obj_property>
+      <obj_property name="ObjectShortName">sda_tri</obj_property>
+   </wvobject>
+   <wvobject type="group" fp_name="group51">
+      <obj_property name="label">AXI_IIC interface</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <obj_property name="isExpanded"></obj_property>
+      <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/DUT_TB/DUT/U0/X_IIC/Sda_I">
+         <obj_property name="ElementShortName">Sda_I</obj_property>
+         <obj_property name="ObjectShortName">Sda_I</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/DUT_TB/DUT/U0/X_IIC/Sda_O">
+         <obj_property name="ElementShortName">Sda_O</obj_property>
+         <obj_property name="ObjectShortName">Sda_O</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/DUT_TB/DUT/U0/X_IIC/Sda_T">
+         <obj_property name="ElementShortName">Sda_T</obj_property>
+         <obj_property name="ObjectShortName">Sda_T</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/DUT_TB/DUT/U0/X_IIC/Scl_I">
+         <obj_property name="ElementShortName">Scl_I</obj_property>
+         <obj_property name="ObjectShortName">Scl_I</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/DUT_TB/DUT/U0/X_IIC/Scl_O">
+         <obj_property name="ElementShortName">Scl_O</obj_property>
+         <obj_property name="ObjectShortName">Scl_O</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/DUT_TB/DUT/U0/X_IIC/Scl_T">
+         <obj_property name="ElementShortName">Scl_T</obj_property>
+         <obj_property name="ObjectShortName">Scl_T</obj_property>
+      </wvobject>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/start_det">
+      <obj_property name="ElementShortName">start_det</obj_property>
+      <obj_property name="ObjectShortName">start_det</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/stop_det">
+      <obj_property name="ElementShortName">stop_det</obj_property>
+      <obj_property name="ObjectShortName">stop_det</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/address_det">
+      <obj_property name="ElementShortName">address_det</obj_property>
+      <obj_property name="ObjectShortName">address_det</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/add_ack">
+      <obj_property name="ElementShortName">add_ack</obj_property>
+      <obj_property name="ObjectShortName">add_ack</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/axi_iic_0_exdes_tb/address">
+      <obj_property name="ElementShortName">address[7:0]</obj_property>
+      <obj_property name="ObjectShortName">address[7:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/axi_iic_0_exdes_tb/address2">
+      <obj_property name="ElementShortName">address2[7:0]</obj_property>
+      <obj_property name="ObjectShortName">address2[7:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/command_det">
+      <obj_property name="ElementShortName">command_det</obj_property>
+      <obj_property name="ObjectShortName">command_det</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/command_ack">
+      <obj_property name="ElementShortName">command_ack</obj_property>
+      <obj_property name="ObjectShortName">command_ack</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/axi_iic_0_exdes_tb/command">
+      <obj_property name="ElementShortName">command[7:0]</obj_property>
+      <obj_property name="ObjectShortName">command[7:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/rd_addr_det">
+      <obj_property name="ElementShortName">rd_addr_det</obj_property>
+      <obj_property name="ObjectShortName">rd_addr_det</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/rd_addr_ack">
+      <obj_property name="ElementShortName">rd_addr_ack</obj_property>
+      <obj_property name="ObjectShortName">rd_addr_ack</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/axi_iic_0_exdes_tb/rd_addr">
+      <obj_property name="ElementShortName">rd_addr[7:0]</obj_property>
+      <obj_property name="ObjectShortName">rd_addr[7:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/axi_iic_0_exdes_tb/rd_addr2">
+      <obj_property name="ElementShortName">rd_addr2[7:0]</obj_property>
+      <obj_property name="ObjectShortName">rd_addr2[7:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/repeat_start">
+      <obj_property name="ElementShortName">repeat_start</obj_property>
+      <obj_property name="ObjectShortName">repeat_start</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/axi_iic_0_exdes_tb/read_data">
+      <obj_property name="ElementShortName">read_data[7:0]</obj_property>
+      <obj_property name="ObjectShortName">read_data[7:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/axi_iic_0_exdes_tb/read_data2">
+      <obj_property name="ElementShortName">read_data2[7:0]</obj_property>
+      <obj_property name="ObjectShortName">read_data2[7:0]</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/first_byte">
+      <obj_property name="ElementShortName">first_byte</obj_property>
+      <obj_property name="ObjectShortName">first_byte</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/second_byte">
+      <obj_property name="ElementShortName">second_byte</obj_property>
+      <obj_property name="ObjectShortName">second_byte</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/first_ack_from_i2c">
+      <obj_property name="ElementShortName">first_ack_from_i2c</obj_property>
+      <obj_property name="ObjectShortName">first_ack_from_i2c</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/second_ack_from_i2c">
+      <obj_property name="ElementShortName">second_ack_from_i2c</obj_property>
+      <obj_property name="ObjectShortName">second_ack_from_i2c</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/tb_stop">
+      <obj_property name="ElementShortName">tb_stop</obj_property>
+      <obj_property name="ObjectShortName">tb_stop</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/a">
+      <obj_property name="ElementShortName">a</obj_property>
+      <obj_property name="ObjectShortName">a</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/b">
+      <obj_property name="ElementShortName">b</obj_property>
+      <obj_property name="ObjectShortName">b</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/a_ack">
+      <obj_property name="ElementShortName">a_ack</obj_property>
+      <obj_property name="ObjectShortName">a_ack</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/b_ack">
+      <obj_property name="ElementShortName">b_ack</obj_property>
+      <obj_property name="ObjectShortName">b_ack</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/scl_int">
+      <obj_property name="ElementShortName">scl_int</obj_property>
+      <obj_property name="ObjectShortName">scl_int</obj_property>
+   </wvobject>
+   <wvobject type="other" fp_name="/axi_iic_0_exdes_tb/clk_per">
+      <obj_property name="ElementShortName">clk_per</obj_property>
+      <obj_property name="ObjectShortName">clk_per</obj_property>
+   </wvobject>
+</wave_config>
