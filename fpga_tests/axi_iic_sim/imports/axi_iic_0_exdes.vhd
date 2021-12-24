@@ -147,6 +147,35 @@ COMPONENT axi_iic_0 is
   );
 END COMPONENT;
 
+COMPONENT SCF1001_0 is
+port ( 
+  --
+  -- External I2C
+  --
+  ext_sda_i      : in  std_logic;
+  ext_sda_o      : out std_logic;
+  ext_sda_t      : out std_logic;
+  ext_scl_i      : in  std_logic;
+  ext_scl_o      : out std_logic;
+  ext_scl_t      : out std_logic;
+
+
+	--	
+	CPLD_1_SCL  :  out std_logic; --
+	CPLD_14_OE  :  out std_logic; --
+	CPLD_16_SDA :  in std_logic; --
+    --
+    -- Connect to EMIO I2C1
+    --
+	sda_i      : out  std_logic;
+	sda_o      : in std_logic;
+	sda_t      : in std_logic;
+	scl_i      : out  std_logic;
+	scl_o      : in std_logic;
+	scl_t      : in std_logic
+	);
+end COMPONENT;
+
 
 signal    m_axi_lite_awready          :  std_logic                         ;-- AXI4-Lite
 signal    m_axi_lite_awvalid          :  std_logic                         ;-- AXI4-Lite
@@ -199,6 +228,26 @@ begin
 
 four_vcc <= "1111";
 all_zero <= (others => '0');
+
+CPLD_I2C : SCF1001_0
+    port map (
+        sda_i => open,
+        sda_o => sda_o,
+        sda_t => sda_tri,
+        scl_i => open,
+        scl_o => scl_o,
+        scl_t => scl_tri,
+        
+        CPLD_1_SCL => open,
+        CPLD_14_OE => open,
+        CPLD_16_SDA => sda_io,
+        
+        ext_sda_i => '1',
+        ext_sda_o => open,
+        ext_sda_t => open,
+        ext_scl_i => '1',
+        ext_scl_o => open,
+        ext_scl_t => open);
 
 CLOCK_GEN_INST : clock_gen 
          port map (

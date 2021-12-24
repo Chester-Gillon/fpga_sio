@@ -15,13 +15,13 @@
    <zoom_setting>
       <ZoomStartTime time="0.000000 us"></ZoomStartTime>
       <ZoomEndTime time="476.812501 us"></ZoomEndTime>
-      <Cursor1Time time="70.327320 us"></Cursor1Time>
+      <Cursor1Time time="476.812500 us"></Cursor1Time>
    </zoom_setting>
    <column_width_setting>
       <NameColumnWidth column_width="175"></NameColumnWidth>
-      <ValueColumnWidth column_width="102"></ValueColumnWidth>
+      <ValueColumnWidth column_width="98"></ValueColumnWidth>
    </column_width_setting>
-   <WVObjectSize size="45" />
+   <WVObjectSize size="46" />
    <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/clock">
       <obj_property name="ElementShortName">clock</obj_property>
       <obj_property name="ObjectShortName">clock</obj_property>
@@ -117,6 +117,31 @@
       <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/DUT_TB/DUT/U0/X_IIC/Scl_T">
          <obj_property name="ElementShortName">Scl_T</obj_property>
          <obj_property name="ObjectShortName">Scl_T</obj_property>
+      </wvobject>
+   </wvobject>
+   <wvobject type="group" fp_name="group106">
+      <obj_property name="label">CPLD_I2C</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <obj_property name="isExpanded"></obj_property>
+      <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/DUT_TB/CPLD_I2C/CPLD_1_SCL">
+         <obj_property name="ElementShortName">CPLD_1_SCL</obj_property>
+         <obj_property name="ObjectShortName">CPLD_1_SCL</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/DUT_TB/CPLD_I2C/CPLD_14_OE">
+         <obj_property name="ElementShortName">CPLD_14_OE</obj_property>
+         <obj_property name="ObjectShortName">CPLD_14_OE</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/DUT_TB/CPLD_I2C/CPLD_16_SDA">
+         <obj_property name="ElementShortName">CPLD_16_SDA</obj_property>
+         <obj_property name="ObjectShortName">CPLD_16_SDA</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/DUT_TB/CPLD_I2C/scl_i">
+         <obj_property name="ElementShortName">scl_i</obj_property>
+         <obj_property name="ObjectShortName">scl_i</obj_property>
+      </wvobject>
+      <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/DUT_TB/CPLD_I2C/sda_i">
+         <obj_property name="ElementShortName">sda_i</obj_property>
+         <obj_property name="ObjectShortName">sda_i</obj_property>
       </wvobject>
    </wvobject>
    <wvobject type="logic" fp_name="/axi_iic_0_exdes_tb/start_det">
