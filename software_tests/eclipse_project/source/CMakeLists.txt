@@ -1,7 +1,18 @@
 # Top level CMake file
 
 project (software_tests C CXX)
-cmake_minimum_required (VERSION 2.8)
+# This project was originally created in CentOS 6 with cmake 2.18.12.2, and the minimum version specified below
+# was 2.8.
+#
+# When using cmake 3.20.2 in AlmaLinux got the message:
+#   CMake Deprecation Warning at CMakeLists.txt:4 (cmake_minimum_required):
+#     Compatibility with CMake < 2.8.12 will be removed from a future version of
+#     CMake.
+#
+# To support the older and newer CMake versions bumped the minimum up to 2.8.12.
+# @todo on the effect of compatiblity between different CMake versions and the functionality in the different CMake
+# files.
+cmake_minimum_required (VERSION 2.8.12)
 
 # Set platform build flags
 if ("${PLATFORM_TYPE}" STREQUAL "debug")
