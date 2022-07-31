@@ -12,14 +12,17 @@ do
     echo "Giving user permission to PCI resources for $(basename ${xilinx_pci_dir}) [${subsys_vendor#0x}:${subsys_id#0x}]"
     sudo chmod o+rw ${xilinx_pci_dir}/resource[0-6]*
 
-    # Enable the PCI device if left disabled at boot.
-    # While there is the libpciaccess pci_device_enable() function which can do this from a program, giving
-    # user write permission to the enable file isn't sufficient to use the user permission to enable the device.
-    # Think the user process needs the CAP_SYS_ADMIN capability.
-    enable_value=$(< ${xilinx_pci_dir}/enable)
-    if [ ${enable_value} -eq 0 ]
+    # Enable the PCI device response in Memory space, if left disabled at boot 
+    # (as seems to be the case when UEFI mode is enabled).
+    #
+    # If the PCI device is left with response in Memory space attempts to access the BARs results in:
+    # - Reads returning all 0xff's
+    # - Writes having no effect
+    PCI_COMMAND_MEMORY=2 # Enable response in Memory space
+    cmd=0x`setpci -s $(basename ${xilinx_pci_dir}) COMMAND`
+    if [ $((${cmd} & 0x${PCI_COMMAND_MEMORY})) -eq 0 ]
     then
-        echo "Enabling PCI device for $(basename ${xilinx_pci_dir}) [${subsys_vendor#0x}:${subsys_id#0x}]"
-        echo 1 | sudo tee ${xilinx_pci_dir}/enable
+        sudo setpci -s $(basename ${xilinx_pci_dir}) COMMAND=${PCI_COMMAND_MEMORY}:${PCI_COMMAND_MEMORY}
+        echo "Enabling reponse in Memory space for $(basename ${xilinx_pci_dir}) [${subsys_vendor#0x}:${subsys_id#0x}]"
     fi
 done
