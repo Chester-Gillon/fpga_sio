@@ -5,6 +5,17 @@
  * @brief Perform a test of FPGA memory mapped persistence
  * @details Where persistence means if the memory in different BARs can maintain it's content between runs of this program
  *          and across reboots of the PC.
+ *
+ *          Did try and add code to parse /proc/self/pagemap to resolve the virtual address of the BAR mapping
+ *          to the physical address. However:
+ *          a. When tested with a 3.10.33-rt32.33.el6rt.x86_64 Kernel from Scientific Linux 6.6 the reported
+ *             physical address appeared "random". I.e. a non-zero value which seemed to be RAM.
+ *          b. When tested with a 4.18.0-372.16.1.el8_6.x86_64 Kernel from AlmaLinux 8.6 the reported physical
+ *             address was zero.
+ *
+ *          https://unix.stackexchange.com/questions/284017/pagemap-on-memory-mapped-devices-not-working
+ *          explains that for memory mapped devices the mapping doesn't have a struct page associated with
+ *          them, and so the pagemap interface can't report the physical address.
  */
 
 #include <stdlib.h>
