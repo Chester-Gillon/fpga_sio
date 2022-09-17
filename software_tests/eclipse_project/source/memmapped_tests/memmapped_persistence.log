@@ -193,3 +193,54 @@ BAR 4
   new last_accessed_text=Wed Sep 15 20:51:01 2021
   accessed_count=1
 
+
+12. Booted the PC with AlmaLinux 8.6 and the memmapped_blkram FPGA image loaded.
+
+Ran the memmapped_persistence program compiled for release, which detected the memory was all zeros and initialised it:
+[mr_halfword@haswell-alma release]$ ~/fpga_sio/software_tests/eclipse_project/set_pci_resource_user_permission.sh 
+Giving user permission to PCI resources for 0000:01:00.0 [0002:0001]
+[sudo] password for mr_halfword: 
+Enabling reponse in Memory space for 0000:01:00.0 [0002:0001]
+[mr_halfword@haswell-alma release]$ memmapped_tests/memmapped_persistence 
+Now: Sat Sep 17 18:30:06 2022
+
+BAR 0
+  Uninitialised memory region of 1048576 bytes all zeros
+  Total time for byte reads from memory region = 117485064 ns, or average of 112 ns per byte
+  initialised_text=This is BAR zero memory initialised at Sat Sep 17 18:30:06 2022
+  new last_accessed_text=Sat Sep 17 18:30:06 2022
+  accessed_count=1
+BAR 2
+  Uninitialised memory region of 131072 bytes all zeros
+  Total time for byte reads from memory region = 14756261 ns, or average of 112 ns per byte
+  initialised_text=This is BAR two memory initialised at Sat Sep 17 18:30:06 2022
+  new last_accessed_text=Sat Sep 17 18:30:06 2022
+  accessed_count=1
+BAR 4
+  Uninitialised memory region of 65536 bytes all zeros
+  Total time for byte reads from memory region = 7116095 ns, or average of 108 ns per byte
+  initialised_text=This is BAR four memory initialised at Sat Sep 17 18:30:06 2022
+  new last_accessed_text=Sat Sep 17 18:30:06 2022
+  accessed_count=1
+
+Used the Xilinx hardware manager to reload the FPGA from the configuration device.
+As per the previous tests this causes the memory to readback as all-ones.
+
+However, the average time for each byte read is the same as when the memory was working.
+I.e. isn't running into a long timeout. Not sure where in the PCIe topology that read return all-ones after
+a surprise removal/reset of a PCIe endpoint:
+[mr_halfword@haswell-alma release]$ memmapped_tests/memmapped_persistence 
+Now: Sat Sep 17 18:30:47 2022
+
+BAR 0
+  Uninitialised memory region of 1048576 contains 0 zero bytes and 1048576 0xff bytes
+  Total time for byte reads from memory region = 110354376 ns, or average of 105 ns per byte
+  initialised_text=������������������������������������������������������������������������������������������������������������������������  new last_accessed_text=����������������������������������������  accessed_count=4294967295
+BAR 2
+  Uninitialised memory region of 131072 contains 0 zero bytes and 131072 0xff bytes
+  Total time for byte reads from memory region = 13634746 ns, or average of 104 ns per byte
+  initialised_text=������������������������������������������������������������������������������������������������������������������������  new last_accessed_text=����������������������������������������  accessed_count=4294967295
+BAR 4
+  Uninitialised memory region of 65536 contains 0 zero bytes and 65536 0xff bytes
+  Total time for byte reads from memory region = 6860506 ns, or average of 104 ns per byte
+  initialised_text=������������������������������������������������������������������������������������������������������������������������  new last_accessed_text=����������������������������������������  accessed_count=4294967295

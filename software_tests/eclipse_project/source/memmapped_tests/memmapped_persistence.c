@@ -137,7 +137,10 @@ int main (int argc, char *argv[])
                             pciaddr_t num_zero_bytes = 0;
                             pciaddr_t num_all_ones_bytes = 0;
                             const uint8_t *const memory_bytes = addr;
+                            struct timespec start_time;
+                            struct timespec end_time;
 
+                            clock_gettime (CLOCK_MONOTONIC, &start_time);
                             for (pciaddr_t byte_index = 0; byte_index < region->size; byte_index++)
                             {
                                 if (memory_bytes[byte_index] == 0)
@@ -149,6 +152,11 @@ int main (int argc, char *argv[])
                                     num_all_ones_bytes++;
                                 }
                             }
+                            clock_gettime (CLOCK_MONOTONIC, &end_time);
+
+                            const int64_t start_time_ns = (start_time.tv_sec * 1000000000LL) + start_time.tv_nsec;
+                            const int64_t end_time_ns = (end_time.tv_sec * 1000000000LL) + end_time.tv_nsec;
+                            const int64_t read_duration_ns = end_time_ns - start_time_ns;
 
                             if (num_zero_bytes == region->size)
                             {
@@ -159,6 +167,8 @@ int main (int argc, char *argv[])
                                 printf ("  Uninitialised memory region of %" PRIu64 " contains %" PRIu64 " zero bytes and %" PRIu64 " 0xff bytes\n",
                                         region->size, num_zero_bytes, num_all_ones_bytes);
                             }
+                            printf ("  Total time for byte reads from memory region = %" PRIi64 " ns, or average of %" PRIi64 " ns per byte\n",
+                                    read_duration_ns, read_duration_ns / region->size);
 
                             /* Initialise the memory */
                             (void) snprintf (mapping->initialised_text, sizeof (mapping->initialised_text), "%s%s",
