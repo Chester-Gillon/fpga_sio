@@ -1,5 +1,5 @@
 /*
- * @file dump_info.c
+ * @file dump_info_libpciaccess.c
  * @date Sep 5, 2021
  * @author Chester Gillon
  * @brief Simple test of using libpciaccess to dump information about a PCIe device
