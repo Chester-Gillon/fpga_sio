@@ -10,3 +10,5 @@ target_link_libraries (dump_info_pciutils pci)
 
 add_executable (display_physical_slots "display_physical_slots.c")
 target_link_libraries (display_physical_slots pci)
+
+add_executable (display_vfio_information "display_vfio_information.c")
