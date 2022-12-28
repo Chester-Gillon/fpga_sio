@@ -30,10 +30,8 @@
 /**
  * @brief Display if a VFIO extension is supported or not, where 1 means supported
  */
-#define DISPLAY_EXTENSION_SUPPORT(vfio_file_fd,extension,supported) \
-    display_extension_support (vfio_file_fd, extension, #extension, supported)
-static void display_extension_support (const int vfio_file_fd, const __u32 extension,
-                                       const char *const name, bool *const supported)
+#define DISPLAY_EXTENSION_SUPPORT(vfio_file_fd,extension) display_extension_support (vfio_file_fd, extension, #extension)
+static void display_extension_support (const int vfio_file_fd, const __u32 extension, const char *const name)
 {
     int saved_errno;
     int rc;
@@ -50,12 +48,149 @@ static void display_extension_support (const int vfio_file_fd, const __u32 exten
     {
         printf ("\n");
     }
+}
 
-    if (supported != NULL)
+
+/**
+ * @brief Display the capabilities of as type1 IOMMU
+ * @details The conditional compilation is to support compiling under Ubuntu 18.04.6 LTS
+ */
+static void display_type1_iommu_capabilities (const int container_fd)
+{
+    int rc;
+    struct vfio_iommu_type1_info iommu_info_get_size;
+    struct vfio_iommu_type1_info *iommu_info;
+    uint64_t page_size;
+
+    /* Determine the size required to get the capabilities for the IOMMU.
+     * This updates the argsz to indicate how much space is required. */
+    memset (&iommu_info_get_size, 0, sizeof iommu_info_get_size);
+    iommu_info_get_size.argsz = sizeof (iommu_info_get_size);
+    rc = ioctl (container_fd, VFIO_IOMMU_GET_INFO, &iommu_info_get_size);
+    if (rc != 0)
     {
-        *supported = rc > 0;
+        printf ("  VFIO_IOMMU_GET_INFO failed : %s\n", strerror (errno));
+        return;
+    }
+
+    /* Allocate a structure of the required size for the IOMMU information, and get it */
+    iommu_info = calloc (iommu_info_get_size.argsz, 1);
+    iommu_info->argsz = iommu_info_get_size.argsz;
+    rc = ioctl (container_fd, VFIO_IOMMU_GET_INFO, iommu_info);
+    if (rc != 0)
+    {
+        printf ("  VFIO_IOMMU_GET_INFO failed : %s\n", strerror (errno));
+        return;
+    }
+
+    /* Report fixed information in the vfio_iommu_type1_info structure */
+#ifdef VFIO_IOMMU_INFO_CAPS
+    printf ("  info supports: pagesizes=%d caps=%d\n",
+            (iommu_info->flags & VFIO_IOMMU_INFO_PGSIZES) != 0,
+            (iommu_info->flags & VFIO_IOMMU_INFO_CAPS) != 0);
+#else
+    printf ("  info supports: pagesizes=%d\n",
+            (iommu_info->flags & VFIO_IOMMU_INFO_PGSIZES) != 0);
+#endif
+    printf ("  IOVA supported page sizes:");
+    for (page_size = 1; page_size != 0; page_size <<= 1)
+    {
+        if ((iommu_info->iova_pgsizes & page_size) == page_size)
+        {
+            printf (" 0x%" PRIx64, page_size);
+        }
+    }
+    printf ("\n");
+
+#ifdef VFIO_IOMMU_INFO_CAPS
+    if (((iommu_info->flags & VFIO_IOMMU_INFO_CAPS) != 0) && (iommu_info->cap_offset > 0))
+#endif
+    {
+        /* Report IOMMU capabilities, by following the chain */
+        const char *const info_start = (const char *) iommu_info;
+#ifdef VFIO_IOMMU_INFO_CAPS
+        __u32 cap_offset = iommu_info->cap_offset;
+#else
+        /* Have to assume the initial capability offset if the vfio.h API file doesn't define the
+         * capability flags */
+        __u32 cap_offset = sizeof (struct vfio_iommu_type1_info);
+#endif
+
+        while ((cap_offset > 0) && (cap_offset < iommu_info->argsz))
+        {
+            const struct vfio_info_cap_header *const cap_header =
+                    (const struct vfio_info_cap_header *) &info_start[cap_offset];
+
+            switch (cap_header->id)
+            {
+            case VFIO_REGION_INFO_CAP_SPARSE_MMAP:
+                {
+                    const struct vfio_region_info_cap_sparse_mmap *const cap_sparse_mmap =
+                            (const struct vfio_region_info_cap_sparse_mmap *) cap_header;
+
+                    printf ("  VFIO_REGION_INFO_CAP_SPARSE_MMAP version=%" PRIu16 "\n",
+                            cap_sparse_mmap->header.version);
+                    for (__u32 area_index = 0; area_index < cap_sparse_mmap->nr_areas; area_index++)
+                    {
+                        const struct vfio_region_sparse_mmap_area *const area = &cap_sparse_mmap->areas[area_index];
+
+                        printf ("    [%" PRIu32 "] offset=0x%llx size=0x%llx\n", area_index, area->offset, area->size);
+                    }
+                }
+                break;
+
+            case VFIO_REGION_INFO_CAP_TYPE:
+                {
+                    const struct vfio_region_info_cap_type *const cap_type =
+                            (const struct vfio_region_info_cap_type *) cap_header;
+
+                    printf ("  VFIO_REGION_INFO_CAP_TYPE version=%" PRIu16 " type=0x%" PRIx32 " subtype=0x%" PRIx32 "\n",
+                            cap_type->header.version, cap_type->type, cap_type->subtype);
+                }
+                break;
+
+#ifdef VFIO_REGION_INFO_CAP_MSIX_MAPPABLE
+            case VFIO_REGION_INFO_CAP_MSIX_MAPPABLE:
+                printf ("  VFIO_REGION_INFO_CAP_MSIX_MAPPABLE version=%" PRIu16 "\n", cap_header->version);
+                break;
+#endif
+
+#ifdef VFIO_REGION_INFO_CAP_NVLINK2_SSATGT
+            case VFIO_REGION_INFO_CAP_NVLINK2_SSATGT:
+                {
+                    struct vfio_region_info_cap_nvlink2_ssatgt *const cap_nvlink2_ssatgt =
+                            (struct vfio_region_info_cap_nvlink2_ssatgt *) cap_header;
+
+                    printf ("  VFIO_REGION_INFO_CAP_NVLINK2_SSATGT version=%" PRIu16 " tgt=0x%llx\n",
+                            cap_nvlink2_ssatgt->header.version, cap_nvlink2_ssatgt->tgt);
+                }
+                break;
+#endif
+
+#ifdef VFIO_REGION_INFO_CAP_NVLINK2_LNKSPD
+            case VFIO_REGION_INFO_CAP_NVLINK2_LNKSPD:
+                {
+
+                    const struct vfio_region_info_cap_nvlink2_lnkspd *const cap_nvlink2_lnkspd =
+                            (const struct vfio_region_info_cap_nvlink2_lnkspd *) cap_header;
+
+                    printf ("  VFIO_REGION_INFO_CAP_NVLINK2_LNKSPD version=%" PRIu16 " link_speed=%" PRIu32 "\n",
+                            cap_nvlink2_lnkspd->header.version, cap_nvlink2_lnkspd->link_speed);
+                }
+                break;
+#endif
+
+            default:
+                printf ("  Unknown IOMMU capability id=%" PRIu16 " version=%" PRIu16 "\n",
+                        cap_header->id, cap_header->version);
+                break;
+            }
+
+            cap_offset = cap_header->next;
+        }
     }
 }
+
 
 int main (int argc, char *argv[])
 {
@@ -68,10 +203,7 @@ int main (int argc, char *argv[])
     uint32_t iommu_group;
     char group_pathname[PATH_MAX];
     struct vfio_group_status group_status;
-    bool type1_iommu_supported;
-    struct vfio_iommu_type1_info iommu_info_get_size;
-    struct vfio_iommu_type1_info *iommu_info;
-    uint64_t page_size;
+    __s32 iommu_type;
 
     /* At boot only root has access to this container file.
      * After loading the vfio-pci module this file then has 0666 permission. Haven't tracked what changed the permission */
@@ -91,14 +223,14 @@ int main (int argc, char *argv[])
 
     /* Display which extensions are supported by the base driver. */
     printf ("Extension support for %s:\n", VFIO_CONTAINER_PATH);
-    DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_TYPE1_IOMMU, &type1_iommu_supported);
-    DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_SPAPR_TCE_IOMMU, NULL);
-    DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_TYPE1v2_IOMMU, NULL);
-    DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_DMA_CC_IOMMU, NULL);
-    DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_EEH, NULL);
-    DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_TYPE1_NESTING_IOMMU, NULL);
-    DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_SPAPR_TCE_v2_IOMMU, NULL);
-    DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_NOIOMMU_IOMMU, NULL);
+    DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_TYPE1_IOMMU);
+    DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_SPAPR_TCE_IOMMU);
+    DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_TYPE1v2_IOMMU);
+    DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_DMA_CC_IOMMU);
+    DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_EEH);
+    DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_TYPE1_NESTING_IOMMU);
+    DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_SPAPR_TCE_v2_IOMMU);
+    DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_NOIOMMU_IOMMU);
 
     /* Iterate over all IOMMU groups which are bound to a driver, attempting to display information.
      * This does a directory search to find numeric group IDs.
@@ -111,10 +243,14 @@ int main (int argc, char *argv[])
     {
         for (dir_entry = readdir (vfio_dir); dir_entry != NULL; dir_entry = readdir (vfio_dir))
         {
-            if (sscanf (dir_entry->d_name, "%" SCNu32, &iommu_group) == 1)
+            if ((sscanf (dir_entry->d_name, "%" SCNu32, &iommu_group) == 1) ||
+                (sscanf (dir_entry->d_name, "noiommu-%" SCNu32, &iommu_group) == 1))
             {
-                /* Attempt to open the group file, which can fail with EBUSY if already open by another program (e.g. DPDK) */
-                printf ("\nIOMMU group %" PRIu32 ":\n", iommu_group);
+                /* Attempt to open the group file, which can fail with EBUSY if already open by another program (e.g. DPDK).
+                 *
+                 * With a noiommu group sudo is required to avoid getting EPERM opening the group; permission on the
+                 * group file isn't sufficient. Haven't investigated if a process capability would avoid the need for sudo. */
+                printf ("\nIOMMU group %s:\n", dir_entry->d_name);
                 snprintf (group_pathname, sizeof (group_pathname), "%s%s", VFIO_ROOT_PATH, dir_entry->d_name);
                 group_fd = open (group_pathname, O_RDWR);
                 if (group_fd == -1)
@@ -154,9 +290,14 @@ int main (int argc, char *argv[])
                     printf ("  Set container for group\n");
                 }
 
-                /* Set the IOMMU type used. As per DPDK uses type 1 if supported, otherwise noiommu */
-                const __s32 iommu_type = type1_iommu_supported ? VFIO_TYPE1_IOMMU : VFIO_NOIOMMU_IOMMU;
+                /* Set the IOMMU type used. As per DPDK uses type 1 if supported, otherwise noiommu. */
+                iommu_type = VFIO_TYPE1_IOMMU;
                 rc = ioctl (container_fd, VFIO_SET_IOMMU, iommu_type);
+                if (rc != 0)
+                {
+                    iommu_type = VFIO_NOIOMMU_IOMMU;
+                    rc = ioctl (container_fd, VFIO_SET_IOMMU, iommu_type);
+                }
                 if (rc != 0)
                 {
                     printf ("  VFIO_SET_IOMMU failed : %s\n", strerror (errno));
@@ -164,132 +305,9 @@ int main (int argc, char *argv[])
                 }
                 printf ("  IOMMU type set to %" PRIi32 "\n", iommu_type);
 
-                /* Determine the size required to get the capabilities for the IOMMU.
-                 * This updates the argsz to indicate how much space is required. */
-                memset (&iommu_info_get_size, 0, sizeof iommu_info_get_size);
-                iommu_info_get_size.argsz = sizeof (iommu_info_get_size);
-                rc = ioctl (container_fd, VFIO_IOMMU_GET_INFO, &iommu_info_get_size);
-                if (rc != 0)
+                if (iommu_type == VFIO_TYPE1_IOMMU)
                 {
-                    printf ("  VFIO_IOMMU_GET_INFO failed : %s\n", strerror (errno));
-                    continue;
-                }
-
-                /* Allocate a structure of the required size for the IOMMU information, and get it */
-                iommu_info = calloc (iommu_info_get_size.argsz, 1);
-                iommu_info->argsz = iommu_info_get_size.argsz;
-                rc = ioctl (container_fd, VFIO_IOMMU_GET_INFO, iommu_info);
-                if (rc != 0)
-                {
-                    printf ("  VFIO_IOMMU_GET_INFO failed : %s\n", strerror (errno));
-                    continue;
-                }
-
-                /* Report fixed information in the vfio_iommu_type1_info structure */
-#ifdef VFIO_IOMMU_INFO_CAPS
-                printf ("  info supports: pagesizes=%d caps=%d\n",
-                        (iommu_info->flags & VFIO_IOMMU_INFO_PGSIZES) != 0,
-                        (iommu_info->flags & VFIO_IOMMU_INFO_CAPS) != 0);
-#else
-                printf ("  info supports: pagesizes=%d\n",
-                        (iommu_info->flags & VFIO_IOMMU_INFO_PGSIZES) != 0);
-#endif
-                printf ("  IOVA supported page sizes:");
-                for (page_size = 1; page_size != 0; page_size <<= 1)
-                {
-                    if ((iommu_info->iova_pgsizes & page_size) == page_size)
-                    {
-                        printf (" 0x%" PRIx64, page_size);
-                    }
-                }
-                printf ("\n");
-
-#ifdef VFIO_IOMMU_INFO_CAPS
-                if (((iommu_info->flags & VFIO_IOMMU_INFO_CAPS) != 0) && (iommu_info->cap_offset > 0))
-#endif
-                {
-                    /* Report IOMMU capabilities, by following the chain */
-                    const char *const info_start = (const char *) iommu_info;
-#ifdef VFIO_IOMMU_INFO_CAPS
-                    __u32 cap_offset = iommu_info->cap_offset;
-#else
-                    /* Have to assume the initial capability offset if the vfio.h API file doesn't define the
-                     * capability flags */
-                    __u32 cap_offset = sizeof (struct vfio_iommu_type1_info);
-#endif
-
-                    while ((cap_offset > 0) && (cap_offset < iommu_info->argsz))
-                    {
-                        const struct vfio_info_cap_header *const cap_header =
-                                (const struct vfio_info_cap_header *) &info_start[cap_offset];
-
-                        switch (cap_header->id)
-                        {
-                        case VFIO_REGION_INFO_CAP_SPARSE_MMAP:
-                            {
-                                const struct vfio_region_info_cap_sparse_mmap *const cap_sparse_mmap =
-                                        (const struct vfio_region_info_cap_sparse_mmap *) cap_header;
-
-                                printf ("  VFIO_REGION_INFO_CAP_SPARSE_MMAP version=%" PRIu16 "\n",
-                                        cap_sparse_mmap->header.version);
-                                for (__u32 area_index = 0; area_index < cap_sparse_mmap->nr_areas; area_index++)
-                                {
-                                    const struct vfio_region_sparse_mmap_area *const area = &cap_sparse_mmap->areas[area_index];
-
-                                    printf ("    [%" PRIu32 "] offset=0x%llx size=0x%llx\n", area_index, area->offset, area->size);
-                                }
-                            }
-                            break;
-
-                        case VFIO_REGION_INFO_CAP_TYPE:
-                            {
-                                const struct vfio_region_info_cap_type *const cap_type =
-                                        (const struct vfio_region_info_cap_type *) cap_header;
-
-                                printf ("  VFIO_REGION_INFO_CAP_TYPE version=%" PRIu16 " type=0x%" PRIx32 " subtype=0x%" PRIx32 "\n",
-                                        cap_type->header.version, cap_type->type, cap_type->subtype);
-                            }
-                            break;
-
-#ifdef VFIO_REGION_INFO_CAP_MSIX_MAPPABLE
-                        case VFIO_REGION_INFO_CAP_MSIX_MAPPABLE:
-                            printf ("  VFIO_REGION_INFO_CAP_MSIX_MAPPABLE version=%" PRIu16 "\n", cap_header->version);
-                            break;
-#endif
-
-#ifdef VFIO_REGION_INFO_CAP_NVLINK2_SSATGT
-                        case VFIO_REGION_INFO_CAP_NVLINK2_SSATGT:
-                            {
-                                struct vfio_region_info_cap_nvlink2_ssatgt *const cap_nvlink2_ssatgt =
-                                        (struct vfio_region_info_cap_nvlink2_ssatgt *) cap_header;
-
-                                printf ("  VFIO_REGION_INFO_CAP_NVLINK2_SSATGT version=%" PRIu16 " tgt=0x%llx\n",
-                                        cap_nvlink2_ssatgt->header.version, cap_nvlink2_ssatgt->tgt);
-                            }
-                            break;
-#endif
-
-#ifdef VFIO_REGION_INFO_CAP_NVLINK2_LNKSPD
-                        case VFIO_REGION_INFO_CAP_NVLINK2_LNKSPD:
-                            {
-
-                                const struct vfio_region_info_cap_nvlink2_lnkspd *const cap_nvlink2_lnkspd =
-                                        (const struct vfio_region_info_cap_nvlink2_lnkspd *) cap_header;
-
-                                printf ("  VFIO_REGION_INFO_CAP_NVLINK2_LNKSPD version=%" PRIu16 " link_speed=%" PRIu32 "\n",
-                                        cap_nvlink2_lnkspd->header.version, cap_nvlink2_lnkspd->link_speed);
-                            }
-                            break;
-#endif
-
-                        default:
-                            printf ("  Unknown IOMMU capability id=%" PRIu16 " version=%" PRIu16 "\n",
-                                    cap_header->id, cap_header->version);
-                            break;
-                        }
-
-                        cap_offset = cap_header->next;
-                    }
+                    display_type1_iommu_capabilities (container_fd);
                 }
 
                 /* Close this group */
