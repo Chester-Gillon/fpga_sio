@@ -25,6 +25,8 @@ else()
    message ("Unknown platform")
 endif()
 
+include (CheckSymbolExists)
+
 # -fmessage-length=0 is to allow Eclipse traceback for error messages
 set (COMMON_FLAGS "${PLATFORM_CFLAGS} -Wall -fmessage-length=0")
 
@@ -38,6 +40,9 @@ if (EXISTS ${LIBPCIACCESS_ROOT})
     link_directories ("${LIBPCIACCESS_ROOT}/src/.libs")
     include_directories ("${LIBPCIACCESS_ROOT}/include")
 endif()
+
+# Not available in all versions of libpci
+CHECK_SYMBOL_EXISTS ("PCI_FILL_IOMMU_GROUP" pci/pci.h HAVE_PCI_FILL_IOMMU_GROUP)
 
 include_directories("${PROJECT_SOURCE_DIR}")
 
