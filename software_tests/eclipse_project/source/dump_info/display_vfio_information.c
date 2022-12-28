@@ -186,9 +186,14 @@ int main (int argc, char *argv[])
                 }
 
                 /* Report fixed information in the vfio_iommu_type1_info structure */
+#ifdef VFIO_IOMMU_INFO_CAPS
                 printf ("  info supports: pagesizes=%d caps=%d\n",
                         (iommu_info->flags & VFIO_IOMMU_INFO_PGSIZES) != 0,
                         (iommu_info->flags & VFIO_IOMMU_INFO_CAPS) != 0);
+#else
+                printf ("  info supports: pagesizes=%d\n",
+                        (iommu_info->flags & VFIO_IOMMU_INFO_PGSIZES) != 0);
+#endif
                 printf ("  IOVA supported page sizes:");
                 for (page_size = 1; page_size != 0; page_size <<= 1)
                 {
@@ -199,11 +204,19 @@ int main (int argc, char *argv[])
                 }
                 printf ("\n");
 
+#ifdef VFIO_IOMMU_INFO_CAPS
                 if (((iommu_info->flags & VFIO_IOMMU_INFO_CAPS) != 0) && (iommu_info->cap_offset > 0))
+#endif
                 {
                     /* Report IOMMU capabilities, by following the chain */
                     const char *const info_start = (const char *) iommu_info;
+#ifdef VFIO_IOMMU_INFO_CAPS
                     __u32 cap_offset = iommu_info->cap_offset;
+#else
+                    /* Have to assume the initial capability offset if the vfio.h API file doesn't define the
+                     * capability flags */
+                    __u32 cap_offset = sizeof (struct vfio_iommu_type1_info);
+#endif
 
                     while ((cap_offset > 0) && (cap_offset < iommu_info->argsz))
                     {
