@@ -27,6 +27,29 @@
 #define VFIO_CONTAINER_PATH VFIO_ROOT_PATH "vfio"
 
 
+static const char *const pci_region_names[VFIO_PCI_NUM_REGIONS] =
+{
+    [VFIO_PCI_BAR0_REGION_INDEX  ] = "BAR0",
+    [VFIO_PCI_BAR1_REGION_INDEX  ] = "BAR1",
+    [VFIO_PCI_BAR2_REGION_INDEX  ] = "BAR2",
+    [VFIO_PCI_BAR3_REGION_INDEX  ] = "BAR3",
+    [VFIO_PCI_BAR4_REGION_INDEX  ] = "BAR4",
+    [VFIO_PCI_BAR5_REGION_INDEX  ] = "BAR5",
+    [VFIO_PCI_ROM_REGION_INDEX   ] = "ROM",
+    [VFIO_PCI_CONFIG_REGION_INDEX] = "CONFIG",
+    [VFIO_PCI_VGA_REGION_INDEX   ] = "VGA"
+};
+
+static const char *const irq_block_names [VFIO_PCI_NUM_IRQS] =
+{
+    [VFIO_PCI_INTX_IRQ_INDEX] = "INTX",
+    [VFIO_PCI_MSI_IRQ_INDEX ] = "MSI",
+    [VFIO_PCI_MSIX_IRQ_INDEX] = "MSIX",
+    [VFIO_PCI_ERR_IRQ_INDEX ] = "ERR",
+    [VFIO_PCI_REQ_IRQ_INDEX ] = "REQ"
+};
+
+
 /**
  * @brief Display if a VFIO extension is supported or not, where 1 means supported
  */
@@ -52,8 +75,9 @@ static void display_extension_support (const int vfio_file_fd, const __u32 exten
 
 
 /**
- * @brief Display the capabilities of as type1 IOMMU
- * @details The conditional compilation is to support compiling under Ubuntu 18.04.6 LTS
+ * @brief Display the capabilities of a type1 IOMMU
+ * @details The conditional compilation is to support compiling under Ubuntu 18.04.6 LTS which doesn't have the
+ *          capability chain.
  */
 static void display_type1_iommu_capabilities (const int container_fd)
 {
@@ -104,17 +128,10 @@ static void display_type1_iommu_capabilities (const int container_fd)
 
 #ifdef VFIO_IOMMU_INFO_CAPS
     if (((iommu_info->flags & VFIO_IOMMU_INFO_CAPS) != 0) && (iommu_info->cap_offset > 0))
-#endif
     {
         /* Report IOMMU capabilities, by following the chain */
         const char *const info_start = (const char *) iommu_info;
-#ifdef VFIO_IOMMU_INFO_CAPS
         __u32 cap_offset = iommu_info->cap_offset;
-#else
-        /* Have to assume the initial capability offset if the vfio.h API file doesn't define the
-         * capability flags */
-        __u32 cap_offset = sizeof (struct vfio_iommu_type1_info);
-#endif
 
         while ((cap_offset > 0) && (cap_offset < iommu_info->argsz))
         {
@@ -123,71 +140,288 @@ static void display_type1_iommu_capabilities (const int container_fd)
 
             switch (cap_header->id)
             {
-            case VFIO_REGION_INFO_CAP_SPARSE_MMAP:
+            case VFIO_IOMMU_TYPE1_INFO_CAP_IOVA_RANGE:
                 {
-                    const struct vfio_region_info_cap_sparse_mmap *const cap_sparse_mmap =
-                            (const struct vfio_region_info_cap_sparse_mmap *) cap_header;
+                    const struct vfio_iommu_type1_info_cap_iova_range *const cap_iova_range =
+                            (const struct vfio_iommu_type1_info_cap_iova_range *) cap_header;
 
-                    printf ("  VFIO_REGION_INFO_CAP_SPARSE_MMAP version=%" PRIu16 "\n",
-                            cap_sparse_mmap->header.version);
-                    for (__u32 area_index = 0; area_index < cap_sparse_mmap->nr_areas; area_index++)
+                    printf ("  VFIO_IOMMU_TYPE1_INFO_CAP_IOVA_RANGE version=%" PRIu16 "\n",
+                            cap_iova_range->header.version);
+                    for (uint32_t iova_index = 0; iova_index < cap_iova_range->nr_iovas; iova_index++)
                     {
-                        const struct vfio_region_sparse_mmap_area *const area = &cap_sparse_mmap->areas[area_index];
+                        const struct vfio_iova_range *const iova_range = &cap_iova_range->iova_ranges[iova_index];
 
-                        printf ("    [%" PRIu32 "] offset=0x%llx size=0x%llx\n", area_index, area->offset, area->size);
+                        printf ("    [%" PRIu32 "] start=0x%llx end=0x%llx\n", iova_index, iova_range->start, iova_range->end);
                     }
                 }
                 break;
 
-            case VFIO_REGION_INFO_CAP_TYPE:
+            case VFIO_IOMMU_TYPE1_INFO_CAP_MIGRATION:
                 {
-                    const struct vfio_region_info_cap_type *const cap_type =
-                            (const struct vfio_region_info_cap_type *) cap_header;
+                    const struct vfio_iommu_type1_info_cap_migration *const cap_migration =
+                            (const struct vfio_iommu_type1_info_cap_migration *) cap_header;
 
-                    printf ("  VFIO_REGION_INFO_CAP_TYPE version=%" PRIu16 " type=0x%" PRIx32 " subtype=0x%" PRIx32 "\n",
-                            cap_type->header.version, cap_type->type, cap_type->subtype);
+                    printf ("  VFIO_IOMMU_TYPE1_INFO_CAP_MIGRATION version=%" PRIu16 " flags=0x%" PRIx32 " max_dirty_bitmap_size=0x%llx\n",
+                            cap_migration->header.version, cap_migration->flags, cap_migration->max_dirty_bitmap_size);
+                    printf ("    supported page sizes for dirty page logging:");
+                    for (page_size = 1; page_size != 0; page_size <<= 1)
+                    {
+                        if ((cap_migration->pgsize_bitmap & page_size) == page_size)
+                        {
+                            printf (" 0x%" PRIx64, page_size);
+                        }
+                    }
+                    printf ("\n");
                 }
                 break;
 
-#ifdef VFIO_REGION_INFO_CAP_MSIX_MAPPABLE
-            case VFIO_REGION_INFO_CAP_MSIX_MAPPABLE:
-                printf ("  VFIO_REGION_INFO_CAP_MSIX_MAPPABLE version=%" PRIu16 "\n", cap_header->version);
-                break;
-#endif
-
-#ifdef VFIO_REGION_INFO_CAP_NVLINK2_SSATGT
-            case VFIO_REGION_INFO_CAP_NVLINK2_SSATGT:
+            case VFIO_IOMMU_TYPE1_INFO_DMA_AVAIL:
                 {
-                    struct vfio_region_info_cap_nvlink2_ssatgt *const cap_nvlink2_ssatgt =
-                            (struct vfio_region_info_cap_nvlink2_ssatgt *) cap_header;
+                    const struct vfio_iommu_type1_info_dma_avail *const dma_avail =
+                            (const struct vfio_iommu_type1_info_dma_avail *) cap_header;
 
-                    printf ("  VFIO_REGION_INFO_CAP_NVLINK2_SSATGT version=%" PRIu16 " tgt=0x%llx\n",
-                            cap_nvlink2_ssatgt->header.version, cap_nvlink2_ssatgt->tgt);
+                    printf ("  VFIO_IOMMU_TYPE1_INFO_DMA_AVAIL version=%" PRIu16 " avail=%" PRIu32 "\n",
+                            dma_avail->header.version, dma_avail->avail);
                 }
                 break;
-#endif
-
-#ifdef VFIO_REGION_INFO_CAP_NVLINK2_LNKSPD
-            case VFIO_REGION_INFO_CAP_NVLINK2_LNKSPD:
-                {
-
-                    const struct vfio_region_info_cap_nvlink2_lnkspd *const cap_nvlink2_lnkspd =
-                            (const struct vfio_region_info_cap_nvlink2_lnkspd *) cap_header;
-
-                    printf ("  VFIO_REGION_INFO_CAP_NVLINK2_LNKSPD version=%" PRIu16 " link_speed=%" PRIu32 "\n",
-                            cap_nvlink2_lnkspd->header.version, cap_nvlink2_lnkspd->link_speed);
-                }
-                break;
-#endif
 
             default:
-                printf ("  Unknown IOMMU capability id=%" PRIu16 " version=%" PRIu16 "\n",
+                printf ("  Unknown IOMMU type1 capability id=%" PRIu16 " version=%" PRIu16 "\n",
                         cap_header->id, cap_header->version);
                 break;
             }
 
             cap_offset = cap_header->next;
         }
+    }
+#endif
+}
+
+
+/**
+ * @brief Display information about one device in an IOMMU group.
+ * @details This program was created for investigating use of vfio-pci, so only decodes the information for vfio-pci devices.
+ *          The conditional compilation is to support compiling under Ubuntu 18.04.6 LTS which doesn't have the all the
+ *          capabilities in vfio.h
+ * @param[in] group_fd The file descriptor for the IOMMU group the device is in
+ * @param[in] device_name Identifies the device, from the name within /sys/kernel/iommu_groups/<iommu_group>/devices
+ */
+static void display_device_information (const int group_fd, const char *const device_name)
+{
+    int rc;
+    int device_fd;
+    struct vfio_device_info device_info;
+    struct vfio_region_info region_info_size;
+    struct vfio_region_info *region_info = NULL;
+    struct vfio_irq_info irq_info;
+
+    device_fd = ioctl (group_fd, VFIO_GROUP_GET_DEVICE_FD, device_name);
+    if (device_fd < 0)
+    {
+        fprintf (stderr, "open (%s) failed : %s\n", VFIO_CONTAINER_PATH, strerror (-device_fd));
+        return;
+    }
+
+    /* Get the device information. Doesn't attempt to display device capabilities, as only for IBM s390 zPCI devices. */
+    memset (&device_info, 0, sizeof (device_info));
+    device_info.argsz = sizeof (device_info);
+    rc = ioctl (device_fd, VFIO_DEVICE_GET_INFO, &device_info);
+    if (rc != 0)
+    {
+        printf ("  VFIO_DEVICE_GET_INFO failed : %s\n", strerror (-rc));
+        goto close_device_fd;
+    }
+
+    /* Display device information.
+     * vfio-pci devices a fixed value for num_regions (VFIO_PCI_NUM_REGIONS) and num_irqs (VFIO_PCI_NUM_IRQS) */
+    printf ("  Device %s num_regions=%" PRIu32 " num_irqs=%" PRIu32 "\n", device_name, device_info.num_regions, device_info.num_irqs);
+    if ((device_info.flags & VFIO_DEVICE_FLAGS_RESET) != 0)
+    {
+        printf ("    Device supports reset\n");
+    }
+    if ((device_info.flags & VFIO_DEVICE_FLAGS_PCI) != 0)
+    {
+        printf ("    vfio-pci device\n");
+    }
+    if ((device_info.flags & VFIO_DEVICE_FLAGS_PLATFORM) != 0)
+    {
+        printf ("    vfio-platform device\n");
+    }
+    if ((device_info.flags & VFIO_DEVICE_FLAGS_AMBA) != 0)
+    {
+        printf ("    vfio-amba device\n");
+    }
+    if ((device_info.flags & VFIO_DEVICE_FLAGS_CCW) != 0)
+    {
+        printf ("    vfio-ccw device\n");
+    }
+    if ((device_info.flags & VFIO_DEVICE_FLAGS_AP) != 0)
+    {
+        printf ("    vfio-ap device\n");
+    }
+
+    if ((device_info.flags & VFIO_DEVICE_FLAGS_PCI) != 0)
+    {
+        /* Display the implemented regions, which have a non-zero size */
+        for (int region_index = 0; region_index < VFIO_PCI_NUM_REGIONS; region_index++)
+        {
+            /* Determine the size to get the capabilities */
+            memset (&region_info_size, 0, sizeof (region_info_size));
+            region_info_size.argsz = sizeof (region_info_size);
+            region_info_size.index = region_index;
+            rc = ioctl (device_fd, VFIO_DEVICE_GET_REGION_INFO, &region_info_size);
+            if (rc == -EPERM)
+            {
+                /* Can happen for VFIO_PCI_VGA_REGION_INDEX */
+                continue;
+            }
+            else if (rc != 0)
+            {
+                printf ("  VFIO_DEVICE_GET_REGION_INFO failed : %s\n", strerror (-rc));
+                goto close_device_fd;
+            }
+
+            /* Allocate memory and get the region information including capabilities */
+            region_info = realloc (region_info, region_info_size.argsz);
+            region_info->argsz = region_info_size.argsz;
+            region_info->index = region_index;
+            rc = ioctl (device_fd, VFIO_DEVICE_GET_REGION_INFO, region_info);
+            if (rc != 0)
+            {
+                printf ("  VFIO_DEVICE_GET_REGION_INFO failed : %s\n", strerror (-rc));
+                goto close_device_fd;
+            }
+
+            if (region_info->size > 0)
+            {
+                printf ("    PCI region %s size=0x%llx offset=0x%llx supports:%s%s%s\n",
+                        pci_region_names[region_index], region_info->size, region_info->offset,
+                        (region_info->flags & VFIO_REGION_INFO_FLAG_READ) != 0 ? " read" : "",
+                        (region_info->flags & VFIO_REGION_INFO_FLAG_WRITE) != 0 ? " write" : "",
+                        (region_info->flags & VFIO_REGION_INFO_FLAG_MMAP) != 0 ? " mmap" : "");
+
+                if ((region_info->flags & VFIO_REGION_INFO_FLAG_CAPS) != 0)
+                {
+                    /* Report region capabilities, by following the chain */
+                    const char *const info_start = (const char *) region_info;
+                    __u32 cap_offset = region_info->cap_offset;
+
+
+                    while ((cap_offset > 0) && (cap_offset < region_info->argsz))
+                    {
+                        const struct vfio_info_cap_header *const cap_header =
+                                (const struct vfio_info_cap_header *) &info_start[cap_offset];
+
+                        switch (cap_header->id)
+                        {
+                        case VFIO_REGION_INFO_CAP_SPARSE_MMAP:
+                            {
+                                const struct vfio_region_info_cap_sparse_mmap *const cap_sparse_mmap =
+                                        (const struct vfio_region_info_cap_sparse_mmap *) cap_header;
+
+                                printf ("        VFIO_REGION_INFO_CAP_SPARSE_MMAP version=%" PRIu16 "\n",
+                                        cap_sparse_mmap->header.version);
+                                for (__u32 area_index = 0; area_index < cap_sparse_mmap->nr_areas; area_index++)
+                                {
+                                    const struct vfio_region_sparse_mmap_area *const area = &cap_sparse_mmap->areas[area_index];
+
+                                    printf ("      [%" PRIu32 "] offset=0x%llx size=0x%llx\n", area_index, area->offset, area->size);
+                                }
+                            }
+                            break;
+
+                        case VFIO_REGION_INFO_CAP_TYPE:
+                            {
+                                const struct vfio_region_info_cap_type *const cap_type =
+                                        (const struct vfio_region_info_cap_type *) cap_header;
+
+                                printf ("      VFIO_REGION_INFO_CAP_TYPE version=%" PRIu16 " type=0x%" PRIx32 " subtype=0x%" PRIx32 "\n",
+                                        cap_type->header.version, cap_type->type, cap_type->subtype);
+                            }
+                            break;
+
+#ifdef VFIO_REGION_INFO_CAP_MSIX_MAPPABLE
+                        case VFIO_REGION_INFO_CAP_MSIX_MAPPABLE:
+                            printf ("      VFIO_REGION_INFO_CAP_MSIX_MAPPABLE version=%" PRIu16 "\n", cap_header->version);
+                            break;
+#endif
+
+#ifdef VFIO_REGION_INFO_CAP_NVLINK2_SSATGT
+                        case VFIO_REGION_INFO_CAP_NVLINK2_SSATGT:
+                            {
+                                struct vfio_region_info_cap_nvlink2_ssatgt *const cap_nvlink2_ssatgt =
+                                        (struct vfio_region_info_cap_nvlink2_ssatgt *) cap_header;
+
+                                printf ("      VFIO_REGION_INFO_CAP_NVLINK2_SSATGT version=%" PRIu16 " tgt=0x%llx\n",
+                                        cap_nvlink2_ssatgt->header.version, cap_nvlink2_ssatgt->tgt);
+                            }
+                            break;
+#endif
+
+#ifdef VFIO_REGION_INFO_CAP_NVLINK2_LNKSPD
+                        case VFIO_REGION_INFO_CAP_NVLINK2_LNKSPD:
+                            {
+                                const struct vfio_region_info_cap_nvlink2_lnkspd *const cap_nvlink2_lnkspd =
+                                        (const struct vfio_region_info_cap_nvlink2_lnkspd *) cap_header;
+
+                                printf ("      VFIO_REGION_INFO_CAP_NVLINK2_LNKSPD version=%" PRIu16 " link_speed=%" PRIu32 "\n",
+                                        cap_nvlink2_lnkspd->header.version, cap_nvlink2_lnkspd->link_speed);
+                            }
+                            break;
+#endif
+
+                        default:
+                            printf ("      Unknown region capability id=%" PRIu16 " version=%" PRIu16 "\n",
+                                    cap_header->id, cap_header->version);
+                            break;
+                        }
+
+                        cap_offset = cap_header->next;
+                    }
+                }
+            }
+        }
+
+        /* Display the implemented IRQ blocks, which have non-zero counts */
+        for (int irq_index = 0; irq_index < VFIO_PCI_NUM_IRQS; irq_index++)
+        {
+            memset (&irq_info, 0, sizeof (irq_info));
+            irq_info.argsz = sizeof (irq_info);
+            irq_info.index = irq_index;
+            rc = ioctl (device_fd, VFIO_DEVICE_GET_IRQ_INFO, &irq_info);
+            if (rc == -EPERM)
+            {
+                /* Can happen for VFIO_PCI_ERR_IRQ_INDEX */
+                continue;
+            }
+            else if (rc != 0)
+            {
+                printf ("    VFIO_DEVICE_GET_IRQ_INFO failed : %s\n", strerror (-rc));
+                goto close_device_fd;
+            }
+
+            if (irq_info.count > 0)
+            {
+                printf ("    IRQ block %s count=%" PRIu32 " flags:%s%s%s%s\n",
+                        irq_block_names[irq_index], irq_info.count,
+                        (irq_info.flags & VFIO_IRQ_INFO_EVENTFD) != 0 ? " eventfd" : "",
+                        (irq_info.flags & VFIO_IRQ_INFO_MASKABLE) != 0 ? " maskable" : "",
+                        (irq_info.flags & VFIO_IRQ_INFO_AUTOMASKED) != 0 ? " automasked" : "",
+                        (irq_info.flags & VFIO_IRQ_INFO_NORESIZE) != 0 ? " noresize" : "");
+            }
+        }
+    }
+    else
+    {
+        printf ("  Skipping decoding regions for non vfio-pci device\n");
+    }
+
+    /* Close the device */
+    close_device_fd:
+    rc = close (device_fd);
+    if (rc != 0)
+    {
+        printf ("  close (%s) failed : %s\n", device_name, strerror (errno));
     }
 }
 
@@ -199,11 +433,14 @@ int main (int argc, char *argv[])
     int api_version;
     int rc;
     DIR *vfio_dir;
-    struct dirent *dir_entry;
+    struct dirent *vfio_dir_entry;
     uint32_t iommu_group;
     char group_pathname[PATH_MAX];
     struct vfio_group_status group_status;
     __s32 iommu_type;
+    char group_dirname[PATH_MAX];
+    DIR *group_dir;
+    struct dirent *group_dir_entry;
 
     /* At boot only root has access to this container file.
      * After loading the vfio-pci module this file then has 0666 permission. Haven't tracked what changed the permission */
@@ -237,21 +474,21 @@ int main (int argc, char *argv[])
      *
      * If there are multiple groups, the IOMMU capability is reported for each group which is redundant
      * information. This is because the IOMMU capability (on the container) can only be reported
-     * once an IOPMMU group has been added to the IOMMU container. */
+     * once an IOMMU group has been added to the IOMMU container. */
     vfio_dir = opendir (VFIO_ROOT_PATH);
     if (vfio_dir != NULL)
     {
-        for (dir_entry = readdir (vfio_dir); dir_entry != NULL; dir_entry = readdir (vfio_dir))
+        for (vfio_dir_entry = readdir (vfio_dir); vfio_dir_entry != NULL; vfio_dir_entry = readdir (vfio_dir))
         {
-            if ((sscanf (dir_entry->d_name, "%" SCNu32, &iommu_group) == 1) ||
-                (sscanf (dir_entry->d_name, "noiommu-%" SCNu32, &iommu_group) == 1))
+            if ((sscanf (vfio_dir_entry->d_name, "%" SCNu32, &iommu_group) == 1) ||
+                (sscanf (vfio_dir_entry->d_name, "noiommu-%" SCNu32, &iommu_group) == 1))
             {
                 /* Attempt to open the group file, which can fail with EBUSY if already open by another program (e.g. DPDK).
                  *
                  * With a noiommu group sudo is required to avoid getting EPERM opening the group; permission on the
                  * group file isn't sufficient. Haven't investigated if a process capability would avoid the need for sudo. */
-                printf ("\nIOMMU group %s:\n", dir_entry->d_name);
-                snprintf (group_pathname, sizeof (group_pathname), "%s%s", VFIO_ROOT_PATH, dir_entry->d_name);
+                printf ("\nIOMMU group %s:\n", vfio_dir_entry->d_name);
+                snprintf (group_pathname, sizeof (group_pathname), "%s%s", VFIO_ROOT_PATH, vfio_dir_entry->d_name);
                 group_fd = open (group_pathname, O_RDWR);
                 if (group_fd == -1)
                 {
@@ -265,7 +502,7 @@ int main (int argc, char *argv[])
                 rc = ioctl (group_fd, VFIO_GROUP_GET_STATUS, &group_status);
                 if (rc != 0)
                 {
-                    printf ("  VFIO_GROUP_GET_STATUS failed : %s\n", strerror (errno));
+                    printf ("  VFIO_GROUP_GET_STATUS failed : %s\n", strerror (-rc));
                     continue;
                 }
                 printf ("  viable=%d  container_set=%d\n",
@@ -284,7 +521,7 @@ int main (int argc, char *argv[])
                     rc = ioctl (group_fd, VFIO_GROUP_SET_CONTAINER, &container_fd);
                     if (rc != 0)
                     {
-                        printf ("  VFIO_GROUP_SET_CONTAINER failed : %s\n", strerror (errno));
+                        printf ("  VFIO_GROUP_SET_CONTAINER failed : %s\n", strerror (-rc));
                         continue;
                     }
                     printf ("  Set container for group\n");
@@ -300,7 +537,7 @@ int main (int argc, char *argv[])
                 }
                 if (rc != 0)
                 {
-                    printf ("  VFIO_SET_IOMMU failed : %s\n", strerror (errno));
+                    printf ("  VFIO_SET_IOMMU failed : %s\n", strerror (-rc));
                     continue;
                 }
                 printf ("  IOMMU type set to %" PRIi32 "\n", iommu_type);
@@ -308,6 +545,21 @@ int main (int argc, char *argv[])
                 if (iommu_type == VFIO_TYPE1_IOMMU)
                 {
                     display_type1_iommu_capabilities (container_fd);
+                }
+
+                /* Display information about all devices in the group */
+                snprintf (group_dirname, sizeof (group_dirname), "/sys/kernel/iommu_groups/%" PRIu32 "/devices", iommu_group);
+                group_dir = opendir (group_dirname);
+                if (group_dir != NULL)
+                {
+                    for (group_dir_entry = readdir (group_dir); group_dir_entry != NULL; group_dir_entry = readdir (group_dir))
+                    {
+                        if ((strcmp (group_dir_entry->d_name, ".") != 0) && (strcmp (group_dir_entry->d_name, "..") != 0))
+                        {
+                            display_device_information (group_fd, group_dir_entry->d_name);
+                        }
+                    }
+                    closedir (group_dir);
                 }
 
                 /* Close this group */
