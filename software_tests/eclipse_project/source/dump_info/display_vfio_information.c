@@ -23,6 +23,8 @@
 #include <sys/ioctl.h>
 #include <linux/vfio.h>
 
+#include <pci/pci.h>
+
 #define VFIO_ROOT_PATH "/dev/vfio/"
 #define VFIO_CONTAINER_PATH VFIO_ROOT_PATH "vfio"
 
@@ -199,6 +201,70 @@ static void display_type1_iommu_capabilities (const int container_fd)
 
 
 /**
+ * @brief Read a number of bytes from the PCI config space of a device, using vfio-pci
+ * @details If an error occurs during the read displays diagnostic information and sets the returned bytes to 0xff.
+ *          For simplicity looks up the PCI config region on the device for every call.
+ * @param[in] device_fd Device to read from
+ * @param[in] offset Offset into the configuration space to read
+ * @param[in] num_bytes The number of bytes to read
+ * @param[out] config_bytes The bytes which have been read.
+ */
+static void read_pci_config_bytes (const int device_fd, const uint32_t offset, const size_t num_bytes, void *const config_bytes)
+{
+    int rc;
+    ssize_t num_read;
+    struct vfio_region_info region_info =
+    {
+        .argsz = sizeof (region_info),
+        .index = VFIO_PCI_CONFIG_REGION_INDEX
+    };
+
+    memset (config_bytes, 0xff, num_bytes);
+
+    rc = ioctl (device_fd, VFIO_DEVICE_GET_REGION_INFO, &region_info);
+    if (rc != 0)
+    {
+        printf ("  VFIO_DEVICE_GET_REGION_INFO failed : %s\n", strerror (-rc));
+        return;
+    }
+
+    num_read = pread (device_fd, config_bytes, num_bytes, region_info.offset + offset);
+    if (num_read != (ssize_t) num_bytes)
+    {
+        printf ("  PCI config read of %zu bytes from offset %" PRIu32 " only read %zd bytes : %s\n",
+                num_bytes, offset, num_read, strerror (errno));
+        return;
+    }
+}
+
+
+/**
+ * @brief Read a word from the PCI config space of a device, using vfio-pci
+ */
+static uint16_t read_pci_config_word (const int device_fd, const uint32_t offset)
+{
+    uint16_t config_word;
+
+    read_pci_config_bytes (device_fd, offset, sizeof (config_word), &config_word);
+
+    return config_word;
+}
+
+
+/**
+ * @brief Read a long word from the PCI config space of a device, using vfio-pci
+ */
+static uint32_t read_pci_config_long (const int device_fd, const uint32_t offset)
+{
+    uint32_t config_long;
+
+    read_pci_config_bytes (device_fd, offset, sizeof (config_long), &config_long);
+
+    return config_long;
+}
+
+
+/**
  * @brief Display information about one device in an IOMMU group.
  * @details This program was created for investigating use of vfio-pci, so only decodes the information for vfio-pci devices.
  *          The conditional compilation is to support compiling under Ubuntu 18.04.6 LTS which doesn't have the all the
@@ -214,6 +280,12 @@ static void display_device_information (const int group_fd, const char *const de
     struct vfio_region_info region_info_size;
     struct vfio_region_info *region_info = NULL;
     struct vfio_irq_info irq_info;
+    uint16_t command;
+    uint64_t raw_base_addr;
+    uint64_t base_addr;
+    bool is_IO;
+    bool is_prefetchable;
+    bool is_64;
 
     device_fd = ioctl (group_fd, VFIO_GROUP_GET_DEVICE_FD, device_name);
     if (device_fd < 0)
@@ -299,6 +371,25 @@ static void display_device_information (const int group_fd, const char *const de
                         (region_info->flags & VFIO_REGION_INFO_FLAG_READ) != 0 ? " read" : "",
                         (region_info->flags & VFIO_REGION_INFO_FLAG_WRITE) != 0 ? " write" : "",
                         (region_info->flags & VFIO_REGION_INFO_FLAG_MMAP) != 0 ? " mmap" : "");
+
+                if (region_index <= VFIO_PCI_BAR5_REGION_INDEX)
+                {
+                    /* Display information from the BAR which shows how to decode the BAR information */
+                    raw_base_addr = read_pci_config_long (device_fd, PCI_BASE_ADDRESS_0 + (region_index * sizeof (uint32_t)));
+                    is_IO = (raw_base_addr & PCI_BASE_ADDRESS_SPACE) == PCI_BASE_ADDRESS_SPACE_IO;
+                    is_prefetchable = (!is_IO) && ((raw_base_addr & PCI_BASE_ADDRESS_MEM_PREFETCH) != 0);
+                    is_64 = (!is_IO) && ((raw_base_addr & PCI_BASE_ADDRESS_MEM_TYPE_64) != 0);
+
+                    if (is_64)
+                    {
+                        raw_base_addr |= ((uint64_t) read_pci_config_long (device_fd,
+                                PCI_BASE_ADDRESS_0 + ((region_index + 1) * sizeof (uint32_t)))) << 32;
+                    }
+                    base_addr = is_IO ? (raw_base_addr & PCI_BASE_ADDRESS_IO_MASK) : (raw_base_addr & PCI_BASE_ADDRESS_MEM_MASK);
+
+                    printf ("    bar[%u] base_addr=0x%" PRIx64 " is_IO=%u is_prefetchable=%u is_64=%u\n",
+                            region_index, base_addr, is_IO, is_prefetchable, is_64);
+                }
 
                 if ((region_info->flags & VFIO_REGION_INFO_FLAG_CAPS) != 0)
                 {
@@ -410,6 +501,20 @@ static void display_device_information (const int group_fd, const char *const de
                         (irq_info.flags & VFIO_IRQ_INFO_NORESIZE) != 0 ? " noresize" : "");
             }
         }
+
+        /* Display the device identification */
+        printf ("    Device [%04" PRIx16 ":%04" PRIx16 "] Subsystem [%04" PRIx16 ":%04" PRIx16 "]\n",
+                read_pci_config_word (device_fd, PCI_VENDOR_ID),
+                read_pci_config_word (device_fd, PCI_DEVICE_ID),
+                read_pci_config_word (device_fd, PCI_SUBSYSTEM_VENDOR_ID),
+                read_pci_config_word (device_fd, PCI_SUBSYSTEM_ID));
+
+        /* Display the command word */
+        command = read_pci_config_word (device_fd, PCI_COMMAND);
+        printf ("    control: I/O%s Mem%s BusMaster%s\n",
+                (command & PCI_COMMAND_IO) ? "+" : "-",
+                (command & PCI_COMMAND_MEMORY) ? "+" : "-",
+                (command & PCI_COMMAND_MASTER) ? "+" : "-");
     }
     else
     {
