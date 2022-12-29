@@ -290,7 +290,7 @@ static void display_device_information (const int group_fd, const char *const de
     device_fd = ioctl (group_fd, VFIO_GROUP_GET_DEVICE_FD, device_name);
     if (device_fd < 0)
     {
-        fprintf (stderr, "open (%s) failed : %s\n", VFIO_CONTAINER_PATH, strerror (-device_fd));
+        fprintf (stderr, "VFIO_GROUP_GET_DEVICE_FD (%s) failed : %s\n", device_name, strerror (-device_fd));
         return;
     }
 
@@ -616,6 +616,7 @@ int main (int argc, char *argv[])
 
                 if ((group_status.flags & VFIO_GROUP_FLAGS_VIABLE) == 0)
                 {
+                    /* For a non-viable group, VFIO_GROUP_GET_DEVICE_FD fails with EPERM for devices in the group */
                     printf ("  group is not viable (ie, not all devices bound for vfio)\n");
                     continue;
                 }
