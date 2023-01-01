@@ -1,8 +1,8 @@
 /*
- * @file memmapped_persistence.c
+ * @file memmapped_persistence_libpciaccess.c
  * @date Sep 15, 2021
  * @author Chester Gillon
- * @brief Perform a test of FPGA memory mapped persistence
+ * @brief Perform a test of FPGA memory mapped persistence, using libpciaccess to map the FPGA BARs.
  * @details Where persistence means if the memory in different BARs can maintain it's content between runs of this program
  *          and across reboots of the PC.
  *
@@ -16,6 +16,8 @@
  *          https://unix.stackexchange.com/questions/284017/pagemap-on-memory-mapped-devices-not-working
  *          explains that for memory mapped devices the mapping doesn't have a struct page associated with
  *          them, and so the pagemap interface can't report the physical address.
+ *
+ *          Using libpciaccess means can select to map the BAR as write-combining.
  */
 
 #include <stdlib.h>
@@ -110,7 +112,8 @@ int main (int argc, char *argv[])
                     {
                         printf ("BAR %u\n", bar_index);
 
-                        /* Map the entire BAR */
+                        /* Map the entire BAR.
+                         * @todo Should PCI_DEV_MAP_FLAG_WRITE_COMBINE only be selected if the BAR is prefetchable? */
                         addr = NULL;
                         rc = pci_device_map_range (device, region->base_addr, region->size,
                                 PCI_DEV_MAP_FLAG_WRITABLE | PCI_DEV_MAP_FLAG_WRITE_COMBINE, &addr);

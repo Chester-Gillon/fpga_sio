@@ -1,6 +1,8 @@
 #! /bin/bash
 # Give other read/write permission on the PCI resources for all devices with a Xilinx vendor.
 # This allows users to map the resources via libpciaccess without needing any Linux driver for the device.
+#
+# This script can't be used when secure boot is enabled, since kernel_lockdown prevents use of direct PCI BAR access.
 
 xilinx_vendor_id=0x10ee
 xilinx_pci_vendor_files=$(grep -il ${xilinx_vendor_id} /sys/bus/pci/devices/*/vendor)
