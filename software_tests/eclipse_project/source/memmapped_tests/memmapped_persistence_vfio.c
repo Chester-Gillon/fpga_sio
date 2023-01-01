@@ -3,7 +3,11 @@
  * @date 31 Dec 2022
  * @author Chester Gillon
  * @brief Perform a test of FPGA memory mapped persistence, using vfio to map the FPGA BARs
- * @details Use libpci to find the IOMMU group of the FPGA device, then uses vfio to operate on the FPGA device.
+ * @details
+ *   Where persistence means if the memory in different BARs can maintain it's content between runs of this program
+ *   and across reboots of the PC.
+ *
+ *   Uses libpci to find the IOMMU group of the FPGA device, then uses vfio to operate on the FPGA device.
  */
 
 #include <stdlib.h>
@@ -59,6 +63,11 @@ typedef struct
 } memmapped_data_t;
 
 
+/**
+ * @brief Perform a test of FPGA memory mapped persistence on one PCI device.
+ * @param[in] dev The device to test
+ * @param[in] iommu_group The IOMMU group of the device, used to map the BARs of the device using vfio
+ */
 static void test_memmapped_device (const struct pci_dev *const dev, const char *const iommu_group)
 {
     int rc;
@@ -293,6 +302,7 @@ static void test_memmapped_device (const struct pci_dev *const dev, const char *
 
 int main (int argc, char *argv[])
 {
+    int rc;
     struct pci_access *pacc;
     struct pci_filter filter;
     struct pci_dev *dev;
@@ -300,6 +310,13 @@ int main (int argc, char *argv[])
     char *iommu_group;
     u16 subvendor_id;
     u16 subdevice_id;
+
+    /* Attempt to lock all future pages to see if has any effect on PAT mapping of BARs */
+    rc = mlockall (MCL_CURRENT | MCL_FUTURE);
+    if (rc != 0)
+    {
+        printf ("mlockall() failed : %s\n", strerror (errno));
+    }
 
     /* Initialise using the defaults */
     pacc = pci_alloc ();
