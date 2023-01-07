@@ -41,6 +41,14 @@ if (EXISTS ${LIBPCIACCESS_ROOT})
     include_directories ("${LIBPCIACCESS_ROOT}/include")
 endif()
 
+# If there is a pciutils directory in the home directory link against that rather than the system version.
+# This is a static library.
+set (PCIUTILS_ROOT "$ENV{HOME}/pciutils_install")
+if (EXISTS ${PCIUTILS_ROOT})
+    link_directories ("${PCIUTILS_ROOT}/usr/local/lib")
+    include_directories ("${PCIUTILS_ROOT}/usr/local/include")
+endif()
+
 # Not available in all versions of libpci
 CHECK_SYMBOL_EXISTS ("PCI_FILL_IOMMU_GROUP" pci/pci.h HAVE_PCI_FILL_IOMMU_GROUP)
 

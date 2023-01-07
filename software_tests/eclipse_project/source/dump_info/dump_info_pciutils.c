@@ -17,6 +17,7 @@ int main (int argc, char *argv[])
     struct pci_access *pacc;
     struct pci_filter filter;
     struct pci_dev *dev;
+    int requested_fields;
     int known_fields;
     char vendor_name[256];
     char device_name[256];
@@ -47,8 +48,14 @@ int main (int argc, char *argv[])
     {
         if (pci_filter_match (&filter, dev))
         {
-            known_fields = pci_fill_info (dev,
-                    PCI_FILL_IDENT | PCI_FILL_BASES | PCI_FILL_SIZES | PCI_FILL_PHYS_SLOT | PCI_FILL_IOMMU_GROUP);
+            requested_fields = PCI_FILL_IDENT | PCI_FILL_BASES | PCI_FILL_SIZES | PCI_FILL_PHYS_SLOT;
+#ifdef PCI_FILL_IOMMU_GROUP
+            requested_fields |= PCI_FILL_IOMMU_GROUP;
+#endif
+#ifdef PCI_FILL_DRIVER
+            requested_fields |= PCI_FILL_DRIVER;
+#endif
+            known_fields = pci_fill_info (dev, requested_fields);
             if ((known_fields & PCI_FILL_IDENT) != 0)
             {
                 subvendor_id = pci_read_word (dev, PCI_SUBSYSTEM_VENDOR_ID);
@@ -72,6 +79,7 @@ int main (int argc, char *argv[])
                     printf ("  physical slot: %s\n", dev->phy_slot);
                 }
 
+#ifdef PCI_FILL_IOMMU_GROUP
                 if ((known_fields & PCI_FILL_IOMMU_GROUP) != 0)
                 {
                     iommu_group = pci_get_string_property (dev, PCI_FILL_IOMMU_GROUP);
@@ -80,6 +88,18 @@ int main (int argc, char *argv[])
                         printf ("  IOMMU group: %s\n", iommu_group);
                     }
                 }
+#endif
+
+#ifdef PCI_FILL_DRIVER
+                if ((known_fields & PCI_FILL_DRIVER) != 0)
+                {
+                    iommu_group = pci_get_string_property (dev, PCI_FILL_DRIVER);
+                    if (iommu_group != NULL)
+                    {
+                        printf ("  Driver: %s\n", iommu_group);
+                    }
+                }
+#endif
 
                 if (((known_fields & PCI_FILL_BASES) != 0) && ((known_fields & PCI_FILL_SIZES) != 0))
                 {
