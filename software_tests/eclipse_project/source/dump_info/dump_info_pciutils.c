@@ -7,6 +7,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <inttypes.h>
 
 #include <pci/pci.h>
 
@@ -24,7 +25,6 @@ int main (int argc, char *argv[])
     u16 subvendor_id;
     u16 subdevice_id;
     u16 command;
-    char *iommu_group;
 
     /* Initialise using the defaults */
     pacc = pci_alloc ();
@@ -80,6 +80,7 @@ int main (int argc, char *argv[])
                 }
 
 #ifdef PCI_FILL_IOMMU_GROUP
+                char *iommu_group;
                 if ((known_fields & PCI_FILL_IOMMU_GROUP) != 0)
                 {
                     iommu_group = pci_get_string_property (dev, PCI_FILL_IOMMU_GROUP);

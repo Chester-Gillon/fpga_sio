@@ -47,6 +47,9 @@ set (PCIUTILS_ROOT "$ENV{HOME}/pciutils_install")
 if (EXISTS ${PCIUTILS_ROOT})
     link_directories ("${PCIUTILS_ROOT}/usr/local/lib")
     include_directories ("${PCIUTILS_ROOT}/usr/local/include")
+
+    # Make the following CHECK_SYMBOL_EXISTS use the local pcutils directory for the search
+    get_property(CMAKE_REQUIRED_INCLUDES DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
 endif()
 
 # Not available in all versions of libpci

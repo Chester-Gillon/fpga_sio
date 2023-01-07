@@ -18,9 +18,10 @@ make clean
 # Build pciutils locally with the options:
 # a. Set ZLIB=no to disable the dependency on library "z"
 # b. Set DNS=no to disable the dependency on library "resolv"
+# c. Set HWDB=no to disable the dependency on library "udev"
 # c. Set IDSDIR to the directory in the local install where the pci.ids file can be read,
 #    so that pci_lookup_name() works at runtime
-make ZLIB=no DNS=no IDSDIR=~/pciutils_install/usr/local/share
+make ZLIB=no DNS=no HWDB=no IDSDIR=~/pciutils_install/usr/local/share
 
 # Install pciutils into a local directory
 make DESTDIR=~/pciutils_install install install-lib
