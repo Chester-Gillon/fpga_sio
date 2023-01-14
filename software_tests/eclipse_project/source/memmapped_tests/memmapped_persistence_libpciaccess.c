@@ -113,7 +113,9 @@ int main (int argc, char *argv[])
                         printf ("BAR %u\n", bar_index);
 
                         /* Map the entire BAR.
-                         * @todo Should PCI_DEV_MAP_FLAG_WRITE_COMBINE only be selected if the BAR is prefetchable? */
+                         * Using the PCI_DEV_MAP_FLAG_WRITE_COMBINE flag results in:
+                         * a. An "uncached-minus" PAT mapping if the BAR is non-prefetchable
+                         * b. A "write-combining" PAT mapping if the BAR is prefetchable  */
                         addr = NULL;
                         rc = pci_device_map_range (device, region->base_addr, region->size,
                                 PCI_DEV_MAP_FLAG_WRITABLE | PCI_DEV_MAP_FLAG_WRITE_COMBINE, &addr);

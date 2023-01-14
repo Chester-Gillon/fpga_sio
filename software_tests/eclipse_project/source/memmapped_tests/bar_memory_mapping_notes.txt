@@ -88,3 +88,81 @@ still always calls pgprot_noncached
 
 https://patchwork.kernel.org/project/kvm/patch/20171009025000.39435-1-aik@ozlabs.ru/ was a patch to allow vfio to
 use write-combining mappings for pre-fetchable BARs, but not sure what happened to the patch.
+
+
+2. memmapped_persistence_libpciaccess with non-pefetchable BARs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Using the memmapped_blkram_32bit_bars FGPA which uses 32-bit BARs which the Xilinx IP sets as non-prefetchable:
+[mr_halfword@skylake-alma eclipse_project]$ bin/release/dump_info/dump_info_pciutils 
+Access method : linux-sysfs
+domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 (Device 7024) subvendor_id=0002 subdevice_id=0001
+  control: I/O- Mem+ BusMaster-
+  physical slot: 3-1
+  IOMMU group: 25
+  bar[0] base_addr=96800000 size=100000 is_IO=0 is_prefetchable=0 is_64=0
+  bar[1] base_addr=96900000 size=20000 is_IO=0 is_prefetchable=0 is_64=0
+  bar[2] base_addr=96920000 size=10000 is_IO=0 is_prefetchable=0 is_64=0
+domain=0000 bus=36 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7011 (7-Series FPGA Hard PCIe block (AXI/debug)) subvendor_id=0000 subdevice_id=0000
+  control: I/O- Mem+ BusMaster-
+  physical slot: 6-1
+  IOMMU group: 86
+  bar[0] base_addr=38fff0000000 size=20000 is_IO=0 is_prefetchable=1 is_64=1
+  bar[2] base_addr=38fff0020000 size=10000 is_IO=0 is_prefetchable=1 is_64=1
+
+Secure boot was disabled, which allows the direct PCI access used by memmapped_persistence_libpciaccess
+
+The memmapped_persistence_libpciaccess program hard codes setting the PCI_DEV_MAP_FLAG_WRITE_COMBINE flags in the
+call to pci_device_map_range() without checking if the BAR is prefetchable or not.
+
+After mapping bar[0] base_addr=96800000 /sys/kernel/debug/x86/pat_memtype_list shows:
+PAT: [mem 0x0000000096800000-0x0000000096900000] uncached-minus
+
+After mapping bar[1] base_addr=96900000 /sys/kernel/debug/x86/pat_memtype_list shows:
+PAT: [mem 0x0000000096900000-0x0000000096920000] uncached-minus
+
+After mapping bar[2] base_addr=96920000 /sys/kernel/debug/x86/pat_memtype_list shows:
+PAT: [mem 0x0000000096920000-0x0000000096930000] uncached-minus
+
+The above shows using PCI_DEV_MAP_FLAG_WRITE_COMBINE with a non-prefetchable BAR results in a uncached-minus PAT type.
+
+
+3. memmapped_persistence_libpciaccess with pefetchable BARs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Using the memmapped_blkram FGPA which uses 64-bit BARs which the Xilinx IP sets as pre-fetchable:
+[mr_halfword@skylake-alma eclipse_project]$ bin/release/dump_info/dump_info_pciutils 
+Access method : linux-sysfs
+domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 (Device 7024) subvendor_id=0002 subdevice_id=0001
+  control: I/O- Mem+ BusMaster-
+  physical slot: 3-1
+  IOMMU group: 25
+  bar[0] base_addr=387f80000000 size=100000 is_IO=0 is_prefetchable=1 is_64=1
+  bar[2] base_addr=387f80100000 size=20000 is_IO=0 is_prefetchable=1 is_64=1
+  bar[4] base_addr=387f80120000 size=10000 is_IO=0 is_prefetchable=1 is_64=1
+domain=0000 bus=36 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7011 (7-Series FPGA Hard PCIe block (AXI/debug)) subvendor_id=0000 subdevice_id=0000
+  control: I/O- Mem+ BusMaster-
+  physical slot: 6-1
+  IOMMU group: 86
+  bar[0] base_addr=38fff0000000 size=20000 is_IO=0 is_prefetchable=1 is_64=1
+  bar[2] base_addr=38fff0020000 size=10000 is_IO=0 is_prefetchable=1 is_64=1
+
+Secure boot was disabled, which allows the direct PCI access used by memmapped_persistence_libpciaccess
+
+The memmapped_persistence_libpciaccess program hard codes setting the PCI_DEV_MAP_FLAG_WRITE_COMBINE flags in the
+call to pci_device_map_range() without checking if the BAR is prefetchable or not.
+
+After mapping bar[0] base_addr=387f80000000 /sys/kernel/debug/x86/pat_memtype_list shows:
+PAT: [mem 0x0000387f80000000-0x0000387f80100000] write-combining
+
+After mapping bar[2] base_addr=387f80100000 /sys/kernel/debug/x86/pat_memtype_list shows:
+PAT: [mem 0x0000387f80100000-0x0000387f80120000] write-combining
+
+After mapping bar[4] base_addr=387f80120000 /sys/kernel/debug/x86/pat_memtype_list shows:
+PAT: [mem 0x0000387f80120000-0x0000387f80130000] write-combining
+
+The above shows using PCI_DEV_MAP_FLAG_WRITE_COMBINE with a prefetchable BAR results in a write-combining PAT type.
