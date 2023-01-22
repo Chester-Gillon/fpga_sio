@@ -59,3 +59,4 @@ include_directories("${PROJECT_SOURCE_DIR}")
 
 add_subdirectory ("${PROJECT_SOURCE_DIR}/dump_info")
 add_subdirectory ("${PROJECT_SOURCE_DIR}/memmapped_tests")
+add_subdirectory ("${PROJECT_SOURCE_DIR}/probe_xilinx_ip")

@@ -89,6 +89,21 @@ still always calls pgprot_noncached
 https://patchwork.kernel.org/project/kvm/patch/20171009025000.39435-1-aik@ozlabs.ru/ was a patch to allow vfio to
 use write-combining mappings for pre-fetchable BARs, but not sure what happened to the patch.
 
+gdb is unable to the memory mapped BARs, regardless of if secure boot is enabled or disabled, reporting errors of the form:
+  Error message from debugger back end:
+  Cannot access memory at address 0x7ffff7ee1000
+
+In /usr/src/debug/kernel-4.18.0-425.3.1.el8/linux-4.18.0-425.3.1.el8.x86_64/drivers/vfio/pci/vfio_pci.c the only operations
+are the following. I.e. doesn't set access operation which ptrace (and thus gdb) uses to access the mapping:
+static const struct vm_operations_struct vfio_pci_mmap_ops = {
+    .open = vfio_pci_mmap_open,
+    .close = vfio_pci_mmap_close,
+    .fault = vfio_pci_mmap_fault,
+};
+
+The latest https://github.com/torvalds/linux/blob/master/drivers/vfio/pci/vfio_pci_core.c also doesn't have the
+access operation.
+
 
 2. memmapped_persistence_libpciaccess with non-pefetchable BARs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -166,3 +181,13 @@ After mapping bar[4] base_addr=387f80120000 /sys/kernel/debug/x86/pat_memtype_li
 PAT: [mem 0x0000387f80120000-0x0000387f80130000] write-combining
 
 The above shows using PCI_DEV_MAP_FLAG_WRITE_COMBINE with a prefetchable BAR results in a write-combining PAT type.
+
+gdb is able to access the memory mapped BARs and show their contents.
+
+/usr/src/debug/kernel-4.18.0-425.3.1.el8/linux-4.18.0-425.3.1.el8.x86_64/drivers/pci/mmap.c 
+has the following which defines an access operation for the mapping:
+static const struct vm_operations_struct pci_phys_vm_ops = {
+#ifdef CONFIG_HAVE_IOREMAP_PROT
+    .access = generic_access_phys,
+#endif
+};
