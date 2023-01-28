@@ -172,7 +172,7 @@ static void probe_xilinx_dma_bridge (const uint8_t *const mapped_bar, const uint
  * @brief Probe the memory mapped BARs of a vfio device looking for fixed identifiers for IP
  * @param[in] vfio_device The VFIO device to probe
  */
-static void probe_vfio_device_for_xilinx_ip (vfio_device_t *const vfio_device)
+static void probe_vfio_device_for_xilinx_ip (const vfio_device_t *const vfio_device)
 {
     bool match;
     for (int bar_index = 0; bar_index < PCI_STD_NUM_BARS; bar_index++)
