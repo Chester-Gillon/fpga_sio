@@ -8,5 +8,5 @@ target_link_libraries (memmapped_persistence_libpciaccess pciaccess rt)
 
 if (${HAVE_PCI_FILL_IOMMU_GROUP})
     add_executable (memmapped_persistence_vfio "memmapped_persistence_vfio.c")
-    target_link_libraries (memmapped_persistence_vfio pci)
+    target_link_libraries (memmapped_persistence_vfio vfio_access pci)
 endif()
