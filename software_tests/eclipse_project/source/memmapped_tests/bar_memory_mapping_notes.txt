@@ -89,7 +89,7 @@ still always calls pgprot_noncached
 https://patchwork.kernel.org/project/kvm/patch/20171009025000.39435-1-aik@ozlabs.ru/ was a patch to allow vfio to
 use write-combining mappings for pre-fetchable BARs, but not sure what happened to the patch.
 
-gdb is unable to the memory mapped BARs, regardless of if secure boot is enabled or disabled, reporting errors of the form:
+gdb is unable to view the memory mapped BARs, regardless of if secure boot is enabled or disabled, reporting errors of the form:
   Error message from debugger back end:
   Cannot access memory at address 0x7ffff7ee1000
 

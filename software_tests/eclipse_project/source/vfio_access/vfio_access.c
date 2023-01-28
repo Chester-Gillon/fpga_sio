@@ -8,6 +8,7 @@
 #include "vfio_access.h"
 
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
@@ -18,6 +19,9 @@
 #include <sys/mman.h>
 
 
+/*
+ * Paths for the VFIO character devices
+ */
 #define VFIO_ROOT_PATH "/dev/vfio/"
 #define VFIO_CONTAINER_PATH VFIO_ROOT_PATH "vfio"
 
@@ -135,7 +139,7 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
 
     if (vfio_devices->num_devices == 0)
     {
-        /* Set the IOMMU type used. As this is done on the IOMMU container, only performed when the first device is opended */
+        /* Set the IOMMU type used. As this is done on the IOMMU container, only performed when the first device is opened */
         rc = ioctl (vfio_devices->container_fd, VFIO_SET_IOMMU, VFIO_TYPE1_IOMMU);
         if (rc != 0)
         {
@@ -208,6 +212,81 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
 }
 
 
+/*
+ * @brief Determine if one PCI device identity field match a filter, either a specific value or the "ANY" value
+ * @param[in] pci_id The identity field from the PCI device to compare against the filter
+ * @param[in] filter_id The filter identity field
+ * @return Returns true if pci_id matches the filter
+ */
+static bool pci_filter_id_match (const u16 pci_id, const int filter_id)
+{
+    return (filter_id == VFIO_PCI_DEVICE_FILTER_ANY) || ((int) pci_id == filter_id);
+}
+
+
+/**
+ * @brief Scan the PCI bus, attempting to open all devices using VFIO which match the filter.
+ * @details If an error occurs attempting to open the VFIO device then a message is output to the console and the
+ *          offending device isn't returned in vfio_devices.
+ * @param[out] vfio_devices The list of opened VFIO devices
+ * @param[in] num_filters The number of PCI device filters
+ * @param[in] filters The filters for PCI devices to open
+ */
+void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
+                                        const size_t num_filters, const vfio_pci_device_filter_t filters[const num_filters])
+{
+    struct pci_dev *dev;
+    int known_fields;
+    u16 subsystem_vendor_id;
+    u16 subsystem_device_id;
+    bool pci_device_matches_filter;
+
+    memset (vfio_devices, 0, sizeof (*vfio_devices));
+
+    /* Initialise PCI access using the defaults */
+    vfio_devices->pacc = pci_alloc ();
+    if (vfio_devices->pacc == NULL)
+    {
+        fprintf (stderr, "pci_alloc() failed\n");
+        exit (EXIT_FAILURE);
+    }
+    pci_init (vfio_devices->pacc);
+
+    /* Scan the entire bus */
+    pci_scan_bus (vfio_devices->pacc);
+
+    /* Open the PCI devices which match the filters and have an IOMMU group assigned */
+    const int required_fields = PCI_FILL_IDENT | PCI_FILL_IOMMU_GROUP;
+    for (dev = vfio_devices->pacc->devices; (dev != NULL) && (vfio_devices->num_devices < MAX_VFIO_DEVICES); dev = dev->next)
+    {
+        known_fields = pci_fill_info (dev, required_fields);
+        if ((known_fields & required_fields) == required_fields)
+        {
+            pci_device_matches_filter = false;
+            for (size_t filter_index = 0; (!pci_device_matches_filter) && (filter_index < num_filters); filter_index++)
+            {
+                const vfio_pci_device_filter_t *const filter = &filters[filter_index];
+
+                pci_device_matches_filter = pci_filter_id_match (dev->vendor_id, filter->vendor_id) &&
+                        pci_filter_id_match (dev->device_id , filter->device_id);
+                if (pci_device_matches_filter)
+                {
+                    subsystem_vendor_id = pci_read_word (dev, PCI_SUBSYSTEM_VENDOR_ID);
+                    subsystem_device_id = pci_read_word (dev, PCI_SUBSYSTEM_ID);
+                    pci_device_matches_filter = pci_filter_id_match (subsystem_vendor_id, filter->subsystem_vendor_id) &&
+                            pci_filter_id_match (subsystem_device_id, filter->subsystem_device_id);
+                }
+            }
+
+            if (pci_device_matches_filter)
+            {
+                open_vfio_device (vfio_devices, dev);
+            }
+        }
+    }
+}
+
+
 /**
  * @brief Close all the open VFIO devices
  * @param[in/out] vfio_devices The VFIO devices to close
@@ -259,4 +338,10 @@ void close_vfio_devices (vfio_devices_t *const vfio_devices)
         exit (EXIT_FAILURE);
     }
     vfio_devices->container_fd = -1;
+
+    /* Cleanup the PCI access, if was used */
+    if (vfio_devices->pacc != NULL)
+    {
+        pci_cleanup (vfio_devices->pacc);
+    }
 }

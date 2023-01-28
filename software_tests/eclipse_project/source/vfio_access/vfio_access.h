@@ -36,7 +36,28 @@ typedef struct
     struct vfio_region_info regions_info[PCI_STD_NUM_BARS];
     /* For each BAR, if can be memory mapped then points at the mapping for the BAR.
      * Size of the mapping is given by the corresponding bars_info[].size.
-     * NULL if the BAR is not present or doesn't support being mapped. */
+     * NULL if the BAR is not present or doesn't support being mapped.
+     *
+     * As of AlmaLinux 8.7 with a 4.18.0-425.3.1.el8.x86_64 Kernel some limitations are:
+     * 1. With prefetchable BARs a "uncached-minus" PAT mapping is always used, can't see any way to request
+     *    a "write-combining" PAT mapping to be used.
+     *
+     *    https://patchwork.kernel.org/project/kvm/patch/20171009025000.39435-1-aik@ozlabs.ru/ was a patch to allow vfio to
+     *    use write-combining mappings for pre-fetchable BARs, but not sure what happened to the patch.
+     * 2. gdb is unable to view the contents of the mapped memory, reporting errors of the form:
+     *      Error message from debugger back end:
+     *      Cannot access memory at address 0x7ffff7ee1000.
+     *
+     *    In /usr/src/debug/kernel-4.18.0-425.3.1.el8/linux-4.18.0-425.3.1.el8.x86_64/drivers/vfio/pci/vfio_pci.c the only
+     *    operations are the following. I.e. doesn't set access operation which ptrace (and thus gdb) uses to access the mapping:
+     *       static const struct vm_operations_struct vfio_pci_mmap_ops = {
+     *           .open = vfio_pci_mmap_open,
+     *           .close = vfio_pci_mmap_close,
+     *           .fault = vfio_pci_mmap_fault,
+     *       };
+     * 3. Based upon adding debugpat to the command line, when checking the PAT mapping used, think the mapping isn't populated
+     *    in the application until the first access, which triggers a page fault. Haven't yet confirmed this by tracing
+     *    page faults. */
     uint8_t *mapped_bars[PCI_STD_NUM_BARS];
 } vfio_device_t;
 
@@ -45,6 +66,8 @@ typedef struct
 #define MAX_VFIO_DEVICES 4
 typedef struct
 {
+    /* If non-NULL used to search for PCI devices */
+    struct pci_access *pacc;
     /* The VFIO container used by all devices.
      * Not clear what the benefits are of having one container for multiple devices, .vs. one container per device.
      *
@@ -61,7 +84,23 @@ typedef struct
 } vfio_devices_t;
 
 
+/*
+ * Defines a filter which can match PCI devices by identity to open for VFIO access.
+ * VFIO_PCI_DEVICE_FILTER_ANY can be used for any field to ignore the value.
+ */
+#define VFIO_PCI_DEVICE_FILTER_ANY -1
+typedef struct
+{
+    int vendor_id;
+    int device_id;
+    int subsystem_vendor_id;
+    int subsystem_device_id;
+} vfio_pci_device_filter_t;
+
+
 void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev);
+void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
+                                        const size_t num_filters, const vfio_pci_device_filter_t filters[const num_filters]);
 void close_vfio_devices (vfio_devices_t *const vfio_devices);
 
 

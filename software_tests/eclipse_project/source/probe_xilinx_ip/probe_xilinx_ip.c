@@ -198,42 +198,19 @@ static void probe_vfio_device_for_xilinx_ip (vfio_device_t *const vfio_device)
 
 int main (int argc, char *argv[])
 {
-    struct pci_access *pacc;
-    struct pci_filter filter;
-    struct pci_dev *dev;
-    int known_fields;
     vfio_devices_t vfio_devices;
 
-    /* Initialise using the defaults */
-    pacc = pci_alloc ();
-    if (pacc == NULL)
-    {
-        fprintf (stderr, "pci_alloc() failed\n");
-        exit (EXIT_FAILURE);
-    }
-    pci_init (pacc);
-
     /* Select to filter by vendor only */
-    pci_filter_init (pacc, &filter);
-    filter.vendor = FPGA_SIO_VENDOR_ID;
-
-    /* Scan the entire bus */
-    pci_scan_bus (pacc);
+    const vfio_pci_device_filter_t filter =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_device_id = VFIO_PCI_DEVICE_FILTER_ANY
+    };
 
     /* Open the FPGA devices which have an IOMMU group assigned */
-    memset (&vfio_devices, 0, sizeof (vfio_devices));
-    const int required_fields = PCI_FILL_IDENT | PCI_FILL_IOMMU_GROUP;
-    for (dev = pacc->devices; (dev != NULL) && (vfio_devices.num_devices < MAX_VFIO_DEVICES); dev = dev->next)
-    {
-        if (pci_filter_match (&filter, dev))
-        {
-            known_fields = pci_fill_info (dev, required_fields);
-            if ((known_fields & required_fields) == required_fields)
-            {
-                open_vfio_device (&vfio_devices, dev);
-            }
-        }
-    }
+    open_vfio_devices_matching_filter (&vfio_devices, 1, &filter);
 
     /* Probe the VFIO devices */
     for (uint32_t device_index = 0; device_index < vfio_devices.num_devices; device_index++)
@@ -242,7 +219,6 @@ int main (int argc, char *argv[])
     }
 
     close_vfio_devices (&vfio_devices);
-    pci_cleanup (pacc);
 
     return EXIT_SUCCESS;
 }
