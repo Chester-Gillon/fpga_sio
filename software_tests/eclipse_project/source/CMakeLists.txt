@@ -56,7 +56,11 @@ endif()
 CHECK_SYMBOL_EXISTS ("PCI_FILL_IOMMU_GROUP" pci/pci.h HAVE_PCI_FILL_IOMMU_GROUP)
 
 include_directories("${PROJECT_SOURCE_DIR}")
+include_directories("${PROJECT_SOURCE_DIR}/vfio_access")
 
+if (${HAVE_PCI_FILL_IOMMU_GROUP})
+    add_subdirectory ("${PROJECT_SOURCE_DIR}/vfio_access")
+endif()
 add_subdirectory ("${PROJECT_SOURCE_DIR}/dump_info")
 add_subdirectory ("${PROJECT_SOURCE_DIR}/memmapped_tests")
 add_subdirectory ("${PROJECT_SOURCE_DIR}/probe_xilinx_ip")
