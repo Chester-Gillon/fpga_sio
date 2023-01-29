@@ -139,7 +139,11 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
 
     if (vfio_devices->num_devices == 0)
     {
-        /* Set the IOMMU type used. As this is done on the IOMMU container, only performed when the first device is opened */
+        /* Set the IOMMU type used. As this is done on the IOMMU container, only performed when the first device is opened.
+         * Uses the fixed VFIO_TYPE1_IOMMU, as DPDK does for x86.
+         *
+         * While support for VFIO_TYPE1v2_IOMMU and VFIO_TYPE1_NESTING_IOMMU was available on the Intel Xeon W system tested,
+         * not sure of the benefits of using a different IOMMU type. */
         rc = ioctl (vfio_devices->container_fd, VFIO_SET_IOMMU, VFIO_TYPE1_IOMMU);
         if (rc != 0)
         {
@@ -343,5 +347,93 @@ void close_vfio_devices (vfio_devices_t *const vfio_devices)
     if (vfio_devices->pacc != NULL)
     {
         pci_cleanup (vfio_devices->pacc);
+    }
+}
+
+
+/**
+ * @brief Allocate page aligned memory in the process, and create a DMA mapping for the allocated memory.
+ * @param[in/out] vfio_devices The VFIO devices context used to create the DMA mapping using the IOMMU container.
+ *                             Used to allocate the iova address used for the mapping.
+ * @param[out] mapping Contains the process memory and associated DMA mapping which has been allocated.
+ *                     On failure, mapping->vaddr is NULL
+ * @param[in] size The size in bytes to allocate
+ * @param[in] permission Bitwise OR VFIO_DMA_MAP_FLAG_READ / VFIO_DMA_MAP_FLAG_WRITE flags to define
+ *                       the device access to the DMA mapping.
+ */
+void allocate_vfio_dma_mapping (vfio_devices_t *const vfio_devices,
+                                vfio_dma_mapping_t *const mapping,
+                                const size_t size, const uint32_t permission)
+{
+    int rc;
+    struct vfio_iommu_type1_dma_map dma_map;
+    const size_t page_size = (size_t) getpagesize ();
+
+    /* @todo For simplicity assume an incrementing IOVA for each allocation, without regard to any container constraints.
+     *       If this attempts to allocate an invalid iova VFIO_IOMMU_MAP_DMA will fail with EPERM
+     *       Consider making use of VFIO_IOMMU_TYPE1_INFO_CAP_IOVA_RANGE to find a valid iova range. */
+    mapping->iova = vfio_devices->next_iova;
+
+    /* Allocate process memory aligned to a page size */
+    mapping->size = size;
+    rc = posix_memalign (&mapping->vaddr, page_size, mapping->size);
+
+    if (rc == 0)
+    {
+        memset (mapping->vaddr, 0, mapping->size);
+        memset (&dma_map, 0, sizeof (dma_map));
+        dma_map.argsz = sizeof (dma_map);
+        dma_map.flags = permission;
+        dma_map.vaddr = (uintptr_t) mapping->vaddr;
+        dma_map.iova = mapping->iova;
+        dma_map.size = mapping->size;
+        rc = ioctl (vfio_devices->container_fd, VFIO_IOMMU_MAP_DMA, &dma_map);
+        if (rc == 0)
+        {
+            vfio_devices->next_iova += mapping->size;
+        }
+        else
+        {
+            printf ("VFIO_IOMMU_MAP_DMA of size %zu failed : %s\n", mapping->size, strerror (-rc));
+            free (mapping->vaddr);
+            mapping->vaddr = NULL;
+        }
+    }
+    else
+    {
+        mapping->vaddr = NULL;
+        printf ("Failed to allocate %zu bytes for VFIO DMA mapping\n", size);
+    }
+}
+
+
+/**
+ * @brief Free a DMA mapping, and the associated process virtual memory
+ * @param[in] vfio_devices The VFIO devices context containing the IOMMU container to free the mapping for
+ * @param[in/out] mapping The DMA mapping to free.
+ */
+void free_vfio_dma_mapping (const vfio_devices_t *const vfio_devices, vfio_dma_mapping_t *const mapping)
+{
+    int rc;
+    struct vfio_iommu_type1_dma_unmap dma_unmap =
+    {
+        .argsz = sizeof (dma_unmap),
+        .flags = 0,
+        .iova = mapping->iova,
+        .size = mapping->size
+    };
+
+    if (mapping->vaddr != NULL)
+    {
+        rc = ioctl (vfio_devices->container_fd, VFIO_IOMMU_UNMAP_DMA, &dma_unmap);
+        if (rc == 0)
+        {
+            free (mapping->vaddr);
+            mapping->vaddr = NULL;
+        }
+        else
+        {
+            printf ("VFIO_IOMMU_UNMAP_DMA of size %zu failed : %s\n", mapping->size, strerror (-rc));
+        }
     }
 }

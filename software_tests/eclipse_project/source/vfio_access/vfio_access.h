@@ -69,7 +69,8 @@ typedef struct
     /* If non-NULL used to search for PCI devices */
     struct pci_access *pacc;
     /* The VFIO container used by all devices.
-     * Not clear what the benefits are of having one container for multiple devices, .vs. one container per device.
+     * DMA mapping is done for the container, so having one container for multiple devices should all the DMA mappings
+     * to be used by multiple devices.
      *
      * The description of VFIO_GROUP_SET_CONTAINER contains:
      *    "Containers may, at their discretion, support multiple groups."
@@ -77,6 +78,8 @@ typedef struct
      * With the intel_iommu was able to add two devices in different /sys/class/iommu/dmar?/devices directory
      * to the same container. */
     int container_fd;
+    /* Used to allocate the next IOVA address allocated */
+    uint64_t next_iova;
     /* The number of devices which have been opened */
     uint32_t num_devices;
     /* The devices which have been opened */
@@ -98,10 +101,26 @@ typedef struct
 } vfio_pci_device_filter_t;
 
 
+/* Defines one mapping which has been allocated for DMA using the IOMMU */
+typedef struct
+{
+    /* The virtual address of the allocated region, for using by the process */
+    void *vaddr;
+    /* IO virtual address, for accessing by the device DMA */
+    uint64_t iova;
+    /* Size of the mapping in bytes */
+    size_t size;
+} vfio_dma_mapping_t;
+
+
 void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev);
 void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
                                         const size_t num_filters, const vfio_pci_device_filter_t filters[const num_filters]);
 void close_vfio_devices (vfio_devices_t *const vfio_devices);
+void allocate_vfio_dma_mapping (vfio_devices_t *const vfio_devices,
+                                vfio_dma_mapping_t *const mapping,
+                                const size_t size, const uint32_t permission);
+void free_vfio_dma_mapping (const vfio_devices_t *const vfio_devices, vfio_dma_mapping_t *const mapping);
 
 
 /**
