@@ -107,6 +107,15 @@ static void probe_xilinx_dma_bridge (const uint8_t *const mapped_bar, const uint
         const uint32_t channel_id_target =    (channel_identification & 0x00000F00) >> 8;
         const uint32_t version =              (channel_identification & 0x000000FF);
 
+        const uint32_t channel_alignments = read_reg32 (mapped_bar, bar_offset + 0x4c);
+        const uint32_t addr_alignment =
+                (channel_alignments & 0x00FF0000) >> 16; /* The byte alignment that the source and destination addresses must
+                                                            align to. This value is dependent on configuration parameters.*/
+        const uint32_t len_granularity =
+                (channel_alignments & 0x0000FF00) >> 8; /* The minimum granularity of DMA transfers in bytes. */
+        const uint32_t address_bits =
+                (channel_alignments & 0x000000FF); /* The number of address bits configured. */
+
         if (subsystem_identifier == dma_subsystem_identity)
         {
             switch (channel_target)
@@ -117,6 +126,8 @@ static void probe_xilinx_dma_bridge (const uint8_t *const mapped_bar, const uint
                         stream ? "AXI4-Stream Interface" : "AXI4 Memory Mapped Interface",
                         channel_id_target,
                         version);
+                printf ("  addr_alignment=%" PRIu32 " len_granularity=%" PRIu32 " address_bits=%" PRIu32 "\n",
+                        addr_alignment, len_granularity, address_bits);
                 break;
 
             case target_c2h_channels:
@@ -125,6 +136,8 @@ static void probe_xilinx_dma_bridge (const uint8_t *const mapped_bar, const uint
                         stream ? "AXI4-Stream Interface" : "AXI4 Memory Mapped Interface",
                         channel_id_target,
                         version);
+                printf ("  addr_alignment=%" PRIu32 " len_granularity=%" PRIu32 " address_bits=%" PRIu32 "\n",
+                        addr_alignment, len_granularity, address_bits);
                 break;
 
             case target_irq_block:
