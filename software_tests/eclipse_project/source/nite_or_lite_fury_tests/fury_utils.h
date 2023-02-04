@@ -19,6 +19,7 @@ typedef enum
 } fury_type_t;
 
 #define FURY_AXI_PERIPHERALS_BAR 0
+#define FURY_DMA_BRIDGE_BAR      2
 
 fury_type_t identify_fury (const vfio_device_t *const vfio_device, uint32_t *const board_version);
 

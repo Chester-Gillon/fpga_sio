@@ -8,6 +8,7 @@
 #include "vfio_access.h"
 #include "fury_utils.h"
 #include "fpga_sio_pci_ids.h"
+#include "xilinx_dma_registers.h"
 
 #include <stdlib.h>
 #include <stdio.h>
