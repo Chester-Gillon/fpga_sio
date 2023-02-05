@@ -10,5 +10,5 @@ if (${HAVE_PCI_FILL_IOMMU_GROUP})
     target_link_libraries (test_general fury_utils vfio_access pci)
 
     add_executable (test_ddr "test_ddr.c")
-    target_link_libraries (test_ddr fury_utils vfio_access pci)
+    target_link_libraries (test_ddr fury_utils xilinx_dma_bridge_transfers vfio_access pci)
 endif()

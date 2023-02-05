@@ -110,6 +110,8 @@ typedef struct
     uint64_t iova;
     /* Size of the mapping in bytes */
     size_t size;
+    /* Allows the mapping to have its contents allocated for different uses */
+    size_t num_allocated_bytes;
 } vfio_dma_mapping_t;
 
 
@@ -120,6 +122,9 @@ void close_vfio_devices (vfio_devices_t *const vfio_devices);
 void allocate_vfio_dma_mapping (vfio_devices_t *const vfio_devices,
                                 vfio_dma_mapping_t *const mapping,
                                 const size_t size, const uint32_t permission);
+void *vfio_dma_mapping_allocate_space (vfio_dma_mapping_t *const mapping,
+                                       const size_t allocation_size, uint64_t *const allocated_iova);
+void vfio_dma_mapping_align_space (vfio_dma_mapping_t *const mapping);
 void free_vfio_dma_mapping (const vfio_devices_t *const vfio_devices, vfio_dma_mapping_t *const mapping);
 
 
@@ -135,5 +140,30 @@ static inline uint32_t read_reg32 (const uint8_t *const mapped_bar, const uint64
     return __atomic_load_n (mapped_reg, __ATOMIC_ACQUIRE);
 }
 
+
+/**
+ * @brief Perform a write to a 32-bit register in a memory mapped BAR
+ * @param[in/out] mapped_bar The base of the BAR to write
+ * @param[in] reg_offset The byte offset into the BAR of the register to write
+ * @param[in] reg_value The register value to write
+ */
+static inline void write_reg32 (uint8_t *const mapped_bar, const uint64_t reg_offset, const uint32_t reg_value)
+{
+    uint32_t *const mapped_reg = (uint32_t *) &mapped_bar[reg_offset];
+    __atomic_store_n (mapped_reg, reg_value, __ATOMIC_RELEASE);
+}
+
+
+/**
+ * @brief Perform a write to a 64-bit register in a memory mapped BAR
+ * @param[in/out] mapped_bar The base of the BAR to write
+ * @param[in] reg_offset The byte offset into the BAR of the register to write
+ * @param[in] reg_value The register value to write
+ */
+static inline void write_reg64 (uint8_t *const mapped_bar, const uint64_t reg_offset, const uint64_t reg_value)
+{
+    uint64_t *const mapped_reg = (uint64_t *) &mapped_bar[reg_offset];
+    __atomic_store_n (mapped_reg, reg_value, __ATOMIC_RELEASE);
+}
 
 #endif /* SOURCE_VFIO_ACCESS_VFIO_ACCESS_H_ */

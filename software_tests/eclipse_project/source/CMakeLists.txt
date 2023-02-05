@@ -57,9 +57,11 @@ CHECK_SYMBOL_EXISTS ("PCI_FILL_IOMMU_GROUP" pci/pci.h HAVE_PCI_FILL_IOMMU_GROUP)
 
 include_directories("${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}/vfio_access")
+include_directories("${PROJECT_SOURCE_DIR}/xilinx_dma_bridge_for_pcie")
 
 if (${HAVE_PCI_FILL_IOMMU_GROUP})
     add_subdirectory ("${PROJECT_SOURCE_DIR}/vfio_access")
+    add_subdirectory ("${PROJECT_SOURCE_DIR}/xilinx_dma_bridge_for_pcie")
 endif()
 add_subdirectory ("${PROJECT_SOURCE_DIR}/dump_info")
 add_subdirectory ("${PROJECT_SOURCE_DIR}/memmapped_tests")

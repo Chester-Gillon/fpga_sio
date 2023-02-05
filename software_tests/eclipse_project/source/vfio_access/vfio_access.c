@@ -3,6 +3,10 @@
  * @date 28 Jan 2023
  * @author Chester Gillon
  * @brief Implement a library to allow access to device using VFIO
+ * @details
+ *  Supports:
+ *  a. Access to memory mapped BARs in the device
+ *  b. IOVA access to host memory by a DMA controller in the device
  */
 
 #include "vfio_access.h"
@@ -376,6 +380,7 @@ void allocate_vfio_dma_mapping (vfio_devices_t *const vfio_devices,
 
     /* Allocate process memory aligned to a page size */
     mapping->size = size;
+    mapping->num_allocated_bytes = 0;
     rc = posix_memalign (&mapping->vaddr, page_size, mapping->size);
 
     if (rc == 0)
@@ -404,6 +409,46 @@ void allocate_vfio_dma_mapping (vfio_devices_t *const vfio_devices,
         mapping->vaddr = NULL;
         printf ("Failed to allocate %zu bytes for VFIO DMA mapping\n", size);
     }
+}
+
+
+/**
+ * @brief Allocate some space from a VFIO DMA mapping
+ * @param[in/out] mapping The mapping to allocate space from
+ * @param[in] allocation_size The size of the allocation in bytes
+ * @param[out] allocated_iova The iova of the allocation
+ * @return The allocated virtual address, or NULL if insufficient space for the allocation
+ */
+void *vfio_dma_mapping_allocate_space (vfio_dma_mapping_t *const mapping,
+                                       const size_t allocation_size, uint64_t *const allocated_iova)
+{
+    uint8_t *const vaddr_bytes = mapping->vaddr;
+    void *allocated_vaddr = NULL;
+
+    *allocated_iova = mapping->iova + mapping->num_allocated_bytes;
+    if ((mapping->num_allocated_bytes + allocation_size) <= mapping->size)
+    {
+        allocated_vaddr = &vaddr_bytes[mapping->num_allocated_bytes];
+        mapping->num_allocated_bytes += allocation_size;
+    }
+    else
+    {
+        printf ("Insufficient space to allocate %zu bytes in VFIO DMA mapping\n", allocation_size);
+    }
+
+    return allocated_vaddr;
+}
+
+
+/**
+ * @brief Round up the allocation of a VFIO DMA mapping to the cache line boundary
+ * @param[in/out] mapping The mapping to align the next allocation for
+ */
+void vfio_dma_mapping_align_space (vfio_dma_mapping_t *const mapping)
+{
+    const size_t cache_line_size = 64;
+
+    mapping->num_allocated_bytes = ((mapping->num_allocated_bytes + (cache_line_size - 1)) / cache_line_size) * cache_line_size;
 }
 
 

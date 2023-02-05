@@ -1,11 +1,11 @@
 /*
- * @file xilinx_dma_registers.h
+ * @file xilinx_dma_bridge_host_interface.h
  * @date 29 Jan 2023
  * @author Chester Gillon
- * @brief Register definitions for Xilinx "DMA/Bridge Subsystem for PCI Express"
+ * @brief Defines the interface to the Xilinx "DMA/Bridge Subsystem for PCI Express", from the point of view of the host
  * @details
- *  This is the subset of the register definitions used for DMA tests in user space via VFIO access.
- *  Register details taken from
+ *  This is descriptor layout and subset of the register definitions used for DMA tests in user space via VFIO access.
+ *  Details taken from
  *    https://www.xilinx.com/content/dam/xilinx/support/documents/ip_documentation/xdma/v4_1/pg195-pcie-dma.pdf
  *
  *  Defines register bits as macros for use on integers, rather than using bit fields, to allow atomic operations.
@@ -17,8 +17,8 @@
  *  have prefixed the names with X2X to indicate the register definitions can be used common to both directions.
  */
 
-#ifndef SOURCE_NITE_OR_LITE_FURY_TESTS_XILINX_DMA_REGISTERS_H_
-#define SOURCE_NITE_OR_LITE_FURY_TESTS_XILINX_DMA_REGISTERS_H_
+#ifndef XILINX_DMA_BRIDGE_HOST_INTERFACE_H_
+#define XILINX_DMA_BRIDGE_HOST_INTERFACE_H_
 
 #include <stdint.h>
 
@@ -30,8 +30,8 @@
 #define DMA_DESCRIPTOR_CONTROL_STOP      (1 << 0)
 
 /* While the features section of pg195 says "256 MB max transfer size per descriptor", given the descriptor length
- * is 18-bits wide assume the maximum length is one byte less. */
-#define DMA_DESCRIPTOR_MAX_LEN ((1 << 18) - 1)
+ * is 28-bits wide assume the maximum length is one byte less. */
+#define DMA_DESCRIPTOR_MAX_LEN ((1 << 28) - 1)
 
 typedef struct
 {
@@ -80,6 +80,50 @@ typedef struct
 } completed_descriptor_count_writeback_t;
 
 
+/* The destination submodule within the DMA */
+#define DMA_SUBMODULE_H2C_CHANNELS 0
+#define DMA_SUBMODULE_C2H_CHANNELS 1
+#define DMA_SUBMODULE_IRQ_BLOCK    2
+#define DMA_SUBMODULE_CONFIG       3
+#define DMA_SUBMODULE_H2C_SGDMA    4
+#define DMA_SUBMODULE_C2H_SGDMA    5
+#define DMA_SUBMODULE_SGDMA_COMMON 6
+#define DMA_SUBMODULE_MSI_X        8
+
+/* Calculate the offset within a PCIe BAR to the start of a submodule */
+#define DMA_SUBMODULE_BAR_START_OFFSET(submodule) ((submodule) << 12)
+
+/* Calculate the offset within a PCIe BAR to the start of one channel for a submodule */
+#define DMA_CHANNEL_BAR_START_OFFSET(submodule,channel_id) (DMA_SUBMODULE_BAR_START_OFFSET (submodule) + ((channel_id) << 8))
+
+
+/* Register at the start of a submodule block, apart from DMA_SUBMODULE_MSI_X, used to identify the submodule */
+#define SUBMODULE_IDENTIFIER_OFFSET 0x0
+
+/* Fixed value which identifies the IP */
+#define SUBMODULE_IDENTIFIER_SUBSYSTEM_MASK   0xfff00000
+#define SUBMODULE_IDENTIFIER_SUBSYSTEM_SHIFT  20
+#define SUBMODULE_IDENTIFIER_SUBSYSTEM_ID     0x1fc /* Identity for "DMA/Bridge Subsystem for PCI Express" */
+
+/* Should be value of DMA_SUBMODULE_* which identifies the subsystem */
+#define SUBMODULE_IDENTIFIER_TARGET_MASK      0x000f0000
+#define SUBMODULE_IDENTIFIER_TARGET_SHIFT     16
+
+/* For DMA_SUBMODULE_H2C_CHANNELS, DMA_SUBMODULE_C2H_CHANNELS, DMA_SUBMODULE_H2C_SGDMA, DMA_SUBMODULE_C2H_SGDMA
+ * identifies the AXI4 endpoint type:
+ * 1: AXI4-Stream Interface
+ * 0: AXI4 Memory Mapped Interface  */
+#define SUBMODULE_IDENTIFIER_STREAM_MASK      0x00008000
+
+/* For DMA_SUBMODULE_H2C_CHANNELS, DMA_SUBMODULE_C2H_CHANNELS, DMA_SUBMODULE_H2C_SGDMA, DMA_SUBMODULE_C2H_SGDMA
+ * contains the channel_id */
+#define SUBMODULE_IDENTIFIER_CHANNEL_ID_MASK  0x00000f00
+#define SUBMODULE_IDENTIFIER_CHANNEL_ID_SHIFT 8
+
+/* Contains the version of the "DMA/Bridge Subsystem for PCI Express" IP */
+#define SUBMODULE_IDENTIFIER_VERSION_MASK     0x000000ff
+#define SUBMODULE_IDENTIFIER_VERSION_SHIFT    0
+
 /* Defines the Host To Card (H2C) and Card To Host (C2H) channel register space.
  * Only difference between the registers for the two directions is:
  * a. In the Read and Write errors which can be reported, since relate to the AXI4 end of the transfers.
@@ -90,7 +134,7 @@ typedef struct
 #define X2X_CHANNEL_CONTROL_W1C_OFFSET 0xC
 
 /* Control bits for X2X_CHANNEL_CONTROL_RW_OFFSET, X2X_CHANNEL_CONTROL_W1S_OFFSET and X2X_CHANNEL_CONTROL_W1C_OFFSET.
- * These registers only different in:
+ * These registers only differ in access:
  * - X2X_CHANNEL_CONTROL_RW_OFFSET provides read/write access to all bits
  * - X2X_CHANNEL_CONTROL_W1S_OFFSET provides Write 1 to Set access
  * - X2X_CHANNEL_CONTROL_W1C_OFFSET provides Write 1 to Clear access
@@ -201,4 +245,71 @@ typedef struct
  * X2X Channel Performance Data Count (0xD0) */
 
 
-#endif /* SOURCE_NITE_OR_LITE_FURY_TESTS_XILINX_DMA_REGISTERS_H_ */
+/* IRQ Block registers are not defined as using poll mode */
+
+
+/* Config Block registers are not defined as don't look necessary to use / change */
+
+
+/* Defines the H2C SGDMA and C2H SGDMA register space */
+
+/* 64-bit start descriptor address. Dsc_adr[63:0] is the first descriptor address that is fetched after the Control
+   register Run bit is set. */
+#define X2X_SGDMA_DESCRIPTOR_ADDRESS_OFFSET 0x80
+
+/* dsc_adj[5:0]
+ * Number of extra adjacent descriptors after the start descriptor address. */
+#define X2X_SGDMA_DESCRIPTOR_ADJACENT_OFFSET 0x88
+
+/* h2c_dsc_credit[9:0]
+ * Writes to this register will add descriptor credits for the channel. This register will only be used if it is enabled via the
+ * channel's bits in the Descriptor Credit Mode register. Credits are automatically cleared on the falling edge of the
+ * channels Control register Run bit or if Descriptor Credit Mode is disabled for the channel. The register can be read
+ * to determine the number of current remaining credits for the channel. */
+#define X2X_SGDMA_DESCRIPTOR_CREDITS_OFFSET 0x8C
+
+
+/* SGDMA Common registers space */
+
+#define SGDMA_DESCRIPTOR_CONTROL_RW_OFFSET  0x10
+#define SGDMA_DESCRIPTOR_CONTROL_W1S_OFFSET 0x14
+#define SGDMA_DESCRIPTOR_CONTROL_W1C_OFFSET 0x18
+
+/* Control bits for the SGDMA_DESCRIPTOR_CONTROL_RW_OFFSET, SGDMA_DESCRIPTOR_CONTROL_W1S_OFFSET and
+ * SGDMA_DESCRIPTOR_CONTROL_W1C_OFFSET registers. These registers only differ in access:
+ * - SGDMA_DESCRIPTOR_CONTROL_RW_OFFSET provides read/write access to all bits
+ * - SGDMA_DESCRIPTOR_CONTROL_W1S_OFFSET provides Write 1 to Set access
+ * - SGDMA_DESCRIPTOR_CONTROL_W1C_OFFSET provides Write 1 to Clear access */
+#define SGDMA_DESCRIPTOR_C2H_DSC_HALT_LOW_BIT 16 /* c2h_dsc_halt[3:0]
+                                                    One bit per C2H channel. Set to one to halt descriptor
+                                                    fetches for corresponding channel. */
+#define SGDMA_DESCRIPTOR_H2C_DSC_HALT_LOW_BIT 0 /* h2c_dsc_halt[3:0]
+                                                   One bit per H2C channel. Set to one to halt descriptor
+                                                   fetches for corresponding channel. */
+
+#define SGDMA_DESCRIPTOR_CREDIT_MODE_ENABLE_RW_OFFSET  0x20
+#define SGDMA_DESCRIPTOR_CREDIT_MODE_ENABLE_W1S_OFFSET 0x24
+#define SGDMA_DESCRIPTOR_CREDIT_MODE_ENABLE_W1C_OFFSET 0x28
+
+/* Control bits for the SGDMA_DESCRIPTOR_CREDIT_MODE_ENABLE_RW_OFFSET, SGDMA_DESCRIPTOR_CREDIT_MODE_ENABLE_W1S_OFFSET
+ * and SGDMA_DESCRIPTOR_CREDIT_MODE_ENABLE_W1C_OFFSET registers. These registers only differ in access:
+ * - SGDMA_DESCRIPTOR_CREDIT_MODE_ENABLE_RW_OFFSET provides read/write access to all bits
+ * - SGDMA_DESCRIPTOR_CREDIT_MODE_ENABLE_W1S_OFFSET provides Write 1 to Set access
+ * - SGDMA_DESCRIPTOR_CREDIT_MODE_ENABLE_W1C_OFFSET Write 1 to Clear access */
+#define SGDMA_DESCRIPTOR_H2C_DSC_CREDIT_ENABLE_LOW_BIT 0 /* h2c_dsc_credit_enable [3:0]
+                                                            One bit per H2C channel. Set to 1 to enable descriptor
+                                                            crediting. For each channel, the descriptor fetch engine will
+                                                            limit the descriptors fetched to the number of descriptor
+                                                            credits it is given through writes to the channel's Descriptor
+                                                            Credit Register. */
+#define SGDMA_DESCRIPTOR_C2H_DSC_CREDIT_ENABLE_LOW_BIT 16 /* c2h_dsc_credit_enable [3:0]
+                                                             One bit per C2H channel. Set to 1 to enable descriptor
+                                                             crediting. For each channel, the descriptor fetch engine will
+                                                             limit the descriptors fetched to the number of descriptor
+                                                             credits it is given through writes to the channel's Descriptor
+                                                             Credit Register. */
+
+
+/* MSI-X Vector Table and PBA are not defined as using poll mode */
+
+#endif /* XILINX_DMA_BRIDGE_HOST_INTERFACE_H_ */
