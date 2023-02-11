@@ -149,7 +149,7 @@ bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
 
     /* Calculate the number of descriptors needed for context->data_mapping.size */
     const uint32_t aligned_max_descriptor_len = (DMA_DESCRIPTOR_MAX_LEN / context->addr_alignment) * context->addr_alignment;
-    context->num_descriptors = (context->data_mapping.size + (aligned_max_descriptor_len - 1)) / aligned_max_descriptor_len;
+    context->num_descriptors = (context->data_mapping.buffer.size + (aligned_max_descriptor_len - 1)) / aligned_max_descriptor_len;
 
     /* Allocate space for the DMA descriptors and initialise them. card address starts at zero but may be changed
      * before the transfer is started. */
@@ -157,7 +157,7 @@ bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
     dma_descriptor_t *previous_descriptor = NULL;
     uint64_t descriptor_iova = 0;
     uint64_t data_iova = data_mapping->iova;
-    uint64_t remaining_data_bytes = data_mapping->size;
+    uint64_t remaining_data_bytes = data_mapping->buffer.size;
     uint64_t card_address = 0;
     vfio_dma_mapping_align_space (descriptors_mapping);
     for (uint32_t descriptor_index = 0; descriptor_index < context->num_descriptors; descriptor_index++)

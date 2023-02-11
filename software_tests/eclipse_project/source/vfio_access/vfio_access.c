@@ -31,6 +31,131 @@
 
 
 /**
+ * @brief Create a memory buffer to be used for VFIO
+ * @param[out] buffer The created memory buffer, which has been mapped into the virtual address space
+ * @param[in] size The size in bytes of the buffer to create
+ * @param[in] buffer_allocation How to allocate the buffer
+ * @param[in] name_suffix For VFIO_BUFFER_ALLOCATION_SHARED_MEMORY a suffix used to create a unique name
+ */
+static void create_vfio_buffer (vfio_buffer_t *const buffer,
+                                const size_t size, const vfio_buffer_allocation_type_t buffer_allocation,
+                                const char *const name_suffix)
+{
+    int rc;
+    const size_t page_size = (size_t) getpagesize ();
+
+    buffer->allocation_type = buffer_allocation;
+    buffer->size = size;
+
+    switch (buffer->allocation_type)
+    {
+    case VFIO_BUFFER_ALLOCATION_HEAP:
+        rc = posix_memalign (&buffer->vaddr, page_size, buffer->size);
+        if (rc != 0)
+        {
+            buffer->vaddr = NULL;
+            printf ("Failed to allocate %zu bytes for VFIO DMA mapping\n", buffer->size);
+        }
+        break;
+
+    case VFIO_BUFFER_ALLOCATION_SHARED_MEMORY:
+        buffer->vaddr = NULL;
+
+        /* Create the shared memory pathname, with a fixed prefix and a caller supplied suffix */
+        snprintf (buffer->pathname, sizeof (buffer->pathname), "/vfio_buffer_%s", name_suffix);
+
+        /* Create a POSIX shared memory file */
+        buffer->fd = shm_open (buffer->pathname, O_RDWR | O_CREAT | O_EXCL, S_IRWXU | S_IRWXG | S_IRWXO);
+        if (buffer->fd < 0)
+        {
+            printf ("shm_open(%s,O_CREAT) failed : %s\n", buffer->pathname, strerror (errno));
+            return;
+        }
+
+        rc = posix_fallocate (buffer->fd, 0, buffer->size);
+        if (rc != 0)
+        {
+            printf ("posix_fallocate(%s) failed : %s\n", buffer->pathname, strerror (errno));
+            return;
+        }
+
+        rc = fsync (buffer->fd);
+        if (rc != 0)
+        {
+            printf ("fsync(%s) failed : %s\n", buffer->pathname, strerror (errno));
+            return;
+        }
+
+        rc = close (buffer->fd);
+        if (rc != 0)
+        {
+            printf ("close(%s) failed : %s\n", buffer->pathname, strerror (errno));
+            return;
+        }
+
+        /* Map the POSIX shared memory file into the virtual address space */
+        buffer->fd = shm_open (buffer->pathname, O_RDWR, 0);
+        if (buffer->fd < 0)
+        {
+            printf ("shm_open(%s) failed : %s\n", buffer->pathname, strerror (errno));
+            return;
+        }
+
+        buffer->vaddr = mmap (NULL, buffer->size, PROT_READ | PROT_WRITE, MAP_SHARED, buffer->fd, 0);
+        if (buffer->vaddr == (void *) -1)
+        {
+            buffer->vaddr = NULL;
+            printf ("shm_open(%s) failed : %s\n", buffer->pathname, strerror (errno));
+            return;
+        }
+        break;
+    }
+}
+
+
+/**
+ * @brief Release the resources for a memory buffer used for VFIO
+ * @param[in/out] buffer The memory buffer to release
+ */
+static void free_vfio_buffer (vfio_buffer_t *const buffer)
+{
+    int rc;
+
+    switch (buffer->allocation_type)
+    {
+    case VFIO_BUFFER_ALLOCATION_HEAP:
+        free (buffer->vaddr);
+        break;
+
+    case VFIO_BUFFER_ALLOCATION_SHARED_MEMORY:
+        rc = munmap (buffer->vaddr, buffer->size);
+        if (rc != 0)
+        {
+            printf ("munmap(%s) failed : %s\n", buffer->pathname, strerror (errno));
+            return;
+        }
+        rc = close (buffer->fd);
+        if (rc != 0)
+        {
+            printf ("close(%s) failed : %s\n", buffer->pathname, strerror (errno));
+            return;
+        }
+        rc = shm_unlink (buffer->pathname);
+        if (rc != 0)
+        {
+            printf ("shm_unlink(%s) failed : %s\n", buffer->pathname, strerror (errno));
+            return;
+        }
+        break;
+    }
+
+    buffer->size = 0;
+    buffer->vaddr = NULL;
+    buffer->fd = -1;
+}
+
+
+/**
  * @brief Open an VFIO device, and map all its memory BARs
  * @param[in/out] vfio_devices The list of vfio devices to append the opened device to.
  *                             If this function is successful vfio_devices->num_devices is incremented
@@ -356,57 +481,58 @@ void close_vfio_devices (vfio_devices_t *const vfio_devices)
 
 
 /**
- * @brief Allocate page aligned memory in the process, and create a DMA mapping for the allocated memory.
+ * @brief Allocate a buffer, and create a DMA mapping for the allocated memory.
  * @param[in/out] vfio_devices The VFIO devices context used to create the DMA mapping using the IOMMU container.
  *                             Used to allocate the iova address used for the mapping.
  * @param[out] mapping Contains the process memory and associated DMA mapping which has been allocated.
- *                     On failure, mapping->vaddr is NULL
+ *                     On failure, mapping->buffer.vaddr is NULL
  * @param[in] size The size in bytes to allocate
  * @param[in] permission Bitwise OR VFIO_DMA_MAP_FLAG_READ / VFIO_DMA_MAP_FLAG_WRITE flags to define
  *                       the device access to the DMA mapping.
+ * @param[in] buffer_allocation Controls how the buffer for the process is allocated
  */
 void allocate_vfio_dma_mapping (vfio_devices_t *const vfio_devices,
                                 vfio_dma_mapping_t *const mapping,
-                                const size_t size, const uint32_t permission)
+                                const size_t size, const uint32_t permission,
+                                const vfio_buffer_allocation_type_t buffer_allocation)
 {
     int rc;
     struct vfio_iommu_type1_dma_map dma_map;
-    const size_t page_size = (size_t) getpagesize ();
+    char name_suffix[PATH_MAX];
 
     /* @todo For simplicity assume an incrementing IOVA for each allocation, without regard to any container constraints.
      *       If this attempts to allocate an invalid iova VFIO_IOMMU_MAP_DMA will fail with EPERM
      *       Consider making use of VFIO_IOMMU_TYPE1_INFO_CAP_IOVA_RANGE to find a valid iova range. */
     mapping->iova = vfio_devices->next_iova;
 
-    /* Allocate process memory aligned to a page size */
-    mapping->size = size;
-    mapping->num_allocated_bytes = 0;
-    rc = posix_memalign (&mapping->vaddr, page_size, mapping->size);
+    /* Create the buffer in the local process. As don't yet have multi-process support uses the PID to make the name unique */
+    snprintf (name_suffix, sizeof (name_suffix), "pid-%d_iova-%" PRIu64, getpid(), mapping->iova);
+    create_vfio_buffer (&mapping->buffer, size, buffer_allocation, name_suffix);
 
-    if (rc == 0)
+    if (mapping->buffer.vaddr != NULL)
     {
-        memset (mapping->vaddr, 0, mapping->size);
+        memset (mapping->buffer.vaddr, 0, mapping->buffer.size);
         memset (&dma_map, 0, sizeof (dma_map));
         dma_map.argsz = sizeof (dma_map);
         dma_map.flags = permission;
-        dma_map.vaddr = (uintptr_t) mapping->vaddr;
+        dma_map.vaddr = (uintptr_t) mapping->buffer.vaddr;
         dma_map.iova = mapping->iova;
-        dma_map.size = mapping->size;
+        dma_map.size = mapping->buffer.size;
         rc = ioctl (vfio_devices->container_fd, VFIO_IOMMU_MAP_DMA, &dma_map);
         if (rc == 0)
         {
-            vfio_devices->next_iova += mapping->size;
+            vfio_devices->next_iova += mapping->buffer.size;
         }
         else
         {
-            printf ("VFIO_IOMMU_MAP_DMA of size %zu failed : %s\n", mapping->size, strerror (-rc));
-            free (mapping->vaddr);
-            mapping->vaddr = NULL;
+            printf ("VFIO_IOMMU_MAP_DMA of size %zu failed : %s\n", mapping->buffer.size, strerror (-rc));
+            free (mapping->buffer.vaddr);
+            mapping->buffer.vaddr = NULL;
         }
     }
     else
     {
-        mapping->vaddr = NULL;
+        mapping->buffer.vaddr = NULL;
         printf ("Failed to allocate %zu bytes for VFIO DMA mapping\n", size);
     }
 }
@@ -422,11 +548,11 @@ void allocate_vfio_dma_mapping (vfio_devices_t *const vfio_devices,
 void *vfio_dma_mapping_allocate_space (vfio_dma_mapping_t *const mapping,
                                        const size_t allocation_size, uint64_t *const allocated_iova)
 {
-    uint8_t *const vaddr_bytes = mapping->vaddr;
+    uint8_t *const vaddr_bytes = mapping->buffer.vaddr;
     void *allocated_vaddr = NULL;
 
     *allocated_iova = mapping->iova + mapping->num_allocated_bytes;
-    if ((mapping->num_allocated_bytes + allocation_size) <= mapping->size)
+    if ((mapping->num_allocated_bytes + allocation_size) <= mapping->buffer.size)
     {
         allocated_vaddr = &vaddr_bytes[mapping->num_allocated_bytes];
         mapping->num_allocated_bytes += allocation_size;
@@ -465,20 +591,19 @@ void free_vfio_dma_mapping (const vfio_devices_t *const vfio_devices, vfio_dma_m
         .argsz = sizeof (dma_unmap),
         .flags = 0,
         .iova = mapping->iova,
-        .size = mapping->size
+        .size = mapping->buffer.size
     };
 
-    if (mapping->vaddr != NULL)
+    if (mapping->buffer.vaddr != NULL)
     {
         rc = ioctl (vfio_devices->container_fd, VFIO_IOMMU_UNMAP_DMA, &dma_unmap);
         if (rc == 0)
         {
-            free (mapping->vaddr);
-            mapping->vaddr = NULL;
+            free_vfio_buffer (&mapping->buffer);
         }
         else
         {
-            printf ("VFIO_IOMMU_UNMAP_DMA of size %zu failed : %s\n", mapping->size, strerror (-rc));
+            printf ("VFIO_IOMMU_UNMAP_DMA of size %zu failed : %s\n", mapping->buffer.size, strerror (-rc));
         }
     }
 }

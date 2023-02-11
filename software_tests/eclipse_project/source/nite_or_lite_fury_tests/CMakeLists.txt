@@ -7,8 +7,8 @@ if (${HAVE_PCI_FILL_IOMMU_GROUP})
     add_library (fury_utils "fury_utils.c")
 
     add_executable (test_general "test_general.c")
-    target_link_libraries (test_general fury_utils vfio_access pci)
+    target_link_libraries (test_general fury_utils vfio_access pci rt)
 
     add_executable (test_ddr "test_ddr.c")
-    target_link_libraries (test_ddr fury_utils xilinx_dma_bridge_transfers vfio_access pci)
+    target_link_libraries (test_ddr fury_utils xilinx_dma_bridge_transfers vfio_access pci rt)
 endif()

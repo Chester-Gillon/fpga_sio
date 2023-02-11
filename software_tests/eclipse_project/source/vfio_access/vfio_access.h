@@ -15,6 +15,32 @@
 #include <linux/vfio.h>
 
 
+/* Defines the option used to allocate a buffer used for VFIO */
+typedef enum
+{
+    /* Allocates the buffer from the heap of the calling process */
+    VFIO_BUFFER_ALLOCATION_HEAP,
+    /* Allocate the buffer from POSIX shared memory */
+    VFIO_BUFFER_ALLOCATION_SHARED_MEMORY
+} vfio_buffer_allocation_type_t;
+
+
+/* Defines one buffer allocated for VFIO */
+typedef struct
+{
+    /* How the memory for the buffer is allocated */
+    vfio_buffer_allocation_type_t allocation_type;
+    /* The size of the buffer in bytes */
+    size_t size;
+    /* The allocated buffer, as the virtual address mapped into the process */
+    void *vaddr;
+    /* For VFIO_BUFFER_ALLOCATION_SHARED_MEMORY the name of the POSIX shared memory file */
+    char pathname[PATH_MAX];
+    /* For VFIO_BUFFER_ALLOCATION_SHARED_MEMORY the file descriptor of the POSIX shared memory file */
+    int fd;
+} vfio_buffer_t;
+
+
 /* Defines one device which has been opened using vfio and has all its memory BARs mapped */
 typedef struct
 {
@@ -104,12 +130,10 @@ typedef struct
 /* Defines one mapping which has been allocated for DMA using the IOMMU */
 typedef struct
 {
-    /* The virtual address of the allocated region, for using by the process */
-    void *vaddr;
+    /* The allocated buffer in the process used by the mapping */
+    vfio_buffer_t buffer;
     /* IO virtual address, for accessing by the device DMA */
     uint64_t iova;
-    /* Size of the mapping in bytes */
-    size_t size;
     /* Allows the mapping to have its contents allocated for different uses */
     size_t num_allocated_bytes;
 } vfio_dma_mapping_t;
@@ -121,7 +145,8 @@ void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
 void close_vfio_devices (vfio_devices_t *const vfio_devices);
 void allocate_vfio_dma_mapping (vfio_devices_t *const vfio_devices,
                                 vfio_dma_mapping_t *const mapping,
-                                const size_t size, const uint32_t permission);
+                                const size_t size, const uint32_t permission,
+                                const vfio_buffer_allocation_type_t buffer_allocation);
 void *vfio_dma_mapping_allocate_space (vfio_dma_mapping_t *const mapping,
                                        const size_t allocation_size, uint64_t *const allocated_iova);
 void vfio_dma_mapping_align_space (vfio_dma_mapping_t *const mapping);

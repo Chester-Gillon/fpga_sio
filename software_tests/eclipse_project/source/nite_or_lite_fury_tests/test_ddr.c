@@ -11,6 +11,7 @@
 #include "xilinx_dma_bridge_transfers.h"
 
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 #include <time.h>
 
@@ -25,6 +26,66 @@
 static inline void linear_congruential_generator (uint32_t *const seed)
 {
     *seed = (*seed * 1664525) + 1013904223;
+}
+
+
+/* Command line argument which sets the VFIO buffer allocation type */
+static vfio_buffer_allocation_type_t arg_buffer_allocation = VFIO_BUFFER_ALLOCATION_HEAP;
+
+
+/* Command line argument which specifies the minimum alignment size for DMA transfers.
+ * Can be used to determine if has any effect on the transfer speed for the h2c_data_mapping used
+ * to write to the entire DDR memory which requires multiple chained descriptors due to DMA_DESCRIPTOR_MAX_LEN */
+static uint32_t arg_min_size_alignment = 0;
+
+
+/**
+ * @brief Parse the command line arguments, storing the results in global variables
+ * @param[in] argc, argv Arguments passed to main
+ */
+static void parse_command_line_arguments (int argc, char *argv[])
+{
+    const char *const optstring = "a:b:?";
+    int option;
+    char junk;
+
+    option = getopt (argc, argv, optstring);
+    while (option != -1)
+    {
+        switch (option)
+        {
+        case 'a':
+            if (sscanf (optarg, "%" SCNu32 "%c", &arg_min_size_alignment, &junk) != 1)
+            {
+                printf ("Invalid min_size_alignment %s\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            break;
+
+        case 'b':
+            if (strcmp (optarg, "heap") == 0)
+            {
+                arg_buffer_allocation = VFIO_BUFFER_ALLOCATION_HEAP;
+            }
+            else if (strcmp (optarg, "shared_memory") == 0)
+            {
+                arg_buffer_allocation = VFIO_BUFFER_ALLOCATION_SHARED_MEMORY;
+            }
+            else
+            {
+                printf ("Invalid buffer allocation type %s\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            break;
+
+        case '?':
+        default:
+            printf ("Usage %s [-a <min_size_alignment] [-b heap|shared_memory]\n", argv[0]);
+            exit (EXIT_FAILURE);
+            break;
+        }
+        option = getopt (argc, argv, optstring);
+    }
 }
 
 
@@ -66,20 +127,7 @@ int main (int argc, char *argv[])
         [DEVICE_NITE_FURY] = 1024 * 1024 * 1024
     };
 
-    /* Read optional command line argument which specifies the minimum alignment size for DMA transfers.
-     * Can be used to determine if has any effect on the transfer speed for the h2c_data_mapping used
-     * to write to the entire DDR memory which requires multiple chained descriptors due to DMA_DESCRIPTOR_MAX_LEN */
-    uint32_t min_size_alignment = 0;
-    char junk;
-    if (argc > 1)
-    {
-        const char *const min_size_alignment_arg = argv[1];
-        if (sscanf (min_size_alignment_arg, "%" SCNu32 "%c", &min_size_alignment, &junk) != 1)
-        {
-            printf ("Invalid min_size_alignment %s\n", min_size_alignment_arg);
-            exit (EXIT_FAILURE);
-        }
-    }
+    parse_command_line_arguments (argc, argv);
 
     /* Open the FPGA devices which have an IOMMU group assigned */
     open_vfio_devices_matching_filter (&vfio_devices, 1, &filter);
@@ -99,26 +147,26 @@ int main (int argc, char *argv[])
 
             /* Create read/write mapping of a single page for DMA descriptors */
             allocate_vfio_dma_mapping (&vfio_devices, &descriptors_mapping, page_size,
-                    VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE);
+                    VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
 
             /* Read mapping used by device to transfer a region of host memory to the entire DDR contents */
-            allocate_vfio_dma_mapping (&vfio_devices, &h2c_data_mapping, ddr_size_bytes, VFIO_DMA_MAP_FLAG_READ);
+            allocate_vfio_dma_mapping (&vfio_devices, &h2c_data_mapping, ddr_size_bytes, VFIO_DMA_MAP_FLAG_READ, arg_buffer_allocation);
 
             /* Write mapping for a single page used by device to write one page of DDR to host memory */
-            allocate_vfio_dma_mapping (&vfio_devices, &c2h_data_mapping, page_size, VFIO_DMA_MAP_FLAG_WRITE);
+            allocate_vfio_dma_mapping (&vfio_devices, &c2h_data_mapping, page_size, VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
 
-            if ((descriptors_mapping.vaddr != NULL) &&
-                (h2c_data_mapping.vaddr    != NULL) &&
-                (c2h_data_mapping.vaddr    != NULL) &&
+            if ((descriptors_mapping.buffer.vaddr != NULL) &&
+                (h2c_data_mapping.buffer.vaddr    != NULL) &&
+                (c2h_data_mapping.buffer.vaddr    != NULL) &&
                  initialise_x2x_transfer_context (&h2c_context, vfio_device, FURY_DMA_BRIDGE_BAR,
-                        DMA_SUBMODULE_H2C_CHANNELS, h2c_channel_id, min_size_alignment, &descriptors_mapping, &h2c_data_mapping) &&
+                        DMA_SUBMODULE_H2C_CHANNELS, h2c_channel_id, arg_min_size_alignment, &descriptors_mapping, &h2c_data_mapping) &&
                  initialise_x2x_transfer_context (&c2h_context, vfio_device, FURY_DMA_BRIDGE_BAR,
-                        DMA_SUBMODULE_C2H_CHANNELS, c2h_channel_id, min_size_alignment, &descriptors_mapping, &c2h_data_mapping))
+                        DMA_SUBMODULE_C2H_CHANNELS, c2h_channel_id, arg_min_size_alignment, &descriptors_mapping, &c2h_data_mapping))
             {
-                uint32_t *host_words = h2c_data_mapping.vaddr;
-                uint32_t *card_words = c2h_data_mapping.vaddr;
+                uint32_t *host_words = h2c_data_mapping.buffer.vaddr;
+                uint32_t *card_words = c2h_data_mapping.buffer.vaddr;
                 const size_t ddr_size_words = ddr_size_bytes / sizeof (uint32_t);
-                const size_t num_words_per_c2h_xfer = c2h_data_mapping.size / sizeof (uint32_t);
+                const size_t num_words_per_c2h_xfer = c2h_data_mapping.buffer.size / sizeof (uint32_t);
                 uint32_t host_test_pattern = 0;
                 uint32_t card_test_pattern = 0;
                 struct timespec start_time;
@@ -156,7 +204,7 @@ int main (int argc, char *argv[])
                         const int64_t end_time_ns = (end_time.tv_sec * 1000000000LL) + end_time.tv_nsec;
                         const int64_t write_duration_ns = end_time_ns - start_time_ns;
                         printf ("Print wrote 0x%" PRIx64 " bytes to card using DMA in %" PRIi64 " ns\n",
-                                h2c_data_mapping.size, write_duration_ns);
+                                h2c_data_mapping.buffer.size, write_duration_ns);
                     }
 
                     /* DMA the contents of the DDR one page at a time from the card to the host, and verify the contents */
