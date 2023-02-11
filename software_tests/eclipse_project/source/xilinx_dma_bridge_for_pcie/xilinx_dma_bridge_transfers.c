@@ -89,6 +89,8 @@ static bool check_dma_submodule_identity (const uint8_t *const submodule_regs, c
  * @param[in] channels_submodule Either DMA_SUBMODULE_H2C_CHANNELS or DMA_SUBMODULE_C2H_CHANNELS
  *                               to identify which direction are initialising the context for
  * @param[in] channel_id The identity of the channel are initialising the context for
+ * @param[in] min_size_alignment The minimum aligned size used for the DMA descriptors, for when multiple chained descriptors
+ *                               are needed due to DMA_DESCRIPTOR_MAX_LEN.
  * @param[in/out] descriptors_mapping Used to allocate space for DMA descriptors
  * @param[in] data_mapping The DMA mapping used for data transfers
  * @return Returns true if the context has been initialised, or false if an error occurred.
@@ -97,6 +99,7 @@ static bool check_dma_submodule_identity (const uint8_t *const submodule_regs, c
 bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
                                       const vfio_device_t *const vfio_device, const uint32_t bar_index,
                                       const uint32_t channels_submodule, const uint32_t channel_id,
+                                      const uint32_t min_size_alignment,
                                       vfio_dma_mapping_t *const descriptors_mapping,
                                       const vfio_dma_mapping_t *const data_mapping)
 {
@@ -137,6 +140,12 @@ bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
             (alignment_reg_value & X2X_CHANNEL_ALIGNMENTS_LEN_GRANULARITY_MASK) >> X2X_CHANNEL_ALIGNMENTS_LEN_GRANULARITY_SHIFT;
     context->num_address_bits =
             (alignment_reg_value & X2X_CHANNEL_ALIGNMENTS_ADDRESS_BITS_MASK) >> X2X_CHANNEL_ALIGNMENTS_ADDRESS_BITS_SHIFT;
+
+    /* Use the minimum size alignment specified in the arguments */
+    if (min_size_alignment > context->addr_alignment)
+    {
+        context->addr_alignment = min_size_alignment;
+    }
 
     /* Calculate the number of descriptors needed for context->data_mapping.size */
     const uint32_t aligned_max_descriptor_len = (DMA_DESCRIPTOR_MAX_LEN / context->addr_alignment) * context->addr_alignment;

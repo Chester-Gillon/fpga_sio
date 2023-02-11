@@ -1,0 +1,80 @@
+The default is that the sizes of all but the final descriptors for the final h2c descriptor were an odd number
+of bytes which could have led to inefficient transfers:
+
+[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_ddr 
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
+Testing NiteFury board version 0x2 with DDR size 0x40000000 for PCI device 0000:2e:00.0 IOMMU group 86
+Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Print wrote 0x40000000 bytes to card using DMA in 809872148 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870696 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869969 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809872076 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809871209 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809871231 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870850 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870214 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870312 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870705 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870865 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870371 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809871021 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809871299 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870521 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809871319 ns
+Test pattern pass
+
+
+Running with a command line option to specify page size alignment didn't have any effect on the transfer speed:
+[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_ddr 4096
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
+Testing NiteFury board version 0x2 with DDR size 0x40000000 for PCI device 0000:2e:00.0 IOMMU group 86
+Size of DMA descriptors used for h2c: [0]=0xffff000 [1]=0xffff000 [2]=0xffff000 [3]=0xffff000 [4]=0x4000
+Print wrote 0x40000000 bytes to card using DMA in 809873670 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870345 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870234 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870734 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870212 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869759 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870331 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870794 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870842 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809881986 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870796 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870469 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870692 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809872060 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809871482 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809871188 ns
+Test pattern pass

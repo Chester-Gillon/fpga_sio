@@ -66,6 +66,21 @@ int main (int argc, char *argv[])
         [DEVICE_NITE_FURY] = 1024 * 1024 * 1024
     };
 
+    /* Read optional command line argument which specifies the minimum alignment size for DMA transfers.
+     * Can be used to determine if has any effect on the transfer speed for the h2c_data_mapping used
+     * to write to the entire DDR memory which requires multiple chained descriptors due to DMA_DESCRIPTOR_MAX_LEN */
+    uint32_t min_size_alignment = 0;
+    char junk;
+    if (argc > 1)
+    {
+        const char *const min_size_alignment_arg = argv[1];
+        if (sscanf (min_size_alignment_arg, "%" SCNu32 "%c", &min_size_alignment, &junk) != 1)
+        {
+            printf ("Invalid min_size_alignment %s\n", min_size_alignment_arg);
+            exit (EXIT_FAILURE);
+        }
+    }
+
     /* Open the FPGA devices which have an IOMMU group assigned */
     open_vfio_devices_matching_filter (&vfio_devices, 1, &filter);
 
@@ -96,9 +111,9 @@ int main (int argc, char *argv[])
                 (h2c_data_mapping.vaddr    != NULL) &&
                 (c2h_data_mapping.vaddr    != NULL) &&
                  initialise_x2x_transfer_context (&h2c_context, vfio_device, FURY_DMA_BRIDGE_BAR,
-                        DMA_SUBMODULE_H2C_CHANNELS, h2c_channel_id, &descriptors_mapping, &h2c_data_mapping) &&
+                        DMA_SUBMODULE_H2C_CHANNELS, h2c_channel_id, min_size_alignment, &descriptors_mapping, &h2c_data_mapping) &&
                  initialise_x2x_transfer_context (&c2h_context, vfio_device, FURY_DMA_BRIDGE_BAR,
-                        DMA_SUBMODULE_C2H_CHANNELS, c2h_channel_id, &descriptors_mapping, &c2h_data_mapping))
+                        DMA_SUBMODULE_C2H_CHANNELS, c2h_channel_id, min_size_alignment, &descriptors_mapping, &c2h_data_mapping))
             {
                 uint32_t *host_words = h2c_data_mapping.vaddr;
                 uint32_t *card_words = c2h_data_mapping.vaddr;
@@ -108,6 +123,13 @@ int main (int argc, char *argv[])
                 uint32_t card_test_pattern = 0;
                 struct timespec start_time;
                 struct timespec end_time;
+
+                printf ("Size of DMA descriptors used for h2c:");
+                for (uint32_t descriptor_index = 0; descriptor_index < h2c_context.num_descriptors; descriptor_index++)
+                {
+                    printf (" [%" PRIu32 "]=0x%" PRIx32, descriptor_index, h2c_context.descriptors[descriptor_index].len);
+                }
+                printf ("\n");
 
                 /* Perform test iterations to exercise all values of 32-bit test words */
                 for (size_t total_words = 0; total_words < 0x100000000UL; total_words += ddr_size_words)

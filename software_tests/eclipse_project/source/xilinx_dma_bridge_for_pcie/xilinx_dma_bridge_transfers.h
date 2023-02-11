@@ -54,6 +54,7 @@ typedef struct
 bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
                                       const vfio_device_t *const vfio_device, const uint32_t bar_index,
                                       const uint32_t channels_submodule, const uint32_t channel_id,
+                                      const uint32_t min_size_alignment,
                                       vfio_dma_mapping_t *const descriptors_mapping,
                                       const vfio_dma_mapping_t *const data_mapping);
 void x2x_transfer_set_card_start_address (x2x_transfer_context_t *const context, const uint64_t card_start_address);
