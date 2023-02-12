@@ -45,7 +45,7 @@ int main (int argc, char *const argv[])
     /* Process any NiteFury or LiteFury devices found */
     for (uint32_t device_index = 0; device_index < vfio_devices.num_devices; device_index++)
     {
-        const vfio_device_t *const vfio_device = &vfio_devices.devices[device_index];
+        vfio_device_t *const vfio_device = &vfio_devices.devices[device_index];
 
         fury_type = identify_fury (vfio_device, &board_version);
         if (fury_type != DEVICE_OTHER)
@@ -59,6 +59,7 @@ int main (int argc, char *const argv[])
              *
              * The reported values were sanity checked against that shown by the XADC System Monitor values
              * reported over JTAG by the Vivado Hardware Manager. */
+            map_vfio_device_bar_before_use (vfio_device, FURY_AXI_PERIPHERALS_BAR);
             xadc_register_value = read_reg32 (vfio_device->mapped_bars[FURY_AXI_PERIPHERALS_BAR], 0x3200);
             printf ("Temp C=%.1f\n", ((double) (xadc_register_value >> 4) * 503.975 / 4096.0) - 273.15);
 

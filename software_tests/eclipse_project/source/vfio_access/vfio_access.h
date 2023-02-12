@@ -140,6 +140,7 @@ typedef struct
 
 
 void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev);
+void map_vfio_device_bar_before_use (vfio_device_t *const vfio_device, const int bar_index);
 void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
                                         const size_t num_filters, const vfio_pci_device_filter_t filters[const num_filters]);
 void close_vfio_devices (vfio_devices_t *const vfio_devices);

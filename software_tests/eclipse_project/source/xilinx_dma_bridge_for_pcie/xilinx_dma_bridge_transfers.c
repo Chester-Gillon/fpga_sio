@@ -84,7 +84,7 @@ static bool check_dma_submodule_identity (const uint8_t *const submodule_regs, c
 /**
  * @brief Initialise the context for performing DMA transfers using one H2C or 2CH channel
  * @param[out] context The initialised context
- * @param[in] vfio_device Used to obtain access to the memory mapped BAR containing the DMA control registers
+ * @param[in/out] vfio_device Used to obtain access to the memory mapped BAR containing the DMA control registers
  * @param[in] bar_index Which BAR in the vfio_device contains the DMA control registers
  * @param[in] channels_submodule Either DMA_SUBMODULE_H2C_CHANNELS or DMA_SUBMODULE_C2H_CHANNELS
  *                               to identify which direction are initialising the context for
@@ -97,7 +97,7 @@ static bool check_dma_submodule_identity (const uint8_t *const submodule_regs, c
  *         An error occurs identification register don't contain the expected content.
  */
 bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
-                                      const vfio_device_t *const vfio_device, const uint32_t bar_index,
+                                      vfio_device_t *const vfio_device, const uint32_t bar_index,
                                       const uint32_t channels_submodule, const uint32_t channel_id,
                                       const uint32_t min_size_alignment,
                                       vfio_dma_mapping_t *const descriptors_mapping,
@@ -105,10 +105,10 @@ bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
 {
     const uint32_t sgdma_channels_submodule = (channels_submodule == DMA_SUBMODULE_H2C_CHANNELS) ?
             DMA_SUBMODULE_H2C_SGDMA : DMA_SUBMODULE_C2H_SGDMA;
-    uint8_t *const mapped_registers_base = vfio_device->mapped_bars[bar_index];
     bool success;
 
     /* Check that have been passed a BAR which is large enough to contain the DMA control registers */
+    map_vfio_device_bar_before_use (vfio_device, bar_index);
     if (vfio_device->regions_info[bar_index].size < 0x10000)
     {
         printf ("BAR[%" PRIu32 " size of 0x%llx too small for DMA/Bridge Subsystem for PCI Express\n",
@@ -123,6 +123,7 @@ bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
     context->data_mapping = *data_mapping;
 
     /* Set the mapped base of the DMA control registers used for the channel */
+    uint8_t *const mapped_registers_base = vfio_device->mapped_bars[bar_index];
     context->x2x_channel_regs = &mapped_registers_base[DMA_CHANNEL_BAR_START_OFFSET (channels_submodule, channel_id)];
     context->x2x_sgdma_regs = &mapped_registers_base[DMA_CHANNEL_BAR_START_OFFSET (sgdma_channels_submodule, channel_id)];
     context->sgdma_common_regs = &mapped_registers_base[DMA_SUBMODULE_BAR_START_OFFSET (DMA_SUBMODULE_SGDMA_COMMON)];

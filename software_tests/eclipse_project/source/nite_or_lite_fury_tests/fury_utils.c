@@ -12,14 +12,15 @@
 
 /**
  * @brief Identify if a PCI device is a NiteFury or LiteFury
- * @param[in] vfio_device The PCI device to identify.
+ * @param[in/out] vfio_device The PCI device to identify.
  * @param[out] board_version If the PCI device is a NiteFury or LiteFury, it's version
  * @return Indicates if the PCI device is a NiteFury / LiteFury or not.
  */
-fury_type_t identify_fury (const vfio_device_t *const vfio_device, uint32_t *const board_version)
+fury_type_t identify_fury (vfio_device_t *const vfio_device, uint32_t *const board_version)
 {
     fury_type_t fury_type = DEVICE_OTHER;
 
+    map_vfio_device_bar_before_use (vfio_device, FURY_AXI_PERIPHERALS_BAR);
     if (vfio_device->regions_info[FURY_AXI_PERIPHERALS_BAR].size == 0x20000)
     {
         const uint8_t *const mapped_bar = vfio_device->mapped_bars[FURY_AXI_PERIPHERALS_BAR];

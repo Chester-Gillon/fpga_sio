@@ -59,9 +59,9 @@ typedef struct
 
 /**
  * @brief Perform a test of FPGA memory mapped persistence on one PCI device.
- * @param[in] dev The device to test
+ * @param[in/out] dev The device to test
  */
-static void test_memmapped_device (const vfio_device_t *const dev)
+static void test_memmapped_device (vfio_device_t *const dev)
 {
     char date_time_text[LAST_ACCESSED_TEXT_LEN];
     struct timeval now;
@@ -76,6 +76,8 @@ static void test_memmapped_device (const vfio_device_t *const dev)
     /* Test all possible BARs */
     for (int bar_index = 0; bar_index < PCI_STD_NUM_BARS; bar_index++)
     {
+        map_vfio_device_bar_before_use (dev, bar_index);
+
         const struct vfio_region_info *const region_info = &dev->regions_info[bar_index];
         memmapped_data_t *const mapping = (memmapped_data_t *) dev->mapped_bars[bar_index];
         const char *const initialised_text_prefix = initialised_text_prefixes[bar_index];

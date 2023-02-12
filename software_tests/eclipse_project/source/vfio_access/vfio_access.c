@@ -156,7 +156,72 @@ static void free_vfio_buffer (vfio_buffer_t *const buffer)
 
 
 /**
- * @brief Open an VFIO device, and map all its memory BARs
+ * @brief Attempt to map a memory BAR for a VFIO device before use.
+ * @details This may be called multiple times for the same BAR, and has no effect if the BAR is already mapped.
+ *          On return vfio_device->mapped_bars[bar_index] is non-NULL if the BAR has been mapped into the virtual
+ *          address space of the calling process.
+ *          vfio_device->mapped_bars[bar_index] will be NULL if the BAR is not implemented on the VFIO device.
+ * @param[in/out] vfio_device The VFIO device to map a BAR for
+ * @param[in] bar_index Which BAR on the VFIO device to map
+ */
+void map_vfio_device_bar_before_use (vfio_device_t *const vfio_device, const int bar_index)
+{
+    int rc;
+    void *addr;
+
+    if (vfio_device->mapped_bars[bar_index] == NULL)
+    {
+        struct vfio_region_info *const region_info = &vfio_device->regions_info[bar_index];
+
+        /* Get the device information. As this program is written for a PCI device which has fixed enumerations for regions,
+         * the only use of the device information is a sanity check that VFIO reports a PCI device. */
+        memset (&vfio_device->device_info, 0, sizeof (vfio_device->device_info));
+        vfio_device->device_info.argsz = sizeof (vfio_device->device_info);
+        rc = ioctl (vfio_device->device_fd, VFIO_DEVICE_GET_INFO, &vfio_device->device_info);
+        if (rc != 0)
+        {
+            printf ("VFIO_DEVICE_GET_INFO failed : %s\n", strerror (-rc));
+            return;
+        }
+
+        if ((vfio_device->device_info.flags & VFIO_DEVICE_FLAGS_PCI) == 0)
+        {
+            printf ("VFIO_DEVICE_GET_INFO flags don't report a PCI device\n");
+            return;
+        }
+
+        /* Get region information for PCI BAR, to determine if an implemented BAR which can be mapped */
+        memset (region_info, 0, sizeof (*region_info));
+        region_info->argsz = sizeof (*region_info);
+        region_info->index = bar_index;
+        rc = ioctl (vfio_device->device_fd, VFIO_DEVICE_GET_REGION_INFO, region_info);
+        if (rc != 0)
+        {
+            printf ("VFIO_DEVICE_GET_REGION_INFO failed : %s\n", strerror (-rc));
+            return;
+        }
+
+        if ((region_info->size > 0) && ((region_info->flags & VFIO_REGION_INFO_FLAG_MMAP) != 0))
+        {
+            /* Map the entire BAR */
+            addr = mmap (NULL, region_info->size, PROT_READ | PROT_WRITE, MAP_SHARED, vfio_device->device_fd, region_info->offset);
+            if (addr == MAP_FAILED)
+            {
+                printf ("mmap() failed : %s\n", strerror (errno));
+                return;
+            }
+            vfio_device->mapped_bars[bar_index] = addr;
+        }
+        else
+        {
+            vfio_device->mapped_bars[bar_index] = NULL;
+        }
+    }
+}
+
+
+/**
+ * @brief Open an VFIO device, without mapping it's memory BARs.
  * @param[in/out] vfio_devices The list of vfio devices to append the opened device to.
  *                             If this function is successful vfio_devices->num_devices is incremented
  * @param[in] pci_dev The PCI device to open using VFIO
@@ -166,7 +231,6 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
     int rc;
     int saved_errno;
     int api_version;
-    void *addr;
     vfio_device_t *const new_device = &vfio_devices->devices[vfio_devices->num_devices];
 
     /* Check the PCI device has an IOMMU group. */
@@ -289,57 +353,6 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
         return;
     }
 
-    /* Get the device information. As this program is written for a PCI device which has fixed enumerations for regions,
-     * the only use of the device information is a sanity check that VFIO reports a PCI device. */
-    memset (&new_device->device_info, 0, sizeof (new_device->device_info));
-    new_device->device_info.argsz = sizeof (new_device->device_info);
-    rc = ioctl (new_device->device_fd, VFIO_DEVICE_GET_INFO, &new_device->device_info);
-    if (rc != 0)
-    {
-        printf ("VFIO_DEVICE_GET_INFO failed : %s\n", strerror (-rc));
-        return;
-    }
-
-    if ((new_device->device_info.flags & VFIO_DEVICE_FLAGS_PCI) == 0)
-    {
-        printf ("VFIO_DEVICE_GET_INFO flags don't report a PCI device\n");
-        return;
-    }
-
-    /* Map all possible BARs */
-    for (int bar_index = 0; bar_index < PCI_STD_NUM_BARS; bar_index++)
-    {
-        struct vfio_region_info *const region_info = &new_device->regions_info[bar_index];
-
-        /* Get region information for PCI BAR, to determine if an implemented BAR which can be mapped */
-        memset (region_info, 0, sizeof (*region_info));
-        region_info->argsz = sizeof (*region_info);
-        region_info->index = bar_index;
-        rc = ioctl (new_device->device_fd, VFIO_DEVICE_GET_REGION_INFO, region_info);
-        if (rc != 0)
-        {
-            printf ("VFIO_DEVICE_GET_REGION_INFO failed : %s\n", strerror (-rc));
-            return;
-        }
-
-
-        if ((region_info->size > 0) && ((region_info->flags & VFIO_REGION_INFO_FLAG_MMAP) != 0))
-        {
-            /* Map the entire BAR */
-            addr = mmap (NULL, region_info->size, PROT_READ | PROT_WRITE, MAP_SHARED, new_device->device_fd, region_info->offset);
-            if (addr == MAP_FAILED)
-            {
-                printf ("mmap() failed : %s\n", strerror (errno));
-                return;
-            }
-            new_device->mapped_bars[bar_index] = addr;
-        }
-        else
-        {
-            new_device->mapped_bars[bar_index] = NULL;
-        }
-    }
-
     /* Record device successfully opened */
     vfio_devices->num_devices++;
 }
@@ -361,6 +374,7 @@ static bool pci_filter_id_match (const u16 pci_id, const int filter_id)
  * @brief Scan the PCI bus, attempting to open all devices using VFIO which match the filter.
  * @details If an error occurs attempting to open the VFIO device then a message is output to the console and the
  *          offending device isn't returned in vfio_devices.
+ *          The memory BARs of the VFIO devices are not mapped.
  * @param[out] vfio_devices The list of opened VFIO devices
  * @param[in] num_filters The number of PCI device filters
  * @param[in] filters The filters for PCI devices to open

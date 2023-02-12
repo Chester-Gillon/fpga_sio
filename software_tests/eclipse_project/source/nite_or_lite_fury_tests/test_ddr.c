@@ -135,7 +135,7 @@ int main (int argc, char *argv[])
     /* Process any NiteFury or LiteFury devices found */
     for (uint32_t device_index = 0; device_index < vfio_devices.num_devices; device_index++)
     {
-        const vfio_device_t *const vfio_device = &vfio_devices.devices[device_index];
+        vfio_device_t *const vfio_device = &vfio_devices.devices[device_index];
 
         fury_type = identify_fury (vfio_device, &board_version);
         if (fury_type != DEVICE_OTHER)
