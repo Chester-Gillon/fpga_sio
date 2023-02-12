@@ -169,6 +169,23 @@ static inline uint32_t read_reg32 (const uint8_t *const mapped_bar, const uint64
 
 
 /**
+ * @brief Perform a read from a 64-bit register in a memory mapped BAR. formed of two 32-bit lower and upper registers.
+ * @details This was created for the Xilinx "DMA/Bridge Subsystem for PCI Express" PG195 configuration registers.
+ *          An attempt to perform a single 64-bit read caused all-ones to be returned.
+ * @param[in] mapped_bar The base of the BAR to read
+ * @parem[in] reg_offset The byte offset into the BAR of the register to read
+ * @return The register value
+ */
+static inline uint64_t read_split_reg64 (const uint8_t *const mapped_bar, const uint64_t reg_offset)
+{
+    const uint32_t lower = read_reg32 (mapped_bar, reg_offset);
+    const uint32_t upper = read_reg32 (mapped_bar, reg_offset + sizeof (uint32_t));
+
+    return (((uint64_t) upper) << 32) + lower;
+}
+
+
+/**
  * @brief Perform a write to a 32-bit register in a memory mapped BAR
  * @param[in/out] mapped_bar The base of the BAR to write
  * @param[in] reg_offset The byte offset into the BAR of the register to write
@@ -182,15 +199,22 @@ static inline void write_reg32 (uint8_t *const mapped_bar, const uint64_t reg_of
 
 
 /**
- * @brief Perform a write to a 64-bit register in a memory mapped BAR
+ * @brief Perform a write to a 64-bit register in a memory mapped BAR, formed of two 32-bit lower and upper registers.
+ * @details This was created for the Xilinx "DMA/Bridge Subsystem for PCI Express" PG195 configuration registers.
+ *          An attempt to perform a single 64-bit write caused the upper value to not change.
  * @param[in/out] mapped_bar The base of the BAR to write
  * @param[in] reg_offset The byte offset into the BAR of the register to write
  * @param[in] reg_value The register value to write
  */
-static inline void write_reg64 (uint8_t *const mapped_bar, const uint64_t reg_offset, const uint64_t reg_value)
+static inline void write_split_reg64 (uint8_t *const mapped_bar, const uint64_t reg_offset, const uint64_t reg_value)
 {
-    uint64_t *const mapped_reg = (uint64_t *) &mapped_bar[reg_offset];
-    __atomic_store_n (mapped_reg, reg_value, __ATOMIC_RELEASE);
+    uint32_t *const mapped_reg_lower = (uint32_t *) &mapped_bar[reg_offset];
+    uint32_t *const mapped_reg_upper = (uint32_t *) &mapped_bar[reg_offset + sizeof (uint32_t)];
+    const uint32_t reg_value_lower = reg_value & 0xffffffff;
+    const uint32_t reg_value_upper = (uint32_t) (reg_value >> 32ULL);
+
+    __atomic_store_n (mapped_reg_lower, reg_value_lower, __ATOMIC_RELEASE);
+    __atomic_store_n (mapped_reg_upper, reg_value_upper, __ATOMIC_RELEASE);
 }
 
 #endif /* SOURCE_VFIO_ACCESS_VFIO_ACCESS_H_ */

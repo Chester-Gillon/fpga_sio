@@ -44,7 +44,7 @@ static bool check_dma_submodule_identity (const uint8_t *const submodule_regs, c
 
     if (subsystem_ip != SUBMODULE_IDENTIFIER_SUBSYSTEM_ID)
     {
-        printf ("For expected_submodule %" PRIu32 " unexpected subsystem ID 0x%x" PRIx32 "\n", expected_submodule, subsystem_ip);
+        printf ("For expected_submodule %" PRIu32 " unexpected subsystem ID 0x%" PRIx32 "\n", expected_submodule, subsystem_ip);
         return false;
     }
 
@@ -173,7 +173,7 @@ bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
             context->descriptors = descriptor;
             /* For the first descriptor set it's address in the DMA control registers.
              * Number of extra descriptors is set to zero as are no trying to optimise the descriptor fetching. */
-            write_reg64 (context->x2x_sgdma_regs, X2X_SGDMA_DESCRIPTOR_ADDRESS_OFFSET, descriptor_iova);
+            write_split_reg64 (context->x2x_sgdma_regs, X2X_SGDMA_DESCRIPTOR_ADDRESS_OFFSET, descriptor_iova);
             write_reg32 (context->x2x_sgdma_regs, X2X_SGDMA_DESCRIPTOR_ADJACENT_OFFSET, 0);
         }
         else
@@ -212,7 +212,7 @@ bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
     {
         return false;
     }
-    write_reg64 (context->x2x_channel_regs, X2X_CHANNEL_POLL_MODE_WRITE_BACK_ADDRESS_OFFSET, descriptor_iova);
+    write_split_reg64 (context->x2x_channel_regs, X2X_CHANNEL_POLL_MODE_WRITE_BACK_ADDRESS_OFFSET, descriptor_iova);
     context->completed_descriptor_count->sts_err_compl_descriptor_count = 0;
 
     /* Set channel control to enable pollmode write back and logging of all errors */

@@ -222,6 +222,11 @@ void map_vfio_device_bar_before_use (vfio_device_t *const vfio_device, const int
 
 /**
  * @brief Reset a VFIO device
+ * @details With the Xilinx "DMA/Bridge Subsystem for PCI Express" PG195 the configuration registers are shown to be
+ *          reset to zero when probe_xilinx_ip runs even when this function isn't called.
+ *          Looking at kernel-4.18.0-425.3.1.el8/linux-4.18.0-425.3.1.el8.x86_64/drivers/vfio/pci/vfio_pci.c
+ *          vfio_pci_open() ends up calling pci_try_reset_function(), so think the VFIO device is reset every time
+ *          it is opened by user space.
  * @param[in/out] vfio_device The device to reset
  */
 void reset_vfio_device (vfio_device_t *const vfio_device)
