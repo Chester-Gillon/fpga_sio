@@ -1,80 +1,152 @@
+1. Alignment for descriptor size doesn't have any measurable effect on Host To Card transfer speed
+==================================================================================================
+
 The default is that the sizes of all but the final descriptors for the final h2c descriptor were an odd number
 of bytes which could have led to inefficient transfers:
-
 [mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_ddr 
 Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
 Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
 Testing NiteFury board version 0x2 with DDR size 0x40000000 for PCI device 0000:2e:00.0 IOMMU group 86
 Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
-Print wrote 0x40000000 bytes to card using DMA in 809872148 ns
+Print wrote 0x40000000 bytes to card using DMA in 809873136 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809870696 ns
+Print wrote 0x40000000 bytes to card using DMA in 809869331 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809869969 ns
+Print wrote 0x40000000 bytes to card using DMA in 809870773 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809872076 ns
+Print wrote 0x40000000 bytes to card using DMA in 809869038 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809871209 ns
+Print wrote 0x40000000 bytes to card using DMA in 809868758 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809871231 ns
+Print wrote 0x40000000 bytes to card using DMA in 809868589 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809870850 ns
+Print wrote 0x40000000 bytes to card using DMA in 809878551 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809870214 ns
+Print wrote 0x40000000 bytes to card using DMA in 809869286 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809870312 ns
+Print wrote 0x40000000 bytes to card using DMA in 809872494 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809870705 ns
+Print wrote 0x40000000 bytes to card using DMA in 809875564 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809870865 ns
+Print wrote 0x40000000 bytes to card using DMA in 809868619 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809870371 ns
+Print wrote 0x40000000 bytes to card using DMA in 809869684 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809871021 ns
+Print wrote 0x40000000 bytes to card using DMA in 809869790 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809871299 ns
+Print wrote 0x40000000 bytes to card using DMA in 809868585 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809870521 ns
+Print wrote 0x40000000 bytes to card using DMA in 809868708 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809871319 ns
+Print wrote 0x40000000 bytes to card using DMA in 809869213 ns
 Test pattern pass
 
 
 Running with a command line option to specify page size alignment didn't have any effect on the transfer speed:
-[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_ddr 4096
+[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_ddr -a 4096
 Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
 Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
 Testing NiteFury board version 0x2 with DDR size 0x40000000 for PCI device 0000:2e:00.0 IOMMU group 86
 Size of DMA descriptors used for h2c: [0]=0xffff000 [1]=0xffff000 [2]=0xffff000 [3]=0xffff000 [4]=0x4000
-Print wrote 0x40000000 bytes to card using DMA in 809873670 ns
+Print wrote 0x40000000 bytes to card using DMA in 809870948 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809870345 ns
+Print wrote 0x40000000 bytes to card using DMA in 809869768 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809870234 ns
+Print wrote 0x40000000 bytes to card using DMA in 809869140 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809870734 ns
+Print wrote 0x40000000 bytes to card using DMA in 809869878 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809870212 ns
+Print wrote 0x40000000 bytes to card using DMA in 809869697 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809869759 ns
+Print wrote 0x40000000 bytes to card using DMA in 809868489 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809870331 ns
+Print wrote 0x40000000 bytes to card using DMA in 809869273 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809870794 ns
+Print wrote 0x40000000 bytes to card using DMA in 809869195 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809870842 ns
+Print wrote 0x40000000 bytes to card using DMA in 809869766 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809881986 ns
+Print wrote 0x40000000 bytes to card using DMA in 809868857 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809870796 ns
+Print wrote 0x40000000 bytes to card using DMA in 809869318 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809870469 ns
+Print wrote 0x40000000 bytes to card using DMA in 809869569 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809870692 ns
+Print wrote 0x40000000 bytes to card using DMA in 809870026 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809872060 ns
+Print wrote 0x40000000 bytes to card using DMA in 809868972 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809871482 ns
+Print wrote 0x40000000 bytes to card using DMA in 809868897 ns
 Test pattern pass
-Print wrote 0x40000000 bytes to card using DMA in 809871188 ns
+Print wrote 0x40000000 bytes to card using DMA in 809868942 ns
 Test pattern pass
+
+
+2. Can use a POSIX shared memory file, rather than heap, for the buffers used for VFIO DMA
+==========================================================================================
+
+The default is that the heap was used to allocate buffers used for VFIO DMA, where the heap is a private mapping
+in the process.
+
+Added an option to allow POSIX shared memory files to be used instead of the heap.
+
+The test ran successfully when using the POSIX shared memory files, with no measurable effect on Host To Card transfer speed
+compared to when the VFIO DMA buffers were allocated from the heap:
+[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_ddr -b shared_memory
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
+Testing NiteFury board version 0x2 with DDR size 0x40000000 for PCI device 0000:2e:00.0 IOMMU group 86
+Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Print wrote 0x40000000 bytes to card using DMA in 809871617 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869833 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869974 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870190 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869799 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870513 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809873538 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869619 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870502 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809871523 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870283 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869332 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809873048 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809868583 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869244 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809875086 ns
+Test pattern pass
+
+
+While the above test is running the POSIX shared memory files were:
+[mr_halfword@skylake-alma ~]$ ls -l /dev/shm/
+total 1048584
+-rwxrwxr-x. 1 mr_halfword mr_halfword       4096 Feb 12 11:04 vfio_buffer_pid-6570_iova-0
+-rwxrwxr-x. 1 mr_halfword mr_halfword       4096 Feb 12 11:04 vfio_buffer_pid-6570_iova-1073745920
+-rwxrwxr-x. 1 mr_halfword mr_halfword 1073741824 Feb 12 11:04 vfio_buffer_pid-6570_iova-4096
+
+For this initial test, the POSIX shared memory files were only used for VFIO DMA in the process which created them.
+The initial thought was that using POSIX shared memory files for VFIO DMA buffers could provide a mean for multiple
+processes to be able to perform VFIO DMA for one device to avoid the limitation that only one process can open
+the IOMMU group file. However, the limitations are:
+a. Doesn't allow the PCI BARs to be mapped by VFIO into multiple processes.
+b. Means the "primary" process which creates the POSIX shared memory files would have the buffers mapped into
+   it's virtual address space even though wasn't actually performing any VFIO DMA.
+
+Instead try opening the group and container file descriptors in a "primary" process and use SCM_RIGHTS on
+a UNIX domain socket to send the file descriptors to "secondary" process(es).
+From a quick look DPDK appears to do this (haven't traced all the code).
+ 
