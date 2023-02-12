@@ -13,6 +13,7 @@
 #include "vfio_access.h"
 
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
@@ -177,13 +178,22 @@ int main (int argc, char *argv[])
         printf ("mlockall() failed : %s\n", strerror (errno));
     }
 
+    /* If any command line option is specified then causes the device to be reset before use */
+    const bool reset_device_before_use = argc > 1;
+
     /* Open PCI devices supported by the test */
     open_vfio_devices_matching_filter (&vfio_devices, num_filters, filters);
 
     /* Perform tests on the FPGA devices */
     for (uint32_t device_index = 0; device_index < vfio_devices.num_devices; device_index++)
     {
-        test_memmapped_device (&vfio_devices.devices[device_index]);
+        vfio_device_t *const vfio_device = &vfio_devices.devices[device_index];
+
+        if (reset_device_before_use)
+        {
+            reset_vfio_device (vfio_device);
+        }
+        test_memmapped_device (vfio_device);
     }
 
     close_vfio_devices (&vfio_devices);

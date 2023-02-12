@@ -221,6 +221,46 @@ void map_vfio_device_bar_before_use (vfio_device_t *const vfio_device, const int
 
 
 /**
+ * @brief Reset a VFIO device
+ * @param[in/out] vfio_device The device to reset
+ */
+void reset_vfio_device (vfio_device_t *const vfio_device)
+{
+    int rc;
+    int saved_errno;
+
+    /* Get the device information to determine if reset is support */
+    memset (&vfio_device->device_info, 0, sizeof (vfio_device->device_info));
+    vfio_device->device_info.argsz = sizeof (vfio_device->device_info);
+    rc = ioctl (vfio_device->device_fd, VFIO_DEVICE_GET_INFO, &vfio_device->device_info);
+    if (rc != 0)
+    {
+        printf ("VFIO_DEVICE_GET_INFO failed : %s\n", strerror (-rc));
+        return;
+    }
+
+    if ((vfio_device->device_info.flags & VFIO_DEVICE_FLAGS_RESET) != 0)
+    {
+        errno = 0;
+        rc = ioctl (vfio_device->device_fd, VFIO_DEVICE_RESET);
+        saved_errno = errno;
+        if (rc == 0)
+        {
+            printf ("Reset VFIO device %s\n", vfio_device->device_name);
+        }
+        else
+        {
+            printf ("VFIO_DEVICE_RESET %s failed : %s\n", vfio_device->device_name, strerror (saved_errno));
+        }
+    }
+    else
+    {
+        printf ("VFIO device %s doesn't support reset\n", vfio_device->device_name);
+    }
+}
+
+
+/**
  * @brief Open an VFIO device, without mapping it's memory BARs.
  * @param[in/out] vfio_devices The list of vfio devices to append the opened device to.
  *                             If this function is successful vfio_devices->num_devices is incremented
