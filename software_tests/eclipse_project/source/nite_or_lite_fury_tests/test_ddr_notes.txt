@@ -207,3 +207,56 @@ Print wrote 0x40000000 bytes to card using DMA in 809868837 ns
 Test pattern pass
 Print wrote 0x40000000 bytes to card using DMA in 809870995 ns
 Test pattern pass
+
+
+4. Using 2M huge pages doesn't have any measurable effect on Host To Card transfer speed
+========================================================================================
+
+Added an option to allocate the VFIO DMA buffers from huge pages.
+
+Huge pages allocated using:
+$ sudo dpdk-hugepages.py --setup 2048M
+
+Using 2M huge pages doesn't have any measurable effect on Host To Card transfer speed:
+[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_ddr -a 4096 -b huge_pages
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
+    control: I/O- Mem+ BusMaster-
+Testing NiteFury board version 0x2 with DDR size 0x40000000 for PCI device 0000:2e:00.0 IOMMU group 86
+Enabling bus master for 0000:2e:00.0
+    control: I/O- Mem+ BusMaster+
+Size of DMA descriptors used for h2c: [0]=0xffff000 [1]=0xffff000 [2]=0xffff000 [3]=0xffff000 [4]=0x4000
+Print wrote 0x40000000 bytes to card using DMA in 809869912 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869526 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809867983 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809868116 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809868156 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809874158 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809872146 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869851 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809867926 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809868759 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809871451 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869659 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809873764 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809868904 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809868880 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809868698 ns
+Test pattern pass
+munmap(4096) failed : Invalid argument
+munmap(4096) failed : Invalid argument

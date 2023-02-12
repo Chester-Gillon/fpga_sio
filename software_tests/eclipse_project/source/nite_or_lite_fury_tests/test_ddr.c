@@ -71,6 +71,10 @@ static void parse_command_line_arguments (int argc, char *argv[])
             {
                 arg_buffer_allocation = VFIO_BUFFER_ALLOCATION_SHARED_MEMORY;
             }
+            else if (strcmp (optarg, "huge_pages") == 0)
+            {
+                arg_buffer_allocation = VFIO_BUFFER_ALLOCATION_HUGE_PAGES;
+            }
             else
             {
                 printf ("Invalid buffer allocation type %s\n", optarg);
@@ -80,7 +84,7 @@ static void parse_command_line_arguments (int argc, char *argv[])
 
         case '?':
         default:
-            printf ("Usage %s [-a <min_size_alignment] [-b heap|shared_memory]\n", argv[0]);
+            printf ("Usage %s [-a <min_size_alignment] [-b heap|shared_memory|huge_pages]\n", argv[0]);
             exit (EXIT_FAILURE);
             break;
         }

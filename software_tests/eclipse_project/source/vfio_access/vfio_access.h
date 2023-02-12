@@ -21,7 +21,9 @@ typedef enum
     /* Allocates the buffer from the heap of the calling process */
     VFIO_BUFFER_ALLOCATION_HEAP,
     /* Allocate the buffer from POSIX shared memory */
-    VFIO_BUFFER_ALLOCATION_SHARED_MEMORY
+    VFIO_BUFFER_ALLOCATION_SHARED_MEMORY,
+    /* Allocate the buffer using huge pages (of the default huge page size) */
+    VFIO_BUFFER_ALLOCATION_HUGE_PAGES
 } vfio_buffer_allocation_type_t;
 
 

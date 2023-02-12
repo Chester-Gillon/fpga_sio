@@ -105,7 +105,17 @@ static void create_vfio_buffer (vfio_buffer_t *const buffer,
         if (buffer->vaddr == (void *) -1)
         {
             buffer->vaddr = NULL;
-            printf ("shm_open(%s) failed : %s\n", buffer->pathname, strerror (errno));
+            printf ("mmap(%s) failed : %s\n", buffer->pathname, strerror (errno));
+            return;
+        }
+        break;
+
+    case VFIO_BUFFER_ALLOCATION_HUGE_PAGES:
+        buffer->vaddr = mmap (NULL, buffer->size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
+        if (buffer->vaddr == (void *) -1)
+        {
+            buffer->vaddr = NULL;
+            printf ("mmap(%zu) failed : %s\n", buffer->size, strerror (errno));
             return;
         }
         break;
@@ -144,6 +154,24 @@ static void free_vfio_buffer (vfio_buffer_t *const buffer)
         if (rc != 0)
         {
             printf ("shm_unlink(%s) failed : %s\n", buffer->pathname, strerror (errno));
+            return;
+        }
+        break;
+
+    case VFIO_BUFFER_ALLOCATION_HUGE_PAGES:
+        /* @todo If buffer->size is only a 4K normal page then munmap() fails with EINVAL, even though the mmap()
+         *       call succeeded with the same size.
+         *       Seen on AlmaLinux 8.7 with a 4.18.0-425.10.1.el8_7.x86_64 Kernel and 2MB huge pages.
+         *
+         *       To avoid this error would probably need to parse the actual huge page size and use that to
+         *       round-up the buffer->size.
+         *
+         *       When the program exits the huge pages are freed.
+         */
+        rc = munmap (buffer->vaddr, buffer->size);
+        if (rc != 0)
+        {
+            printf ("munmap(%zu) failed : %s\n", buffer->size, strerror (errno));
             return;
         }
         break;
