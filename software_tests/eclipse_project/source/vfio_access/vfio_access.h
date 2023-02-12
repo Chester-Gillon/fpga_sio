@@ -153,6 +153,11 @@ void *vfio_dma_mapping_allocate_space (vfio_dma_mapping_t *const mapping,
                                        const size_t allocation_size, uint64_t *const allocated_iova);
 void vfio_dma_mapping_align_space (vfio_dma_mapping_t *const mapping);
 void free_vfio_dma_mapping (const vfio_devices_t *const vfio_devices, vfio_dma_mapping_t *const mapping);
+uint16_t vfio_read_pci_config_word (const vfio_device_t *const vfio_device, const uint32_t offset);
+uint32_t vfio_read_pci_config_long (const vfio_device_t *const vfio_device, const uint32_t offset);
+void vfio_write_pci_config_word (const vfio_device_t *const vfio_device, const uint32_t offset, const uint16_t config_word);
+void vfio_write_pci_config_long (const vfio_device_t *const vfio_device, const uint32_t offset, const uint32_t config_long);
+void vfio_display_pci_command (const vfio_device_t *const vfio_device);
 
 
 /**

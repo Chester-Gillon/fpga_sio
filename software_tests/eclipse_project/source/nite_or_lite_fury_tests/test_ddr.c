@@ -142,6 +142,7 @@ int main (int argc, char *argv[])
         {
             const size_t ddr_size_bytes = fury_ddr_sizes_bytes[fury_type];
 
+            vfio_display_pci_command (vfio_device);
             printf ("Testing %s board version 0x%x with DDR size 0x%zx for PCI device %s IOMMU group %s\n",
                     fury_names[fury_type], board_version, ddr_size_bytes, vfio_device->device_name, vfio_device->iommu_group);
 
@@ -172,6 +173,7 @@ int main (int argc, char *argv[])
                 struct timespec start_time;
                 struct timespec end_time;
 
+                vfio_display_pci_command (vfio_device);
                 printf ("Size of DMA descriptors used for h2c:");
                 for (uint32_t descriptor_index = 0; descriptor_index < h2c_context.num_descriptors; descriptor_index++)
                 {

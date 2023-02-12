@@ -149,4 +149,61 @@ b. Means the "primary" process which creates the POSIX shared memory files would
 Instead try opening the group and container file descriptors in a "primary" process and use SCM_RIGHTS on
 a UNIX domain socket to send the file descriptors to "secondary" process(es).
 From a quick look DPDK appears to do this (haven't traced all the code).
- 
+
+
+3. VFIO DMA worked for the Xilinx "DMA/Bridge Subsystem for PCI Express" even when wasn't enabled as BusMaster
+==============================================================================================================
+
+Noticed that test_ddr was able to successfully perform DMA, while dump_info_pciutils was always reporting BusMaster-
+for the PCI device.
+
+Added code into initialise_x2x_transfer_context() to set the PCI_COMMAND_MASTER bit if clear.
+Every time test_ddr runs it has to set the PCI_COMMAND_MASTER bit and:
+a. dump_info_pciutils reports BusMaster+ while test_ddr is running.
+b. Once test_ddr completes dump_info_pciutils reports BusMaster-
+   Looks like VFIO clears the BusMaster flag when the device is closed.
+
+Not sure why the Xilinx "DMA/Bridge Subsystem for PCI Express" was able to perform DMA even when BusMaster was clear.
+E.g. does this mean the FPGA isn't meeting the PCIe spec?
+
+Enabling BusMaster hasn't changed the Host to Card transfer speed:
+[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_ddr -a 4096
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
+    control: I/O- Mem+ BusMaster-
+Testing NiteFury board version 0x2 with DDR size 0x40000000 for PCI device 0000:2e:00.0 IOMMU group 86
+Enabling bus master for 0000:2e:00.0
+    control: I/O- Mem+ BusMaster+
+Size of DMA descriptors used for h2c: [0]=0xffff000 [1]=0xffff000 [2]=0xffff000 [3]=0xffff000 [4]=0x4000
+Print wrote 0x40000000 bytes to card using DMA in 809871747 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809871007 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809868700 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809868640 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869687 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809868707 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809868556 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809872446 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809868450 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869681 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869359 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809868671 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869120 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809868681 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809868837 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870995 ns
+Test pattern pass
