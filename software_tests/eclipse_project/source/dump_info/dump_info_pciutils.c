@@ -25,6 +25,8 @@ int main (int argc, char *argv[])
     u16 subvendor_id;
     u16 subdevice_id;
     u16 command;
+    int vendor;
+    char junk;
 
     /* Initialise using the defaults */
     pacc = pci_alloc ();
@@ -36,9 +38,20 @@ int main (int argc, char *argv[])
     pci_init (pacc);
     printf ("Access method : %s\n", pci_get_method_name (pacc->method));
 
+    /* Use an option command line argument to specify the vendor ID to display information for */
+    vendor = FPGA_SIO_VENDOR_ID;
+    if (argc > 1)
+    {
+        const char *const vendor_txt = argv[1];
+        if (sscanf (vendor_txt, "%x%c", &vendor, &junk) != 1)
+        {
+            printf ("Error: Invalid hex vendor ID %s\n", vendor_txt);
+        }
+    }
+
     /* Select to filter by vendor only */
     pci_filter_init (pacc, &filter);
-    filter.vendor = FPGA_SIO_VENDOR_ID;
+    filter.vendor = vendor;
 
     /* Scan the entire bus */
     pci_scan_bus (pacc);

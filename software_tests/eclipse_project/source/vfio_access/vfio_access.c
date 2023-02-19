@@ -317,11 +317,38 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
         return;
     }
 
+    /* For the first VFIO device open a VFIO container, which is also used for subsequent devices */
+    if (vfio_devices->container_fd == -1)
+    {
+        vfio_devices->container_fd = open (VFIO_CONTAINER_PATH, O_RDWR);
+        if (vfio_devices->container_fd == -1)
+        {
+            fprintf (stderr, "open (%s) failed : %s\n", VFIO_CONTAINER_PATH, strerror (errno));
+            exit (EXIT_FAILURE);
+        }
+
+        api_version = ioctl (vfio_devices->container_fd, VFIO_GET_API_VERSION);
+        if (api_version != VFIO_API_VERSION)
+        {
+            fprintf (stderr, "Got VFIO_API_VERSION %d, expected %d\n", api_version, VFIO_API_VERSION);
+            exit (EXIT_FAILURE);
+        }
+
+        /* Determine the type of IOMMU to use.
+         * If VFIO_NOIOMMU_IOMMU is supported use type, otherwise default to VFIO_TYPE1_IOMMU.
+         *
+         * While support for VFIO_TYPE1v2_IOMMU and VFIO_TYPE1_NESTING_IOMMU was available on the Intel Xeon W system tested,
+         * not sure of the benefits of using a different IOMMU type. */
+        const __u32 extension = VFIO_NOIOMMU_IOMMU;
+        const int extension_supported = ioctl (vfio_devices->container_fd, VFIO_CHECK_EXTENSION, extension);
+        vfio_devices->iommu_type = extension_supported ? VFIO_NOIOMMU_IOMMU : VFIO_TYPE1_IOMMU;
+    }
+
     /* Sanity check that the IOMMU group file exists and the effective user ID has read/write permission before attempting
-     * to probe the device. This checks that bind_xilinx_devices_to_vfio.sh script has been run to bind the vfio-pci driver
+     * to probe the device. This checks that a script been run to bind the vfio-pci driver
      * (which creates the IOMMU group file) and has given the user permission. */
-    snprintf (new_device->group_pathname, sizeof (new_device->group_pathname), "%s%s",
-            VFIO_ROOT_PATH, new_device->iommu_group);
+    snprintf (new_device->group_pathname, sizeof (new_device->group_pathname), "%s%s%s",
+            VFIO_ROOT_PATH, (vfio_devices->iommu_type == VFIO_NOIOMMU_IOMMU) ? "noiommu-" : "", new_device->iommu_group);
     errno = 0;
     rc = faccessat (0, new_device->group_pathname, R_OK | W_OK, AT_EACCESS);
     saved_errno = errno;
@@ -347,32 +374,24 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
         return;
     }
 
-    /* For the first VFIO device open a VFIO container, which is also used for subsequent devices */
-    if (vfio_devices->num_devices == 0)
-    {
-        vfio_devices->container_fd = open (VFIO_CONTAINER_PATH, O_RDWR);
-        if (vfio_devices->container_fd == -1)
-        {
-            fprintf (stderr, "open (%s) failed : %s\n", VFIO_CONTAINER_PATH, strerror (errno));
-            exit (EXIT_FAILURE);
-        }
-
-        api_version = ioctl (vfio_devices->container_fd, VFIO_GET_API_VERSION);
-        if (api_version != VFIO_API_VERSION)
-        {
-            fprintf (stderr, "Got VFIO_API_VERSION %d, expected %d\n", api_version, VFIO_API_VERSION);
-            exit (EXIT_FAILURE);
-        }
-    }
-
     /* Open the IOMMU group */
     printf ("Opening device %s (%04x:%04x) with IOMMU group %s\n",
             new_device->device_name, pci_dev->vendor_id, pci_dev->device_id, new_device->iommu_group);
-    snprintf (new_device->group_pathname, sizeof (new_device->group_pathname), "%s%s", VFIO_ROOT_PATH, new_device->iommu_group);
+    errno = 0;
     new_device->group_fd = open (new_device->group_pathname, O_RDWR);
+    saved_errno = errno;
     if (new_device->group_fd == -1)
     {
-        printf ("open (%s) failed : %s\n", new_device->group_pathname, strerror (errno));
+        if ((saved_errno == EPERM) && (vfio_devices->iommu_type == VFIO_NOIOMMU_IOMMU))
+        {
+            /* With a noiommu group permission on the group file isn't sufficient.
+             * Need to sys_rawio capability to open the group. */
+            printf ("  No permission to open %s. Try:\nsudo setcap cap_sys_rawio=ep <executable>\n", new_device->group_pathname);
+        }
+        else
+        {
+            printf ("open (%s) failed : %s\n", new_device->group_pathname, strerror (errno));
+        }
         return;
     }
 
@@ -405,12 +424,8 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
 
     if (vfio_devices->num_devices == 0)
     {
-        /* Set the IOMMU type used. As this is done on the IOMMU container, only performed when the first device is opened.
-         * Uses the fixed VFIO_TYPE1_IOMMU, as DPDK does for x86.
-         *
-         * While support for VFIO_TYPE1v2_IOMMU and VFIO_TYPE1_NESTING_IOMMU was available on the Intel Xeon W system tested,
-         * not sure of the benefits of using a different IOMMU type. */
-        rc = ioctl (vfio_devices->container_fd, VFIO_SET_IOMMU, VFIO_TYPE1_IOMMU);
+        /* Set the IOMMU type used */
+        rc = ioctl (vfio_devices->container_fd, VFIO_SET_IOMMU, vfio_devices->iommu_type);
         if (rc != 0)
         {
             printf ("  VFIO_SET_IOMMU failed : %s\n", strerror (-rc));
@@ -462,6 +477,7 @@ void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
     bool pci_device_matches_filter;
 
     memset (vfio_devices, 0, sizeof (*vfio_devices));
+    vfio_devices->container_fd = -1;
 
     /* Initialise PCI access using the defaults */
     vfio_devices->pacc = pci_alloc ();
@@ -551,13 +567,17 @@ void close_vfio_devices (vfio_devices_t *const vfio_devices)
         vfio_device->group_fd = -1;
     }
 
-    rc = close (vfio_devices->container_fd);
-    if (rc != 0)
+    /* Close the VFIO container if it was used */
+    if (vfio_devices->container_fd != -1)
     {
-        fprintf (stderr, "close (%s) failed : %s\n", VFIO_CONTAINER_PATH, strerror (errno));
-        exit (EXIT_FAILURE);
+        rc = close (vfio_devices->container_fd);
+        if (rc != 0)
+        {
+            fprintf (stderr, "close (%s) failed : %s\n", VFIO_CONTAINER_PATH, strerror (errno));
+            exit (EXIT_FAILURE);
+        }
+        vfio_devices->container_fd = -1;
     }
-    vfio_devices->container_fd = -1;
 
     /* Cleanup the PCI access, if was used */
     if (vfio_devices->pacc != NULL)

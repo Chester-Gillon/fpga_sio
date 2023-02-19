@@ -106,6 +106,8 @@ typedef struct
      * With the intel_iommu was able to add two devices in different /sys/class/iommu/dmar?/devices directory
      * to the same container. */
     int container_fd;
+    /* The IOMMU type which is used for the VFIO container */
+    __s32 iommu_type;
     /* Used to allocate the next IOVA address allocated */
     uint64_t next_iova;
     /* The number of devices which have been opened */
@@ -163,6 +165,19 @@ void vfio_display_pci_command (const vfio_device_t *const vfio_device);
 
 
 /**
+ * @brief Perform a read from a 8-bit register in a memory mapped BAR
+ * @param[in] mapped_bar The base of the BAR to read
+ * @parem[in] reg_offset The byte offset into the BAR of the register to read
+ * @return The register value
+ */
+static inline uint32_t read_reg8 (const uint8_t *const mapped_bar, const uint64_t reg_offset)
+{
+    const uint8_t *const mapped_reg = (const uint8_t *) &mapped_bar[reg_offset];
+    return __atomic_load_n (mapped_reg, __ATOMIC_ACQUIRE);
+}
+
+
+/**
  * @brief Perform a read from a 32-bit register in a memory mapped BAR
  * @param[in] mapped_bar The base of the BAR to read
  * @parem[in] reg_offset The byte offset into the BAR of the register to read
@@ -189,6 +204,19 @@ static inline uint64_t read_split_reg64 (const uint8_t *const mapped_bar, const 
     const uint32_t upper = read_reg32 (mapped_bar, reg_offset + sizeof (uint32_t));
 
     return (((uint64_t) upper) << 32) + lower;
+}
+
+
+/**
+ * @brief Perform a write to a 8-bit register in a memory mapped BAR
+ * @param[in/out] mapped_bar The base of the BAR to write
+ * @param[in] reg_offset The byte offset into the BAR of the register to write
+ * @param[in] reg_value The register value to write
+ */
+static inline void write_reg8 (uint8_t *const mapped_bar, const uint64_t reg_offset, const uint8_t reg_value)
+{
+    uint8_t *const mapped_reg = (uint8_t *) &mapped_bar[reg_offset];
+    __atomic_store_n (mapped_reg, reg_value, __ATOMIC_RELEASE);
 }
 
 

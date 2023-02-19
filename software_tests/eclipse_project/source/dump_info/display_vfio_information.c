@@ -546,6 +546,7 @@ int main (int argc, char *argv[])
     char group_dirname[PATH_MAX];
     DIR *group_dir;
     struct dirent *group_dir_entry;
+    int saved_errno;
 
     /* At boot only root has access to this container file.
      * After loading the vfio-pci module this file then has 0666 permission. Haven't tracked what changed the permission */
@@ -588,16 +589,25 @@ int main (int argc, char *argv[])
             if ((sscanf (vfio_dir_entry->d_name, "%" SCNu32, &iommu_group) == 1) ||
                 (sscanf (vfio_dir_entry->d_name, "noiommu-%" SCNu32, &iommu_group) == 1))
             {
-                /* Attempt to open the group file, which can fail with EBUSY if already open by another program (e.g. DPDK).
-                 *
-                 * With a noiommu group sudo is required to avoid getting EPERM opening the group; permission on the
-                 * group file isn't sufficient. Haven't investigated if a process capability would avoid the need for sudo. */
+                /* Attempt to open the group file, which can fail with EBUSY if already open by another program (e.g. DPDK). */
                 printf ("\nIOMMU group %s:\n", vfio_dir_entry->d_name);
                 snprintf (group_pathname, sizeof (group_pathname), "%s%s", VFIO_ROOT_PATH, vfio_dir_entry->d_name);
+                errno = 0;
                 group_fd = open (group_pathname, O_RDWR);
+                saved_errno = errno;
                 if (group_fd == -1)
                 {
-                    printf ("  open (%s) failed : %s\n", group_pathname, strerror (errno));
+                    if ((saved_errno == EPERM) && (strncmp (vfio_dir_entry->d_name, "noiommu", strlen ("noiommu")) == 0))
+                    {
+                        /* With a noiommu group permission on the group file isn't sufficient.
+                         * Need to sys_rawio capability to open the group. */
+                        printf ("  No permission to open %s. Try:\nsudo setcap cap_sys_rawio=ep %s\n",
+                                vfio_dir_entry->d_name, argv[0]);
+                    }
+                    else
+                    {
+                        printf ("  open (%s) failed : %s\n", group_pathname, strerror (errno));
+                    }
                     continue;
                 }
 
