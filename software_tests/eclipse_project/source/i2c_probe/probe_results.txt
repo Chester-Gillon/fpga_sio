@@ -1,0 +1,19 @@
+The result of running the probe on TEF1001-02-B2IX4-A for which have yet to fit the FMC module or DD3 module was:
+[mr_halfword@skylake-alma release]$ i2c_probe/i2c_probe 
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 25
+Using BAR 0 in device 0000:15:00.0 of size 0x2000
+Slave 0x40 replied with data 0xff
+Slave 0x4f replied with data 0xff
+Slave 0x5a replied with data 0xff
+Slave 0x5b replied with data 0xff
+Slave 0x70 replied with data 0x00
+Slave 0x74 replied with data 0xaf
+
+From the documenation under https://shop.trenz-electronic.de/en/TEF1001-02-B2IX4-A-PCIe-FMC-Carrier-with-Xilinx-Kintex-7-160T-4-Lane-PCIe-GEN2-DDR3-SODIMM-ECC?path=Trenz_Electronic/PCIe_Cards/TEF1001/REV02/Documents
+then the I2C addresses are:
+a. 0x40 is the DCDC U3 LTM4676, which provides 4V and 1.5V.
+b. 0x4f is the DCDC U4 LTM4676, which provides 1V.
+c. 0x5a and 0x5b look to be in the range for the DDR3 SPD, but for which the DDR3 SODIMM isn't yet populated.
+   Not sure if the CPLD which provides the I2C MUX to the FPGA is providing the ACK for these addresses.
+d. 0x70 is the Si5338A programmable quad PLL clock generator on-board.
+e. 0x74 is the FAN1 control in the CPLD.

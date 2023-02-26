@@ -170,9 +170,22 @@ void vfio_display_pci_command (const vfio_device_t *const vfio_device);
  * @parem[in] reg_offset The byte offset into the BAR of the register to read
  * @return The register value
  */
-static inline uint32_t read_reg8 (const uint8_t *const mapped_bar, const uint64_t reg_offset)
+static inline uint8_t read_reg8 (const uint8_t *const mapped_bar, const uint64_t reg_offset)
 {
     const uint8_t *const mapped_reg = (const uint8_t *) &mapped_bar[reg_offset];
+    return __atomic_load_n (mapped_reg, __ATOMIC_ACQUIRE);
+}
+
+
+/**
+ * @brief Perform a read from a 16-bit register in a memory mapped BAR
+ * @param[in] mapped_bar The base of the BAR to read
+ * @parem[in] reg_offset The byte offset into the BAR of the register to read
+ * @return The register value
+ */
+static inline uint16_t read_reg16 (const uint8_t *const mapped_bar, const uint64_t reg_offset)
+{
+    const uint16_t *const mapped_reg = (const uint16_t *) &mapped_bar[reg_offset];
     return __atomic_load_n (mapped_reg, __ATOMIC_ACQUIRE);
 }
 
@@ -216,6 +229,19 @@ static inline uint64_t read_split_reg64 (const uint8_t *const mapped_bar, const 
 static inline void write_reg8 (uint8_t *const mapped_bar, const uint64_t reg_offset, const uint8_t reg_value)
 {
     uint8_t *const mapped_reg = (uint8_t *) &mapped_bar[reg_offset];
+    __atomic_store_n (mapped_reg, reg_value, __ATOMIC_RELEASE);
+}
+
+
+/**
+ * @brief Perform a write to a 16-bit register in a memory mapped BAR
+ * @param[in/out] mapped_bar The base of the BAR to write
+ * @param[in] reg_offset The byte offset into the BAR of the register to write
+ * @param[in] reg_value The register value to write
+ */
+static inline void write_reg16 (uint8_t *const mapped_bar, const uint64_t reg_offset, const uint16_t reg_value)
+{
+    uint16_t *const mapped_reg = (uint16_t *) &mapped_bar[reg_offset];
     __atomic_store_n (mapped_reg, reg_value, __ATOMIC_RELEASE);
 }
 
