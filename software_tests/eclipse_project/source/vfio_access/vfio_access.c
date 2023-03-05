@@ -21,6 +21,8 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 
 /*
@@ -904,4 +906,105 @@ void vfio_display_pci_command (const vfio_device_t *const vfio_device)
             (command & PCI_COMMAND_IO) ? "+" : "-",
             (command & PCI_COMMAND_MEMORY) ? "+" : "-",
             (command & PCI_COMMAND_MASTER) ? "+" : "-");
+}
+
+
+/**
+ * @brief A debugging aid for testing multiprocess VFIO support, by display the file descriptors for the VFIO devices
+ * @param[in] vfio_devices The VFIO devices to display the file descriptors for
+ */
+void vfio_display_fds (const vfio_devices_t *const vfio_devices)
+{
+    printf ("container_fd=%d\n", vfio_devices->container_fd);
+    for (uint32_t device_index = 0; device_index < vfio_devices->num_devices; device_index++)
+    {
+        const vfio_device_t *const vfio_device = &vfio_devices->devices[device_index];
+
+        printf ("  %s : group_fd=%d device_fd=%d\n", vfio_device->device_name, vfio_device->group_fd, vfio_device->device_fd);
+    }
+}
+
+
+/**
+ * @details Called in the VFIO primary process to launch secondary process(s) which can use the VFIO devices and VFIO container
+ *          opened by the primary process. This is because VFIO devices can only be opened by one process.
+ *          This function uses UNIX domain sockets to pass the file descriptors for the VFIO devices and VFIO container
+ *          to the launched secondary processes.
+ * @param[in/out] vfio_devices The opened VFIO devices to pass to the secondary processes.
+ * @param[in] num_processes The number of secondary processes to launch
+ * @param[in/out] processes The secondary processes to launch.
+ *                          On entry the executable and argv fields define the processes to launch.
+ *                          On return the other fields are populated.
+ */
+void vfio_launch_secondary_processes (vfio_devices_t *const vfio_devices,
+                                      const uint32_t num_processes, vfio_secondary_process_t processes[const num_processes])
+{
+    pid_t pid;
+
+    /* Cleanup the PCI access, to stop any open file descriptors being passed to the secondary processes */
+    if (vfio_devices->pacc != NULL)
+    {
+        pci_cleanup (vfio_devices->pacc);
+        vfio_devices->pacc = NULL;
+    }
+
+    for (uint32_t process_index = 0; process_index < num_processes; process_index++)
+    {
+        vfio_secondary_process_t *const process = &processes[process_index];
+
+        pid = fork ();
+        if (pid == 0)
+        {
+            /* In child */
+            (void) execv (process->executable, process->argv);
+
+            /* An error has occurred if execvp returns */
+            fprintf (stderr, "execvp (%s) failed : %s\n", process->executable, strerror (errno));
+            exit (EXIT_FAILURE);
+        }
+        else
+        {
+            /* In parent */
+            if (pid <= 0)
+            {
+                fprintf (stderr, "fork failed : %s\n", strerror (errno));
+                exit (EXIT_FAILURE);
+            }
+            process->pid = pid;
+            process->reaped = false;
+        }
+    }
+}
+
+
+/**
+ * @brief Called on the VFIO primary process to wait for the secondary processes to exit
+ * @param[in] num_processes The number of secondary processes
+ * @param[in/out] processes The secondary processes, launched by a previous call to vfio_launch_secondary_processes()
+ */
+void vfio_await_secondary_processes (const uint32_t num_processes, vfio_secondary_process_t processes[const num_processes])
+{
+    uint32_t num_active_processes = num_processes;
+    int rc;
+    siginfo_t info;
+    uint32_t process_index;
+
+    while (num_active_processes > 0)
+    {
+        rc = waitid (P_ALL, 0, &info, WEXITED);
+        if (rc == 0)
+        {
+            for (process_index = 0; process_index < num_processes; process_index++)
+            {
+                vfio_secondary_process_t *const process = &processes[process_index];
+
+                if (!process->reaped && (info.si_pid == process->pid))
+                {
+                    process->reaped = true;
+                    num_active_processes--;
+                }
+            }
+        }
+
+    }
 }

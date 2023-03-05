@@ -1,0 +1,35 @@
+1. Container and group FDs passed to secondary process, but not device FD
+=========================================================================
+
+For an initial test of multiprocess VFIO functionality had:
+a. A primary process spawn a secondary process.
+b. The secondary process was spawned after the primary had called open_vfio_devices_matching_filter()
+c. The primary process attempted to call open_vfio_devices_matching_filter() in the same way as the primary.
+   As expected based upon previous tests, the secondary process failed with EBUSY attempting to open the group FD
+   since had already been opened by the primary process.
+d. Added some debug to display the file descriptors in the primary and secondary processes.
+e. Realised that open_vfio_device() is *not* using the O_CLOEXEC flag when opens the container and group FDs,
+   so they remain open in the secondary.
+f. The primary uses the VFIO_GROUP_GET_DEVICE_FD ioctl() to open the device FD, and that isn't open in the secondary.
+
+[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_general_primary 
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2e:00.0
+container_fd=4
+  0000:2e:00.0 : group_fd=5 device_fd=6
+Contents of /proc/23771/fd in test_general_primary:
+  fd 0 -> /dev/pts/0
+  fd 1 -> /dev/pts/0
+  fd 2 -> /dev/pts/0
+  fd 3 -> /sys/devices/pci0000:2c/0000:2c:02.0/0000:2e:00.0/config
+  fd 4 -> /dev/vfio/vfio
+  fd 5 -> /dev/vfio/86
+  fd 6 -> anon_inode:[vfio-device]
+Contents of /proc/23772/fd in test_general_secondary:
+  fd 0 -> /dev/pts/0
+  fd 1 -> /dev/pts/0
+  fd 2 -> /dev/pts/0
+  fd 4 -> /dev/vfio/vfio
+  fd 5 -> /dev/vfio/86
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
+open (/dev/vfio/86) failed : Device or resource busy

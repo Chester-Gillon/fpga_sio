@@ -146,6 +146,21 @@ typedef struct
 } vfio_dma_mapping_t;
 
 
+/* Defines one secondary process which is launched to access VFIO device(s) opened by the primary process */
+#define VFIO_SECONDARY_MAX_ARGC 16
+typedef struct
+{
+    /* Path to the executable to launch */
+    char executable[PATH_MAX];
+    /* null terminated list of arguments for the process */
+    char *argv[VFIO_SECONDARY_MAX_ARGC + 1];
+    /* The identity of the launched process */
+    pid_t pid;
+    /* Set true when the secondary process has been reaped by the primary process */
+    bool reaped;
+} vfio_secondary_process_t;
+
+
 void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev, const bool enable_bus_master);
 void map_vfio_device_bar_before_use (vfio_device_t *const vfio_device, const int bar_index);
 void reset_vfio_device (vfio_device_t *const vfio_device);
@@ -165,6 +180,10 @@ uint32_t vfio_read_pci_config_long (const vfio_device_t *const vfio_device, cons
 void vfio_write_pci_config_word (const vfio_device_t *const vfio_device, const uint32_t offset, const uint16_t config_word);
 void vfio_write_pci_config_long (const vfio_device_t *const vfio_device, const uint32_t offset, const uint32_t config_long);
 void vfio_display_pci_command (const vfio_device_t *const vfio_device);
+void vfio_display_fds (const vfio_devices_t *const vfio_devices);
+void vfio_launch_secondary_processes (vfio_devices_t *const vfio_devices,
+                                      const uint32_t num_processes, vfio_secondary_process_t processes[const num_processes]);
+void vfio_await_secondary_processes (const uint32_t num_processes, vfio_secondary_process_t processes[const num_processes]);
 
 
 /**

@@ -14,8 +14,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "fpga_sio_pci_ids.h"
-
 
 int main (int argc, char *const argv[])
 {

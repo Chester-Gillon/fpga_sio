@@ -29,5 +29,6 @@ extern const size_t fury_num_pci_device_filters;
 
 fury_type_t identify_fury (vfio_device_t *const vfio_device, uint32_t *const board_version);
 void display_fury_xadc_values (vfio_devices_t *const vfio_devices);
+void display_open_fds (const char *const process_name);
 
 #endif /* SOURCE_NITE_OR_LITE_FURY_TESTS_FURY_UTILS_H_ */

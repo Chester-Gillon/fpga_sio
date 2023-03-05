@@ -11,6 +11,10 @@
 #include <string.h>
 #include <stdio.h>
 
+#include <sys/types.h>
+#include <dirent.h>
+#include <unistd.h>
+
 /* Filters to identify Fury PCI devices, which are DMA capable */
 const vfio_pci_device_filter_t fury_pci_device_filters[] =
 {
@@ -128,5 +132,53 @@ void display_fury_xadc_values (vfio_devices_t *const vfio_devices)
             xadc_register_value = read_reg32 (vfio_device->mapped_bars[FURY_AXI_PERIPHERALS_BAR], 0x3218);
             printf ("vbram=%.2f\n", (double) (xadc_register_value >> 4) * 3.0 / 4096.0);
         }
+    }
+}
+
+
+/**
+ * @brief Display the file descriptors which are open in the calling process
+ * @details This will open a file descriptor to pass the procfs directory containing the file descriptors,
+ *          which is suppressed from being displayed.
+ * @param[in] process_name Reported to identify the calling process
+ */
+void display_open_fds (const char *const process_name)
+{
+    DIR *fd_dir;
+    struct dirent *fd_ent;
+    char pid_fd_dir[PATH_MAX];
+    char fd_ent_pathname[PATH_MAX];
+    char pathname_of_fd[PATH_MAX];
+    volatile size_t num_chars;
+
+    snprintf (pid_fd_dir, sizeof (pid_fd_dir), "/proc/%d/fd", getpid ());
+    fd_dir = opendir (pid_fd_dir);
+    printf ("Contents of %s in %s:\n", pid_fd_dir, process_name);
+    if (fd_dir != NULL)
+    {
+        fd_ent = readdir (fd_dir);
+        while (fd_ent != NULL)
+        {
+            if (fd_ent->d_type == DT_LNK)
+            {
+                /* use of num_chars suppresses -Wformat-truncation, as suggested by
+                 * https://stackoverflow.com/a/70938456/4207678 */
+                num_chars = sizeof (fd_ent_pathname);
+                snprintf (fd_ent_pathname, num_chars, "%s/%s", pid_fd_dir, fd_ent->d_name);
+
+                ssize_t link_num_bytes = readlink (fd_ent_pathname, pathname_of_fd, sizeof (pathname_of_fd));
+                if (link_num_bytes > 0)
+                {
+                    if (strncmp (pathname_of_fd, pid_fd_dir, link_num_bytes) != 0)
+                    {
+                        printf ("  fd %s -> %.*s\n", fd_ent->d_name, (int) link_num_bytes, pathname_of_fd);
+                    }
+                }
+            }
+
+            fd_ent = readdir (fd_dir);
+        }
+
+        closedir (fd_dir);
     }
 }
