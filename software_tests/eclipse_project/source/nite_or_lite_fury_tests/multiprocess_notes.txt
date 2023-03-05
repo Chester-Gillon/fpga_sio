@@ -69,3 +69,129 @@ VCCInt=1.03
 vccaux=1.78
 vbram=1.03
 
+
+3. Secondary processes use container and group FDs from primary, and opens device FD
+====================================================================================
+
+The nite_or_lite_fury_tests were changed to:
+a. Remove the test_general_secondary executable, as following open_vfio_device() automatically detecting when running in
+   a secondary process a separate executable wasn't necessary.
+b. test_primary takes arguments on how many secondary processes to launch
+
+This allows both test_general and test_ddr (which test different BARs in the device) to both be launched together
+and successfully open the device FD on one run when compiled for release:
+[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_primary test_general test_ddr 
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2e:00.0
+container_fd=4
+  0000:2e:00.0 : group_fd=5 device_fd=6
+Contents of /proc/29949/fd in test_primary:
+  fd 0 -> /dev/pts/0
+  fd 1 -> /dev/pts/0
+  fd 2 -> /dev/pts/0
+  fd 3 -> /sys/devices/pci0000:2c/0000:2c:02.0/0000:2e:00.0/config
+  fd 4 -> /dev/vfio/vfio
+  fd 5 -> /dev/vfio/86
+  fd 6 -> anon_inode:[vfio-device]
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
+    control: I/O- Mem+ BusMaster+
+Testing NiteFury board version 0x2 with DDR size 0x40000000 for PCI device 0000:2e:00.0 IOMMU group 86
+Found NiteFury board version 0x2 for PCI device 0000:2e:00.0 IOMMU group 86
+Temp C=34.9
+VCCInt=1.03
+vccaux=1.78
+vbram=1.03
+Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Print wrote 0x40000000 bytes to card using DMA in 809870397 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870046 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869358 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869134 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869634 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809868158 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809877269 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869824 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869998 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869442 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869591 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869212 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870093 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870454 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809870359 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809871884 ns
+Test pattern pass
+
+On a second attempt to run with coverage then test_general failed with EBUSY in mmap():
+[mr_halfword@skylake-alma coverage]$ nite_or_lite_fury_tests/test_primary test_general test_ddr 
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2e:00.0
+container_fd=4
+  0000:2e:00.0 : group_fd=5 device_fd=6
+Contents of /proc/30254/fd in test_primary:
+  fd 0 -> /dev/pts/0
+  fd 1 -> /dev/pts/0
+  fd 2 -> /dev/pts/0
+  fd 3 -> /sys/devices/pci0000:2c/0000:2c:02.0/0000:2e:00.0/config
+  fd 4 -> /dev/vfio/vfio
+  fd 5 -> /dev/vfio/86
+  fd 6 -> anon_inode:[vfio-device]
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
+mmap() failed : Device or resource busy
+    control: I/O- Mem+ BusMaster+
+Testing NiteFury board version 0x2 with DDR size 0x40000000 for PCI device 0000:2e:00.0 IOMMU group 86
+Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Print wrote 0x40000000 bytes to card using DMA in 809871189 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869912 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809873824 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809868658 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809871791 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809868742 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869260 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809875811 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869425 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809871600 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869763 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809868833 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869190 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809876951 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809869043 ns
+Test pattern pass
+Print wrote 0x40000000 bytes to card using DMA in 809877042 ns
+Test pattern pass
+[mr_halfword@skylake-alma coverage]$ PATH=~/lcov/bin:/opt/GNAT/2021/bin/:$PATH ../../collect_coverage.sh 
+geninfo: Warning: /home/mr_halfword/fpga_sio/software_tests/eclipse_project/source/vfio_access/vfio_access.c:1033: unexecuted block on non-branch line with non-zero hit count.  Use "geninfo --rc geninfo_unexecuted_blocks=1 to set count to zero.
+
+This indicates a timing issue with the above approach where the secondary processes both open the device FD
+rather than getting passed from the primary process.
+
+Also, the fork() coverage is reporting an issue.

@@ -15,7 +15,7 @@
 #include <stdio.h>
 
 
-int main (int argc, char *const argv[])
+int main (int argc, char *argv[])
 {
     vfio_devices_t vfio_devices;
 

@@ -9,11 +9,8 @@ if (${HAVE_PCI_FILL_IOMMU_GROUP})
     add_executable (test_general "test_general.c")
     target_link_libraries (test_general fury_utils vfio_access pci rt)
 
-    add_executable (test_general_primary "test_general_primary.c")
-    target_link_libraries (test_general_primary fury_utils vfio_access pci rt)
-
-    add_executable (test_general_secondary "test_general_secondary.c")
-    target_link_libraries (test_general_secondary fury_utils vfio_access pci rt)
+    add_executable (test_primary "test_primary.c")
+    target_link_libraries (test_primary fury_utils vfio_access pci rt)
 
     add_executable (test_ddr "test_ddr.c")
     target_link_libraries (test_ddr fury_utils xilinx_dma_bridge_transfers vfio_access pci rt)
