@@ -9,6 +9,7 @@
 #define SOURCE_VFIO_ACCESS_VFIO_ACCESS_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <limits.h>
 #include <pci/pci.h>
 #include <linux/pci.h> /* For PCI_STD_NUM_BARS */
@@ -120,6 +121,7 @@ typedef struct
 /*
  * Defines a filter which can match PCI devices by identity to open for VFIO access.
  * VFIO_PCI_DEVICE_FILTER_ANY can be used for any field to ignore the value.
+ * enable_bus_master is set to enable the PCI device as a bus master (for DMA).
  */
 #define VFIO_PCI_DEVICE_FILTER_ANY -1
 typedef struct
@@ -128,6 +130,7 @@ typedef struct
     int device_id;
     int subsystem_vendor_id;
     int subsystem_device_id;
+    bool enable_bus_master;
 } vfio_pci_device_filter_t;
 
 
@@ -143,7 +146,7 @@ typedef struct
 } vfio_dma_mapping_t;
 
 
-void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev);
+void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev, const bool enable_bus_master);
 void map_vfio_device_bar_before_use (vfio_device_t *const vfio_device, const int bar_index);
 void reset_vfio_device (vfio_device_t *const vfio_device);
 void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,

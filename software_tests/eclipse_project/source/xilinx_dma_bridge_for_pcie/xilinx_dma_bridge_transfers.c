@@ -116,15 +116,6 @@ bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
         return false;
     }
 
-    /* Ensure the VFIO device is enabled as a PCI bus master */
-    uint16_t command = vfio_read_pci_config_word (vfio_device, PCI_COMMAND);
-    if ((command & PCI_COMMAND_MASTER) == 0)
-    {
-        printf ("Enabling bus master for %s\n", vfio_device->device_name);
-        command |= PCI_COMMAND_MASTER;
-        vfio_write_pci_config_word (vfio_device, PCI_COMMAND, command);
-    }
-
     /* Store the caller supplied information in the context */
     memset (context, 0, sizeof (*context));
     context->channels_submodule = channels_submodule;

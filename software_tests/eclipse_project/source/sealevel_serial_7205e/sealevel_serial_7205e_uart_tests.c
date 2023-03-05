@@ -373,7 +373,8 @@ int main (int argc, char *argv[])
         .vendor_id = 0x10b5,
         .device_id = 0x9056,
         .subsystem_vendor_id = 0x10b5,
-        .subsystem_device_id = 0x3198
+        .subsystem_device_id = 0x3198,
+        .enable_bus_master = false
     };
 
     /* Open the Sealevel devices which have an IOMMU group assigned */

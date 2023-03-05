@@ -166,7 +166,8 @@ int main (int argc, char *argv[])
             .vendor_id = FPGA_SIO_VENDOR_ID,
             .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
             .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
-            .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_MEMMAPPED_BLKRAM
+            .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_MEMMAPPED_BLKRAM,
+            .enable_bus_master = false
         }
     };
     const size_t num_filters = sizeof (filters) / sizeof (filters[0]);

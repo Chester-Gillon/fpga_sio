@@ -110,31 +110,10 @@ int main (int argc, char *argv[])
     const uint32_t h2c_channel_id = 0;
     const uint32_t c2h_channel_id = 0;
 
-    /* Select to filter by vendor only */
-    const vfio_pci_device_filter_t filter =
-    {
-        .vendor_id = FPGA_SIO_VENDOR_ID,
-        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
-        .subsystem_vendor_id = VFIO_PCI_DEVICE_FILTER_ANY,
-        .subsystem_device_id = VFIO_PCI_DEVICE_FILTER_ANY
-    };
-
-    const char *const fury_names[] =
-    {
-        [DEVICE_LITE_FURY] = "LiteFury",
-        [DEVICE_NITE_FURY] = "NiteFury"
-    };
-
-    const size_t fury_ddr_sizes_bytes[] =
-    {
-        [DEVICE_LITE_FURY] =  512 * 1024 * 1024,
-        [DEVICE_NITE_FURY] = 1024 * 1024 * 1024
-    };
-
     parse_command_line_arguments (argc, argv);
 
     /* Open the FPGA devices which have an IOMMU group assigned */
-    open_vfio_devices_matching_filter (&vfio_devices, 1, &filter);
+    open_vfio_devices_matching_filter (&vfio_devices, fury_num_pci_device_filters, fury_pci_device_filters);
 
     /* Process any NiteFury or LiteFury devices found */
     for (uint32_t device_index = 0; device_index < vfio_devices.num_devices; device_index++)
@@ -177,7 +156,6 @@ int main (int argc, char *argv[])
                 struct timespec start_time;
                 struct timespec end_time;
 
-                vfio_display_pci_command (vfio_device);
                 printf ("Size of DMA descriptors used for h2c:");
                 for (uint32_t descriptor_index = 0; descriptor_index < h2c_context.num_descriptors; descriptor_index++)
                 {

@@ -354,7 +354,8 @@ int main (int argc, char *argv[])
         .vendor_id = FPGA_SIO_VENDOR_ID,
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_vendor_id = VFIO_PCI_DEVICE_FILTER_ANY,
-        .subsystem_device_id = VFIO_PCI_DEVICE_FILTER_ANY
+        .subsystem_device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .enable_bus_master = false
     };
 
     /* Open the FPGA devices which have an IOMMU group assigned */

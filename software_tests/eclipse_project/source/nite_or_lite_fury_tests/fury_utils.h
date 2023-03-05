@@ -18,9 +18,16 @@ typedef enum
     DEVICE_OTHER
 } fury_type_t;
 
+extern const char *const fury_names[];
+extern const size_t fury_ddr_sizes_bytes[];
+
 #define FURY_AXI_PERIPHERALS_BAR 0
 #define FURY_DMA_BRIDGE_BAR      2
 
+extern const vfio_pci_device_filter_t fury_pci_device_filters[];
+extern const size_t fury_num_pci_device_filters;
+
 fury_type_t identify_fury (vfio_device_t *const vfio_device, uint32_t *const board_version);
+void display_fury_xadc_values (vfio_devices_t *const vfio_devices);
 
 #endif /* SOURCE_NITE_OR_LITE_FURY_TESTS_FURY_UTILS_H_ */

@@ -298,8 +298,9 @@ void reset_vfio_device (vfio_device_t *const vfio_device)
  * @param[in/out] vfio_devices The list of vfio devices to append the opened device to.
  *                             If this function is successful vfio_devices->num_devices is incremented
  * @param[in] pci_dev The PCI device to open using VFIO
+ * @param[in] enable_bus_master When true the PCI device is enabled as a bus master, to allow use of DMA
  */
-void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev)
+void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev, const bool enable_bus_master)
 {
     int rc;
     int saved_errno;
@@ -317,9 +318,34 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
         return;
     }
 
-    /* For the first VFIO device open a VFIO container, which is also used for subsequent devices */
+    /* For the first VFIO device open a VFIO container, which is also used for subsequent devices.
+     * This is done before trying open the VFIO device to determine which type of IOMMU to use. */
     if (vfio_devices->container_fd == -1)
     {
+        /* Sanity check that the VFIO container path exists, and the user has access */
+        errno = 0;
+        rc = faccessat (0, VFIO_CONTAINER_PATH, R_OK | W_OK, AT_EACCESS);
+        saved_errno = errno;
+        if (rc != 0)
+        {
+            if (saved_errno == ENOENT)
+            {
+                fprintf (stderr, "%s doesn't exist, implying no VFIO support\n", VFIO_CONTAINER_PATH);
+                exit (EXIT_SUCCESS);
+            }
+            else if (saved_errno == EACCES)
+            {
+                /* The act of loading the vfio-pci driver should give user access to the VFIO container */
+                fprintf (stderr, "No permission on %s, implying no vfio-pci driver loaded\n", VFIO_CONTAINER_PATH);
+                exit (EXIT_FAILURE);
+            }
+            else
+            {
+                fprintf (stderr, "faccessat (%s) failed : %s\n", VFIO_CONTAINER_PATH, strerror (errno));
+                exit (EXIT_FAILURE);
+            }
+        }
+
         vfio_devices->container_fd = open (VFIO_CONTAINER_PATH, O_RDWR);
         if (vfio_devices->container_fd == -1)
         {
@@ -441,6 +467,18 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
         return;
     }
 
+    if (enable_bus_master)
+    {
+        /* Ensure the VFIO device is enabled as a PCI bus master */
+        uint16_t command = vfio_read_pci_config_word (new_device, PCI_COMMAND);
+        if ((command & PCI_COMMAND_MASTER) == 0)
+        {
+            printf ("Enabling bus master for %s\n", new_device->device_name);
+            command |= PCI_COMMAND_MASTER;
+            vfio_write_pci_config_word (new_device, PCI_COMMAND, command);
+        }
+    }
+
     /* Record device successfully opened */
     vfio_devices->num_devices++;
 }
@@ -475,6 +513,7 @@ void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
     u16 subsystem_vendor_id;
     u16 subsystem_device_id;
     bool pci_device_matches_filter;
+    bool enable_bus_master;
 
     memset (vfio_devices, 0, sizeof (*vfio_devices));
     vfio_devices->container_fd = -1;
@@ -499,6 +538,7 @@ void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
         if ((known_fields & required_fields) == required_fields)
         {
             pci_device_matches_filter = false;
+            enable_bus_master = false;
             for (size_t filter_index = 0; (!pci_device_matches_filter) && (filter_index < num_filters); filter_index++)
             {
                 const vfio_pci_device_filter_t *const filter = &filters[filter_index];
@@ -511,12 +551,16 @@ void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
                     subsystem_device_id = pci_read_word (dev, PCI_SUBSYSTEM_ID);
                     pci_device_matches_filter = pci_filter_id_match (subsystem_vendor_id, filter->subsystem_vendor_id) &&
                             pci_filter_id_match (subsystem_device_id, filter->subsystem_device_id);
+                    if (pci_device_matches_filter)
+                    {
+                        enable_bus_master = filter->enable_bus_master;
+                    }
                 }
             }
 
             if (pci_device_matches_filter)
             {
-                open_vfio_device (vfio_devices, dev);
+                open_vfio_device (vfio_devices, dev, enable_bus_master);
             }
         }
     }
