@@ -23,6 +23,7 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <dirent.h>
 
 
 /*
@@ -296,6 +297,55 @@ void reset_vfio_device (vfio_device_t *const vfio_device)
 
 
 /**
+ * @brief Find a a file descriptor for a pathname is already open in the local process.
+ * @details This is to support secondary VFIO processes:
+ *          a. In the primary process open_vfio_device() doesn't use O_CLOEXEC when opening the container and group FDs.
+ *          b. The secondary process can find the FDs by walking the /proc/self/fd
+ *
+ * @todo This doesn't allow obtaining the device FD so may not be sufficient if multiple processes need to use the same FD.
+ *       A more robust solution would be to get the primary to pass the container, group and device FDs via Unix domain sockets
+ * @param[in] pathname_to_find The pathname to search for an existing open file descriptor.
+ * @return If >= 0 the existing open file descriptor for pathname_to_find.
+ *         If -1 pathname_to_find is not already open in the process.
+ */
+static int find_fd_from_primary_process (const char *const pathname_to_find)
+{
+    int existing_fd = -1;
+    const char *const fd_path = "/proc/self/fd";
+    DIR *fd_dir;
+    struct dirent *fd_ent;
+    char fd_ent_pathname[PATH_MAX];
+    char pathname_of_fd[PATH_MAX];
+    ssize_t link_num_bytes;
+
+    fd_dir = opendir (fd_path);
+    if (fd_dir != NULL)
+    {
+        fd_ent = readdir (fd_dir);
+        while ((fd_ent != NULL) && (existing_fd == -1))
+        {
+            if (fd_ent->d_type == DT_LNK)
+            {
+                snprintf (fd_ent_pathname, sizeof (fd_ent_pathname), "%s/%s", fd_path, fd_ent->d_name);
+
+                link_num_bytes = readlink (fd_ent_pathname, pathname_of_fd, sizeof (pathname_of_fd));
+                if ((link_num_bytes > 0) && (strncmp (pathname_to_find, pathname_of_fd, link_num_bytes) == 0))
+                {
+                    existing_fd = atoi (fd_ent->d_name);
+                }
+            }
+
+            fd_ent = readdir (fd_dir);
+        }
+
+        closedir (fd_dir);
+    }
+
+    return existing_fd;
+}
+
+
+/**
  * @brief Open an VFIO device, without mapping it's memory BARs.
  * @param[in/out] vfio_devices The list of vfio devices to append the opened device to.
  *                             If this function is successful vfio_devices->num_devices is incremented
@@ -308,6 +358,7 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
     int saved_errno;
     int api_version;
     vfio_device_t *const new_device = &vfio_devices->devices[vfio_devices->num_devices];
+    bool secondary_process = false;
 
     /* Check the PCI device has an IOMMU group. */
     snprintf (new_device->device_name, sizeof (new_device->device_name), "%04x:%02x:%02x.%x",
@@ -324,35 +375,42 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
      * This is done before trying open the VFIO device to determine which type of IOMMU to use. */
     if (vfio_devices->container_fd == -1)
     {
-        /* Sanity check that the VFIO container path exists, and the user has access */
-        errno = 0;
-        rc = faccessat (0, VFIO_CONTAINER_PATH, R_OK | W_OK, AT_EACCESS);
-        saved_errno = errno;
-        if (rc != 0)
-        {
-            if (saved_errno == ENOENT)
-            {
-                fprintf (stderr, "%s doesn't exist, implying no VFIO support\n", VFIO_CONTAINER_PATH);
-                exit (EXIT_SUCCESS);
-            }
-            else if (saved_errno == EACCES)
-            {
-                /* The act of loading the vfio-pci driver should give user access to the VFIO container */
-                fprintf (stderr, "No permission on %s, implying no vfio-pci driver loaded\n", VFIO_CONTAINER_PATH);
-                exit (EXIT_FAILURE);
-            }
-            else
-            {
-                fprintf (stderr, "faccessat (%s) failed : %s\n", VFIO_CONTAINER_PATH, strerror (errno));
-                exit (EXIT_FAILURE);
-            }
-        }
+        /* Determine if we are a secondary process due to the contain already being opened by the primary */
+        vfio_devices->container_fd = find_fd_from_primary_process (VFIO_CONTAINER_PATH);
+        secondary_process = vfio_devices->container_fd != -1;
 
-        vfio_devices->container_fd = open (VFIO_CONTAINER_PATH, O_RDWR);
-        if (vfio_devices->container_fd == -1)
+        if (!secondary_process)
         {
-            fprintf (stderr, "open (%s) failed : %s\n", VFIO_CONTAINER_PATH, strerror (errno));
-            exit (EXIT_FAILURE);
+            /* Are the primary process. Sanity check that the VFIO container path exists, and the user has access */
+            errno = 0;
+            rc = faccessat (0, VFIO_CONTAINER_PATH, R_OK | W_OK, AT_EACCESS);
+            saved_errno = errno;
+            if (rc != 0)
+            {
+                if (saved_errno == ENOENT)
+                {
+                    fprintf (stderr, "%s doesn't exist, implying no VFIO support\n", VFIO_CONTAINER_PATH);
+                    exit (EXIT_SUCCESS);
+                }
+                else if (saved_errno == EACCES)
+                {
+                    /* The act of loading the vfio-pci driver should give user access to the VFIO container */
+                    fprintf (stderr, "No permission on %s, implying no vfio-pci driver loaded\n", VFIO_CONTAINER_PATH);
+                    exit (EXIT_FAILURE);
+                }
+                else
+                {
+                    fprintf (stderr, "faccessat (%s) failed : %s\n", VFIO_CONTAINER_PATH, strerror (errno));
+                    exit (EXIT_FAILURE);
+                }
+            }
+
+            vfio_devices->container_fd = open (VFIO_CONTAINER_PATH, O_RDWR);
+            if (vfio_devices->container_fd == -1)
+            {
+                fprintf (stderr, "open (%s) failed : %s\n", VFIO_CONTAINER_PATH, strerror (errno));
+                exit (EXIT_FAILURE);
+            }
         }
 
         api_version = ioctl (vfio_devices->container_fd, VFIO_GET_API_VERSION);
@@ -402,25 +460,38 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
         return;
     }
 
-    /* Open the IOMMU group */
     printf ("Opening device %s (%04x:%04x) with IOMMU group %s\n",
             new_device->device_name, pci_dev->vendor_id, pci_dev->device_id, new_device->iommu_group);
-    errno = 0;
-    new_device->group_fd = open (new_device->group_pathname, O_RDWR);
-    saved_errno = errno;
-    if (new_device->group_fd == -1)
+    if (secondary_process)
     {
-        if ((saved_errno == EPERM) && (vfio_devices->iommu_type == VFIO_NOIOMMU_IOMMU))
+        /* In a secondary process find the group FD which was opened in the primary process */
+        new_device->group_fd =  (find_fd_from_primary_process (new_device->group_pathname));
+        if (new_device->group_fd == -1)
         {
-            /* With a noiommu group permission on the group file isn't sufficient.
-             * Need to sys_rawio capability to open the group. */
-            printf ("  No permission to open %s. Try:\nsudo setcap cap_sys_rawio=ep <executable>\n", new_device->group_pathname);
+            printf ("  Secondary process failed to find open fd for %s\n", new_device->group_pathname);
+            return;
         }
-        else
+    }
+    else
+    {
+        /* In the primary process need to open the IOMMU group */
+        errno = 0;
+        new_device->group_fd = open (new_device->group_pathname, O_RDWR);
+        saved_errno = errno;
+        if (new_device->group_fd == -1)
         {
-            printf ("open (%s) failed : %s\n", new_device->group_pathname, strerror (errno));
+            if ((saved_errno == EPERM) && (vfio_devices->iommu_type == VFIO_NOIOMMU_IOMMU))
+            {
+                /* With a noiommu group permission on the group file isn't sufficient.
+                 * Need to sys_rawio capability to open the group. */
+                printf ("  No permission to open %s. Try:\nsudo setcap cap_sys_rawio=ep <executable>\n", new_device->group_pathname);
+            }
+            else
+            {
+                printf ("open (%s) failed : %s\n", new_device->group_pathname, strerror (errno));
+            }
+            return;
         }
-        return;
     }
 
     /* Get the status of the group and check that viable */
@@ -450,9 +521,9 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
         }
     }
 
-    if (vfio_devices->num_devices == 0)
+    if ((vfio_devices->num_devices == 0) && (!secondary_process))
     {
-        /* Set the IOMMU type used */
+        /* In the primary process set the IOMMU type used */
         rc = ioctl (vfio_devices->container_fd, VFIO_SET_IOMMU, vfio_devices->iommu_type);
         if (rc != 0)
         {

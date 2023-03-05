@@ -33,3 +33,39 @@ Contents of /proc/23772/fd in test_general_secondary:
   fd 5 -> /dev/vfio/86
 Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
 open (/dev/vfio/86) failed : Device or resource busy
+
+
+2. Secondary process uses container and group FDs from primary, and opens device FD
+===================================================================================
+
+open_vfio_device() was modified to automatically detect it was running in a secondary process, by container and group FDs
+were already open, and just have to open the device FD. 
+
+The test_general_primary process is able to spawn test_general_secondary which can successfully access the
+device memmapped BARs via vfio:
+[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_general_primary 
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2e:00.0
+container_fd=4
+  0000:2e:00.0 : group_fd=5 device_fd=6
+Contents of /proc/27997/fd in test_general_primary:
+  fd 0 -> /dev/pts/0
+  fd 1 -> /dev/pts/0
+  fd 2 -> /dev/pts/0
+  fd 3 -> /sys/devices/pci0000:2c/0000:2c:02.0/0000:2e:00.0/config
+  fd 4 -> /dev/vfio/vfio
+  fd 5 -> /dev/vfio/86
+  fd 6 -> anon_inode:[vfio-device]
+Contents of /proc/27998/fd in test_general_secondary:
+  fd 0 -> /dev/pts/0
+  fd 1 -> /dev/pts/0
+  fd 2 -> /dev/pts/0
+  fd 4 -> /dev/vfio/vfio
+  fd 5 -> /dev/vfio/86
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
+Found NiteFury board version 0x2 for PCI device 0000:2e:00.0 IOMMU group 86
+Temp C=34.7
+VCCInt=1.03
+vccaux=1.78
+vbram=1.03
+

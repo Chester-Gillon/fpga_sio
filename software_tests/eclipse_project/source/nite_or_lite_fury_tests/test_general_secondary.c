@@ -17,9 +17,11 @@ int main (int argc, char *argv[])
 
     display_open_fds ("test_general_secondary");
 
-    /* Open the FPGA devices which have an IOMMU group assigned */
-    /*@todo this is expected to fail in the secondary as the devices have already been opened in the primary */
+    /* Open the FPGA devices which have an IOMMU group assigned, obtaining container and group FDs from the primary process */
     open_vfio_devices_matching_filter (&vfio_devices, fury_num_pci_device_filters, fury_pci_device_filters);
+
+    /* Process any NiteFury or LiteFury devices found */
+    display_fury_xadc_values (&vfio_devices);
 
     close_vfio_devices (&vfio_devices);
 
