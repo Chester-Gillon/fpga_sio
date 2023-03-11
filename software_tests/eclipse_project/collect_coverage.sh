@@ -10,7 +10,7 @@ SCRIPT_PATH=`dirname ${SCRIPT}`
 RESULTS_DIR=${SCRIPT_PATH}/bin/coverage_results
 rm -rf ${RESULTS_DIR}
 mkdir -p ${RESULTS_DIR}
-lcov -d ${SCRIPT_PATH} -c -o ${RESULTS_DIR}/lcov.trace --rc lcov_branch_coverage=1 > ${RESULTS_DIR}/report.log
+lcov -d ${SCRIPT_PATH} -c -o ${RESULTS_DIR}/lcov.trace --rc lcov_branch_coverage=1 --rc geninfo_unexecuted_blocks=1 > ${RESULTS_DIR}/report.log
 
 # Generate HTML report
 genhtml -o ${RESULTS_DIR} ${RESULTS_DIR}/lcov.trace --branch-coverage >> ${RESULTS_DIR}/report.log

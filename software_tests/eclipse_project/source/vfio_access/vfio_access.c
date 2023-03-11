@@ -1029,8 +1029,8 @@ void vfio_launch_secondary_processes (vfio_devices_t *const vfio_devices,
             /* In child */
             (void) execv (process->executable, process->argv);
 
-            /* An error has occurred if execvp returns */
-            fprintf (stderr, "execvp (%s) failed : %s\n", process->executable, strerror (errno));
+            /* An error has occurred if execv returns */
+            fprintf (stderr, "execv (%s) failed : %s\n", process->executable, strerror (errno));
             exit (EXIT_FAILURE);
         }
         else

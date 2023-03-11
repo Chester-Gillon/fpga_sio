@@ -195,3 +195,32 @@ This indicates a timing issue with the above approach where the secondary proces
 rather than getting passed from the primary process.
 
 Also, the fork() coverage is reporting an issue.
+
+For the fork() coverage issue:
+a. The compiler settings were already causing the coverage __gcov_fork() and __gcov_execv() wrapper functions to be used,
+   as confirmed by using Eclipse to disassemble the test_primary executable built for coverage.
+b. When the geninfo "unexecuted block on non-branch line with non-zero hit count" warning was displayed the issue is that the
+   fprintf() error statement after the execv() call was shown as executed in the coverage, even though the error was reported
+   when the test was run (since the execv call was successful):
+    1026                 :           2 :         pid = fork ();
+    1027         [ +  + ]:           4 :         if (pid == 0)
+    1028                 :             :         {
+    1029                 :             :             /* In child */
+    1030                 :           2 :             (void) execv (process->executable, process->argv);
+    1031                 :             : 
+    1032                 :             :             /* An error has occurred if execvp returns */
+    1033                 :           2 :             fprintf (stderr, "execvp (%s) failed : %s\n", process->executable, strerror (errno));
+    1034                 :           0 :             exit (EXIT_FAILURE);
+    1035                 :             :         }
+c. Added "--rc geninfo_unexecuted_blocks=1" to the lcov command as suggested by the warning. That stopped the warning, and
+   in the coverage the fprintf() error statement is no longer shown as executed:
+    1026                 :           2 :         pid = fork ();
+    1027         [ +  + ]:           4 :         if (pid == 0)
+    1028                 :             :         {
+    1029                 :             :             /* In child */
+    1030                 :           2 :             (void) execv (process->executable, process->argv);
+    1031                 :             : 
+    1032                 :             :             /* An error has occurred if execv returns */
+    1033                 :           0 :             fprintf (stderr, "execv (%s) failed : %s\n", process->executable, strerror (errno));
+    1034                 :           0 :             exit (EXIT_FAILURE);
+    1035                 :             :         }
