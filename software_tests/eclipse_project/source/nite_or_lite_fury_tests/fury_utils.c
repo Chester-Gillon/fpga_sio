@@ -54,7 +54,8 @@ fury_type_t identify_fury (vfio_device_t *const vfio_device, uint32_t *const boa
     fury_type_t fury_type = DEVICE_OTHER;
 
     map_vfio_device_bar_before_use (vfio_device, FURY_AXI_PERIPHERALS_BAR);
-    if (vfio_device->regions_info[FURY_AXI_PERIPHERALS_BAR].size == 0x20000)
+    if ((vfio_device->mapped_bars[FURY_AXI_PERIPHERALS_BAR] != NULL) &&
+        (vfio_device->regions_info[FURY_AXI_PERIPHERALS_BAR].size == 0x20000))
     {
         const uint8_t *const mapped_bar = vfio_device->mapped_bars[FURY_AXI_PERIPHERALS_BAR];
 

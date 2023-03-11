@@ -1071,6 +1071,19 @@ void vfio_await_secondary_processes (const uint32_t num_processes, vfio_secondar
 
                 if (!process->reaped && (info.si_pid == process->pid))
                 {
+                    switch (info.si_code)
+                    {
+                    case CLD_EXITED:
+                        if (info.si_status != EXIT_SUCCESS)
+                        {
+                            printf ("Secondary %s exited with status %d\n", process->executable, info.si_status);
+                        }
+                        break;
+
+                    case CLD_KILLED:
+                    case CLD_DUMPED:
+                        printf ("Secondary %s killed with signal %d\n", process->executable, info.si_status);
+                    }
                     process->reaped = true;
                     num_active_processes--;
                 }
