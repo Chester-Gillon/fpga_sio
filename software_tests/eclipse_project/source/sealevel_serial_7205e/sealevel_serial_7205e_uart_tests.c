@@ -388,5 +388,5 @@ int main (int argc, char *argv[])
 
     close_vfio_devices (&vfio_devices);
 
-    return EXIT_FAILURE;
+    return EXIT_SUCCESS;
 }
