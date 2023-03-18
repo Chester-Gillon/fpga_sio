@@ -55,6 +55,18 @@ endif()
 # Not available in all versions of libpci
 CHECK_SYMBOL_EXISTS ("PCI_FILL_IOMMU_GROUP" pci/pci.h HAVE_PCI_FILL_IOMMU_GROUP)
 
+# If there is a cmem_gdb_access directory in the home directory enable use of it for a physical memory allocator for
+# using DMA in noiommu mode
+set (CMEM_ROOT "$ENV{HOME}/cmem_gdb_access")
+set (HAVE_CMEM FALSE)
+if (EXISTS ${CMEM_ROOT})
+    # Have to define HAVE_CMEM at the top level since impacts the size of the vfio_buffer_t structure
+    # in the vfio_access.h API include file.
+    include_directories ("${CMEM_ROOT}/cmem_test")
+    add_definitions (-DHAVE_CMEM)
+    set (HAVE_CMEM TRUE)
+endif()
+
 include_directories("${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}/vfio_access")
 include_directories("${PROJECT_SOURCE_DIR}/xilinx_dma_bridge_for_pcie")

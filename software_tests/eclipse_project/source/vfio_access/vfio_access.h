@@ -15,20 +15,26 @@
 #include <linux/pci.h> /* For PCI_STD_NUM_BARS */
 #include <linux/vfio.h>
 
+#ifdef HAVE_CMEM
+#include <cmem_drv.h>
+#endif
 
-/* Defines the option used to allocate a buffer used for VFIO */
+
+/* Defines the option used to allocate a buffer used for VFIO DMA */
 typedef enum
 {
-    /* Allocates the buffer from the heap of the calling process */
+    /* Allocates the buffer from the heap of the calling process, when using an IOMMU */
     VFIO_BUFFER_ALLOCATION_HEAP,
-    /* Allocate the buffer from POSIX shared memory */
+    /* Allocate the buffer from POSIX shared memory, when using an IOMMU */
     VFIO_BUFFER_ALLOCATION_SHARED_MEMORY,
-    /* Allocate the buffer using huge pages (of the default huge page size) */
-    VFIO_BUFFER_ALLOCATION_HUGE_PAGES
+    /* Allocate the buffer using huge pages (of the default huge page size), when using an IOMMU */
+    VFIO_BUFFER_ALLOCATION_HUGE_PAGES,
+    /* Allocate the buffer using a physical contiguous memory allocator, when using NOIOMMU */
+    VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY
 } vfio_buffer_allocation_type_t;
 
 
-/* Defines one buffer allocated for VFIO */
+/* Defines one buffer allocated for VFIO DMA */
 typedef struct
 {
     /* How the memory for the buffer is allocated */
@@ -41,6 +47,10 @@ typedef struct
     char pathname[PATH_MAX];
     /* For VFIO_BUFFER_ALLOCATION_SHARED_MEMORY the file descriptor of the POSIX shared memory file */
     int fd;
+#ifdef HAVE_CMEM
+    /* For VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY the buffer allocated in physically contiguous memory */
+    cmem_host_buf_desc_t cmem_host_buf_desc;
+#endif
 } vfio_buffer_t;
 
 
@@ -91,6 +101,20 @@ typedef struct
 } vfio_device_t;
 
 
+/* Used to track usage of the cmem driver */
+typedef enum
+{
+    /* Have not attempted to use the cmem driver. Either an IOMMU is available or the program hasn't used DMA */
+    VFIO_CMEM_USAGE_NONE,
+    /* The cmem driver has been successfully opened, following an attempt to use DMA in NOIOMMU mode */
+    VFIO_CMEM_USAGE_DRIVER_OPEN,
+    /* an attempt was made to use DMA in NOIOMMU mode, but support for the cmem driver hasn't been compiled in */
+    VFIO_CMEM_USAGE_SUPPORT_NOT_COMPILED,
+    /* An attempt was made to use DMA in NOIOMMU mode, but the cmem driver open failed (probably no module loaded) */
+    VFIO_CMEM_USAGE_OPEN_FAILED
+} vfio_cmem_usage_t;
+
+
 /* Contains all devices which have opened using vfio */
 #define MAX_VFIO_DEVICES 4
 typedef struct
@@ -109,8 +133,10 @@ typedef struct
     int container_fd;
     /* The IOMMU type which is used for the VFIO container */
     __s32 iommu_type;
-    /* Used to allocate the next IOVA address allocated */
+    /* Used to allocate the next IOVA address allocated, when iommu_type is other than VFIO_NOIOMMU_IOMMU */
     uint64_t next_iova;
+    /* Used to track usage of the cmem driver */
+    vfio_cmem_usage_t cmem_usage;
     /* The number of devices which have been opened */
     uint32_t num_devices;
     /* The devices which have been opened */

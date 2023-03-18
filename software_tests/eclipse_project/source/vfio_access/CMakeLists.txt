@@ -2,4 +2,12 @@
 
 project (vfio_access C)
 
-add_library (vfio_access "vfio_access.c")
+if (HAVE_CMEM)
+    # Build the library with support for using a physical memory allocator for DMA support for noiommu mode
+    include_directories ("${CMEM_ROOT}/module")
+    add_library (vfio_access "vfio_access.c"
+                             "${CMEM_ROOT}/cmem_test/cmem_drv.c")
+else()
+    # Build the library without noiommu DMA support
+    add_library (vfio_access "vfio_access.c")
+endif()

@@ -122,6 +122,28 @@ static void create_vfio_buffer (vfio_buffer_t *const buffer,
             return;
         }
         break;
+
+    case VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY:
+#ifdef HAVE_CMEM
+        /* Perform a dynamic memory allocation of physical contiguous memory for a single buffer */
+        buffer->vaddr = NULL;
+        if (size > UINT32_MAX)
+        {
+            printf ("Buffer size %zu too large for contiguous physical memory driver\n", size);
+            return;
+        }
+        rc = cmem_drv_alloc (1, (uint32_t) size, HOST_BUF_TYPE_DYNAMIC, &buffer->cmem_host_buf_desc);
+        if (rc == 0)
+        {
+            buffer->vaddr = buffer->cmem_host_buf_desc.userAddr;
+        }
+        else
+        {
+            printf ("cmem_drv_alloc(%zu) failed : %s\n", buffer->size, strerror (errno));
+            return;
+        }
+#endif
+        break;
     }
 }
 
@@ -177,6 +199,10 @@ static void free_vfio_buffer (vfio_buffer_t *const buffer)
             printf ("munmap(%zu) failed : %s\n", buffer->size, strerror (errno));
             return;
         }
+        break;
+
+    case VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY:
+        /* Nothing to do here, as the cmem driver doesn't currently support freeing individual buffers */
         break;
     }
 
@@ -590,6 +616,7 @@ void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
 
     memset (vfio_devices, 0, sizeof (*vfio_devices));
     vfio_devices->container_fd = -1;
+    vfio_devices->cmem_usage = VFIO_CMEM_USAGE_NONE;
 
     /* Initialise PCI access using the defaults */
     vfio_devices->pacc = pci_alloc ();
@@ -696,6 +723,15 @@ void close_vfio_devices (vfio_devices_t *const vfio_devices)
         vfio_devices->container_fd = -1;
     }
 
+#ifdef HAVE_CMEM
+    /* Close the cmem driver if it has been opened */
+    if (vfio_devices->cmem_usage == VFIO_CMEM_USAGE_DRIVER_OPEN)
+    {
+        /* Return ignored as the function returns a fixed value of zero */
+        (void) cmem_drv_close ();
+    }
+#endif
+
     /* Cleanup the PCI access, if was used */
     if (vfio_devices->pacc != NULL)
     {
@@ -709,7 +745,8 @@ void close_vfio_devices (vfio_devices_t *const vfio_devices)
  * @param[in/out] vfio_devices The VFIO devices context used to create the DMA mapping using the IOMMU container.
  *                             Used to allocate the iova address used for the mapping.
  * @param[out] mapping Contains the process memory and associated DMA mapping which has been allocated.
- *                     On failure, mapping->buffer.vaddr is NULL
+ *                     On failure, mapping->buffer.vaddr is NULL.
+ *                     On success the buffer contents has been zeroed.
  * @param[in] size The size in bytes to allocate
  * @param[in] permission Bitwise OR VFIO_DMA_MAP_FLAG_READ / VFIO_DMA_MAP_FLAG_WRITE flags to define
  *                       the device access to the DMA mapping.
@@ -721,43 +758,94 @@ void allocate_vfio_dma_mapping (vfio_devices_t *const vfio_devices,
                                 const vfio_buffer_allocation_type_t buffer_allocation)
 {
     int rc;
-    struct vfio_iommu_type1_dma_map dma_map;
-    char name_suffix[PATH_MAX];
 
-    /* @todo For simplicity assume an incrementing IOVA for each allocation, without regard to any container constraints.
-     *       If this attempts to allocate an invalid iova VFIO_IOMMU_MAP_DMA will fail with EPERM
-     *       Consider making use of VFIO_IOMMU_TYPE1_INFO_CAP_IOVA_RANGE to find a valid iova range. */
-    mapping->iova = vfio_devices->next_iova;
-
-    /* Create the buffer in the local process. As don't yet have multi-process support uses the PID to make the name unique */
-    snprintf (name_suffix, sizeof (name_suffix), "pid-%d_iova-%" PRIu64, getpid(), mapping->iova);
-    create_vfio_buffer (&mapping->buffer, size, buffer_allocation, name_suffix);
-
-    if (mapping->buffer.vaddr != NULL)
+    mapping->num_allocated_bytes = 0;
+    if (vfio_devices->iommu_type == VFIO_NOIOMMU_IOMMU)
     {
-        memset (mapping->buffer.vaddr, 0, mapping->buffer.size);
-        memset (&dma_map, 0, sizeof (dma_map));
-        dma_map.argsz = sizeof (dma_map);
-        dma_map.flags = permission;
-        dma_map.vaddr = (uintptr_t) mapping->buffer.vaddr;
-        dma_map.iova = mapping->iova;
-        dma_map.size = mapping->buffer.size;
-        rc = ioctl (vfio_devices->container_fd, VFIO_IOMMU_MAP_DMA, &dma_map);
-        if (rc == 0)
+        /* In NOIOMMU mode allocate IOVA using the contiguous physical memory cmem driver.
+         * Open the cmem driver before first use. */
+        mapping->buffer.vaddr = NULL;
+        if (vfio_devices->cmem_usage == VFIO_CMEM_USAGE_NONE)
         {
-            vfio_devices->next_iova += mapping->buffer.size;
+#ifdef HAVE_CMEM
+            rc = cmem_drv_open ();
+            if (rc == 0)
+            {
+                /* Free any physically contiguous buffers allocated by previous runs using the cmem driver.
+                 * Do this after opening the driver as the cmem driver doesn't currently support freeing individual buffers.
+                 * This does mean only one process can use the cmem driver at once. */
+                rc = cmem_drv_free (0, HOST_BUF_TYPE_DYNAMIC, NULL);
+            }
+            if (rc == 0)
+            {
+                vfio_devices->cmem_usage = VFIO_CMEM_USAGE_DRIVER_OPEN;
+            }
+            else
+            {
+                printf ("VFIO DMA not supported as failed to open cmem driver\n");
+                vfio_devices->cmem_usage = VFIO_CMEM_USAGE_OPEN_FAILED;
+            }
+#else
+            vfio_devices->cmem_usage = VFIO_CMEM_USAGE_SUPPORT_NOT_COMPILED;
+            printf ("VFIO DMA not supported as cmem support not compiled in\n");
+#endif
         }
-        else
+
+#ifdef HAVE_CMEM
+        if (vfio_devices->cmem_usage == VFIO_CMEM_USAGE_DRIVER_OPEN)
         {
-            printf ("VFIO_IOMMU_MAP_DMA of size %zu failed : %s\n", mapping->buffer.size, strerror (-rc));
-            free (mapping->buffer.vaddr);
-            mapping->buffer.vaddr = NULL;
+            /* cmem driver is open, so attempt the allocation and use the allocated physical memory address as the IOVA
+             * to be used for DMA. */
+            create_vfio_buffer (&mapping->buffer, size, VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY, NULL);
+            mapping->iova = mapping->buffer.cmem_host_buf_desc.physAddr;
+            if (mapping->buffer.vaddr != NULL)
+            {
+                memset (mapping->buffer.vaddr, 0, mapping->buffer.size);
+            }
         }
+#endif
     }
     else
     {
-        mapping->buffer.vaddr = NULL;
-        printf ("Failed to allocate %zu bytes for VFIO DMA mapping\n", size);
+        /* Allocate IOVA using the IOMMU. */
+        struct vfio_iommu_type1_dma_map dma_map;
+        char name_suffix[PATH_MAX];
+
+        /* @todo For simplicity assume an incrementing IOVA for each allocation, without regard to any container constraints.
+         *       If this attempts to allocate an invalid iova VFIO_IOMMU_MAP_DMA will fail with EPERM
+         *       Consider making use of VFIO_IOMMU_TYPE1_INFO_CAP_IOVA_RANGE to find a valid iova range. */
+        mapping->iova = vfio_devices->next_iova;
+
+        /* Create the buffer in the local process. As don't yet have multi-process support uses the PID to make the name unique */
+        snprintf (name_suffix, sizeof (name_suffix), "pid-%d_iova-%" PRIu64, getpid(), mapping->iova);
+        create_vfio_buffer (&mapping->buffer, size, buffer_allocation, name_suffix);
+
+        if (mapping->buffer.vaddr != NULL)
+        {
+            memset (mapping->buffer.vaddr, 0, mapping->buffer.size);
+            memset (&dma_map, 0, sizeof (dma_map));
+            dma_map.argsz = sizeof (dma_map);
+            dma_map.flags = permission;
+            dma_map.vaddr = (uintptr_t) mapping->buffer.vaddr;
+            dma_map.iova = mapping->iova;
+            dma_map.size = mapping->buffer.size;
+            rc = ioctl (vfio_devices->container_fd, VFIO_IOMMU_MAP_DMA, &dma_map);
+            if (rc == 0)
+            {
+                vfio_devices->next_iova += mapping->buffer.size;
+            }
+            else
+            {
+                printf ("VFIO_IOMMU_MAP_DMA of size %zu failed : %s\n", mapping->buffer.size, strerror (-rc));
+                free (mapping->buffer.vaddr);
+                mapping->buffer.vaddr = NULL;
+            }
+        }
+        else
+        {
+            mapping->buffer.vaddr = NULL;
+            printf ("Failed to allocate %zu bytes for VFIO DMA mapping\n", size);
+        }
     }
 }
 
@@ -820,14 +908,23 @@ void free_vfio_dma_mapping (const vfio_devices_t *const vfio_devices, vfio_dma_m
 
     if (mapping->buffer.vaddr != NULL)
     {
-        rc = ioctl (vfio_devices->container_fd, VFIO_IOMMU_UNMAP_DMA, &dma_unmap);
-        if (rc == 0)
+        if (vfio_devices->iommu_type == VFIO_NOIOMMU_IOMMU)
         {
+            /* Using NOIOMMU so just free the buffer */
             free_vfio_buffer (&mapping->buffer);
         }
         else
         {
-            printf ("VFIO_IOMMU_UNMAP_DMA of size %zu failed : %s\n", mapping->buffer.size, strerror (-rc));
+            /* Using IOMMU so free the IOMMU DMA mapping and then the buffer */
+            rc = ioctl (vfio_devices->container_fd, VFIO_IOMMU_UNMAP_DMA, &dma_unmap);
+            if (rc == 0)
+            {
+                free_vfio_buffer (&mapping->buffer);
+            }
+            else
+            {
+                printf ("VFIO_IOMMU_UNMAP_DMA of size %zu failed : %s\n", mapping->buffer.size, strerror (-rc));
+            }
         }
     }
 }
