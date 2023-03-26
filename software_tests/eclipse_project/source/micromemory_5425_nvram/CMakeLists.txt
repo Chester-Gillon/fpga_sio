@@ -5,9 +5,11 @@
 project (micromemory_5425_nvram C)
 
 if (${HAVE_PCI_FILL_IOMMU_GROUP})
+    add_library (nvram_utils "nvram_utils.c")
+
     add_executable (test_nvram_csr_access "test_nvram_csr_access.c")
-    target_link_libraries (test_nvram_csr_access vfio_access pci rt)
+    target_link_libraries (test_nvram_csr_access nvram_utils vfio_access pci rt)
 
     add_executable (time_nvram_access_vfio "time_nvram_access_vfio.c")
-    target_link_libraries (time_nvram_access_vfio vfio_access transfer_timing pci rt)
+    target_link_libraries (time_nvram_access_vfio nvram_utils vfio_access transfer_timing pci rt)
 endif()

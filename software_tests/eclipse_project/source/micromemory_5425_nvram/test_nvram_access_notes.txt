@@ -1,28 +1,74 @@
 1. Tests using NOIOMMU mode on an i5-2310 system
 ================================================
 
-Using an i5-2310 system with AlmaLinux 8.7 which doesn't support the IOMMU, so using VFIO with NOIOMMU mode and
-cmem_gdb_access to allocate physical memory with memmap=2050M$4G,1M$6G used on the command line.
+Using an i5-2310 system which doesn't support the IOMMU, so using VFIO with NOIOMMU mode and
+cmem_gdb_access to allocate physical memory with memmap=2050M$4G,1M$6146M used on the command line.
 
-Transfer rates when using on PIO:
-$ micromemory_5425_nvram/time_nvram_access_vfio 
+Used AlmaLinux 8.7 with a 4.18.0-425.13.1.el8_7.x86_64 Kernel.
+
+Command line:
+[mr_halfword@haswell-alma ~]$ cat /proc/cmdline 
+BOOT_IMAGE=(hd0,gpt2)/vmlinuz-4.18.0-425.13.1.el8_7.x86_64 root=/dev/mapper/almalinux-root ro crashkernel=auto resume=/dev/mapper/almalinux-swap rd.lvm.lv=almalinux/root rd.lvm.lv=almalinux/swap rhgb quiet memmap=2050M$4G,1M$6146M
+
+Load the module to provide contiguous phyiscal memory:
+[mr_halfword@haswell-alma ~]$ cd ~/cmem_gdb_access/module/
+[mr_halfword@haswell-alma module]$ sudo ./load.sh 
+
+Bind the vfio-pci module to the device:
+[mr_halfword@haswell-alma ~]$ cd ~/fpga_sio/software_tests/eclipse_project/
+[mr_halfword@haswell-alma eclipse_project]$ source/micromemory_5425_nvram/bind_micromemory_5425_nvram_to_vfio.sh
+No IOMMUs present
+Loading vfio module and enabling NOIOMMU (this taints the Kernel)
+Loading vfio-pci module
+vfio-pci
+0000:01:00.0
+Bound vfio-pci driver to 0000:01:00.0 1332:5425 [1332:5453]
+Giving user permission to IOMMU group noiommu-0 for 0000:01:00.0 1332:5425 [1332:5453]
+
+Perform the tests:
+[mr_halfword@haswell-alma eclipse_project]$ bin/release/micromemory_5425_nvram/time_nvram_access_vfio 
 Opening device 0000:01:00.0 (1332:5425) with IOMMU group 0
 Enabling bus master for 0000:01:00.0
 Testing NVRAM size 0x40000000 for PCI device 0000:01:00.0 IOMMU group 0
+Enabled ECC for NVRAM
 Opened DMA MEM device : /dev/cmem (dev_desc = 0x00000007)
 Debug: mmap param length 0x1000, Addr: 0x100000000 
-Buff num 0: Phys addr : 0x100000000 User Addr: 0x7fa1894b1000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7f322f9a0000 
 Debug: mmap param length 0x40000000, Addr: 0x100001000 
-Buff num 0: Phys addr : 0x100001000 User Addr: 0x7fa147a9a000 
+Buff num 0: Phys addr : 0x100001000 User Addr: 0x7f31edf89000 
 Debug: mmap param length 0x40000000, Addr: 0x140001000 
-Buff num 0: Phys addr : 0x140001000 User Addr: 0x7fa107a9a000 
+Buff num 0: Phys addr : 0x140001000 User Addr: 0x7f31adf89000 
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+host-to-card DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 697.072373 (Mbytes/sec)
+  Mean = 697.256706 (Mbytes/sec)
+   Max = 697.453255 (Mbytes/sec)
+card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 812.180739 (Mbytes/sec)
+  Mean = 812.218616 (Mbytes/sec)
+   Max = 812.241400 (Mbytes/sec)
 Test pattern pass
 host-to-card PIO timing for 64 transfers of 16777216 bytes:
-   Min = 24.774152 (Mbytes/sec)
-  Mean = 24.757694 (Mbytes/sec)
-   Max = 24.674807 (Mbytes/sec)
+   Min = 24.815751 (Mbytes/sec)
+  Mean = 24.866349 (Mbytes/sec)
+   Max = 24.881785 (Mbytes/sec)
 card-to-host PIO timing for 64 transfers of 16777216 bytes:
-   Min = 12.951597 (Mbytes/sec)
-  Mean = 12.935210 (Mbytes/sec)
-   Max = 12.902988 (Mbytes/sec)
+   Min = 12.991894 (Mbytes/sec)
+  Mean = 13.027763 (Mbytes/sec)
+   Max = 13.045950 (Mbytes/sec)
 Memory Driver closed 

@@ -9,33 +9,7 @@
 #include <stdio.h>
 
 #include "vfio_access.h"
-
-#include <linux/types.h>
-#include "umem.h"
-
-
-/**
- * @brief Set a LED on the NVRAM board
- * @param[in] csr Mapped to the NVRAM CSR
- * @param[in] shift Identifies which led to set the state for
- * @param[in] state The state of the led to set
- */
-static void set_led (uint8_t *const csr, int shift, unsigned char state)
-{
-    uint8_t led;
-
-    led = read_reg8 (csr, MEMCTRLCMD_LEDCTRL);
-    if (state == LED_FLIP)
-    {
-        led ^= (1<<shift);
-    }
-    else
-    {
-        led &= ~(0x03 << shift);
-        led |= (state << shift);
-    }
-    write_reg8 (csr, MEMCTRLCMD_LEDCTRL, led);
-}
+#include "nvram_utils.h"
 
 
 /**
@@ -45,12 +19,10 @@ static void set_led (uint8_t *const csr, int shift, unsigned char state)
  */
 static void perform_nvram_csr_tests (vfio_device_t *const vfio_device, const bool prompt)
 {
-    const int csr_bar_index = 0;
-
-    map_vfio_device_bar_before_use (vfio_device, csr_bar_index);
-    if (vfio_device->mapped_bars[csr_bar_index] != NULL)
+    map_vfio_device_bar_before_use (vfio_device, NVRAM_CSR_BAR_INDEX);
+    if (vfio_device->mapped_bars[NVRAM_CSR_BAR_INDEX] != NULL)
     {
-        uint8_t *const csr = vfio_device->mapped_bars[csr_bar_index];
+        uint8_t *const csr = vfio_device->mapped_bars[NVRAM_CSR_BAR_INDEX];
         const uint8_t memory = read_reg8 (csr, MEMCTRLSTATUS_MEMORY);
         const uint8_t battery_status = read_reg8 (csr, MEMCTRLSTATUS_BATTERY);
 

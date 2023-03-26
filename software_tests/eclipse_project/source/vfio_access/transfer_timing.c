@@ -109,8 +109,9 @@ void display_transfer_timing_statistics (const transfer_timing_t *const timing)
             timing->transfer_type_name, timing->num_transfers, timing->transfer_size_bytes);
     if ((timing->num_transfers > 0) && (timing->transfer_size_bytes > 0))
     {
-        display_transfer_timing_rate (timing, " Min", timing->min_transfer_time_ns);
+        /* Max transfer time is min transfer rate and vice-versa */
+        display_transfer_timing_rate (timing, " Min", timing->max_transfer_time_ns);
         display_transfer_timing_rate (timing, "Mean", timing->total_transfer_time_ns / timing->num_transfers);
-        display_transfer_timing_rate (timing, " Max", timing->max_transfer_time_ns);
+        display_transfer_timing_rate (timing, " Max", timing->min_transfer_time_ns);
     }
 }

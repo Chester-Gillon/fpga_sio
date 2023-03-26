@@ -4,8 +4,8 @@
  * @author Chester Gillon
  * @brief Program to time transfers in a Micro Memory MM-5425CN NVRAM device, using VFIO to access the device
  * @details
- *  In the absence of a description of the device registers and DMA controller, used
- *  https://elixir.bootlin.com/linux/v4.18/source/drivers/block/umem.c as a guide.
+ *   Performs timing of the NVRAM access using both DMA and PIO.
+ *   Where PIO is performed by the CPU accessing the NVRAM via the memory mapped window.
  */
 
 #include <stdlib.h>
@@ -16,54 +16,87 @@
 
 #include "vfio_access.h"
 #include "transfer_timing.h"
-
-#include <linux/types.h>
-#include "umem.h"
-
-
-/* BAR indices on the Micro Memory MM-5425CN NVRAM device */
-#define CSR_BAR_INDEX           0
-#define MEMORY_WINDOW_BAR_INDEX 2
+#include "nvram_utils.h"
 
 
 /**
- * @brief Get the size in bytes of the NVRAM device
- * @param[in] csr Mapped to the NVRAM CSR
- * @return Returns the size in bytes decoded from a CSR register, or zero if unrecognised.
+ * @brief Test the NVRAM using DMA
+ * @details Writes a test pattern to the entire NVRAM, and then reads back and checks the test pattern to verify the
+ *          NVRAM contains the expected data. The error registers on the card are not checked.
+ * @param[in/out] vfio_device Used to obtain the mapped BARs for the NVRAM device
+ * @param[in] h2c_data_mapping The buffer allocated on the host for host-to-card transfers
+ * @param[in] c2h_data_mapping The buffer allocated on the host for for card-to-host transfers
+ * @param[in] h2c_context The DMA context for host-to-card transfers
+ * @param[in] c2h_context The DMA context for card-to-host transfers
  */
-static size_t get_nvram_size_bytes (const uint8_t *const csr)
+static void test_nvram_via_dma (vfio_device_t *const vfio_device,
+                                const vfio_dma_mapping_t *const h2c_data_mapping,
+                                const vfio_dma_mapping_t *const c2h_data_mapping,
+                                nvram_transfer_context_t *const h2c_context,
+                                nvram_transfer_context_t *const c2h_context)
 {
-    const uint8_t memory_size_reg = read_reg8 (csr, MEMCTRLSTATUS_MEMORY);
-    size_t memory_size_bytes;
-    const size_t one_mb = 1024 * 1024;
+    uint8_t *const csr = vfio_device->mapped_bars[NVRAM_CSR_BAR_INDEX];
+    const size_t nvram_size_bytes = get_nvram_size_bytes (csr);
+    const size_t nvram_size_words = nvram_size_bytes / sizeof (uint32_t);
+    uint32_t host_test_pattern = 0;
+    uint32_t card_test_pattern = 0;
+    uint32_t *host_words = h2c_data_mapping->buffer.vaddr;
+    uint32_t *card_words = c2h_data_mapping->buffer.vaddr;
+    transfer_timing_t host_to_card_timing;
+    transfer_timing_t card_to_host_timing;
+    bool success;
 
-    switch (memory_size_reg)
+    initialise_transfer_timing (&host_to_card_timing, "host-to-card DMA", h2c_data_mapping->buffer.size);
+    initialise_transfer_timing (&card_to_host_timing, "card-to-host DMA", h2c_data_mapping->buffer.size);
+
+    /* Perform test iterations to exercise all values of 32-bit test words */
+    for (size_t total_words = 0; total_words < 0x100000000UL; total_words += nvram_size_words)
     {
-    case MEM_128_MB:
-        memory_size_bytes = 128 * one_mb;
-        break;
+        /* Fill the host buffer with a test pattern to write to the NVRAM contents */
+        card_test_pattern = host_test_pattern;
+        for (size_t word_index = 0; word_index < nvram_size_words; word_index++)
+        {
+            host_words[word_index] = host_test_pattern;
+            linear_congruential_generator (&host_test_pattern);
+        }
 
-    case MEM_256_MB:
-        memory_size_bytes = 256 * one_mb;
-        break;
+        /* Use DMA to write the test pattern to the entire NVRAM */
+        transfer_time_start (&host_to_card_timing);
+        start_nvram_dma_transfer (csr, h2c_context);
+        while (!poll_nvram_dma_transfer_completion (h2c_context))
+        {
+        }
+        transfer_time_stop (&host_to_card_timing);
 
-    case MEM_512_MB:
-        memory_size_bytes = 512 * one_mb;
-        break;
+        /* Use DMA to read the test pattern from the entire NVRAM */
+        transfer_time_start (&card_to_host_timing);
+        start_nvram_dma_transfer (csr, c2h_context);
+        while (!poll_nvram_dma_transfer_completion (c2h_context))
+        {
+        }
+        transfer_time_stop (&card_to_host_timing);
 
-    case MEM_1_GB:
-        memory_size_bytes = 1024 * one_mb;
-        break;
+        /* Verify the test pattern */
+        success = true;
+        for (size_t word_offset = 0; success && (word_offset < nvram_size_words); word_offset++)
+        {
+            if (card_words[word_offset] != card_test_pattern)
+            {
+                printf ("NVRAM word[%zu] actual=0x%" PRIx32 " expected=0x%" PRIx32 "\n",
+                        word_offset, card_words[word_offset], card_test_pattern);
+                success = false;
+            }
+            linear_congruential_generator (&card_test_pattern);
+        }
 
-    case MEM_2_GB:
-        memory_size_bytes = 2048 * one_mb;
-        break;
-
-    default:
-        memory_size_bytes = 0;
+        if (success)
+        {
+            printf ("Test pattern pass\n");
+        }
     }
 
-    return memory_size_bytes;
+    display_transfer_timing_statistics (&host_to_card_timing);
+    display_transfer_timing_statistics (&card_to_host_timing);
 }
 
 
@@ -82,10 +115,10 @@ static void test_nvram_via_memory_window (vfio_device_t *const vfio_device,
                                           const vfio_dma_mapping_t *const h2c_data_mapping,
                                           const vfio_dma_mapping_t *const c2h_data_mapping)
 {
-    uint8_t *const csr = vfio_device->mapped_bars[CSR_BAR_INDEX];
-    uint8_t *const memory_window = vfio_device->mapped_bars[MEMORY_WINDOW_BAR_INDEX];
+    uint8_t *const csr = vfio_device->mapped_bars[NVRAM_CSR_BAR_INDEX];
+    uint8_t *const memory_window = vfio_device->mapped_bars[NVRAM_MEMORY_WINDOW_BAR_INDEX];
     const size_t nvram_size_bytes = get_nvram_size_bytes (csr);
-    const size_t memory_window_size_bytes = vfio_device->regions_info[MEMORY_WINDOW_BAR_INDEX].size;
+    const size_t memory_window_size_bytes = vfio_device->regions_info[NVRAM_MEMORY_WINDOW_BAR_INDEX].size;
     const size_t nvram_size_words = nvram_size_bytes / sizeof (uint32_t);
     const size_t memory_window_size_words = memory_window_size_bytes / sizeof (uint32_t);
     const size_t num_nvram_windows = nvram_size_bytes / memory_window_size_bytes;
@@ -104,7 +137,6 @@ static void test_nvram_via_memory_window (vfio_device_t *const vfio_device,
      * Start the test pattern by advancing from the value which happens to be at the start of the memory window. */
     memcpy (&host_test_pattern, memory_window, sizeof (host_test_pattern));
     linear_congruential_generator (&host_test_pattern);
-    card_test_pattern = host_test_pattern;
 
     /* Fill the host buffer with a test pattern to write to the NVRAM contents */
     card_test_pattern = host_test_pattern;
@@ -162,6 +194,8 @@ int main (int argc, char *argv[])
     vfio_dma_mapping_t descriptors_mapping;
     vfio_dma_mapping_t h2c_data_mapping;
     vfio_dma_mapping_t c2h_data_mapping;
+    nvram_transfer_context_t h2c_context;
+    nvram_transfer_context_t c2h_context;
 
     const vfio_pci_device_filter_t filter =
     {
@@ -180,23 +214,18 @@ int main (int argc, char *argv[])
     {
         vfio_device_t *const vfio_device = &vfio_devices.devices[device_index];
 
-        map_vfio_device_bar_before_use (vfio_device, CSR_BAR_INDEX);
-        map_vfio_device_bar_before_use (vfio_device, MEMORY_WINDOW_BAR_INDEX);
-        if (vfio_device->mapped_bars[CSR_BAR_INDEX] != NULL)
+        map_vfio_device_bar_before_use (vfio_device, NVRAM_CSR_BAR_INDEX);
+        map_vfio_device_bar_before_use (vfio_device, NVRAM_MEMORY_WINDOW_BAR_INDEX);
+        if (vfio_device->mapped_bars[NVRAM_CSR_BAR_INDEX] != NULL)
         {
-            uint8_t *const csr = vfio_device->mapped_bars[CSR_BAR_INDEX];
+            uint8_t *const csr = vfio_device->mapped_bars[NVRAM_CSR_BAR_INDEX];
             const size_t nvram_size_bytes = get_nvram_size_bytes (csr);
 
             printf ("Testing NVRAM size 0x%zx for PCI device %s IOMMU group %s\n",
                     nvram_size_bytes, vfio_device->device_name, vfio_device->iommu_group);
             if (nvram_size_bytes > 0)
             {
-                /* Ensure ECC is enabled */
-                if (read_reg8 (csr, MEMCTRLCMD_ERRCTRL) != EDC_STORE_CORRECT)
-                {
-                    printf ("Enabled ECC for NVRAM\n");
-                    write_reg8 (csr, MEMCTRLCMD_ERRCTRL, EDC_STORE_CORRECT);
-                }
+                initialise_nvram_device (csr);
 
                 /* Create read/write mapping of a single page for DMA descriptors */
                 allocate_vfio_dma_mapping (&vfio_devices, &descriptors_mapping, page_size,
@@ -212,9 +241,13 @@ int main (int argc, char *argv[])
 
                 if ((descriptors_mapping.buffer.vaddr != NULL) &&
                     (h2c_data_mapping.buffer.vaddr    != NULL) &&
-                    (c2h_data_mapping.buffer.vaddr    != NULL))
+                    (c2h_data_mapping.buffer.vaddr    != NULL) &&
+                    initialise_nvram_transfer_context (&h2c_context, &descriptors_mapping, &h2c_data_mapping, DMA_READ_FROM_HOST) &&
+                    initialise_nvram_transfer_context (&c2h_context, &descriptors_mapping, &c2h_data_mapping, DMA_WRITE_TO_HOST))
                 {
-                    if (vfio_device->mapped_bars[MEMORY_WINDOW_BAR_INDEX] != NULL)
+                    test_nvram_via_dma (vfio_device, &h2c_data_mapping, &c2h_data_mapping, &h2c_context, &c2h_context);
+
+                    if (vfio_device->mapped_bars[NVRAM_MEMORY_WINDOW_BAR_INDEX] != NULL)
                     {
                         test_nvram_via_memory_window (vfio_device, &h2c_data_mapping, &c2h_data_mapping);
                     }
