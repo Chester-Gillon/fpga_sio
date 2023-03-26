@@ -1,0 +1,28 @@
+1. Tests using NOIOMMU mode on an i5-2310 system
+================================================
+
+Using an i5-2310 system with AlmaLinux 8.7 which doesn't support the IOMMU, so using VFIO with NOIOMMU mode and
+cmem_gdb_access to allocate physical memory with memmap=2050M$4G,1M$6G used on the command line.
+
+Transfer rates when using on PIO:
+$ micromemory_5425_nvram/time_nvram_access_vfio 
+Opening device 0000:01:00.0 (1332:5425) with IOMMU group 0
+Enabling bus master for 0000:01:00.0
+Testing NVRAM size 0x40000000 for PCI device 0000:01:00.0 IOMMU group 0
+Opened DMA MEM device : /dev/cmem (dev_desc = 0x00000007)
+Debug: mmap param length 0x1000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7fa1894b1000 
+Debug: mmap param length 0x40000000, Addr: 0x100001000 
+Buff num 0: Phys addr : 0x100001000 User Addr: 0x7fa147a9a000 
+Debug: mmap param length 0x40000000, Addr: 0x140001000 
+Buff num 0: Phys addr : 0x140001000 User Addr: 0x7fa107a9a000 
+Test pattern pass
+host-to-card PIO timing for 64 transfers of 16777216 bytes:
+   Min = 24.774152 (Mbytes/sec)
+  Mean = 24.757694 (Mbytes/sec)
+   Max = 24.674807 (Mbytes/sec)
+card-to-host PIO timing for 64 transfers of 16777216 bytes:
+   Min = 12.951597 (Mbytes/sec)
+  Mean = 12.935210 (Mbytes/sec)
+   Max = 12.902988 (Mbytes/sec)
+Memory Driver closed 

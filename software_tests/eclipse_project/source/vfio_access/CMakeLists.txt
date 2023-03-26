@@ -11,3 +11,5 @@ else()
     # Build the library without noiommu DMA support
     add_library (vfio_access "vfio_access.c")
 endif()
+
+add_library (transfer_timing "transfer_timing.c")

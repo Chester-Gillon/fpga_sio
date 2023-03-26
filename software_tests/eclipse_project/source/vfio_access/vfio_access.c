@@ -750,6 +750,7 @@ void close_vfio_devices (vfio_devices_t *const vfio_devices)
  * @param[in] size The size in bytes to allocate
  * @param[in] permission Bitwise OR VFIO_DMA_MAP_FLAG_READ / VFIO_DMA_MAP_FLAG_WRITE flags to define
  *                       the device access to the DMA mapping.
+ *                       Not used when using the cmem driver.
  * @param[in] buffer_allocation Controls how the buffer for the process is allocated
  */
 void allocate_vfio_dma_mapping (vfio_devices_t *const vfio_devices,
