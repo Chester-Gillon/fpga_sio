@@ -81,8 +81,8 @@ int main (int argc, char *argv[])
 
     const vfio_pci_device_filter_t filter =
     {
-        .vendor_id = 0x1332,
-        .device_id = 0x5425,
+        .vendor_id = NVRAM_VENDOR_ID,
+        .device_id = NVRAM_DEVICE_ID,
         .subsystem_vendor_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .enable_bus_master = false

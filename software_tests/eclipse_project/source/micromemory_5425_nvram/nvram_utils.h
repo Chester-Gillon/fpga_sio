@@ -17,6 +17,11 @@
 #include "vfio_access.h"
 
 
+/* The vendor and device if of the Micro Memory MM-5425CN NVRAM device */
+#define NVRAM_VENDOR_ID 0x1332
+#define NVRAM_DEVICE_ID 0x5425
+
+
 /* BAR indices on the Micro Memory MM-5425CN NVRAM device */
 #define NVRAM_CSR_BAR_INDEX           0
 #define NVRAM_MEMORY_WINDOW_BAR_INDEX 2

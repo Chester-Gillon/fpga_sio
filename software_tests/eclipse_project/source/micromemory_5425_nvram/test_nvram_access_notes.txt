@@ -6,6 +6,9 @@ cmem_gdb_access to allocate physical memory with memmap=2050M$4G,1M$6146M used o
 
 Used AlmaLinux 8.7 with a 4.18.0-425.13.1.el8_7.x86_64 Kernel.
 
+For the PIO mapping using vfio the PAT type is uncached-minus, since vfio doesn't provide a mechanism to specify
+a write-combining mapping for a prefetechable BAR.
+
 Command line:
 [mr_halfword@haswell-alma ~]$ cat /proc/cmdline 
 BOOT_IMAGE=(hd0,gpt2)/vmlinuz-4.18.0-425.13.1.el8_7.x86_64 root=/dev/mapper/almalinux-root ro crashkernel=auto resume=/dev/mapper/almalinux-swap rd.lvm.lv=almalinux/root rd.lvm.lv=almalinux/swap rhgb quiet memmap=2050M$4G,1M$6146M
@@ -72,3 +75,44 @@ card-to-host PIO timing for 64 transfers of 16777216 bytes:
   Mean = 13.027763 (Mbytes/sec)
    Max = 13.045950 (Mbytes/sec)
 Memory Driver closed 
+
+
+2. Comparison of uncached-minus .vs. write-combining PIO timing in on an i5-2310 system
+======================================================================================= 
+
+Using an i5-2310 system.
+
+Used AlmaLinux 8.7 with a 4.18.0-425.13.1.el8_7.x86_64 Kernel, with no special command line options for the test.
+
+The results show that:
+a. For card-to-host PIO transfers using a write-combining mapping provides a faster transfer rate than an uncached-minus.
+b. For card-to-host PIO transfers no difference in the transfer rate for write-combining compared to an uncached-minus mapping.
+
+[mr_halfword@haswell-alma eclipse_project]$ ./set_pci_resource_user_permission.sh  1332
+Giving user permission to PCI resources for 0000:01:00.0 1332:5425 [1332:5453]
+[sudo] password for mr_halfword: 
+Enabling reponse in Memory space for 0000:01:00.0 1332:5425 [1332:5453]
+[mr_halfword@haswell-alma eclipse_project]$ bin/release/micromemory_5425_nvram/time_nvram_access_libpciaccess 
+Enabled ECC for NVRAM
+Testing NVRAM size 0x40000000 for domain=0000 bus=01 dev=00 func=00
+  vendor_id=1332 (Micro Memory) device_id=5425 (MM-5425CN PCI 64/66 Memory Module with Battery Backup) subvendor_id=1332 subdevice_id=5453
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 64 transfers of 16777216 bytes:
+   Min = 23.584635 (Mbytes/sec)
+  Mean = 24.353591 (Mbytes/sec)
+   Max = 24.520707 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 64 transfers of 16777216 bytes:
+   Min = 12.628645 (Mbytes/sec)
+  Mean = 12.985290 (Mbytes/sec)
+   Max = 13.072970 (Mbytes/sec)
+Testing NVRAM size 0x40000000 for domain=0000 bus=01 dev=00 func=00
+  vendor_id=1332 (Micro Memory) device_id=5425 (MM-5425CN PCI 64/66 Memory Module with Battery Backup) subvendor_id=1332 subdevice_id=5453
+Test pattern pass
+card-to-host PIO mapped with write-combining timing for 64 transfers of 16777216 bytes:
+   Min = 76.771379 (Mbytes/sec)
+  Mean = 77.002989 (Mbytes/sec)
+   Max = 77.618379 (Mbytes/sec)
+card-to-host PIO mapped with write-combining timing for 64 transfers of 16777216 bytes:
+   Min = 13.040244 (Mbytes/sec)
+  Mean = 13.069908 (Mbytes/sec)
+   Max = 13.078163 (Mbytes/sec)

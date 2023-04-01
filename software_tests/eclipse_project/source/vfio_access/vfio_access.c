@@ -40,9 +40,9 @@
  * @param[in] buffer_allocation How to allocate the buffer
  * @param[in] name_suffix For VFIO_BUFFER_ALLOCATION_SHARED_MEMORY a suffix used to create a unique name
  */
-static void create_vfio_buffer (vfio_buffer_t *const buffer,
-                                const size_t size, const vfio_buffer_allocation_type_t buffer_allocation,
-                                const char *const name_suffix)
+void create_vfio_buffer (vfio_buffer_t *const buffer,
+                         const size_t size, const vfio_buffer_allocation_type_t buffer_allocation,
+                         const char *const name_suffix)
 {
     int rc;
     const size_t page_size = (size_t) getpagesize ();
@@ -152,7 +152,7 @@ static void create_vfio_buffer (vfio_buffer_t *const buffer,
  * @brief Release the resources for a memory buffer used for VFIO
  * @param[in/out] buffer The memory buffer to release
  */
-static void free_vfio_buffer (vfio_buffer_t *const buffer)
+void free_vfio_buffer (vfio_buffer_t *const buffer)
 {
     int rc;
 
