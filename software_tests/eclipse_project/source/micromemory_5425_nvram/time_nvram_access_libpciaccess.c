@@ -10,10 +10,6 @@
  *          a. Only uses PIO to access to access the NVRAM. While in theory could the cmem_gdb_access module to access
  *             physically contiguous memory to allow the use of DMA this program was only created to allow the different
  *             PAT mappings for PIO to be measured.
- *
- *          When initially tried to debug this program in Eclipse had the PC lock-up when stepping in test_nvram_via_memory_window()
- *          The lock-up seemed to correspond to when the debugger tried to evaluate the contents of memory_window[].
- *          Have yet to investigate the cause of the lock-up (which required the PC to be power cycled).
  */
 
 #include <stdlib.h>

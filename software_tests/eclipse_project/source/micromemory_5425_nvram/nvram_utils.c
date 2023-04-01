@@ -90,6 +90,13 @@ void set_led (uint8_t *const csr, int shift, unsigned char state)
 /**
  * @brief Perform initialisation for the NVRAM device, to be able to access the NVRAM.
  * @details Doesn't need to set "Memory Write and Invalidate" in the PCI_COMMAND register as "N/A to PCIe".
+ *
+ *          The original version of this function only wrote to MEMCTRLCMD_ERRCTRL if the value wasn't already EDC_STORE_CORRECT.
+ *          However in that case the NVRAM device was only usable on the first boot into Linux after the PC was powered on.
+ *          On the first boot could run programs multiple times which used the NVRAM device. However, if the PC was rebooted
+ *          then for subsequent attempts to use the NVRAM device:
+ *          a. If using DMA to access the memory region the DMA didn't complete.
+ *          b. If using PIO the PC could hang when attempted to access the memory region, requiring to be power cycled.
  * @param[in] csr Mapped to the NVRAM CSR
  */
 void initialise_nvram_device (uint8_t *const csr)
@@ -100,7 +107,11 @@ void initialise_nvram_device (uint8_t *const csr)
         printf ("Enabled ECC for NVRAM\n");
         write_reg8 (csr, MEMCTRLCMD_ERRCTRL, EDC_STORE_CORRECT);
     }
-
+    else
+    {
+        printf ("Re-enabled ECC for NVRAM\n");
+        write_reg8 (csr, MEMCTRLCMD_ERRCTRL, EDC_STORE_CORRECT);
+    }
 }
 
 
