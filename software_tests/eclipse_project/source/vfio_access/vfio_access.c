@@ -510,7 +510,20 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
             {
                 /* With a noiommu group permission on the group file isn't sufficient.
                  * Need to sys_rawio capability to open the group. */
-                printf ("  No permission to open %s. Try:\nsudo setcap cap_sys_rawio=ep <executable>\n", new_device->group_pathname);
+                char executable_path[PATH_MAX];
+                ssize_t executable_path_len;
+
+                executable_path_len = readlink ("/proc/self/exe", executable_path, sizeof (executable_path) - 1);
+                if (executable_path_len != -1)
+                {
+                    executable_path[executable_path_len] = '\0';
+                }
+                else
+                {
+                    snprintf (executable_path, sizeof (executable_path), "<executable>");
+                }
+                printf ("  No permission to open %s. Try:\nsudo setcap cap_sys_rawio=ep %s\n",
+                        new_device->group_pathname, executable_path);
             }
             else
             {
