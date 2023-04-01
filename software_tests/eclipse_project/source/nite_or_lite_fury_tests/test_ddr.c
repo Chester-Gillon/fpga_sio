@@ -8,6 +8,7 @@
 #include "vfio_access.h"
 #include "fury_utils.h"
 #include "xilinx_dma_bridge_transfers.h"
+#include "transfer_timing.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -15,17 +16,6 @@
 #include <time.h>
 
 #include <unistd.h>
-
-
-/**
- * @brief A 32-bit Linear congruential generator for creating a pseudo-random test pattern.
- * @details "Numerical Recipes" from https://en.wikipedia.org/wiki/Linear_congruential_generator
- * @param[in/out] seed the LCG value to advance
- */
-static inline void linear_congruential_generator (uint32_t *const seed)
-{
-    *seed = (*seed * 1664525) + 1013904223;
-}
 
 
 /* Command line argument which sets the VFIO buffer allocation type */
@@ -38,13 +28,17 @@ static vfio_buffer_allocation_type_t arg_buffer_allocation = VFIO_BUFFER_ALLOCAT
 static uint32_t arg_min_size_alignment = 0;
 
 
+/* Command line argument which when try causes the card-to-host transfers to be one page at a time */
+static bool arg_c2h_per_page;
+
+
 /**
  * @brief Parse the command line arguments, storing the results in global variables
  * @param[in] argc, argv Arguments passed to main
  */
 static void parse_command_line_arguments (int argc, char *argv[])
 {
-    const char *const optstring = "a:b:?";
+    const char *const optstring = "a:b:l?";
     int option;
     char junk;
 
@@ -81,9 +75,15 @@ static void parse_command_line_arguments (int argc, char *argv[])
             }
             break;
 
+        case 'l':
+            arg_c2h_per_page = true;
+            break;
+
         case '?':
         default:
-            printf ("Usage %s [-a <min_size_alignment] [-b heap|shared_memory|huge_pages]\n", argv[0]);
+            printf ("Usage %s [-a <min_size_alignment] [-b heap|shared_memory|huge_pages] [-l]\n", argv[0]);
+            printf ("  -l limits the card-to-host transfer to one page at a time, reducing memory\n");
+            printf ("     requirements but increasing transfer overheads.\n");
             exit (EXIT_FAILURE);
             break;
         }
@@ -103,6 +103,8 @@ int main (int argc, char *argv[])
     vfio_dma_mapping_t c2h_data_mapping;
     x2x_transfer_context_t h2c_context;
     x2x_transfer_context_t c2h_context;
+    transfer_timing_t h2c_timing;
+    transfer_timing_t c2h_timing;
     bool success;
 
     /* The DMA/Bridge Subsystem is in configured to have one H2C and one C2H channel */
@@ -135,8 +137,10 @@ int main (int argc, char *argv[])
             /* Read mapping used by device to transfer a region of host memory to the entire DDR contents */
             allocate_vfio_dma_mapping (&vfio_devices, &h2c_data_mapping, ddr_size_bytes, VFIO_DMA_MAP_FLAG_READ, arg_buffer_allocation);
 
-            /* Write mapping for a single page used by device to write one page of DDR to host memory */
-            allocate_vfio_dma_mapping (&vfio_devices, &c2h_data_mapping, page_size, VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
+            /* Write mapping used by device. Command line argument specified if transfers either a single page or the entire
+             * DDR contents. */
+            allocate_vfio_dma_mapping (&vfio_devices, &c2h_data_mapping, arg_c2h_per_page ? page_size : ddr_size_bytes,
+                    VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
 
             if ((descriptors_mapping.buffer.vaddr != NULL) &&
                 (h2c_data_mapping.buffer.vaddr    != NULL) &&
@@ -152,13 +156,21 @@ int main (int argc, char *argv[])
                 const size_t num_words_per_c2h_xfer = c2h_data_mapping.buffer.size / sizeof (uint32_t);
                 uint32_t host_test_pattern = 0;
                 uint32_t card_test_pattern = 0;
-                struct timespec start_time;
-                struct timespec end_time;
+
+                initialise_transfer_timing (&h2c_timing, "host-to-card DMA", h2c_data_mapping.buffer.size);
+                initialise_transfer_timing (&c2h_timing, "card-to-host DMA", c2h_data_mapping.buffer.size);
 
                 printf ("Size of DMA descriptors used for h2c:");
                 for (uint32_t descriptor_index = 0; descriptor_index < h2c_context.num_descriptors; descriptor_index++)
                 {
                     printf (" [%" PRIu32 "]=0x%" PRIx32, descriptor_index, h2c_context.descriptors[descriptor_index].len);
+                }
+                printf ("\n");
+
+                printf ("Size of DMA descriptors used for c2h:");
+                for (uint32_t descriptor_index = 0; descriptor_index < c2h_context.num_descriptors; descriptor_index++)
+                {
+                    printf (" [%" PRIu32 "]=0x%" PRIx32, descriptor_index, c2h_context.descriptors[descriptor_index].len);
                 }
                 printf ("\n");
 
@@ -174,35 +186,33 @@ int main (int argc, char *argv[])
                     }
 
                     /* DMA the test pattern to the entire DDR contents */
+                    transfer_time_start (&h2c_timing);
                     x2x_transfer_set_card_start_address (&h2c_context, 0);
-                    clock_gettime (CLOCK_MONOTONIC, &start_time);
                     success = x2x_start_transfer (&h2c_context);
                     if (success)
                     {
                         while (!x2x_poll_transfer_completion (&h2c_context))
                         {
                         }
-                        clock_gettime (CLOCK_MONOTONIC, &end_time);
-                        const int64_t start_time_ns = (start_time.tv_sec * 1000000000LL) + start_time.tv_nsec;
-                        const int64_t end_time_ns = (end_time.tv_sec * 1000000000LL) + end_time.tv_nsec;
-                        const int64_t write_duration_ns = end_time_ns - start_time_ns;
-                        printf ("Print wrote 0x%" PRIx64 " bytes to card using DMA in %" PRIi64 " ns\n",
-                                h2c_data_mapping.buffer.size, write_duration_ns);
+                        transfer_time_stop (&h2c_timing);
                     }
 
-                    /* DMA the contents of the DDR one page at a time from the card to the host, and verify the contents */
+                    /* DMA the contents of the DDR, using the size specified by the command line arguments,
+                     * and verify the contents */
                     for (size_t ddr_word_index = 0;
                             success && (ddr_word_index < ddr_size_words);
                             ddr_word_index += num_words_per_c2h_xfer)
                     {
                         const uint32_t ddr_byte_index = ddr_word_index * sizeof (uint32_t);
                         x2x_transfer_set_card_start_address (&c2h_context, ddr_byte_index);
+                        transfer_time_start (&c2h_timing);
                         success = x2x_start_transfer (&c2h_context);
                         if (success)
                         {
                             while (!x2x_poll_transfer_completion (&c2h_context))
                             {
                             }
+                            transfer_time_stop (&c2h_timing);
 
                             for (size_t word_offset = 0; success && (word_offset < num_words_per_c2h_xfer); word_offset++)
                             {
@@ -221,6 +231,9 @@ int main (int argc, char *argv[])
                         printf ("Test pattern pass\n");
                     }
                 }
+
+                display_transfer_timing_statistics (&h2c_timing);
+                display_transfer_timing_statistics (&c2h_timing);
             }
 
             free_vfio_dma_mapping (&vfio_devices, &c2h_data_mapping);
