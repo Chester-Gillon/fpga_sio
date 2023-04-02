@@ -39,10 +39,12 @@
  * @param[in] device Used to describe the device being tested
  * @param[in/out] shared_memory The mapped shared memory to test.
  * @param[in] mapping_description Describes how the shared memory is mapped
+ * @param[in] flush_wc_buffer If true flushes the posted write queue before stopping the write timing
  */
 static void test_shared_memory (struct pci_device *const device,
                                 void *const shared_memory,
-                                const char *mapping_description)
+                                const char *mapping_description,
+                                const bool flush_wc_buffer)
 {
     const size_t shared_memory_size_words = PEX8311_SHARED_MEMORY_SIZE_BYTES / sizeof (uint32_t);
     uint32_t host_test_pattern;
@@ -95,6 +97,16 @@ static void test_shared_memory (struct pci_device *const device,
         /* Use the CPU to copy the test pattern to the shared memory */
         transfer_time_start (&host_to_card_timing);
         memcpy (shared_memory, host_words, PEX8311_SHARED_MEMORY_SIZE_BYTES);
+        if (flush_wc_buffer)
+        {
+            /* Flush the post write queue, to avoid report a higher transfer rate than actually achieved by the device.
+             *
+             * See the "What happens if you read from write-combined memory?" section from
+             * https://fgiesen.wordpress.com/2013/01/29/write-combining-is-not-your-friend/ says:
+             */
+            uint32_t *const shared_memory_word = shared_memory;
+            (void) __atomic_load_n (shared_memory_word, __ATOMIC_ACQUIRE);
+        }
         transfer_time_stop (&host_to_card_timing);
 
         /* Use the CPU to copy the test pattern from the shared memory at a time */
@@ -136,16 +148,24 @@ int main (int argc, char *argv[])
     {
         unsigned map_flags;
         const char *description;
+        bool flush_wc_buffer;
     }
     shared_memory_map_options[] =
     {
         {
             .map_flags = PCI_DEV_MAP_FLAG_WRITABLE,
-            .description = "uncached-minus"
+            .description = "uncached-minus",
+            .flush_wc_buffer = false
         },
         {
             .map_flags = PCI_DEV_MAP_FLAG_WRITABLE | PCI_DEV_MAP_FLAG_WRITE_COMBINE,
-            .description = "write-combining"
+            .description = "write-combining",
+            .flush_wc_buffer = false
+        },
+        {
+            .map_flags = PCI_DEV_MAP_FLAG_WRITABLE | PCI_DEV_MAP_FLAG_WRITE_COMBINE,
+            .description = "write-combining (flush posted writes)",
+            .flush_wc_buffer = true
         }
     };
     const int num_shared_memory_map_options = sizeof (shared_memory_map_options) / sizeof (shared_memory_map_options[0]);
@@ -199,7 +219,8 @@ int main (int argc, char *argv[])
                         exit (EXIT_FAILURE);
                     }
 
-                    test_shared_memory (device, shared_memory, shared_memory_map_options[option_index].description);
+                    test_shared_memory (device, shared_memory, shared_memory_map_options[option_index].description,
+                            shared_memory_map_options[option_index].flush_wc_buffer);
 
                     /* Unmap the shared memory BAR */
                     rc = pci_device_unmap_range (device, shared_memory, PEX8311_SHARED_MEMORY_SIZE_BYTES);
