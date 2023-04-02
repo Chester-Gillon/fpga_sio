@@ -1,0 +1,99 @@
+1. time_pex8311_shared_memory_libpciaccess in an i5-2310 system
+===============================================================
+
+Using an i5-2310 system.
+
+Used AlmaLinux 8.7 with a 4.18.0-425.13.1.el8_7.x86_64 Kernel, with no special command line options for the test.
+
+Granted user permission to the PCI resources for the devices with the PLX vendor ID:
+[mr_halfword@haswell-alma ~]$ cd ~/fpga_sio/software_tests/eclipse_project/
+[mr_halfword@haswell-alma eclipse_project]$ ./set_pci_resource_user_permission.sh 10b5
+Giving user permission to PCI resources for 0000:04:00.0 10b5:8111 [0000:0000]
+[sudo] password for mr_halfword: 
+Giving user permission to PCI resources for 0000:05:04.0 10b5:9056 [10b5:3198]
+Enabling reponse in Memory space for 0000:05:04.0 10b5:9056 [10b5:3198]
+
+Ran the tests for the debug, coverage and release platforms:
+[mr_halfword@haswell-alma eclipse_project]$ bin/debug/sealevel_serial_7205e/time_pex8311_shared_memory_libpciaccess 
+Testing shared memory size 0x2000 for domain=0000 bus=04 dev=00 func=00
+  vendor_id=10b5 (PLX Technology, Inc.) device_id=8111 (PEX 8111 PCI Express-to-PCI Bridge) subvendor_id=0000 subdevice_id=0000
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 1024 transfers of 8192 bytes:
+   Min = 76.444295 (Mbytes/sec)
+  Mean = 96.677878 (Mbytes/sec)
+   Max = 99.288545 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 1024 transfers of 8192 bytes:
+   Min = 4.858229 (Mbytes/sec)
+  Mean = 6.032227 (Mbytes/sec)
+   Max = 6.911266 (Mbytes/sec)
+Testing shared memory size 0x2000 for domain=0000 bus=04 dev=00 func=00
+  vendor_id=10b5 (PLX Technology, Inc.) device_id=8111 (PEX 8111 PCI Express-to-PCI Bridge) subvendor_id=0000 subdevice_id=0000
+Test pattern pass
+card-to-host PIO mapped with write-combining timing for 1024 transfers of 8192 bytes:
+   Min = 199.464329 (Mbytes/sec)
+  Mean = 259.824289 (Mbytes/sec)
+   Max = 271.609032 (Mbytes/sec)
+card-to-host PIO mapped with write-combining timing for 1024 transfers of 8192 bytes:
+   Min = 5.032562 (Mbytes/sec)
+  Mean = 5.984371 (Mbytes/sec)
+   Max = 6.985857 (Mbytes/sec)
+
+[mr_halfword@haswell-alma eclipse_project]$ bin/coverage/sealevel_serial_7205e/time_pex8311_shared_memory_libpciaccess 
+Testing shared memory size 0x2000 for domain=0000 bus=04 dev=00 func=00
+  vendor_id=10b5 (PLX Technology, Inc.) device_id=8111 (PEX 8111 PCI Express-to-PCI Bridge) subvendor_id=0000 subdevice_id=0000
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 1024 transfers of 8192 bytes:
+   Min = 76.194019 (Mbytes/sec)
+  Mean = 92.186849 (Mbytes/sec)
+   Max = 94.977508 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 1024 transfers of 8192 bytes:
+   Min = 5.037920 (Mbytes/sec)
+  Mean = 6.062777 (Mbytes/sec)
+   Max = 7.215580 (Mbytes/sec)
+Testing shared memory size 0x2000 for domain=0000 bus=04 dev=00 func=00
+  vendor_id=10b5 (PLX Technology, Inc.) device_id=8111 (PEX 8111 PCI Express-to-PCI Bridge) subvendor_id=0000 subdevice_id=0000
+Test pattern pass
+card-to-host PIO mapped with write-combining timing for 1024 transfers of 8192 bytes:
+   Min = 165.018230 (Mbytes/sec)
+  Mean = 220.993283 (Mbytes/sec)
+   Max = 229.989612 (Mbytes/sec)
+card-to-host PIO mapped with write-combining timing for 1024 transfers of 8192 bytes:
+   Min = 4.678093 (Mbytes/sec)
+  Mean = 5.996207 (Mbytes/sec)
+   Max = 7.503233 (Mbytes/sec)
+
+[mr_halfword@haswell-alma eclipse_project]$ bin/release/sealevel_serial_7205e/time_pex8311_shared_memory_libpciaccess 
+Testing shared memory size 0x2000 for domain=0000 bus=04 dev=00 func=00
+  vendor_id=10b5 (PLX Technology, Inc.) device_id=8111 (PEX 8111 PCI Express-to-PCI Bridge) subvendor_id=0000 subdevice_id=0000
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 1024 transfers of 8192 bytes:
+   Min = 41.215951 (Mbytes/sec)
+  Mean = 44.138644 (Mbytes/sec)
+   Max = 44.418177 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 1024 transfers of 8192 bytes:
+   Min = 2.651260 (Mbytes/sec)
+  Mean = 3.113839 (Mbytes/sec)
+   Max = 3.591286 (Mbytes/sec)
+Testing shared memory size 0x2000 for domain=0000 bus=04 dev=00 func=00
+  vendor_id=10b5 (PLX Technology, Inc.) device_id=8111 (PEX 8111 PCI Express-to-PCI Bridge) subvendor_id=0000 subdevice_id=0000
+Test pattern pass
+card-to-host PIO mapped with write-combining timing for 1024 transfers of 8192 bytes:
+   Min = 187.812371 (Mbytes/sec)
+  Mean = 258.251631 (Mbytes/sec)
+   Max = 270.559482 (Mbytes/sec)
+card-to-host PIO mapped with write-combining timing for 1024 transfers of 8192 bytes:
+   Min = 3.623470 (Mbytes/sec)
+  Mean = 4.750831 (Mbytes/sec)
+   Max = 5.866459 (Mbytes/sec)
+
+The results show:
+a. The CPU writing to the shared memory is faster than reading from the shared memory.
+b. Writes use write-combining are faster than writes using uncached-minus.
+c. For the release platform the write speed using uncached-minus is about half the write speed for the debug and coverage platforms.
+   Using Eclipse to view the diassembly shows:
+   - For debug and coverage the compiler calls to memcpy() in the glibc runtime. Haven't single step to see how
+     the memcpy() is implemented in terms of instructions.
+   - For release the compiler has inlined memcpy() to use a "rep movsq" instruction which moves 64-bits as a time.
+d. The PEX8311 has a PCIe 1.0 x1 interface which has a maximum bandwidth of 250 Mbytes/sec, but apparent measured results with
+   8192 byte transfers has a reported mean of ~259 Mbytes/sec which slightly exceeds PCIe bandwidth.
+   Not sure if there are some posted writes which haven't made it to the shared memory

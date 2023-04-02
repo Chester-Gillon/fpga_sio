@@ -32,7 +32,6 @@
  *          transactions over the PCIe bus.
  * @param[in/out] device Used to obtain the size of the mapped BARs for the NVRAM device
  * @param[in] mapped_bars The mapped BARs for the NVRAM device.
- * @param[in] c2h_data_mapping Used to obtain the buffer allocated on the host for card-to-host transfers
  * @param[in] window_mapping_description Describes how the memory mapped window is mapped
  */
 static void test_nvram_via_memory_window (struct pci_device *const device,
@@ -105,7 +104,7 @@ static void test_nvram_via_memory_window (struct pci_device *const device,
         transfer_time_stop (&host_to_card_timing);
     }
 
-    /* Used the CPU to copy the test pattern from the NVRAM one window at a time */
+    /* Use the CPU to copy the test pattern from the NVRAM one window at a time */
     for (uint8_t window_num = 0; window_num <num_nvram_windows; window_num++)
     {
         transfer_time_start (&card_to_host_timing);
@@ -220,7 +219,7 @@ int main (int argc, char *argv[])
 
                     test_nvram_via_memory_window (device, mapped_bars, memory_window_map_options[option_index].description);
 
-                    /* Unmap the memory window bar BAR */
+                    /* Unmap the memory window BAR */
                     rc = pci_device_unmap_range (device, mapped_bars[NVRAM_MEMORY_WINDOW_BAR_INDEX],
                             device->regions[NVRAM_MEMORY_WINDOW_BAR_INDEX].size);
                     if (rc != 0)

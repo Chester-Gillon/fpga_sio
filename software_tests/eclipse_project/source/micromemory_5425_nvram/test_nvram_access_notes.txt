@@ -77,8 +77,8 @@ card-to-host PIO timing for 64 transfers of 16777216 bytes:
 Memory Driver closed 
 
 
-2. Comparison of uncached-minus .vs. write-combining PIO timing in on an i5-2310 system
-======================================================================================= 
+2. Comparison of uncached-minus .vs. write-combining PIO timing in an i5-2310 system
+====================================================================================
 
 Using an i5-2310 system.
 

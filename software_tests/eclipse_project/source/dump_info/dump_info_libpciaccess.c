@@ -17,6 +17,8 @@
 int main (int argc, char *argv[])
 {
     int rc;
+    int vendor;
+    char junk;
 
     rc = pci_system_init ();
     if (rc != 0)
@@ -25,9 +27,20 @@ int main (int argc, char *argv[])
         exit (EXIT_FAILURE);
     }
 
+    /* Use an option command line argument to specify the vendor ID to display information for */
+    vendor = FPGA_SIO_VENDOR_ID;
+    if (argc > 1)
+    {
+        const char *const vendor_txt = argv[1];
+        if (sscanf (vendor_txt, "%x%c", &vendor, &junk) != 1)
+        {
+            printf ("Error: Invalid hex vendor ID %s\n", vendor_txt);
+        }
+    }
+
     struct pci_id_match match =
     {
-        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .vendor_id = vendor,
         .device_id = PCI_MATCH_ANY,
         .subvendor_id = PCI_MATCH_ANY,
         .subdevice_id = PCI_MATCH_ANY,
