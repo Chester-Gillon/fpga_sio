@@ -30,4 +30,7 @@
 /* The FPGA which contains a single BAR which contains a AXI IIC Bus Interface PG090 */
 #define FPGA_SIO_SUBDEVICE_ID_I2C_PROBE 0x0002
 
+/* The FPGA which uses the DMA/Bridge Subsystem to access block RAM */
+#define FGPA_SIO_SUBDEVICE_ID_DMA_BLKRAM 0x0003
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */
