@@ -1,0 +1,465 @@
+1. memmapped_blkram accessed using time_memmapped_libpciaccess
+==============================================================
+
+Used the memmapped_blkram image in the FPGA, in a Xeon W-2123 system running AlmaLinux 8.7 with a 4.18.0-425.13.1.el8_7.x86_64
+Kernel. memmapped_blkram has a 5GT/s x4 PCIe interface, with pre-fetachable BARs.
+
+Secure boot was disabled, in order to run the set_pci_resource_user_permission.sh script:
+[mr_halfword@skylake-alma eclipse_project]$ ./set_pci_resource_user_permission.sh 10ee
+Giving user permission to PCI resources for 0000:15:00.0 10ee:7024 [0002:0001]
+[sudo] password for mr_halfword: 
+Enabling reponse in Memory space for 0000:15:00.0 10ee:7024 [0002:0001]
+Giving user permission to PCI resources for 0000:2e:00.0 10ee:7011 [0000:0000]
+Enabling reponse in Memory space for 0000:2e:00.0 10ee:7011 [0000:0000]
+
+Ran the test using the debug, coverage and release platforms:
+[mr_halfword@skylake-alma eclipse_project]$ bin/debug/memmapped_tests/time_memmapped_libpciaccess 
+Testing BAR 0 memory size 0x100000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 64 transfers of 1048576 bytes:
+   Min = 10.241672 (Mbytes/sec)
+  Mean = 10.262617 (Mbytes/sec)
+   Max = 10.275547 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 64 transfers of 1048576 bytes:
+   Min = 1.164397 (Mbytes/sec)
+  Mean = 1.165855 (Mbytes/sec)
+   Max = 1.166635 (Mbytes/sec)
+Testing BAR 2 memory size 0x20000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 512 transfers of 131072 bytes:
+   Min = 9.800100 (Mbytes/sec)
+  Mean = 10.268526 (Mbytes/sec)
+   Max = 10.290532 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 512 transfers of 131072 bytes:
+   Min = 1.157433 (Mbytes/sec)
+  Mean = 1.165986 (Mbytes/sec)
+   Max = 1.167246 (Mbytes/sec)
+Testing BAR 4 memory size 0x10000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 1024 transfers of 65536 bytes:
+   Min = 9.704288 (Mbytes/sec)
+  Mean = 10.271894 (Mbytes/sec)
+   Max = 10.293615 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 1024 transfers of 65536 bytes:
+   Min = 1.149020 (Mbytes/sec)
+  Mean = 1.166012 (Mbytes/sec)
+   Max = 1.167564 (Mbytes/sec)
+Testing BAR 0 memory size 0x100000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with write-combining timing for 64 transfers of 1048576 bytes:
+   Min = 922.115268 (Mbytes/sec)
+  Mean = 937.050164 (Mbytes/sec)
+   Max = 941.274475 (Mbytes/sec)
+card-to-host PIO mapped with write-combining timing for 64 transfers of 1048576 bytes:
+   Min = 25.436265 (Mbytes/sec)
+  Mean = 43.074872 (Mbytes/sec)
+   Max = 67.219939 (Mbytes/sec)
+Testing BAR 2 memory size 0x20000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with write-combining timing for 512 transfers of 131072 bytes:
+   Min = 930.149381 (Mbytes/sec)
+  Mean = 1005.855313 (Mbytes/sec)
+   Max = 1034.955979 (Mbytes/sec)
+card-to-host PIO mapped with write-combining timing for 512 transfers of 131072 bytes:
+   Min = 59.358448 (Mbytes/sec)
+  Mean = 67.319703 (Mbytes/sec)
+   Max = 68.071352 (Mbytes/sec)
+Testing BAR 4 memory size 0x10000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with write-combining timing for 1024 transfers of 65536 bytes:
+   Min = 929.483179 (Mbytes/sec)
+  Mean = 1116.570689 (Mbytes/sec)
+   Max = 1167.533671 (Mbytes/sec)
+card-to-host PIO mapped with write-combining timing for 1024 transfers of 65536 bytes:
+   Min = 41.837436 (Mbytes/sec)
+  Mean = 66.633046 (Mbytes/sec)
+   Max = 67.975857 (Mbytes/sec)
+Testing BAR 0 memory size 0x100000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with write-combining (flush posted writes) timing for 64 transfers of 1048576 bytes:
+   Min = 909.514033 (Mbytes/sec)
+  Mean = 930.714090 (Mbytes/sec)
+   Max = 937.989815 (Mbytes/sec)
+card-to-host PIO mapped with write-combining (flush posted writes) timing for 64 transfers of 1048576 bytes:
+   Min = 25.395336 (Mbytes/sec)
+  Mean = 44.897900 (Mbytes/sec)
+   Max = 67.016508 (Mbytes/sec)
+Testing BAR 2 memory size 0x20000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with write-combining (flush posted writes) timing for 512 transfers of 131072 bytes:
+   Min = 856.550976 (Mbytes/sec)
+  Mean = 930.340843 (Mbytes/sec)
+   Max = 931.729648 (Mbytes/sec)
+card-to-host PIO mapped with write-combining (flush posted writes) timing for 512 transfers of 131072 bytes:
+   Min = 50.345329 (Mbytes/sec)
+  Mean = 66.533098 (Mbytes/sec)
+   Max = 68.196126 (Mbytes/sec)
+Testing BAR 4 memory size 0x10000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with write-combining (flush posted writes) timing for 1024 transfers of 65536 bytes:
+   Min = 783.586016 (Mbytes/sec)
+  Mean = 921.990405 (Mbytes/sec)
+   Max = 924.513663 (Mbytes/sec)
+card-to-host PIO mapped with write-combining (flush posted writes) timing for 1024 transfers of 65536 bytes:
+   Min = 39.287389 (Mbytes/sec)
+  Mean = 65.287060 (Mbytes/sec)
+   Max = 68.249604 (Mbytes/sec)
+
+[mr_halfword@skylake-alma eclipse_project]$ bin/coverage/memmapped_tests/time_memmapped_libpciaccess 
+Testing BAR 0 memory size 0x100000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 64 transfers of 1048576 bytes:
+   Min = 10.189477 (Mbytes/sec)
+  Mean = 10.304539 (Mbytes/sec)
+   Max = 10.344695 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 64 transfers of 1048576 bytes:
+   Min = 1.165048 (Mbytes/sec)
+  Mean = 1.166246 (Mbytes/sec)
+   Max = 1.166701 (Mbytes/sec)
+Testing BAR 2 memory size 0x20000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 512 transfers of 131072 bytes:
+   Min = 10.223480 (Mbytes/sec)
+  Mean = 10.333299 (Mbytes/sec)
+   Max = 10.357853 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 512 transfers of 131072 bytes:
+   Min = 1.157687 (Mbytes/sec)
+  Mean = 1.166287 (Mbytes/sec)
+   Max = 1.167313 (Mbytes/sec)
+Testing BAR 4 memory size 0x10000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 1024 transfers of 65536 bytes:
+   Min = 9.790139 (Mbytes/sec)
+  Mean = 10.267033 (Mbytes/sec)
+   Max = 10.287964 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 1024 transfers of 65536 bytes:
+   Min = 1.148264 (Mbytes/sec)
+  Mean = 1.166030 (Mbytes/sec)
+   Max = 1.167580 (Mbytes/sec)
+Testing BAR 0 memory size 0x100000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with write-combining timing for 64 transfers of 1048576 bytes:
+   Min = 919.221335 (Mbytes/sec)
+  Mean = 936.332237 (Mbytes/sec)
+   Max = 941.159575 (Mbytes/sec)
+card-to-host PIO mapped with write-combining timing for 64 transfers of 1048576 bytes:
+   Min = 35.369348 (Mbytes/sec)
+  Mean = 64.564152 (Mbytes/sec)
+   Max = 67.187537 (Mbytes/sec)
+Testing BAR 2 memory size 0x20000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with write-combining timing for 512 transfers of 131072 bytes:
+   Min = 871.669028 (Mbytes/sec)
+  Mean = 951.334403 (Mbytes/sec)
+   Max = 960.410332 (Mbytes/sec)
+card-to-host PIO mapped with write-combining timing for 512 transfers of 131072 bytes:
+   Min = 23.910665 (Mbytes/sec)
+  Mean = 43.164847 (Mbytes/sec)
+   Max = 68.136533 (Mbytes/sec)
+Testing BAR 4 memory size 0x10000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with write-combining timing for 1024 transfers of 65536 bytes:
+   Min = 828.845692 (Mbytes/sec)
+  Mean = 977.857356 (Mbytes/sec)
+   Max = 982.843431 (Mbytes/sec)
+card-to-host PIO mapped with write-combining timing for 1024 transfers of 65536 bytes:
+   Min = 23.854008 (Mbytes/sec)
+  Mean = 62.930247 (Mbytes/sec)
+   Max = 68.116314 (Mbytes/sec)
+Testing BAR 0 memory size 0x100000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with write-combining (flush posted writes) timing for 64 transfers of 1048576 bytes:
+   Min = 919.324492 (Mbytes/sec)
+  Mean = 933.846429 (Mbytes/sec)
+   Max = 937.855583 (Mbytes/sec)
+card-to-host PIO mapped with write-combining (flush posted writes) timing for 64 transfers of 1048576 bytes:
+   Min = 37.669051 (Mbytes/sec)
+  Mean = 64.988541 (Mbytes/sec)
+   Max = 67.038998 (Mbytes/sec)
+Testing BAR 2 memory size 0x20000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with write-combining (flush posted writes) timing for 512 transfers of 131072 bytes:
+   Min = 833.160648 (Mbytes/sec)
+  Mean = 923.640669 (Mbytes/sec)
+   Max = 931.557476 (Mbytes/sec)
+card-to-host PIO mapped with write-combining (flush posted writes) timing for 512 transfers of 131072 bytes:
+   Min = 23.878826 (Mbytes/sec)
+  Mean = 45.772363 (Mbytes/sec)
+   Max = 68.191940 (Mbytes/sec)
+Testing BAR 4 memory size 0x10000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with write-combining (flush posted writes) timing for 1024 transfers of 65536 bytes:
+   Min = 756.286423 (Mbytes/sec)
+  Mean = 921.264602 (Mbytes/sec)
+   Max = 924.187726 (Mbytes/sec)
+card-to-host PIO mapped with write-combining (flush posted writes) timing for 1024 transfers of 65536 bytes:
+   Min = 23.959557 (Mbytes/sec)
+  Mean = 60.623440 (Mbytes/sec)
+   Max = 68.276695 (Mbytes/sec)
+
+[mr_halfword@skylake-alma eclipse_project]$ bin/release/memmapped_tests/time_memmapped_libpciaccess 
+Testing BAR 0 memory size 0x100000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 64 transfers of 1048576 bytes:
+   Min = 10.234316 (Mbytes/sec)
+  Mean = 10.260906 (Mbytes/sec)
+   Max = 10.275758 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 64 transfers of 1048576 bytes:
+   Min = 1.161318 (Mbytes/sec)
+  Mean = 1.162617 (Mbytes/sec)
+   Max = 1.163397 (Mbytes/sec)
+Testing BAR 2 memory size 0x20000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 512 transfers of 131072 bytes:
+   Min = 10.009687 (Mbytes/sec)
+  Mean = 10.285248 (Mbytes/sec)
+   Max = 10.321960 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 512 transfers of 131072 bytes:
+   Min = 1.153967 (Mbytes/sec)
+  Mean = 1.162433 (Mbytes/sec)
+   Max = 1.163758 (Mbytes/sec)
+Testing BAR 4 memory size 0x10000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 1024 transfers of 65536 bytes:
+   Min = 10.146601 (Mbytes/sec)
+  Mean = 10.302600 (Mbytes/sec)
+   Max = 10.326929 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 1024 transfers of 65536 bytes:
+   Min = 1.157969 (Mbytes/sec)
+  Mean = 1.162414 (Mbytes/sec)
+   Max = 1.163768 (Mbytes/sec)
+Testing BAR 0 memory size 0x100000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with write-combining timing for 64 transfers of 1048576 bytes:
+   Min = 914.002001 (Mbytes/sec)
+  Mean = 939.586755 (Mbytes/sec)
+   Max = 941.512812 (Mbytes/sec)
+card-to-host PIO mapped with write-combining timing for 64 transfers of 1048576 bytes:
+   Min = 58.057871 (Mbytes/sec)
+  Mean = 66.423000 (Mbytes/sec)
+   Max = 67.137773 (Mbytes/sec)
+Testing BAR 2 memory size 0x20000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with write-combining timing for 512 transfers of 131072 bytes:
+   Min = 921.828297 (Mbytes/sec)
+  Mean = 1006.844317 (Mbytes/sec)
+   Max = 1034.082302 (Mbytes/sec)
+card-to-host PIO mapped with write-combining timing for 512 transfers of 131072 bytes:
+   Min = 38.730983 (Mbytes/sec)
+  Mean = 66.974204 (Mbytes/sec)
+   Max = 68.092145 (Mbytes/sec)
+Testing BAR 4 memory size 0x10000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with write-combining timing for 1024 transfers of 65536 bytes:
+   Min = 803.649384 (Mbytes/sec)
+  Mean = 1118.132806 (Mbytes/sec)
+   Max = 1166.453083 (Mbytes/sec)
+card-to-host PIO mapped with write-combining timing for 1024 transfers of 65536 bytes:
+   Min = 40.507406 (Mbytes/sec)
+  Mean = 66.546238 (Mbytes/sec)
+   Max = 68.045731 (Mbytes/sec)
+Testing BAR 0 memory size 0x100000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with write-combining (flush posted writes) timing for 64 transfers of 1048576 bytes:
+   Min = 924.607412 (Mbytes/sec)
+  Mean = 936.846723 (Mbytes/sec)
+   Max = 938.004918 (Mbytes/sec)
+card-to-host PIO mapped with write-combining (flush posted writes) timing for 64 transfers of 1048576 bytes:
+   Min = 58.573101 (Mbytes/sec)
+  Mean = 66.547852 (Mbytes/sec)
+   Max = 67.175188 (Mbytes/sec)
+Testing BAR 2 memory size 0x20000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with write-combining (flush posted writes) timing for 512 transfers of 131072 bytes:
+   Min = 837.124938 (Mbytes/sec)
+  Mean = 930.116378 (Mbytes/sec)
+   Max = 931.617067 (Mbytes/sec)
+card-to-host PIO mapped with write-combining (flush posted writes) timing for 512 transfers of 131072 bytes:
+   Min = 49.361626 (Mbytes/sec)
+  Mean = 66.366779 (Mbytes/sec)
+   Max = 68.125377 (Mbytes/sec)
+Testing BAR 4 memory size 0x10000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with write-combining (flush posted writes) timing for 1024 transfers of 65536 bytes:
+   Min = 784.561605 (Mbytes/sec)
+  Mean = 921.925555 (Mbytes/sec)
+   Max = 924.644102 (Mbytes/sec)
+card-to-host PIO mapped with write-combining (flush posted writes) timing for 1024 transfers of 65536 bytes:
+   Min = 38.084125 (Mbytes/sec)
+  Mean = 65.323177 (Mbytes/sec)
+   Max = 68.243350 (Mbytes/sec)
+
+Compared to the results in sealevel_serial_7205e/time_pex8311_shared_memory_notes.txt:
+a. The memmapped_blkram with a 5GT/s x4 PCIe interface has slower write and read transfer rates using uncached-minus
+   than the PEX8311 with a 2.5GT/s x1 PCI interface. Haven't attempted to optimise the memory access timing within the FPGA.
+b. With memmapped_blkram the read transfer rate is ~60 times faster with write-combining than with uncached-minus.
+   Whereas with the PEX8311 the read transfer was the same with write-combining and uncached-minus.
+c. With memmapped_blkram the write transfer speed with uncached-minus is the same for the release, coverage and debug platforms.
+   Whereas with the PEX8311 the write transfer with uncached-minus was lower for the release platform compared to debug/coverage,
+   and the difference was believed to be in release memcpy() had been inlined.
+
+
+memmapped_blkram_32bit_bars accessed using time_memmapped_libpciaccess
+======================================================================
+
+With the previous test the BARs were 64-bit prefetchable:
+[mr_halfword@skylake-alma eclipse_project]$ bin/debug/dump_info/dump_info_libpciaccess 
+domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+  control: I/O- Mem+ BusMaster-
+  bar[0] base_addr=387f80000000 size=100000 is_IO=0 is_prefetchable=1 is_64=1
+  bar[2] base_addr=387f80100000 size=20000 is_IO=0 is_prefetchable=1 is_64=1
+  bar[4] base_addr=387f80120000 size=10000 is_IO=0 is_prefetchable=1 is_64=1
+
+Leaving the PC booted, loaded the FPGA with the memmapped_blkram_32bit_bars in which the bars are 32-bit non-prefetcable:
+[mr_halfword@skylake-alma eclipse_project]$ bin/debug/dump_info/dump_info_libpciaccess 
+domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+  control: I/O- Mem- BusMaster-
+  bar[0] base_addr=96800000 size=100000 is_IO=0 is_prefetchable=0 is_64=0
+  bar[1] base_addr=96900000 size=20000 is_IO=0 is_prefetchable=0 is_64=0
+  bar[2] base_addr=96920000 size=10000 is_IO=0 is_prefetchable=0 is_64=0
+
+Following the change in FGPA re-ran the set_pci_resource_user_permission.sh script:
+[mr_halfword@skylake-alma eclipse_project]$ ./set_pci_resource_user_permission.sh 10ee
+Giving user permission to PCI resources for 0000:15:00.0 10ee:7024 [0002:0001]
+[sudo] password for mr_halfword: 
+Enabling reponse in Memory space for 0000:15:00.0 10ee:7024 [0002:0001]
+Giving user permission to PCI resources for 0000:2e:00.0 10ee:7011 [0000:0000]
+
+And then ran the tests in the debug, coverage and release platforms:
+[mr_halfword@skylake-alma eclipse_project]$ bin/debug/memmapped_tests/time_memmapped_libpciaccess 
+Testing BAR 0 memory size 0x100000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 64 transfers of 1048576 bytes:
+   Min = 10.221153 (Mbytes/sec)
+  Mean = 10.327102 (Mbytes/sec)
+   Max = 10.342802 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 64 transfers of 1048576 bytes:
+   Min = 1.156503 (Mbytes/sec)
+  Mean = 1.157936 (Mbytes/sec)
+   Max = 1.159194 (Mbytes/sec)
+Testing BAR 1 memory size 0x20000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 512 transfers of 131072 bytes:
+   Min = 10.176251 (Mbytes/sec)
+  Mean = 10.330988 (Mbytes/sec)
+   Max = 10.362032 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 512 transfers of 131072 bytes:
+   Min = 1.146987 (Mbytes/sec)
+  Mean = 1.157502 (Mbytes/sec)
+   Max = 1.159473 (Mbytes/sec)
+Testing BAR 2 memory size 0x10000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 1024 transfers of 65536 bytes:
+   Min = 10.205372 (Mbytes/sec)
+  Mean = 10.334643 (Mbytes/sec)
+   Max = 10.365954 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 1024 transfers of 65536 bytes:
+   Min = 1.150781 (Mbytes/sec)
+  Mean = 1.157360 (Mbytes/sec)
+   Max = 1.158618 (Mbytes/sec)
+
+[mr_halfword@skylake-alma eclipse_project]$ bin/coverage/memmapped_tests/time_memmapped_libpciaccess 
+Testing BAR 0 memory size 0x100000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 64 transfers of 1048576 bytes:
+   Min = 10.228821 (Mbytes/sec)
+  Mean = 10.283495 (Mbytes/sec)
+   Max = 10.305419 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 64 transfers of 1048576 bytes:
+   Min = 1.155983 (Mbytes/sec)
+  Mean = 1.157972 (Mbytes/sec)
+   Max = 1.159401 (Mbytes/sec)
+Testing BAR 1 memory size 0x20000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 512 transfers of 131072 bytes:
+   Min = 10.186009 (Mbytes/sec)
+  Mean = 10.279724 (Mbytes/sec)
+   Max = 10.301252 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 512 transfers of 131072 bytes:
+   Min = 1.155990 (Mbytes/sec)
+  Mean = 1.159126 (Mbytes/sec)
+   Max = 1.160222 (Mbytes/sec)
+Testing BAR 2 memory size 0x10000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 1024 transfers of 65536 bytes:
+   Min = 8.838973 (Mbytes/sec)
+  Mean = 10.278622 (Mbytes/sec)
+   Max = 10.303215 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 1024 transfers of 65536 bytes:
+   Min = 1.145193 (Mbytes/sec)
+  Mean = 1.158969 (Mbytes/sec)
+   Max = 1.160277 (Mbytes/sec)
+
+[mr_halfword@skylake-alma eclipse_project]$ bin/release/memmapped_tests/time_memmapped_libpciaccess 
+Testing BAR 0 memory size 0x100000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 64 transfers of 1048576 bytes:
+   Min = 10.246054 (Mbytes/sec)
+  Mean = 10.274795 (Mbytes/sec)
+   Max = 10.285923 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 64 transfers of 1048576 bytes:
+   Min = 1.157865 (Mbytes/sec)
+  Mean = 1.159050 (Mbytes/sec)
+   Max = 1.159547 (Mbytes/sec)
+Testing BAR 1 memory size 0x20000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 512 transfers of 131072 bytes:
+   Min = 10.188147 (Mbytes/sec)
+  Mean = 10.278456 (Mbytes/sec)
+   Max = 10.304728 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 512 transfers of 131072 bytes:
+   Min = 1.154422 (Mbytes/sec)
+  Mean = 1.159011 (Mbytes/sec)
+   Max = 1.159868 (Mbytes/sec)
+Testing BAR 2 memory size 0x10000 for domain=0000 bus=15 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0001
+Test pattern pass
+card-to-host PIO mapped with uncached-minus timing for 1024 transfers of 65536 bytes:
+   Min = 10.144155 (Mbytes/sec)
+  Mean = 10.277677 (Mbytes/sec)
+   Max = 10.309557 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 1024 transfers of 65536 bytes:
+   Min = 1.146020 (Mbytes/sec)
+  Mean = 1.158889 (Mbytes/sec)
+   Max = 1.160246 (Mbytes/sec)
+
+As expected, the test program detected the BARs were non-prefetchable and only tested using uncached-minus mappings.
+
+The read and write transfer speeds using uncached-minus are the same as for the FPFA which had prefetchable BARs.
