@@ -224,3 +224,110 @@ c. Added "--rc geninfo_unexecuted_blocks=1" to the lcov command as suggested by 
     1033                 :           0 :             fprintf (stderr, "execv (%s) failed : %s\n", process->executable, strerror (errno));
     1034                 :           0 :             exit (EXIT_FAILURE);
     1035                 :             :         }
+
+
+4. VFIO_IOMMU_MAP_DMA failed with EPERM when two processes try and map the same IOVA
+====================================================================================
+
+Can now run test_ddr and time_dma_blkram as secondary processes, each targetting DMA in different FPGA designs.
+
+What happens is one process is successful, and the other fails with EPERM from the ioctl(VFIO_IOMMU_MAP_DMA).
+In this code both processes start from the same next_iova, and the EPERM is due to attempting to allocate an IOVA
+which is already in use by the container. next_iova is only advanced if VFIO_IOMMU_MAP_DMA is successful, which explains
+why the EPERM occurs on every VFIO_IOMMU_MAP_DMA attempt in the affected process.
+
+Whereas if launch as two processes at the same time they are successful which is why think the IOVA conflict is per-container.
+
+[mr_halfword@skylake-alma coverage]$ nite_or_lite_fury_tests/test_primary test_ddr time_dma_blkram 
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Enabling bus master for 0000:15:00.0
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2e:00.0
+container_fd=4
+  0000:15:00.0 : group_fd=5 device_fd=6
+  0000:2e:00.0 : group_fd=7 device_fd=8
+Contents of /proc/8927/fd in test_primary:
+  fd 0 -> /dev/pts/0
+  fd 1 -> /dev/pts/0
+  fd 2 -> /dev/pts/0
+  fd 3 -> /sys/devices/pci0000:2c/0000:2c:02.0/0000:2e:00.0/config
+  fd 4 -> /dev/vfio/vfio
+  fd 5 -> /dev/vfio/41
+  fd 6 -> anon_inode:[vfio-device]
+  fd 7 -> /dev/vfio/86
+  fd 8 -> anon_inode:[vfio-device]
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
+    control: I/O- Mem+ BusMaster+
+Testing NiteFury board version 0x2 with DDR size 0x40000000 for PCI device 0000:2e:00.0 IOMMU group 86
+    control: I/O- Mem+ BusMaster+
+Testing dma_blkram device with memory size 0x128000 for PCI device 0000:15:00.0 IOMMU group 41
+VFIO_IOMMU_MAP_DMA of size 4096 failed : Operation not permitted
+VFIO_IOMMU_MAP_DMA of size 1212416 failed : Operation not permitted
+VFIO_IOMMU_MAP_DMA of size 1212416 failed : Operation not permitted
+Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Size of DMA descriptors used for c2h: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+host-to-card DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1325.803270 (Mbytes/sec)
+  Mean = 1325.819259 (Mbytes/sec)
+   Max = 1325.822420 (Mbytes/sec)
+card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1130.561636 (Mbytes/sec)
+  Mean = 1130.575083 (Mbytes/sec)
+   Max = 1130.592086 (Mbytes/sec)
+
+
+[mr_halfword@skylake-alma coverage]$ nite_or_lite_fury_tests/test_primary test_ddr time_dma_blkram 
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Enabling bus master for 0000:15:00.0
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2e:00.0
+container_fd=4
+  0000:15:00.0 : group_fd=5 device_fd=6
+  0000:2e:00.0 : group_fd=7 device_fd=8
+Contents of /proc/9835/fd in test_primary:
+  fd 0 -> /dev/pts/0
+  fd 1 -> /dev/pts/0
+  fd 2 -> /dev/pts/0
+  fd 3 -> /sys/devices/pci0000:2c/0000:2c:02.0/0000:2e:00.0/config
+  fd 4 -> /dev/vfio/vfio
+  fd 5 -> /dev/vfio/41
+  fd 6 -> anon_inode:[vfio-device]
+  fd 7 -> /dev/vfio/86
+  fd 8 -> anon_inode:[vfio-device]
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 86
+    control: I/O- Mem+ BusMaster+
+Testing dma_blkram device with memory size 0x128000 for PCI device 0000:15:00.0 IOMMU group 41
+    control: I/O- Mem+ BusMaster+
+Testing NiteFury board version 0x2 with DDR size 0x40000000 for PCI device 0000:2e:00.0 IOMMU group 86
+VFIO_IOMMU_MAP_DMA of size 4096 failed : Operation not permitted
+Size of DMA descriptors used for h2c: [0]=0x128000
+Size of DMA descriptors used for c2h: [0]=0x128000
+VFIO_IOMMU_MAP_DMA of size 1073741824 failed : Operation not permitted
+VFIO_IOMMU_MAP_DMA of size 1073741824 failed : Operation not permitted
+Test pattern pass
+host-to-card DMA timing for 14170 transfers of 1212416 bytes:
+   Min = 1692.973221 (Mbytes/sec)
+  Mean = 1754.749368 (Mbytes/sec)
+   Max = 1757.702896 (Mbytes/sec)
+card-to-host DMA timing for 14170 transfers of 1212416 bytes:
+   Min = 1386.413691 (Mbytes/sec)
+  Mean = 1413.675297 (Mbytes/sec)
+   Max = 1413.863234 (Mbytes/sec)

@@ -100,7 +100,7 @@ int main (int argc, char *argv[])
             .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
             .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
             .subsystem_device_id = FGPA_SIO_SUBDEVICE_ID_DMA_BLKRAM,
-            .enable_bus_master = false
+            .enable_bus_master = true
         }
     };
     const size_t num_filters = sizeof (filters) / sizeof (filters[0]);

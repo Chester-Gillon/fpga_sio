@@ -7,8 +7,10 @@
 
 #include "vfio_access.h"
 #include "fury_utils.h"
+#include "fpga_sio_pci_ids.h"
 
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 
 #include <libgen.h>
@@ -20,6 +22,17 @@ int main (int argc, char *argv[])
     vfio_devices_t vfio_devices;
     vfio_secondary_process_t secondary_processes[MAX_SECONDARY_PROCESSES] = {0};
     uint32_t num_secondary_processes = 0;
+
+    /* Allow Fury and dma_blkram devices to be used in secondary processes */
+    const size_t num_pci_device_filters = fury_num_pci_device_filters + 1;
+    vfio_pci_device_filter_t *const pci_device_filters = calloc (num_pci_device_filters, sizeof (pci_device_filters[0]));
+
+    memcpy (pci_device_filters, fury_pci_device_filters, fury_num_pci_device_filters * sizeof (pci_device_filters[0]));
+    pci_device_filters[fury_num_pci_device_filters].vendor_id = FPGA_SIO_VENDOR_ID;
+    pci_device_filters[fury_num_pci_device_filters].device_id = VFIO_PCI_DEVICE_FILTER_ANY;
+    pci_device_filters[fury_num_pci_device_filters].subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID;
+    pci_device_filters[fury_num_pci_device_filters].subsystem_device_id = FGPA_SIO_SUBDEVICE_ID_DMA_BLKRAM;
+    pci_device_filters[fury_num_pci_device_filters].enable_bus_master = true;
 
     if (argc == 1)
     {
@@ -42,7 +55,7 @@ int main (int argc, char *argv[])
     }
 
     /* Open the FPGA devices which have an IOMMU group assigned */
-    open_vfio_devices_matching_filter (&vfio_devices, fury_num_pci_device_filters, fury_pci_device_filters);
+    open_vfio_devices_matching_filter (&vfio_devices, num_pci_device_filters, pci_device_filters);
 
     vfio_display_fds (&vfio_devices);
     display_open_fds ("test_primary");
