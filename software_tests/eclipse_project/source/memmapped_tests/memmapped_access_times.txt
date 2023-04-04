@@ -326,8 +326,8 @@ c. With memmapped_blkram the write transfer speed with uncached-minus is the sam
    and the difference was believed to be in release memcpy() had been inlined.
 
 
-memmapped_blkram_32bit_bars accessed using time_memmapped_libpciaccess
-======================================================================
+2. memmapped_blkram_32bit_bars accessed using time_memmapped_libpciaccess
+=========================================================================
 
 With the previous test the BARs were 64-bit prefetchable:
 [mr_halfword@skylake-alma eclipse_project]$ bin/debug/dump_info/dump_info_libpciaccess 
@@ -463,3 +463,153 @@ card-to-host PIO mapped with uncached-minus timing for 1024 transfers of 65536 b
 As expected, the test program detected the BARs were non-prefetchable and only tested using uncached-minus mappings.
 
 The read and write transfer speeds using uncached-minus are the same as for the FPFA which had prefetchable BARs.
+
+
+3. DMA transfer timing when using physical addresses and no IOMMU
+=================================================================
+
+This is a test where the DMA engine in the FPGA is given physical addresses in the host memory, and the IOMMU is not used.
+
+To configure the PC for the test:
+a. Secure boot disabled in the BIOS
+b. During boot use grub to temporarily edit the Linux command line to:
+   - Remove the intel_iommu=on option, so Linux doesn't enable the IOMMU
+   - Add 2050M$4G,1M$6146M to the memmap options to reserve physical addresses to be used for DMA.
+
+The complete command line:
+[mr_halfword@skylake-alma ~]$ cat /proc/cmdline 
+BOOT_IMAGE=(hd1,gpt2)/vmlinuz-4.18.0-425.13.1.el8_7.x86_64 root=/dev/mapper/almalinux_skylake--alma-root ro resume=/dev/mapper/almalinux_skylake--alma-swap rd.lvm.lv=almalinux_skylake-alma/root rd.lvm.lv=almalinux_skylake-alma/swap rhgb quiet memmap=10444K%0x6c144000-4+2,2050M$4G,1M$6146M
+
+After booted loaded the module for the physical memory allocator:
+[mr_halfword@skylake-alma ~]$ cd ~/cmem_gdb_access/module/
+[mr_halfword@skylake-alma module]$ sudo ./load.sh 
+[sudo] password for mr_halfword: 
+
+Bound the vfio-pci driver to the FPGA devices, where the script determined it needed to enable noiommu mode:
+[mr_halfword@skylake-alma ~]$ cd ~/fpga_sio/software_tests/eclipse_project/
+[mr_halfword@skylake-alma eclipse_project]$ ./bind_xilinx_devices_to_vfio.sh
+No IOMMUs present
+Loading vfio module and enabling NOIOMMU (this taints the Kernel)
+[sudo] password for mr_halfword: 
+Loading vfio-pci module
+vfio-pci
+0000:15:00.0
+Bound vfio-pci driver to 0000:15:00.0 10ee:7024 [0002:0003]
+Giving user permission to IOMMU group noiommu-0 for 0000:15:00.0 10ee:7024 [0002:0003]
+vfio-pci
+0000:2e:00.0
+Bound vfio-pci driver to 0000:2e:00.0 10ee:7011 [0000:0000]
+Giving user permission to IOMMU group noiommu-1 for 0000:2e:00.0 10ee:7011 [0000:0000]
+
+First attempt to run the test program as a normal user failed, since hadn't given the cap_sys_rawio capability which is
+required to allow a normal user to open a device in noiommu mode:
+[mr_halfword@skylake-alma eclipse_project]$ bin/release/memmapped_tests/time_dma_blkram 
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 0
+  No permission to open /dev/vfio/noiommu-0. Try:
+sudo setcap cap_sys_rawio=ep /home/mr_halfword/fpga_sio/software_tests/eclipse_project/bin/release/memmapped_tests/time_dma_blkram
+
+Gave permission as suggested:
+[mr_halfword@skylake-alma eclipse_project]$ sudo setcap cap_sys_rawio=ep /home/mr_halfword/fpga_sio/software_tests/eclipse_project/bin/release/memmapped_tests/time_dma_blkram
+
+Ran the test successfully:
+[mr_halfword@skylake-alma eclipse_project]$ bin/release/memmapped_tests/time_dma_blkram 
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 0
+    control: I/O- Mem+ BusMaster-
+Testing dma_blkram device with memory size 0x128000 for PCI device 0000:15:00.0 IOMMU group 0
+Opened DMA MEM device : /dev/cmem (dev_desc = 0x00000007)
+Debug: mmap param length 0x1000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7f116ea39000 
+Debug: mmap param length 0x128000, Addr: 0x100001000 
+Buff num 0: Phys addr : 0x100001000 User Addr: 0x7f116e900000 
+Debug: mmap param length 0x128000, Addr: 0x100129000 
+Buff num 0: Phys addr : 0x100129000 User Addr: 0x7f116def9000 
+Size of DMA descriptors used for h2c: [0]=0x128000
+Size of DMA descriptors used for c2h: [0]=0x128000
+Test pattern pass
+host-to-card DMA timing for 14170 transfers of 1212416 bytes:
+   Min = 1495.844041 (Mbytes/sec)
+  Mean = 1754.114679 (Mbytes/sec)
+   Max = 1755.770913 (Mbytes/sec)
+card-to-host DMA timing for 14170 transfers of 1212416 bytes:
+   Min = 1233.963470 (Mbytes/sec)
+  Mean = 1414.273899 (Mbytes/sec)
+   Max = 1414.506551 (Mbytes/sec)
+Memory Driver closed 
+
+After performing the test their were multiple reasons why the Kernel had been tained:
+[mr_halfword@skylake-alma eclipse_project]$ ~/Downloads/kernel-chktaint 
+Kernel is "tainted" for the following reasons:
+ * taint requested by userspace application (#6)
+ * externally-built ('out-of-tree') module was loaded  (#12)
+ * unsigned module was loaded (#13)
+For a more detailed explanation of the various taint flags see
+ Documentation/admin-guide/tainted-kernels.rst in the Linux kernel sources
+ or https://kernel.org/doc/html/latest/admin-guide/tainted-kernels.html
+Raw taint value as int/string: 12352/'G     U     OE     '
+
+The "taint requested by userspace application (#6)" is due to opening a device in noiommu mode:
+[mr_halfword@skylake-alma eclipse_project]$ dmesg|grep taint
+[  285.490789] cmem_dev: loading out-of-tree module taints kernel.
+[  285.490832] cmem_dev: module verification failed: signature and/or required key missing - tainting kernel
+[  322.049272] vfio-pci 0000:15:00.0: Adding kernel taint for vfio-noiommu group on device
+[  322.105789] vfio-pci 0000:2e:00.0: Adding kernel taint for vfio-noiommu group on device
+
+
+4. DMA transfer timing when using the IOMMU
+===========================================
+
+This is a test where the IOMMU is use, and the DMA engine in the FPGA is given iova "virtual" IO addresses.
+
+To configure the PC for the test:
+a. Enabled secure boot in the BIOS
+b. Left the command line at the defaults, which enables the IOMMU and doesn't reserve any physical memory
+
+The complete command line:
+[mr_halfword@skylake-alma ~]$ cat /proc/cmdline 
+BOOT_IMAGE=(hd1,gpt2)/vmlinuz-4.18.0-425.13.1.el8_7.x86_64 root=/dev/mapper/almalinux_skylake--alma-root ro resume=/dev/mapper/almalinux_skylake--alma-swap rd.lvm.lv=almalinux_skylake-alma/root rd.lvm.lv=almalinux_skylake-alma/swap rhgb quiet memmap=10444K%0x6c144000-4+2 intel_iommu=on
+
+dmesg output showing Kernel lockdown is active due to secure boot:
+[mr_halfword@skylake-alma ~]$ dmesg|grep lockdown
+[    0.000000] Kernel is locked down from EFI secure boot; see man kernel_lockdown.7
+[    9.877135] Lockdown: swapper/0: Hibernation is restricted; see man kernel_lockdown.7
+[   33.199152] Lockdown: x86_energy_perf: Direct MSR access is restricted; see man kernel_lockdown.7
+
+The time_dma_blkram program had been re-built following the previous noiommu test, so didn't have any capabilities set.
+
+Bound the vfio-pci driver to the FPGA devices, which determined IOMMU devices were present:
+[mr_halfword@skylake-alma release]$ cd ~/fpga_sio/software_tests/eclipse_project/
+[mr_halfword@skylake-alma eclipse_project]$ ./bind_xilinx_devices_to_vfio.sh
+IOMMU devices present: dmar0  dmar1  dmar2  dmar3
+Loading vfio-pci module
+[sudo] password for mr_halfword: 
+vfio-pci
+0000:15:00.0
+Bound vfio-pci driver to 0000:15:00.0 10ee:7024 [0002:0003]
+Giving user permission to IOMMU group 41 for 0000:15:00.0 10ee:7024 [0002:0003]
+vfio-pci
+0000:2e:00.0
+Bound vfio-pci driver to 0000:2e:00.0 10ee:7011 [0000:0000]
+Giving user permission to IOMMU group 86 for 0000:2e:00.0 10ee:7011 [0000:0000]
+
+Successfull run the test:
+[mr_halfword@skylake-alma eclipse_project]$ bin/release/memmapped_tests/time_dma_blkram
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+    control: I/O- Mem+ BusMaster-
+Testing dma_blkram device with memory size 0x128000 for PCI device 0000:15:00.0 IOMMU group 41
+Size of DMA descriptors used for h2c: [0]=0x128000
+Size of DMA descriptors used for c2h: [0]=0x128000
+Test pattern pass
+host-to-card DMA timing for 14170 transfers of 1212416 bytes:
+   Min = 1482.872704 (Mbytes/sec)
+  Mean = 1754.807783 (Mbytes/sec)
+   Max = 1757.114452 (Mbytes/sec)
+card-to-host DMA timing for 14170 transfers of 1212416 bytes:
+   Min = 1378.160469 (Mbytes/sec)
+  Mean = 1413.818718 (Mbytes/sec)
+   Max = 1414.049570 (Mbytes/sec)
+
+After the test the Kernel isn't tainted:
+[mr_halfword@skylake-alma ~]$ ~/Downloads/kernel-chktaint 
+Kernel not Tainted
+
+Comparing the DMA transfer rate with and without the IOMMU enabled shows no difference.
