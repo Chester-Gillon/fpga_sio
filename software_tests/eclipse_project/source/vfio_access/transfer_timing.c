@@ -37,7 +37,7 @@ void initialise_transfer_timing (transfer_timing_t *const timing,
                                  const char *const transfer_type_name, const size_t transfer_size_bytes)
 {
     memset (timing, 0, sizeof (*timing));
-    timing->transfer_type_name = transfer_type_name;
+    snprintf (timing->transfer_type_name, sizeof (timing->transfer_type_name), "%s", transfer_type_name);
     timing->transfer_size_bytes = transfer_size_bytes;
 }
 

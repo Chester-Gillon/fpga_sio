@@ -10,13 +10,14 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <limits.h>
 
 
 /* Used to collect statistics on transfer timing */
 typedef struct
 {
     /* Describes the type of transfer being timed */
-    const char *transfer_type_name;
+    char transfer_type_name[PATH_MAX];
     /* The size in bytes of each transfer timed */
     size_t transfer_size_bytes;
     /* The number of transfers which have been timed */

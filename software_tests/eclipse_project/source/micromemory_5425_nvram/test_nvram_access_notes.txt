@@ -97,7 +97,7 @@ Enabled ECC for NVRAM
 Testing NVRAM size 0x40000000 for domain=0000 bus=01 dev=00 func=00
   vendor_id=1332 (Micro Memory) device_id=5425 (MM-5425CN PCI 64/66 Memory Module with Battery Backup) subvendor_id=1332 subdevice_id=5453
 Test pattern pass
-card-to-host PIO mapped with uncached-minus timing for 64 transfers of 16777216 bytes:
+host-to-card PIO mapped with uncached-minus timing for 64 transfers of 16777216 bytes:
    Min = 23.584635 (Mbytes/sec)
   Mean = 24.353591 (Mbytes/sec)
    Max = 24.520707 (Mbytes/sec)
@@ -108,7 +108,7 @@ card-to-host PIO mapped with uncached-minus timing for 64 transfers of 16777216 
 Testing NVRAM size 0x40000000 for domain=0000 bus=01 dev=00 func=00
   vendor_id=1332 (Micro Memory) device_id=5425 (MM-5425CN PCI 64/66 Memory Module with Battery Backup) subvendor_id=1332 subdevice_id=5453
 Test pattern pass
-card-to-host PIO mapped with write-combining timing for 64 transfers of 16777216 bytes:
+host-to-card PIO mapped with write-combining timing for 64 transfers of 16777216 bytes:
    Min = 76.771379 (Mbytes/sec)
   Mean = 77.002989 (Mbytes/sec)
    Max = 77.618379 (Mbytes/sec)
@@ -116,3 +116,226 @@ card-to-host PIO mapped with write-combining timing for 64 transfers of 16777216
    Min = 13.040244 (Mbytes/sec)
   Mean = 13.069908 (Mbytes/sec)
    Max = 13.078163 (Mbytes/sec)
+
+
+3. Tests using IOMMU mode on a Xeon W-2123 system
+=================================================
+
+This is a test where on a a Xeon W-2123 system with the IOMMU is use, and the DMA engine is given iova "virtual" IO addresses.
+
+The transfer rates using DMA are the same as the next test which uses NOIOMMU mode.
+
+To configure the PC for the test:
+a. Enabled secure boot in the BIOS
+b. Left the command line at the defaults, which enables the IOMMU and doesn't reserve any physical memory
+
+The complete command line:
+[mr_halfword@skylake-alma ~]$ cat /proc/cmdline 
+BOOT_IMAGE=(hd1,gpt2)/vmlinuz-4.18.0-425.13.1.el8_7.x86_64 root=/dev/mapper/almalinux_skylake--alma-root ro resume=/dev/mapper/almalinux_skylake--alma-swap rd.lvm.lv=almalinux_skylake-alma/root rd.lvm.lv=almalinux_skylake-alma/swap rhgb quiet memmap=10444K%0x6c144000-4+2 intel_iommu=on
+
+dmesg output showing Kernel lockdown is active due to secure boot:
+[mr_halfword@skylake-alma ~]$ dmesg|grep lockdown
+[    0.000000] Kernel is locked down from EFI secure boot; see man kernel_lockdown.7
+[    1.545937] Lockdown: swapper/0: Hibernation is restricted; see man kernel_lockdown.7
+[   25.174049] Lockdown: x86_energy_perf: Direct MSR access is restricted; see man kernel_lockdown.7
+
+Bound the vfio-pci driver to the NVRAM device, which determined IOMMU devices were present:
+[mr_halfword@skylake-alma eclipse_project]$ source/micromemory_5425_nvram/bind_micromemory_5425_nvram_to_vfio.sh 
+IOMMU devices present: dmar0  dmar1  dmar2  dmar3
+Loading vfio-pci module
+[sudo] password for mr_halfword: 
+vfio-pci
+0000:2d:00.0
+Bound vfio-pci driver to 0000:2d:00.0 1332:5425 [1332:5453]
+Giving user permission to IOMMU group 85 for 0000:2d:00.0 1332:5425 [1332:5453]
+
+Successfully run the test:
+[mr_halfword@skylake-alma eclipse_project]$ bin/release/micromemory_5425_nvram/time_nvram_access_vfio 
+Opening device 0000:2d:00.0 (1332:5425) with IOMMU group 85
+Enabling bus master for 0000:2d:00.0
+Testing NVRAM size 0x40000000 for PCI device 0000:2d:00.0 IOMMU group 85
+Enabled ECC for NVRAM
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+host-to-card DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 839.560795 (Mbytes/sec)
+  Mean = 839.579265 (Mbytes/sec)
+   Max = 839.605449 (Mbytes/sec)
+card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 881.726861 (Mbytes/sec)
+  Mean = 881.727632 (Mbytes/sec)
+   Max = 881.727961 (Mbytes/sec)
+Test pattern pass
+host-to-card PIO timing for 64 transfers of 16777216 bytes:
+   Min = 56.093008 (Mbytes/sec)
+  Mean = 56.117806 (Mbytes/sec)
+   Max = 56.153587 (Mbytes/sec)
+card-to-host PIO timing for 64 transfers of 16777216 bytes:
+   Min = 25.194902 (Mbytes/sec)
+  Mean = 25.237574 (Mbytes/sec)
+   Max = 25.267319 (Mbytes/sec)
+
+
+4. Tests using NOIOMMU mode on a Xeon W-2123 system
+===================================================
+
+This is a test where the DMA engine in the NVRAM device is given physical addresses in the host memory, and the IOMMU is not used.
+
+To configure the PC for the test:
+a. Secure boot disabled in the BIOS
+b. During boot use grub to temporarily edit the Linux command line to:
+   - Remove the intel_iommu=on option, so Linux doesn't enable the IOMMU
+   - Add 2050M$4G,1M$6146M to the memmap options to reserve physical addresses to be used for DMA.
+
+The complete command line:
+[mr_halfword@skylake-alma eclipse_project]$ cat /proc/cmdline 
+BOOT_IMAGE=(hd1,gpt2)/vmlinuz-4.18.0-425.13.1.el8_7.x86_64 root=/dev/mapper/almalinux_skylake--alma-root ro resume=/dev/mapper/almalinux_skylake--alma-swap rd.lvm.lv=almalinux_skylake-alma/root rd.lvm.lv=almalinux_skylake-alma/swap rhgb quiet memmap=10444K%0x6c144000-4+2,2050M$4G,1M$6146M
+
+After booted loaded the module for the physical memory allocator:
+[mr_halfword@skylake-alma ~]$ cd ~/cmem_gdb_access/module/
+[mr_halfword@skylake-alma module]$ sudo ./load.sh 
+[sudo] password for mr_halfword: 
+
+Bound the vfio-pci driver to the NVRAM device, where the script determined it needed to enable noiommu mode:
+[mr_halfword@skylake-alma eclipse_project]$ source/micromemory_5425_nvram/bind_micromemory_5425_nvram_to_vfio.sh 
+No IOMMUs present
+Loading vfio module and enabling NOIOMMU (this taints the Kernel)
+[sudo] password for mr_halfword: 
+Loading vfio-pci module
+vfio-pci
+0000:2d:00.0
+Bound vfio-pci driver to 0000:2d:00.0 1332:5425 [1332:5453]
+Giving user permission to IOMMU group noiommu-0 for 0000:2d:00.0 1332:5425 [1332:5453]
+
+First attempt to run the test program as a normal user failed, since hadn't given the cap_sys_rawio capability which is
+required to allow a normal user to open a device in noiommu mode:
+[mr_halfword@skylake-alma eclipse_project]$ bin/release/micromemory_5425_nvram/time_nvram_access_vfio 
+Opening device 0000:2d:00.0 (1332:5425) with IOMMU group 0
+  No permission to open /dev/vfio/noiommu-0. Try:
+sudo setcap cap_sys_rawio=ep /home/mr_halfword/fpga_sio/software_tests/eclipse_project/bin/release/micromemory_5425_nvram/time_nvram_access_vfio
+
+Gave permission as suggested:
+[mr_halfword@skylake-alma eclipse_project]$ sudo setcap cap_sys_rawio=ep /home/mr_halfword/fpga_sio/software_tests/eclipse_project/bin/release/micromemory_5425_nvram/time_nvram_access_vfio
+
+Ran the test successfully:
+[mr_halfword@skylake-alma eclipse_project]$ bin/release/micromemory_5425_nvram/time_nvram_access_vfio 
+Opening device 0000:2d:00.0 (1332:5425) with IOMMU group 0
+Enabling bus master for 0000:2d:00.0
+Testing NVRAM size 0x40000000 for PCI device 0000:2d:00.0 IOMMU group 0
+Re-enabled ECC for NVRAM
+Opened DMA MEM device : /dev/cmem (dev_desc = 0x00000007)
+Debug: mmap param length 0x1000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7f0a62f23000 
+Debug: mmap param length 0x40000000, Addr: 0x100001000 
+Buff num 0: Phys addr : 0x100001000 User Addr: 0x7f0a2150c000 
+Debug: mmap param length 0x40000000, Addr: 0x140001000 
+Buff num 0: Phys addr : 0x140001000 User Addr: 0x7f09e150c000 
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+host-to-card DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 839.565527 (Mbytes/sec)
+  Mean = 839.585992 (Mbytes/sec)
+   Max = 839.603927 (Mbytes/sec)
+card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 881.726887 (Mbytes/sec)
+  Mean = 881.727169 (Mbytes/sec)
+   Max = 881.727392 (Mbytes/sec)
+Test pattern pass
+host-to-card PIO timing for 64 transfers of 16777216 bytes:
+   Min = 56.091279 (Mbytes/sec)
+  Mean = 56.116045 (Mbytes/sec)
+   Max = 56.131952 (Mbytes/sec)
+card-to-host PIO timing for 64 transfers of 16777216 bytes:
+   Min = 25.211471 (Mbytes/sec)
+  Mean = 25.249442 (Mbytes/sec)
+   Max = 25.280249 (Mbytes/sec)
+Memory Driver closed 
+
+After performing the test there were multiple reasons why the Kernel had been tained:
+[mr_halfword@skylake-alma module]$ ~/Downloads/kernel-chktaint 
+Kernel is "tainted" for the following reasons:
+ * taint requested by userspace application (#6)
+ * externally-built ('out-of-tree') module was loaded  (#12)
+ * unsigned module was loaded (#13)
+For a more detailed explanation of the various taint flags see
+ Documentation/admin-guide/tainted-kernels.rst in the Linux kernel sources
+ or https://kernel.org/doc/html/latest/admin-guide/tainted-kernels.html
+Raw taint value as int/string: 12352/'G     U     OE     '
+
+The "taint requested by userspace application (#6)" is due to opening a device in noiommu mode:
+[mr_halfword@skylake-alma module]$ dmesg|grep taint
+[  327.688856] cmem_dev: loading out-of-tree module taints kernel.
+[  327.688929] cmem_dev: module verification failed: signature and/or required key missing - tainting kernel
+[  345.947967] vfio-pci 0000:2d:00.0: Adding kernel taint for vfio-noiommu group on device
+
+
+5. Comparison of uncached-minus .vs. write-combining PIO timing in an Xeon W-2123 system
+========================================================================================
+
+Using an Xeon W-2123 system. Had to disable secure boot in the BIOS to allow libpciaccess to perform direct PCI access.
+With secure boot enabled Kernel lockdown provents direct PCI access even as root.
+
+Used AlmaLinux 8.7 with a 4.18.0-425.13.1.el8_7.x86_64 Kernel, with no special command line options for the test.
+
+The results show that:
+a. For card-to-host PIO transfers using a write-combining mapping provides a faster transfer rate than an uncached-minus.
+b. For card-to-host PIO transfers no difference in the transfer rate for write-combining compared to an uncached-minus mapping.
+
+[mr_halfword@skylake-alma eclipse_project]$ ./set_pci_resource_user_permission.sh 1332
+Giving user permission to PCI resources for 0000:2d:00.0 1332:5425 [1332:5453]
+[sudo] password for mr_halfword: 
+Enabling reponse in Memory space for 0000:2d:00.0 1332:5425 [1332:5453]
+
+[mr_halfword@skylake-alma eclipse_project]$ bin/release/micromemory_5425_nvram/time_nvram_access_libpciaccess
+Re-enabled ECC for NVRAM
+Testing NVRAM size 0x40000000 for domain=0000 bus=2d dev=00 func=00
+  vendor_id=1332 (Micro Memory) device_id=5425 (MM-5425CN PCI 64/66 Memory Module with Battery Backup) subvendor_id=1332 subdevice_id=5453
+Test pattern pass
+host-to-card PIO mapped with uncached-minus timing for 64 transfers of 16777216 bytes:
+   Min = 55.320795 (Mbytes/sec)
+  Mean = 55.377033 (Mbytes/sec)
+   Max = 55.411124 (Mbytes/sec)
+card-to-host PIO mapped with uncached-minus timing for 64 transfers of 16777216 bytes:
+   Min = 25.118469 (Mbytes/sec)
+  Mean = 25.151802 (Mbytes/sec)
+   Max = 25.186117 (Mbytes/sec)
+Re-enabled ECC for NVRAM
+Testing NVRAM size 0x40000000 for domain=0000 bus=2d dev=00 func=00
+  vendor_id=1332 (Micro Memory) device_id=5425 (MM-5425CN PCI 64/66 Memory Module with Battery Backup) subvendor_id=1332 subdevice_id=5453
+Test pattern pass
+host-to-card PIO mapped with write-combining timing for 64 transfers of 16777216 bytes:
+   Min = 98.592551 (Mbytes/sec)
+  Mean = 99.164289 (Mbytes/sec)
+   Max = 99.223289 (Mbytes/sec)
+card-to-host PIO mapped with write-combining timing for 64 transfers of 16777216 bytes:
+   Min = 25.109417 (Mbytes/sec)
+  Mean = 25.153673 (Mbytes/sec)
+   Max = 25.191968 (Mbytes/sec)
