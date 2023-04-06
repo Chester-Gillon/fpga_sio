@@ -87,6 +87,9 @@
 /*
  * These register definitions are for the 16C950
  */
+#define UART_ASR    0x01    /* Additional Status Register */
+#define UART_RFL    0x03    /* Receive FIFO Level */
+#define UART_TFL    0x04    /* Transmit FIFO Level */
 #define UART_ICR    0x05    /* Index Control Register */
 
 /* The 16950 ICR registers */
@@ -101,5 +104,6 @@
  * The 16C950 Additional Control Register
  */
 #define UART_ACR_ICRRD  0x40    /* ICR Read enable */
+#define UART_ACR_ASE    0x80    /* Additional Status Enable */
 
 #endif /* SERIAL_REG_H_ */

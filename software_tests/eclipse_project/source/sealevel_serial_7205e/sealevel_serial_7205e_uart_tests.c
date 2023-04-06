@@ -52,7 +52,7 @@ static void serial_out (uart_port_t *const port, const uint32_t offset, const ui
 
 /**
  * @brief Read from a UART register
- * @param[in] port Whuch UART to read from
+ * @param[in] port Which UART to read from
  * @param[in] offset The register offset to read from
  * @return The register value
  */
@@ -78,6 +78,24 @@ static unsigned int serial_icr_read (uart_port_t *const port, const uint8_t offs
     serial_icr_write (port, UART_ACR, port->acr | UART_ACR_ICRRD);
     serial_out (port, UART_SCR, offset);
     value = serial_in (port, UART_ICR);
+    serial_icr_write (port, UART_ACR, port->acr);
+
+    return value;
+}
+
+
+/**
+ * @brief Read an additional status register which is a 16C950 specific register
+ * @param[in/out] Which UART to read from
+ * @param[in] offset The offset of the additional status register to read
+ * @return The value of the additional status register
+ */
+static unsigned int serial_additional_status_read (uart_port_t *const port, const uint8_t offset)
+{
+    unsigned int value;
+
+    serial_icr_write (port, UART_ACR, port->acr | UART_ACR_ASE);
+    value = serial_in (port, offset);
     serial_icr_write (port, UART_ACR, port->acr);
 
     return value;
@@ -272,27 +290,32 @@ static void loopback_test_fifo_depth (uart_port_t *const tx, uart_port_t *const 
     uint8_t lsr;
     bool rx_data_ok = true;
     uint8_t rx_data;
+    uint8_t rx_fifo_level;
+    uint8_t rx_fifo_level_sync;
 
     /* Queue for transmission the number of bytes of the Tx and Rx FIFOs.
-     * This shouldn't result in a receive overrun. */
+     * This shouldn't result in a receive overrun.
+     * Since fills the FIFO no need to check for free space. This is a precursor to using DMA. */
     for (byte_count = 0; byte_count < UART_FIFO_DEPTH; byte_count++)
     {
-        do
-        {
-            lsr = serial_in (tx, UART_LSR);
-        } while ((lsr & UART_LSR_THRE) == 0);
         serial_out (tx, UART_TX, byte_count);
     }
 
-    /* Wait to receive the expected bytes transmitted.
-     * @todo no receive timeout. */
+    /* Wait for the expected number of bytes in the Rx FIFO, as a precursor to using DMA.
+     * As recommended by the 16C950 datasheet validates the level by checking read the same value twice
+     * (since the UART clock is asynchronous with respect to the processor).
+     *
+     * @todo No receive timeout. */
+    do
+    {
+        rx_fifo_level_sync = serial_additional_status_read (rx, UART_RFL);
+        rx_fifo_level = serial_additional_status_read (rx, UART_RFL);
+    } while ((rx_fifo_level != rx_fifo_level_sync) || (rx_fifo_level < UART_FIFO_DEPTH));
+
+    /* Read the receive bytes from the FIFO */
     for (byte_count = 0; byte_count < UART_FIFO_DEPTH; byte_count++)
     {
-        do
-        {
-            lsr = serial_in (rx, UART_LSR);
-        } while ((lsr & UART_LSR_DR) == 0);
-
+        lsr = serial_in (rx, UART_LSR);
         rx_data = serial_in (rx, UART_RX);
         if ((lsr & UART_LSR_BRK_ERROR_BITS) != 0)
         {
