@@ -132,6 +132,10 @@ bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
     success = check_dma_submodule_identity (context->x2x_channel_regs, channels_submodule, channel_id) &&
             check_dma_submodule_identity (context->x2x_sgdma_regs, sgdma_channels_submodule, channel_id) &&
             check_dma_submodule_identity (context->sgdma_common_regs, DMA_SUBMODULE_SGDMA_COMMON, 0);
+    if (!success)
+    {
+        return false;
+    }
 
     /* Obtain the alignment requirements of the DMA engine */
     const uint32_t alignment_reg_value = read_reg32 (context->x2x_channel_regs, X2X_CHANNEL_ALIGNMENTS_OFFSET);

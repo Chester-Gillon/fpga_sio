@@ -221,7 +221,7 @@ static void test_reg64_pattern (uint8_t *const mapped_bar, const uint64_t reg_of
  */
 static void probe_xilinx_dma_bridge (uint8_t *const mapped_bar, const uint64_t bar_size)
 {
-    const uint64_t register_frame_size = 1 << 9;
+    const uint64_t register_frame_size = 1 << 8;
     const uint64_t dma_subsystem_identity = 0x1fc;
 
     /* Enumeration for the channel_target field in the channel identification register */
@@ -257,6 +257,18 @@ static void probe_xilinx_dma_bridge (uint8_t *const mapped_bar, const uint64_t b
 
         if (subsystem_identifier == dma_subsystem_identity)
         {
+            const uint32_t channel_addr_bits = (bar_offset & 0x00000F00) >> 8;
+            const bool channel_addr_bits_used =
+                    (channel_target == target_h2c_channels) || (channel_target == target_c2h_channels) ||
+                    (channel_target == target_h2c_sgdma   ) || (channel_target == target_c2h_sgdma   );
+
+            if ((!channel_addr_bits_used) && (channel_addr_bits != 0))
+            {
+                /* Skip this channel target which is an alias due to it not decoding the channel address bits,
+                 * since isn't per-channel */
+                continue;
+            }
+
             switch (channel_target)
             {
             case target_h2c_channels:

@@ -23,8 +23,7 @@
 /* The total amount of BLKRAM addressable by DMA. Sizes set to maximise BLKRAM usage in FPGA */
 #define BLKRAM_0_SIZE_BYTES (1024 * 1024)
 #define BLKRAM_1_SIZE_BYTES ( 128 * 1024)
-#define BLKRAM_2_SIZE_BYTES (  32 * 1024)
-#define BLKRAM_TOTAL_SIZE_BYTES (BLKRAM_0_SIZE_BYTES + BLKRAM_1_SIZE_BYTES + BLKRAM_2_SIZE_BYTES)
+#define BLKRAM_TOTAL_SIZE_BYTES (BLKRAM_0_SIZE_BYTES + BLKRAM_1_SIZE_BYTES)
 
 
 #define DMA_BRIDGE_BAR 0
@@ -34,14 +33,21 @@
 static vfio_buffer_allocation_type_t arg_buffer_allocation = VFIO_BUFFER_ALLOCATION_HEAP;
 
 
+/* Command line argument which set the DMA channels used. The command line argument passing doesn't verify the
+ * channels IDs are supported by the DMA engine, the check is done by initialise_x2x_transfer_context() */
+static uint32_t arg_h2c_channel_id;
+static uint32_t arg_c2h_channel_id;
+
+
 /**
  * @brief Parse the command line arguments, storing the results in global variables
  * @param[in] argc, argv Arguments passed to main
  */
 static void parse_command_line_arguments (int argc, char *argv[])
 {
-    const char *const optstring = "b:l?";
+    const char *const optstring = "b:c:h:?";
     int option;
+    char junk;
 
     option = getopt (argc, argv, optstring);
     while (option != -1)
@@ -68,9 +74,25 @@ static void parse_command_line_arguments (int argc, char *argv[])
             }
             break;
 
+        case 'c':
+            if (sscanf (optarg, "%u%c", &arg_h2c_channel_id, &junk) != 1)
+            {
+                fprintf (stderr, "Invalid h2c_channel_id %s\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            break;
+
+        case 'h':
+            if (sscanf (optarg, "%u%c", &arg_c2h_channel_id, &junk) != 1)
+            {
+                fprintf (stderr, "Invalid c2h_channel_id %s\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            break;
+
         case '?':
         default:
-            printf ("Usage %s [-a <min_size_alignment] [-b heap|shared_memory|huge_pages]\n", argv[0]);
+            printf ("Usage %s [-b heap|shared_memory|huge_pages] [-c c2h_channel_id] [-h h2c_channel_id]\n", argv[0]);
             exit (EXIT_FAILURE);
             break;
         }
@@ -105,10 +127,6 @@ int main (int argc, char *argv[])
     };
     const size_t num_filters = sizeof (filters) / sizeof (filters[0]);
 
-    /* The DMA/Bridge Subsystem is in configured to have one H2C and one C2H channel */
-    const uint32_t h2c_channel_id = 0;
-    const uint32_t c2h_channel_id = 0;
-
     parse_command_line_arguments (argc, argv);
 
     /* Open the FPGA devices which have an IOMMU group assigned */
@@ -120,8 +138,9 @@ int main (int argc, char *argv[])
         vfio_device_t *const vfio_device = &vfio_devices.devices[device_index];
 
         vfio_display_pci_command (vfio_device);
-        printf ("Testing dma_blkram device with memory size 0x%x for PCI device %s IOMMU group %s\n",
-                BLKRAM_TOTAL_SIZE_BYTES, vfio_device->device_name, vfio_device->iommu_group);
+        printf ("Testing dma_blkram device with memory size 0x%x for PCI device %s IOMMU group %s h2c_chan %u c2h chan %u\n",
+                BLKRAM_TOTAL_SIZE_BYTES, vfio_device->device_name, vfio_device->iommu_group,
+                arg_h2c_channel_id, arg_c2h_channel_id);
 
         /* Create read/write mapping of a single page for DMA descriptors */
         allocate_vfio_dma_mapping (&vfio_devices, &descriptors_mapping, page_size,
@@ -137,9 +156,9 @@ int main (int argc, char *argv[])
             (h2c_data_mapping.buffer.vaddr    != NULL) &&
             (c2h_data_mapping.buffer.vaddr    != NULL) &&
              initialise_x2x_transfer_context (&h2c_context, vfio_device, DMA_BRIDGE_BAR,
-                    DMA_SUBMODULE_H2C_CHANNELS, h2c_channel_id, 0, &descriptors_mapping, &h2c_data_mapping) &&
+                    DMA_SUBMODULE_H2C_CHANNELS, arg_h2c_channel_id, 0, &descriptors_mapping, &h2c_data_mapping) &&
              initialise_x2x_transfer_context (&c2h_context, vfio_device, DMA_BRIDGE_BAR,
-                    DMA_SUBMODULE_C2H_CHANNELS, c2h_channel_id, 0, &descriptors_mapping, &c2h_data_mapping))
+                    DMA_SUBMODULE_C2H_CHANNELS, arg_c2h_channel_id, 0, &descriptors_mapping, &c2h_data_mapping))
         {
             uint32_t *host_words = h2c_data_mapping.buffer.vaddr;
             uint32_t *card_words = c2h_data_mapping.buffer.vaddr;
