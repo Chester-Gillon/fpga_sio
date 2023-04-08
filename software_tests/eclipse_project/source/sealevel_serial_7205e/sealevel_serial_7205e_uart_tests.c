@@ -6,7 +6,9 @@
  * @details This is a version of https://github.com/Chester-Gillon/plx_poll_mode_driver/blob/master/plx_poll_mode_driver/plx_poll_mode_driver.c
  *          which uses VFIO to access the device, rather than a Plx Kernel module and user space library.
  *
- *          Used https://www.fastcomproducts.com/data_sheets/OX16C950B_DS.pdf as a reference.
+ *          Used the following as references:
+ *          - https://www.sealevel.com/wp-content/uploads/2016/05/7205e-User-Manual.pdf as the user manual for the 7205e card
+ *          - https://www.fastcomproducts.com/data_sheets/OX16C950B_DS.pdf as the datasheet for the OX16C950B UART on the 7205e
  */
 
 #include <stdbool.h>
@@ -606,6 +608,7 @@ static void perform_uart_loopback_test (uart_test_context_t contexts[const NUM_U
             {
                 printf ("FAIL: BAR %d Rx word %u actual=0x%x, expected=0x%x\n",
                         context->rx_port->bar_index, word_index, rx_words[word_index], context->rx_test_pattern);
+                context->test_state = UART_TEST_FAILED;
             }
             linear_congruential_generator (&context->rx_test_pattern);
         }
@@ -628,8 +631,9 @@ static void perform_uart_loopback_test (uart_test_context_t contexts[const NUM_U
  * @brief Sequence the UART tests, using VFIO
  * @param[in/out] vfio_devices The opened VFIO devices
  * @param[in] device_index Which VFIO device containing UARTs to test
+ * @param[in] test_external_loopback When true enables testing using an external loopback connection
  */
-static void perform_uart_tests (vfio_devices_t *const vfio_devices, const uint32_t device_index)
+static void perform_uart_tests (vfio_devices_t *const vfio_devices, const uint32_t device_index, const bool test_external_loopback)
 {
     vfio_device_t *const vfio_device = &vfio_devices->devices[device_index];
     vfio_dma_mapping_t vfio_mapping;
@@ -718,6 +722,29 @@ static void perform_uart_tests (vfio_devices_t *const vfio_devices, const uint32
     printf ("Performing test using PIO and internal loopback\n");
     perform_uart_loopback_test (contexts, &seed, internal_loopback);
 
+    if (test_external_loopback)
+    {
+        /* Select external loopback for the UARTS, where the each port is looped back external to the other port.
+         * With the Sealevel COMM+2.LPCIe board (7205e) set to it's default switch settings to give RS-422 mode use the
+         * following connections on the DB25 connector:
+         * - Pin  3 (port 1 RD+) to pin 17 (port 2 TD+)
+         * - Pin  1 (port 1 RD-) to pin 14 (port 2 TD-)
+         * - Pin 13 (port 2 RD+) to pin  7 (port 1 TD+)
+         * - Pin 11 (port 2 RD-) to pin  4 (port 1 TD-)
+         */
+        internal_loopback = false;
+        for (port_index = 0; port_index < NUM_UARTS; port_index++)
+        {
+            serial_set_internal_loopback (&ports[port_index], internal_loopback);
+            contexts[port_index].tx_port = &ports[port_index];
+            contexts[port_index].rx_port = &ports[(port_index + 1) % NUM_UARTS];
+        }
+
+        /* Perform a test using external loopback and PIO */
+        printf ("Performing test using PIO and external loopback\n");
+        perform_uart_loopback_test (contexts, &seed, internal_loopback);
+    }
+
     /* Report statistics on the Rx FIFO level changes */
     for (port_index = 0; port_index < NUM_UARTS; port_index++)
     {
@@ -754,13 +781,16 @@ int main (int argc, char *argv[])
         .enable_bus_master = false
     };
 
+    /* Any command line argument enables testing using external loopback mode */
+    const bool test_external_loopback = argc > 1;
+
     /* Open the Sealevel devices which have an IOMMU group assigned */
     open_vfio_devices_matching_filter (&vfio_devices, 1, &filter);
 
     /* Process any Sealevel devices found */
     for (uint32_t device_index = 0; device_index < vfio_devices.num_devices; device_index++)
     {
-        perform_uart_tests (&vfio_devices, device_index);
+        perform_uart_tests (&vfio_devices, device_index, test_external_loopback);
     }
 
     close_vfio_devices (&vfio_devices);
