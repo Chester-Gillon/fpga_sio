@@ -861,6 +861,7 @@ static void sequence_uart_loopback_test_dma_ring (uart_test_context_t *const con
                                     context->rx_port->local_bus_base_address + UART_LSR, PEX_LCS_DMADPRx_DIRECTION_LOCAL_TO_PCI);
                             pex_update_descriptor_in_ring (&context->ring, 1, (uint32_t) context->rx_buffer_iova + num_bytes_queued,
                                     context->rx_port->local_bus_base_address + UART_RX, PEX_LCS_DMADPRx_DIRECTION_LOCAL_TO_PCI);
+                            num_bytes_queued++;
                         }
                     }
                     else

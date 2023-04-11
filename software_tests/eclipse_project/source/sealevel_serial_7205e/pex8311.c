@@ -294,6 +294,7 @@ void pex_initialise_dma_ring (pex_dma_ring_context_t *const ring,
     ring->host_descriptor_index = 0;
     ring->dma_descriptor_index = 0;
     ring->num_in_use_descriptors = 0;
+    ring->awaiting_dmacsr_idle = false;
 
     const uint32_t dma_bus_parameters = pex_get_dma_bus_parameters (ring->lcs);
 
@@ -365,8 +366,10 @@ void pex_start_dma_ring (pex_dma_ring_context_t *const ring)
 
 /**
  * @brief Poll a DMA ring to see if the transfer started by a call to pex_start_dma_ring() has completed
- * @details The poll is done by looking at the descriptors in host memory, rather than DMA channel registers.
- *          No-op if there is no transfer in progress.
+ * @details This is a two stage process:
+ *          1. First look at the descriptors in host memory and wait for the Valid flag to be cleared.
+ *          2. Secondly poll the DMACSR register and wait for the Done flag to be set.
+ *             Without this second step subsequent attempts to start further transfers could hang the DMA.
  * @param[in/out] ring The DMA ring to poll for completion for
  * @return Returns true if the transfer has completed, or false if in progress
  */
@@ -390,9 +393,25 @@ bool pex_poll_dma_ring_completion (pex_dma_ring_context_t *const ring)
                 ring->num_in_use_descriptors--;
             }
         } while (descriptor_complete && (ring->num_in_use_descriptors > 0));
+
+        if (ring->num_in_use_descriptors == 0)
+        {
+            ring->awaiting_dmacsr_idle = true;
+        }
     }
 
-    return ring->num_in_use_descriptors == 0;
+    if (ring->awaiting_dmacsr_idle)
+    {
+        /* Poll for the DONE bit to be set for the DMA channel */
+        const uint8_t dmacsr = read_reg8 (ring->lcs, ring->dmacsr_offset);
+
+        if ((dmacsr & PEX_LCS_DMACSRx_DONE) != 0)
+        {
+            ring->awaiting_dmacsr_idle = false;
+        }
+    }
+
+    return (ring->num_in_use_descriptors == 0) && (!ring->awaiting_dmacsr_idle);
 }
 
 

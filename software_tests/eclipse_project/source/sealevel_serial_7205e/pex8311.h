@@ -146,6 +146,9 @@ typedef struct
     uint32_t dma_descriptor_index;
     /* The number of descriptors which are currently in use */
     uint32_t num_in_use_descriptors;
+    /* Set true when have seen num_in_use_descriptors drop to zero by polling the descriptors, but are waiting to poll the
+     * DMSCSR indicate the DMA engine is idle before can start a further DMA transfer. */
+    bool awaiting_dmacsr_idle;
 } pex_dma_ring_context_t;
 
 
