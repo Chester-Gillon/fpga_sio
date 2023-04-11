@@ -290,6 +290,7 @@ static void display_device_information (const int group_fd, const char *const de
     device_fd = ioctl (group_fd, VFIO_GROUP_GET_DEVICE_FD, device_name);
     if (device_fd < 0)
     {
+        /* This can happen for PCI bridges, which appear in the IOMMU group but which the vfio-pci driver doesn't bind to */
         fprintf (stderr, "VFIO_GROUP_GET_DEVICE_FD (%s) failed : %s\n", device_name, strerror (-device_fd));
         return;
     }

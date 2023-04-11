@@ -70,6 +70,7 @@ endif()
 include_directories("${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}/vfio_access")
 include_directories("${PROJECT_SOURCE_DIR}/xilinx_dma_bridge_for_pcie")
+include_directories("${PROJECT_SOURCE_DIR}/sealevel_serial_7205e")
 
 if (${HAVE_PCI_FILL_IOMMU_GROUP})
     add_subdirectory ("${PROJECT_SOURCE_DIR}/vfio_access")

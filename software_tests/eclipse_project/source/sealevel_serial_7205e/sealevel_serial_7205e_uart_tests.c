@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 #include <time.h>
 #include <unistd.h>
@@ -23,6 +24,7 @@
 #include "vfio_access.h"
 #include "serial_reg.h"
 #include "transfer_timing.h"
+#include "pex8311.h"
 
 
 /* The number of 16C950 UARTs on the Sealevel COMM+2.LPCIe board (7205e) */
@@ -47,6 +49,17 @@
 #define TEST_DURATION_WORDS (TEST_DURATION_BYTES / sizeof (uint32_t))
 
 
+/* The size of a PEX8311 DMA ring used for one UART. Sized sufficiently to be able to hold:
+ * - One descriptor for each receive byte in a block
+ * - One descriptor for each LSR read in a block
+ * - One descriptor for a transmit
+ *
+ * The worst case is when the receive mode checks the LSR, which for every byte in the receive block requires
+ * a separate descriptor for the read of the receive data and LSR registers.
+ */
+#define TEST_DMA_RING_SIZE (3 * UART_BLOCK_SIZE_BYTES)
+
+
 /* Structure to access one 16C950 UART, as a 8-bit wide device on the local bus of a PEX8311.
  * Each UART is mapped as one bar in memory space. */
 typedef struct
@@ -55,6 +68,8 @@ typedef struct
     int bar_index;
     /** The virtual address which is mapped to the PCI BAR to allow direct access to the UART registers */
     uint8_t *bar_mapping;
+    /* Base address of the UART on the local bus, to addressing by the PEX8311 DMA */
+    uint32_t local_bus_base_address;
     /** Tracks registers which have to be be temporarily changed without affecting operational mode */
     uint8_t acr;
     uint8_t lcr;
@@ -86,14 +101,36 @@ typedef enum
     UART_TEST_COMPLETE
 } uart_test_state_t;
 
+/* Used to track the state of DMA when performing UART_TEST_MODE_DMA_RING.
+ * This allows overlapping of DMA in progress between each test context
+ */
+typedef enum
+{
+    DMA_RING_IDLE,
+    DMA_RING_TX_BLOCK_STARTED,
+    DMA_RING_RX_BLOCK_STARTED
+} dma_ring_state_t;
+
 /* Structure which contains the context used for a UART test */
 typedef struct
 {
+    /* Controls how the Line Status Register (LSR) is used during the test:
+     * - When true, the LSR is read before each receive byte, and checked after each block has been received.
+     * - When false the LSR is not read during the test, thus reducing the number of accesses to the UART registers.
+     *   If their are receive errors should be indicated by a receive timeout and/or incorrect received bytes.
+     */
+    bool read_lsr;
+    /* Used to perform DMA for the test when UART_TEST_MODE_DMA_RING */
+    pex_dma_ring_context_t ring;
+    /* Used to perform DMA for the test when UART_TEST_MODE_DMA_BLOCK */
+    pex_dma_block_context_t block;
     /* The UART ports used for the test */
     uart_port_t *tx_port;
     uart_port_t *rx_port;
     /* Current state of the test */
     uart_test_state_t test_state;
+    /* Used to track the state of DMA */
+    dma_ring_state_t dma_ring_state;
     /* Absolute time at which the test times-out for the current block */
     struct timespec block_timeout;
     /* Used to advance the expected receive test pattern */
@@ -115,9 +152,140 @@ typedef struct
 } uart_test_context_t;
 
 
+/* Define the mode of a UART test, in terms of how the transmit/receive is controlled */
+typedef enum
+{
+    /* Programmed IO with the CPU reading/writing UART registers */
+    UART_TEST_MODE_PIO,
+    /* Ring based DMA, using scatter-gather descriptors stored in host memory */
+    UART_TEST_MODE_DMA_RING,
+    /* DMA block mode, which doesn't use descriptors stored in host memory */
+    UART_TEST_MODE_DMA_BLOCK,
+
+    UART_TEST_MODE_ARRAY_SIZE
+} uart_test_mode_t;
+
+static const char *const uart_test_mode_descriptions[UART_TEST_MODE_ARRAY_SIZE] =
+{
+    [UART_TEST_MODE_PIO] = "PIO",
+    [UART_TEST_MODE_DMA_RING] = "DMA_RING",
+    [UART_TEST_MODE_DMA_BLOCK] = "DMA_BLOCK"
+};
+
+
 /* The timeout used for the test. Made a global so may be changed if single stepping in the debugger */
 static int test_timeout_secs = 1;
 
+
+/* Command line argument to enable external loopback */
+static bool arg_test_external_loopback;
+
+
+/* Command line argument to enable dumping of PEX8311 registers for debug */
+static bool arg_dump_pex_registers;
+
+
+/* Command line argument to select how many UARTs are tested */
+static uint32_t arg_num_uarts_tested = NUM_UARTS;
+
+
+/* Command line argument to select which test modes are enabled */
+static bool arg_enabled_test_modes[UART_TEST_MODE_ARRAY_SIZE];
+
+
+/* Command line argument to specify an increment added to the starting IOVA,
+ * for testing handling of IOVA above the 4-GB Address Boundary space in the PEX8311 DMA. */
+static uint64_t arg_iova_increment;
+
+
+/**
+ * @brief Parse the command line arguments, storing the results in global variables
+ * @param[in] argc, argv Arguments passed to main
+ */
+static void parse_command_line_arguments (int argc, char *argv[])
+{
+    const char *const optstring = "edu:m:i:?";
+    int option;
+    char junk;
+    uart_test_mode_t test_mode;
+    bool test_modes_specified = false;
+    bool mode_found;
+
+    option = getopt (argc, argv, optstring);
+    while (option != -1)
+    {
+        switch (option)
+        {
+        case 'e':
+            arg_test_external_loopback = true;
+            break;
+
+        case 'd':
+            arg_dump_pex_registers = true;
+            break;
+
+        case 'u':
+            if ((sscanf (optarg, "%u%c", &arg_num_uarts_tested, &junk) != 1)
+                || (arg_num_uarts_tested < 1) || (arg_num_uarts_tested > NUM_UARTS))
+            {
+                printf ("ERROR: Invalid number of UARTs \"%s\"\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            break;
+
+        case 'm':
+            mode_found = false;
+            for (test_mode = 0; test_mode < UART_TEST_MODE_ARRAY_SIZE; test_mode++)
+            {
+                if (strcasecmp (optarg, uart_test_mode_descriptions[test_mode]) == 0)
+                {
+                    arg_enabled_test_modes[test_mode] = true;
+                    mode_found = true;
+                }
+            }
+            if (!mode_found)
+            {
+                printf ("ERROR: Invalid test mode \"%s\"\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            test_modes_specified = true;
+            break;
+
+        case 'i':
+            if (sscanf (optarg, "%" SCNi64 "%c", &arg_iova_increment, &junk) != 1)
+            {
+                printf ("ERROR: Invalid IOVA increment \"%s\"\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            break;
+
+        case '?':
+        default:
+            printf ("Usage %s [-e] [-d] [-u <num_uarts_tested>] [-m PIO|DMA_BLOCK|DMA_RING] [-i <IOVA_increment>]\n", argv[0]);
+            printf ("  -e performs test using external loopback, in addition to internal loopback\n");
+            printf ("  -d dumps the PEX8311 Local Configuration Space registers for debugging\n");
+            printf ("  -m may be specified more than once to specify multiple test modes\n");
+            printf ("     Defaults to all test modes if not specified\n");
+            exit (EXIT_FAILURE);
+            break;
+        }
+        option = getopt (argc, argv, optstring);
+    }
+
+    if (arg_test_external_loopback && (arg_num_uarts_tested != NUM_UARTS))
+    {
+        printf ("ERROR: All UARTs must be selected for testing to use external loopback (due to use of test connection)\n");
+        exit (EXIT_FAILURE);
+    }
+
+    if (!test_modes_specified)
+    {
+        for (test_mode = 0; test_mode < UART_TEST_MODE_ARRAY_SIZE; test_mode++)
+        {
+            arg_enabled_test_modes[test_mode] = true;
+        }
+    }
+}
 
 /**
  * @brief Write to a UART register
@@ -423,11 +591,34 @@ static void check_for_test_timeout (uart_test_context_t *const context, const ch
     if ((now.tv_sec > context->block_timeout.tv_sec) ||
             ((now.tv_sec == context->block_timeout.tv_sec) && (now.tv_nsec > context->block_timeout.tv_nsec)))
     {
+        const uint8_t receive_fifo_level = serial_in (context->rx_port, UART_RFL);
         printf ("FAIL: Timeout waiting for %s : tx BAR=%d rx BAR=%d num_tx_blocks=%u num_rx_block=%u rx_fifo_level=%u\n",
                 description,
                 context->tx_port->bar_index, context->rx_port->bar_index,
                 context->num_tx_blocks, context->num_rx_blocks,
-                serial_in (context->rx_port, UART_RFL));
+                receive_fifo_level);
+        if (receive_fifo_level == 255)
+        {
+            /* This issue was seen attempting to get DMA to work. Even exiting can still cause the PC to hang, possibly
+             * as vfio-pci tries to close and reset the device. For the investigation see:
+             * https://gist.github.com/Chester-Gillon/8b588735c2304945e873c06aeb21e706#7-advanced-error-control
+             */
+            printf ("PEX8311 appears to have failed, as register read of receive FIFO level returns all-ones\n");
+            printf ("Exiting in case further device accesses cause the PC to hang\n");
+            exit (EXIT_FAILURE);
+        }
+        if (arg_dump_pex_registers)
+        {
+            /* If the test has been using DMA dump registers for debug */
+            if (context->ring.lcs != NULL)
+            {
+                pex_dump_lcs_registers (context->ring.lcs, "timeout");
+            }
+            else if (context->block.lcs != NULL)
+            {
+                pex_dump_lcs_registers (context->block.lcs, "timeout");
+            }
+        }
         context->test_state = UART_TEST_FAILED;
     }
 }
@@ -437,15 +628,18 @@ static void check_for_test_timeout (uart_test_context_t *const context, const ch
  * @brief Reset the context for one UART to the start of the next test
  * @param[in/out] context The context to reset
  * @param[in/out] seed The seed used to populate the transmit test pattern
+ * @param[in] read_lsr Parameter to set for the test
  */
-static void test_context_reset (uart_test_context_t *const context, uint32_t *const seed)
+static void test_context_reset (uart_test_context_t *const context, uint32_t *const seed, const bool read_lsr)
 {
     uint32_t *const tx_words = (uint32_t *) context->tx_buffer;
 
     context->test_state = UART_TEST_RUNNING;
+    context->test_state = DMA_RING_IDLE;
     context->num_tx_blocks = 0u;
     context->num_rx_blocks = 0u;
     context->rx_test_pattern = *seed;
+    context->read_lsr = read_lsr;
 
     memset (context->rx_buffer, 0, TEST_DURATION_BYTES);
     for (uint32_t word_index = 0; word_index < TEST_DURATION_WORDS; word_index++)
@@ -459,30 +653,35 @@ static void test_context_reset (uart_test_context_t *const context, uint32_t *co
 
 
 /**
- * @brief Called during a UART test following receipt of the next block, to check for any receive errors in the block.
- * @details Checks the UART line status register for errors reported by the UART, the actual receive byte are checked
- *          once the entire test pattern has been transmitted and received.
- *          Also determine when the transmit and reception for the test is complete.
+ * @brief Called during a UART test following receipt of the next block
+ * @details Takes actions:
+ *          1. If reading the LSR is enabled, check for any receive errors in the block. Rhe actual receive byte are checked
+ *             once the entire test pattern has been transmitted and received.
+ *
+ *          2. Determine when the transmit and reception for the test is complete.
  * @params[in/out] context The UART test context
  */
-static void check_rx_block_uart_errors (uart_test_context_t *const context)
+static void process_rx_block (uart_test_context_t *const context)
 {
-    for (uint32_t block_index = 0; (context->test_state == UART_TEST_RUNNING) && (block_index < UART_BLOCK_SIZE_BYTES); block_index++)
+    if (context->read_lsr)
     {
-        const uint32_t byte_count = (context->num_rx_blocks * UART_BLOCK_SIZE_BYTES) + block_index;
-        const uint8_t lsr = context->rx_lsr_block[block_index];
+        for (uint32_t block_index = 0; (context->test_state == UART_TEST_RUNNING) && (block_index < UART_BLOCK_SIZE_BYTES); block_index++)
+        {
+            const uint32_t byte_count = (context->num_rx_blocks * UART_BLOCK_SIZE_BYTES) + block_index;
+            const uint8_t lsr = context->rx_lsr_block[block_index];
 
-        if ((lsr & UART_LSR_DR) == 0)
-        {
-            printf ("FAIL: BAR %d lsr 0x%x doesn't indicate data ready at byte count %u\n",
-                    context->rx_port->bar_index, lsr, byte_count);
-            context->test_state = UART_TEST_FAILED;
-        }
-        else if ((lsr & UART_LSR_BRK_ERROR_BITS) != 0)
-        {
-            printf ("FAIL: BAR %d lsr errors 0x%x at byte count %u\n",
-                    context->rx_port->bar_index, lsr, byte_count);
-            context->test_state = UART_TEST_FAILED;
+            if ((lsr & UART_LSR_DR) == 0)
+            {
+                printf ("FAIL: BAR %d lsr 0x%x doesn't indicate data ready at byte count %u\n",
+                        context->rx_port->bar_index, lsr, byte_count);
+                context->test_state = UART_TEST_FAILED;
+            }
+            else if ((lsr & UART_LSR_BRK_ERROR_BITS) != 0)
+            {
+                printf ("FAIL: BAR %d lsr errors 0x%x at byte count %u\n",
+                        context->rx_port->bar_index, lsr, byte_count);
+                context->test_state = UART_TEST_FAILED;
+            }
         }
     }
 
@@ -535,11 +734,14 @@ static void sequence_uart_loopback_test_pio (uart_test_context_t *const context)
 
             for (block_index = 0; block_index < UART_BLOCK_SIZE_BYTES; block_index++)
             {
-                context->rx_lsr_block[block_index] = serial_in (context->rx_port, UART_LSR);
+                if (context->read_lsr)
+                {
+                    context->rx_lsr_block[block_index] = serial_in (context->rx_port, UART_LSR);
+                }
                 rx_block_bytes[block_index] = serial_in (context->rx_port, UART_RX);
             }
 
-            check_rx_block_uart_errors (context);
+            process_rx_block (context);
             test_timeout_reset (context);
         }
         else
@@ -551,14 +753,104 @@ static void sequence_uart_loopback_test_pio (uart_test_context_t *const context)
 
 
 /**
+ * @brief Sequence running the UART loopback test for one context when using a DMA ring to transmit/receive
+ * @details This updates the test context, transmitting and receiving as required until either the test has completed or failed.
+ *          Attempts to overlap transmission with receipt to maximise the overall test throughput.
+ * @params[in/out] context The UART test context
+ */
+static void sequence_uart_loopback_test_dma_ring (uart_test_context_t *const context)
+{
+    /*@todo just try some DMA */
+    for (uint32_t block_index = 0; (context->test_state == UART_TEST_RUNNING) && (block_index < UART_FIFO_DEPTH); block_index++)
+    {
+        pex_update_descriptor_in_ring (&context->ring, 1, (uint32_t) context->tx_buffer_iova + block_index,
+                context->tx_port->local_bus_base_address + UART_TX, PEX_LCS_DMADPRx_DIRECTION_PCI_TO_LOCAL);
+    }
+    pex_start_dma_ring (&context->ring);
+
+    while ((context->test_state == UART_TEST_RUNNING) && (serial_in (context->rx_port, UART_RFL) < UART_FIFO_DEPTH))
+    {
+        check_for_test_timeout (context, "Waiting for Rx");
+    }
+
+    if (context->test_state == UART_TEST_RUNNING)
+    {
+        for (uint32_t block_index = 0; (context->test_state == UART_TEST_RUNNING) && (block_index < UART_FIFO_DEPTH); block_index++)
+        {
+            pex_update_descriptor_in_ring (&context->ring, 1, (uint32_t) context->rx_buffer_iova + block_index,
+                    context->rx_port->local_bus_base_address + UART_RX, PEX_LCS_DMADPRx_DIRECTION_LOCAL_TO_PCI);
+        }
+        pex_start_dma_ring (&context->ring);
+    }
+
+    while ((context->test_state == UART_TEST_RUNNING) && !pex_poll_dma_ring_completion (&context->ring))
+    {
+        check_for_test_timeout (context, "DMA completion");
+    }
+
+    if (context->test_state == UART_TEST_RUNNING)
+    {
+        printf ("BAR %u Rx FIFO level %u\n", context->rx_port->bar_index, serial_in (context->rx_port, UART_RFL));
+        context->test_state = UART_TEST_COMPLETE;
+    }
+}
+
+
+/**
+ * @brief Sequence running the UART loopback test for one context when using DMA block mode to transmit/receive
+ * @details This updates the test context, transmitting and receiving as required until either the test has completed or failed.
+ *          Attempts to overlap transmission with receipt to maximise the overall test throughput.
+ * @params[in/out] context The UART test context
+ */
+static void sequence_uart_loopback_test_dma_block (uart_test_context_t *const context)
+{
+    /*@todo just try some DMA */
+    for (uint32_t block_index = 0; (context->test_state == UART_TEST_RUNNING) && (block_index < UART_FIFO_DEPTH); block_index++)
+    {
+        pex_start_dma_block (&context->block, 1, context->tx_buffer_iova + block_index,
+                context->tx_port->local_bus_base_address + UART_TX, PEX_LCS_DMADPRx_DIRECTION_PCI_TO_LOCAL);
+        while ((context->test_state == UART_TEST_RUNNING) && !pex_poll_dma_block_completion (&context->block))
+        {
+            check_for_test_timeout (context, "DMA completion");
+        }
+    }
+
+    while ((context->test_state == UART_TEST_RUNNING) && (serial_in (context->rx_port, UART_RFL) < UART_FIFO_DEPTH))
+    {
+        check_for_test_timeout (context, "Waiting for Rx");
+    }
+
+    for (uint32_t block_index = 0; (context->test_state == UART_TEST_RUNNING) && (block_index < UART_FIFO_DEPTH); block_index++)
+    {
+        pex_start_dma_block (&context->block, 1, context->rx_buffer_iova + block_index,
+                context->tx_port->local_bus_base_address + UART_RX, PEX_LCS_DMADPRx_DIRECTION_LOCAL_TO_PCI);
+        while ((context->test_state == UART_TEST_RUNNING) && !pex_poll_dma_block_completion (&context->block))
+        {
+            check_for_test_timeout (context, "DMA completion");
+        }
+    }
+
+    if (context->test_state == UART_TEST_RUNNING)
+    {
+        printf ("BAR %u Rx FIFO level %u\n", context->rx_port->bar_index, serial_in (context->rx_port, UART_RFL));
+        context->test_state = UART_TEST_COMPLETE;
+    }
+}
+
+
+/**
  * @brief Perform a UART loopback test
  * @param[in/out] contexts The UART contexts to perform the test
+ * @param[in] test_mode How the test is performed
  * @param[in/out] seed The seed used to generate and check transmit test pattern
+ * @param[in] read_lsr Used to control if the Line Status Register is read and checked as part of the test.
  * @param[in] internal_loopback If true internal loopback is being used, or external loopback if false.
  *                              Used to describe the test. The caller has already configure the UARTs.
  */
 static void perform_uart_loopback_test (uart_test_context_t contexts[const NUM_UARTS],
-                                        uint32_t *const seed, const bool internal_loopback)
+                                        uart_test_mode_t test_mode,
+                                        uint32_t *const seed,
+                                        const bool read_lsr, const bool internal_loopback)
 {
     unsigned int context_index;
     bool test_running;
@@ -566,26 +858,48 @@ static void perform_uart_loopback_test (uart_test_context_t contexts[const NUM_U
     char description[PATH_MAX];
 
     /* Initialise for test, which creates the complete transmit test pattern */
-    for (context_index = 0; context_index < NUM_UARTS; context_index++)
+    for (context_index = 0; context_index < arg_num_uarts_tested; context_index++)
     {
-        test_context_reset (&contexts[context_index], seed);
+        test_context_reset (&contexts[context_index], seed, read_lsr);
     }
-    snprintf (description, sizeof (description), "%d UART loopback with %s loopback",
-            NUM_UARTS, internal_loopback ? "internal" : "external");
+    snprintf (description, sizeof (description), "%d UARTs, mode %s, %s LSR, using %s loopback",
+            arg_num_uarts_tested,
+            uart_test_mode_descriptions[test_mode],
+            read_lsr ? "reading" : "ignoring",
+            internal_loopback ? "internal" : "external");
     initialise_transfer_timing (&timing, description, TEST_DURATION_BYTES);
+    printf ("\nTesting %s ...\n", description);
 
     /* Run the test until all UARTs complete the test or fail */
     transfer_time_start (&timing);
     do
     {
         test_running = false;
-        for (context_index = 0; context_index < NUM_UARTS; context_index++)
+        for (context_index = 0; context_index < arg_num_uarts_tested; context_index++)
         {
             uart_test_context_t *const context = &contexts[context_index];
 
             if (context->test_state == UART_TEST_RUNNING)
             {
-                sequence_uart_loopback_test_pio (context);
+                switch (test_mode)
+                {
+                case UART_TEST_MODE_PIO:
+                    sequence_uart_loopback_test_pio (context);
+                    break;
+
+                case UART_TEST_MODE_DMA_RING:
+                    sequence_uart_loopback_test_dma_ring (context);
+                    break;
+
+                case UART_TEST_MODE_DMA_BLOCK:
+                    sequence_uart_loopback_test_dma_block (context);
+                    break;
+
+                default:
+                    printf ("Unexpected test mode\n");
+                    exit (EXIT_FAILURE);
+                    break;
+                }
                 if (context->test_state == UART_TEST_RUNNING)
                 {
                     test_running = true;
@@ -597,7 +911,7 @@ static void perform_uart_loopback_test (uart_test_context_t contexts[const NUM_U
 
     /* Verify the contents of the received test pattern */
     uint32_t num_completed_contexts = 0;
-    for (context_index = 0; context_index < NUM_UARTS; context_index++)
+    for (context_index = 0; context_index < arg_num_uarts_tested; context_index++)
     {
         uart_test_context_t *const context = &contexts[context_index];
         const uint32_t *const rx_words = (const uint32_t *) context->rx_buffer;
@@ -620,7 +934,7 @@ static void perform_uart_loopback_test (uart_test_context_t contexts[const NUM_U
     }
 
     /* If the tests were successful, display the timing statistics */
-    if (num_completed_contexts == NUM_UARTS)
+    if (num_completed_contexts == arg_num_uarts_tested)
     {
         display_transfer_timing_statistics (&timing);
     }
@@ -631,9 +945,8 @@ static void perform_uart_loopback_test (uart_test_context_t contexts[const NUM_U
  * @brief Sequence the UART tests, using VFIO
  * @param[in/out] vfio_devices The opened VFIO devices
  * @param[in] device_index Which VFIO device containing UARTs to test
- * @param[in] test_external_loopback When true enables testing using an external loopback connection
  */
-static void perform_uart_tests (vfio_devices_t *const vfio_devices, const uint32_t device_index, const bool test_external_loopback)
+static void perform_uart_tests (vfio_devices_t *const vfio_devices, const uint32_t device_index)
 {
     vfio_device_t *const vfio_device = &vfio_devices->devices[device_index];
     vfio_dma_mapping_t vfio_mapping;
@@ -643,13 +956,26 @@ static void perform_uart_tests (vfio_devices_t *const vfio_devices, const uint32
     unsigned int context_index;
     bool internal_loopback;
     uint32_t seed;
+    bool read_lsr;
+
+    map_vfio_device_bar_before_use (vfio_device, PEX_LCS_MMIO_BAR_INDEX);
+    uint8_t *const lcs = vfio_device->mapped_bars[PEX_LCS_MMIO_BAR_INDEX];
+    if (lcs == NULL)
+    {
+        printf ("BAR %d not mapped\n", PEX_LCS_MMIO_BAR_INDEX);
+    }
+
+    if (arg_dump_pex_registers)
+    {
+        pex_dump_lcs_registers (lcs, "initial");
+    }
 
     /* Initialise ports to access both UARTS on the board, mapping the BARs of the ports into the address space */
     memset (ports, 0, sizeof (ports));
-    ports[0].bar_index = 2;
+    ports[0].bar_index = PEX_LOCAL_SPACE0_BAR_INDEX;
     map_vfio_device_bar_before_use (vfio_device, ports[0].bar_index);
     ports[0].bar_mapping = vfio_device->mapped_bars[ports[0].bar_index];
-    ports[1].bar_index = 3;
+    ports[1].bar_index = PEX_LOCAL_SPACE1_BAR_INDEX;
     map_vfio_device_bar_before_use (vfio_device, ports[1].bar_index);
     ports[1].bar_mapping = vfio_device->mapped_bars[ports[1].bar_index];
     if (ports[0].bar_mapping == NULL)
@@ -663,28 +989,36 @@ static void perform_uart_tests (vfio_devices_t *const vfio_devices, const uint32
         exit (EXIT_FAILURE);
     }
 
-    /* Allocate DMA addressable space for the UART test contexts.
+    /* Obtain the local bus base addresses for the UARTs */
+    ports[0].local_bus_base_address = read_reg32 (lcs, PEX_LCS_LAS0BA) & PEX_LCS_LASxBA_ADDR_MASK;
+    ports[1].local_bus_base_address = read_reg32 (lcs, PEX_LCS_LAS1BA) & PEX_LCS_LASxBA_ADDR_MASK;
+
+    /* Allocate DMA addressable space for the UART test contexts, including DMA descriptors.
      * The allocated size needs to be page aligned to prevent VFIO_IOMMU_MAP_DMA failing with EPERM */
     const size_t page_size = (size_t) getpagesize ();
     const size_t per_context_iova_size =
-            TEST_DURATION_BYTES    + /* tx_buffer */
-            TEST_DURATION_BYTES    + /* rx_buffer */
-            UART_BLOCK_SIZE_BYTES;   /* rx_lsr_block */
-    const size_t required_iova_size = NUM_UARTS * per_context_iova_size;
+            vfio_align_cache_line_size (TEST_DURATION_BYTES)    + /* tx_buffer */
+            vfio_align_cache_line_size (TEST_DURATION_BYTES)    + /* rx_buffer */
+            vfio_align_cache_line_size (UART_BLOCK_SIZE_BYTES)  + /* rx_lsr_block */
+            vfio_align_cache_line_size ((TEST_DMA_RING_SIZE * sizeof (pex_ring_dma_descriptor_short_format_t))); /* DMA descriptors */
+    const size_t required_iova_size = arg_num_uarts_tested * per_context_iova_size;
     const size_t aligned_iova_size = ((required_iova_size + page_size - 1) / page_size) * page_size;
-    allocate_vfio_dma_mapping (vfio_devices, &vfio_mapping, NUM_UARTS * aligned_iova_size,
+    allocate_vfio_dma_mapping (vfio_devices, &vfio_mapping, arg_num_uarts_tested * aligned_iova_size,
             VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, VFIO_BUFFER_ALLOCATION_HEAP);
     if (vfio_mapping.buffer.vaddr == NULL)
     {
         exit (EXIT_FAILURE);
     }
+    printf ("vfio_mapping iova=0x%" PRIx64 " size=0x%zx\n", vfio_mapping.iova, vfio_mapping.buffer.size);
     memset (contexts, 0, sizeof (contexts));
-    for (context_index = 0; context_index < NUM_UARTS; context_index++)
+    for (context_index = 0; context_index < arg_num_uarts_tested; context_index++)
     {
         uart_test_context_t *const context = &contexts[context_index];
 
         context->tx_buffer = vfio_dma_mapping_allocate_space (&vfio_mapping, TEST_DURATION_BYTES, &context->tx_buffer_iova);
+        vfio_dma_mapping_align_space (&vfio_mapping);
         context->rx_buffer = vfio_dma_mapping_allocate_space (&vfio_mapping, TEST_DURATION_BYTES, &context->rx_buffer_iova);
+        vfio_dma_mapping_align_space (&vfio_mapping);
         context->rx_lsr_block = vfio_dma_mapping_allocate_space (&vfio_mapping, UART_BLOCK_SIZE_BYTES, &context->rx_lsr_block_iova);
         if ((context->tx_buffer == NULL) || (context->rx_buffer == NULL) || (context->rx_lsr_block == NULL))
         {
@@ -695,58 +1029,116 @@ static void perform_uart_tests (vfio_devices_t *const vfio_devices, const uint32
     printf ("Performing tests with UART registers mapped into virtual address space using VFIO\n");
 
     /* Perform tests which detect the type of UART. This exits the process if the detection fails. */
-    for (port_index = 0; port_index < NUM_UARTS; port_index++)
+    for (port_index = 0; port_index < arg_num_uarts_tested; port_index++)
     {
         autoconfig (&ports[port_index]);
     }
 
     /* Initialise the UARTs */
-    for (port_index = 0; port_index < NUM_UARTS; port_index++)
+    for (port_index = 0; port_index < arg_num_uarts_tested; port_index++)
     {
         set_uart_operational_mode (&ports[port_index]);
     }
 
-    /* Select internal loopback for the UARTS, where the each port loops back to itself */
-    internal_loopback = true;
-    for (port_index = 0; port_index < NUM_UARTS; port_index++)
-    {
-        uart_port_t *const port = &ports[port_index];
 
-        serial_set_internal_loopback (port, internal_loopback);
-        contexts[port_index].tx_port = port;
-        contexts[port_index].rx_port = port;
+    if (arg_dump_pex_registers)
+    {
+        pex_dump_lcs_registers (lcs, "UART setup");
     }
 
-    /* Perform a test using internal loopback and PIO */
+    /* Iterate over test modes */
     seed = 1;
-    printf ("Performing test using PIO and internal loopback\n");
-    perform_uart_loopback_test (contexts, &seed, internal_loopback);
-
-    if (test_external_loopback)
+    for (uart_test_mode_t test_mode = 0; test_mode < UART_TEST_MODE_ARRAY_SIZE; test_mode++)
     {
-        /* Select external loopback for the UARTS, where the each port is looped back external to the other port.
-         * With the Sealevel COMM+2.LPCIe board (7205e) set to it's default switch settings to give RS-422 mode use the
-         * following connections on the DB25 connector:
-         * - Pin  3 (port 1 RD+) to pin 17 (port 2 TD+)
-         * - Pin  1 (port 1 RD-) to pin 14 (port 2 TD-)
-         * - Pin 13 (port 2 RD+) to pin  7 (port 1 TD+)
-         * - Pin 11 (port 2 RD-) to pin  4 (port 1 TD-)
-         */
-        internal_loopback = false;
-        for (port_index = 0; port_index < NUM_UARTS; port_index++)
+        /* Skip a test mode which isn't enabled */
+        if (!arg_enabled_test_modes[test_mode])
         {
-            serial_set_internal_loopback (&ports[port_index], internal_loopback);
-            contexts[port_index].tx_port = &ports[port_index];
-            contexts[port_index].rx_port = &ports[(port_index + 1) % NUM_UARTS];
+            continue;
         }
 
-        /* Perform a test using external loopback and PIO */
-        printf ("Performing test using PIO and external loopback\n");
-        perform_uart_loopback_test (contexts, &seed, internal_loopback);
+        /* Perform any test mode specific setup */
+        switch (test_mode)
+        {
+        case UART_TEST_MODE_DMA_RING:
+            /* Perform initialisation to use DMA, using a different DMA channel for each test context.
+             * Depending upon if internal or external loopback is used for a test the DMA channel can target one or both UARTs.
+             * This doesn't start any DMA. */
+            pex_check_iova_constraints (&vfio_mapping);
+            for (context_index = 0; context_index < arg_num_uarts_tested; context_index++)
+            {
+                pex_initialise_dma_ring (&contexts[context_index].ring, lcs, context_index, TEST_DMA_RING_SIZE, &vfio_mapping);
+            }
+            if (arg_dump_pex_registers)
+            {
+                pex_dump_lcs_registers (lcs, "DMA ring setup");
+            }
+            break;
+
+        case UART_TEST_MODE_DMA_BLOCK:
+            for (context_index = 0; context_index < arg_num_uarts_tested; context_index++)
+            {
+                pex_initialise_dma_block (&contexts[context_index].block, lcs, context_index);
+            }
+            if (arg_dump_pex_registers)
+            {
+                pex_dump_lcs_registers (lcs, "DMA block setup");
+            }
+            break;
+
+        default:
+            /* No specific setup for this test mode */
+            break;
+        }
+
+        /* Select internal loopback for the UARTS, where the each port loops back to itself */
+        internal_loopback = true;
+        for (port_index = 0; port_index < arg_num_uarts_tested; port_index++)
+        {
+            uart_port_t *const port = &ports[port_index];
+
+            serial_set_internal_loopback (port, internal_loopback);
+            contexts[port_index].tx_port = port;
+            contexts[port_index].rx_port = port;
+        }
+
+        read_lsr = true;
+        perform_uart_loopback_test (contexts, test_mode, &seed, read_lsr, internal_loopback);
+        read_lsr = false;
+        perform_uart_loopback_test (contexts, test_mode, &seed, read_lsr, internal_loopback);
+
+        if (arg_test_external_loopback)
+        {
+            /* Select external loopback for the UARTS, where the each port is looped back external to the other port.
+             * With the Sealevel COMM+2.LPCIe board (7205e) set to it's default switch settings to give RS-422 mode use the
+             * following connections on the DB25 connector:
+             * - Pin  3 (port 1 RD+) to pin 17 (port 2 TD+)
+             * - Pin  1 (port 1 RD-) to pin 14 (port 2 TD-)
+             * - Pin 13 (port 2 RD+) to pin  7 (port 1 TD+)
+             * - Pin 11 (port 2 RD-) to pin  4 (port 1 TD-)
+             */
+            internal_loopback = false;
+            for (port_index = 0; port_index < arg_num_uarts_tested; port_index++)
+            {
+                serial_set_internal_loopback (&ports[port_index], internal_loopback);
+                contexts[port_index].tx_port = &ports[port_index];
+                contexts[port_index].rx_port = &ports[(port_index + 1) % arg_num_uarts_tested];
+            }
+
+            /* Perform a test using external loopback and PIO */
+            read_lsr = true;
+            perform_uart_loopback_test (contexts, test_mode, &seed, read_lsr, internal_loopback);
+            read_lsr = false;
+            perform_uart_loopback_test (contexts, test_mode, &seed, read_lsr, internal_loopback);
+        }
+
+        if (arg_dump_pex_registers)
+        {
+            pex_dump_lcs_registers (lcs, "test mode completion");
+        }
     }
 
     /* Report statistics on the Rx FIFO level changes */
-    for (port_index = 0; port_index < NUM_UARTS; port_index++)
+    for (port_index = 0; port_index < arg_num_uarts_tested; port_index++)
     {
         const uart_port_t *const port = &ports[port_index];
 
@@ -756,7 +1148,7 @@ static void perform_uart_tests (vfio_devices_t *const vfio_devices, const uint32
 
     /* Disable ASR upon end of tests */
     const bool enable_asr = false;
-    for (port_index = 0; port_index < NUM_UARTS; port_index++)
+    for (port_index = 0; port_index < arg_num_uarts_tested; port_index++)
     {
         serial_set_additional_status_read (&ports[port_index], enable_asr);
     }
@@ -778,19 +1170,21 @@ int main (int argc, char *argv[])
         .device_id = 0x9056,
         .subsystem_vendor_id = 0x10b5,
         .subsystem_device_id = 0x3198,
-        .enable_bus_master = false
+        .enable_bus_master = true
     };
 
-    /* Any command line argument enables testing using external loopback mode */
-    const bool test_external_loopback = argc > 1;
+    parse_command_line_arguments (argc, argv);
 
     /* Open the Sealevel devices which have an IOMMU group assigned */
     open_vfio_devices_matching_filter (&vfio_devices, 1, &filter);
 
+    /* For test purposes allow overriding the starting IOVA value */
+    vfio_devices.next_iova += arg_iova_increment;
+
     /* Process any Sealevel devices found */
     for (uint32_t device_index = 0; device_index < vfio_devices.num_devices; device_index++)
     {
-        perform_uart_tests (&vfio_devices, device_index, test_external_loopback);
+        perform_uart_tests (&vfio_devices, device_index);
     }
 
     close_vfio_devices (&vfio_devices);

@@ -898,9 +898,7 @@ void *vfio_dma_mapping_allocate_space (vfio_dma_mapping_t *const mapping,
  */
 void vfio_dma_mapping_align_space (vfio_dma_mapping_t *const mapping)
 {
-    const size_t cache_line_size = 64;
-
-    mapping->num_allocated_bytes = ((mapping->num_allocated_bytes + (cache_line_size - 1)) / cache_line_size) * cache_line_size;
+    mapping->num_allocated_bytes = vfio_align_cache_line_size (mapping->num_allocated_bytes);
 }
 
 

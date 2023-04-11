@@ -216,6 +216,21 @@ void vfio_launch_secondary_processes (vfio_devices_t *const vfio_devices,
 void vfio_await_secondary_processes (const uint32_t num_processes, vfio_secondary_process_t processes[const num_processes]);
 
 
+/* Intel processor cache line size */
+#define VFIO_CACHE_LINE_SIZE 64
+
+
+/**
+ * @brief Round up a size to be a multiple of cache line size
+ * @param[in] requested_size The size to align
+ * @return The aligned size
+ */
+static inline size_t vfio_align_cache_line_size (const size_t requested_size)
+{
+    return ((requested_size + (VFIO_CACHE_LINE_SIZE - 1)) / VFIO_CACHE_LINE_SIZE) * VFIO_CACHE_LINE_SIZE;
+}
+
+
 /**
  * @brief Perform a read from a 8-bit register in a memory mapped BAR
  * @param[in] mapped_bar The base of the BAR to read
