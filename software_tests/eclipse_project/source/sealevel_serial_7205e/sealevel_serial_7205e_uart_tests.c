@@ -50,14 +50,18 @@
 
 
 /* The size of a PEX8311 DMA ring used for one UART. Sized sufficiently to be able to hold:
- * - One descriptor for each receive byte in a block
- * - One descriptor for each LSR read in a block
- * - One descriptor for a transmit
+ * - One descriptor for each receive byte in a block.
+ * - One descriptor for each LSR read in a block.
+ * - MAX_QUEUED_BLOCKS descriptors for a transmit, allowing for each transmit byte in a block.
+ * - One descriptor to prevent the ring being entirely full.
  *
  * The worst case is when the receive mode checks the LSR, which for every byte in the receive block requires
  * a separate descriptor for the read of the receive data and LSR registers.
+ *
+ * Command line arguments can also limit the size of each transfer in a descriptor, which influences the number
+ * of descriptors used.
  */
-#define TEST_DMA_RING_SIZE (3 * UART_BLOCK_SIZE_BYTES)
+#define TEST_DMA_RING_SIZE (((2 + MAX_QUEUED_BLOCKS) * UART_BLOCK_SIZE_BYTES) + 1)
 
 
 /* Structure to access one 16C950 UART, as a 8-bit wide device on the local bus of a PEX8311.
@@ -87,6 +91,10 @@ typedef struct
      */
     int32_t rx_fifo_level_change_min;
     int32_t rx_fifo_level_change_max;
+    /* For diagnostics records when the rx_fifo_level_change_min was sampled */
+    uint32_t rfl_change_min_num_rx_blocks;
+    uint32_t rfl_change_min_value_before;
+    uint32_t rfl_change_min_value_after;
 } uart_port_t;
 
 
@@ -198,13 +206,18 @@ static bool arg_enabled_test_modes[UART_TEST_MODE_ARRAY_SIZE];
 static uint64_t arg_iova_increment;
 
 
+/* Command line argument which sets the maximum size of each DMA transfer. Lowering the value requires more DMA transfers
+ * to be used by a test, to measure the effect of the overhead of setting up each transfer. */
+static uint32_t arg_dma_transfer_max_size = UART_FIFO_DEPTH;
+
+
 /**
  * @brief Parse the command line arguments, storing the results in global variables
  * @param[in] argc, argv Arguments passed to main
  */
 static void parse_command_line_arguments (int argc, char *argv[])
 {
-    const char *const optstring = "edu:m:i:?";
+    const char *const optstring = "edu:m:i:t:?";
     int option;
     char junk;
     uart_test_mode_t test_mode;
@@ -259,9 +272,18 @@ static void parse_command_line_arguments (int argc, char *argv[])
             }
             break;
 
+        case 't':
+            if ((sscanf (optarg, "%" SCNu32 "%c", &arg_dma_transfer_max_size, &junk) != 1)
+                    || (arg_dma_transfer_max_size < 1) || (arg_dma_transfer_max_size > UART_FIFO_DEPTH))
+            {
+                printf ("ERROR: Invalid MAX DMA transfer size \"%s\"\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            break;
+
         case '?':
         default:
-            printf ("Usage %s [-e] [-d] [-u <num_uarts_tested>] [-m PIO|DMA_BLOCK|DMA_RING] [-i <IOVA_increment>]\n", argv[0]);
+            printf ("Usage %s [-e] [-d] [-u <num_uarts_tested>] [-m PIO|DMA_BLOCK|DMA_RING] [-i <IOVA_increment>] [-t <MAX_DMA_transfer_size_bytes>]\n", argv[0]);
             printf ("  -e performs test using external loopback, in addition to internal loopback\n");
             printf ("  -d dumps the PEX8311 Local Configuration Space registers for debugging\n");
             printf ("  -m may be specified more than once to specify multiple test modes\n");
@@ -363,9 +385,10 @@ static void serial_set_internal_loopback (uart_port_t *const port, const bool en
  * @brief Read the current receive FIFO level for a UART, updating statistics on the amount of change in the level
  * @details Assumes serial_set_additional_status_read() has been called for port to enable ASR.
  * @param[in/out] port The UART port to read the receive FIFO level for
+ * @param[in] rx_num_blocks Used to record when in the test rx_fifo_level_change_min was changed
  * @return The current receive FIFO level
  */
-static uint8_t serial_read_rx_fifo_level (uart_port_t *const port)
+static uint8_t serial_read_rx_fifo_level (uart_port_t *const port, const uint32_t rx_num_blocks)
 {
     const uint8_t rx_fifo_level = serial_in (port, UART_RFL);
     const int32_t rx_fifo_level_change = (int32_t) rx_fifo_level - port->previous_rx_fifo_level;
@@ -373,6 +396,9 @@ static uint8_t serial_read_rx_fifo_level (uart_port_t *const port)
     if (rx_fifo_level_change < port->rx_fifo_level_change_min)
     {
         port->rx_fifo_level_change_min = rx_fifo_level_change;
+        port->rfl_change_min_num_rx_blocks = rx_num_blocks;
+        port->rfl_change_min_value_before = port->previous_rx_fifo_level;
+        port->rfl_change_min_value_after = rx_fifo_level;
     }
     if (rx_fifo_level_change > port->rx_fifo_level_change_max)
     {
@@ -563,6 +589,9 @@ static void set_uart_operational_mode (uart_port_t *const port)
     port->previous_rx_fifo_level = serial_in (port, UART_RFL);
     port->rx_fifo_level_change_min = INT32_MAX;
     port->rx_fifo_level_change_max = INT32_MIN;
+    port->rfl_change_min_num_rx_blocks = 0;
+    port->rfl_change_min_value_before = UINT32_MAX;
+    port->rfl_change_min_value_after = UINT32_MAX;
 }
 
 
@@ -635,7 +664,7 @@ static void test_context_reset (uart_test_context_t *const context, uint32_t *co
     uint32_t *const tx_words = (uint32_t *) context->tx_buffer;
 
     context->test_state = UART_TEST_RUNNING;
-    context->test_state = DMA_RING_IDLE;
+    context->dma_ring_state = DMA_RING_IDLE;
     context->num_tx_blocks = 0u;
     context->num_rx_blocks = 0u;
     context->rx_test_pattern = *seed;
@@ -699,6 +728,26 @@ static void process_rx_block (uart_test_context_t *const context)
 
 
 /**
+ * @brief Determine the number of blocks which can be transmitted, which won't overrun the receive FIFO
+ * @param[in] context The UART test context
+ * @return The number of blocks to transmit
+ */
+static uint32_t get_num_tx_blocks_to_queue (const uart_test_context_t *const context)
+{
+    uint32_t new_num_tx_blocks = context->num_tx_blocks;
+    uint32_t num_tx_blocks_to_queue = 0;
+
+    while ((new_num_tx_blocks < TEST_DURATION_BLOCKS) && ((new_num_tx_blocks - context->num_rx_blocks) < MAX_QUEUED_BLOCKS))
+    {
+        new_num_tx_blocks++;
+        num_tx_blocks_to_queue++;
+    }
+
+    return num_tx_blocks_to_queue;
+}
+
+
+/**
  * @brief Sequence running the UART loopback test for one context when using PIO to transmit/receive
  * @details This updates the test context, transmitting and receiving as required until either the test has completed or failed.
  *          Attempts to overlap transmission with receipt to maximise the overall test throughput.
@@ -709,7 +758,8 @@ static void sequence_uart_loopback_test_pio (uart_test_context_t *const context)
     uint32_t block_index;
 
     /* When not all blocks have been transmitted, and the receive FIFO won't overrun, transmit the next block of bytes */
-    while ((context->num_tx_blocks < TEST_DURATION_BLOCKS) && ((context->num_tx_blocks - context->num_rx_blocks) < MAX_QUEUED_BLOCKS))
+    uint32_t num_tx_blocks_to_queue = get_num_tx_blocks_to_queue (context);
+    while (num_tx_blocks_to_queue > 0)
     {
         const uint8_t *const tx_block_bytes = &context->tx_buffer[context->num_tx_blocks * UART_BLOCK_SIZE_BYTES];
 
@@ -718,6 +768,7 @@ static void sequence_uart_loopback_test_pio (uart_test_context_t *const context)
             serial_out (context->tx_port, UART_TX, tx_block_bytes[block_index]);
         }
         context->num_tx_blocks++;
+        num_tx_blocks_to_queue--;
     }
 
     /* Check for receive from the UART. This can either:
@@ -726,7 +777,7 @@ static void sequence_uart_loopback_test_pio (uart_test_context_t *const context)
      */
     if (context->num_tx_blocks > context->num_rx_blocks)
     {
-        const uint8_t rx_fifo_level = serial_read_rx_fifo_level (context->rx_port);
+        const uint8_t rx_fifo_level = serial_read_rx_fifo_level (context->rx_port, context->num_rx_blocks);
 
         if (rx_fifo_level >= UART_BLOCK_SIZE_BYTES)
         {
@@ -760,38 +811,117 @@ static void sequence_uart_loopback_test_pio (uart_test_context_t *const context)
  */
 static void sequence_uart_loopback_test_dma_ring (uart_test_context_t *const context)
 {
-    /*@todo just try some DMA */
-    for (uint32_t block_index = 0; (context->test_state == UART_TEST_RUNNING) && (block_index < UART_FIFO_DEPTH); block_index++)
+    /* Since pex_update_descriptor_in_ring() doesn't allow for descriptors to be added to the ring while DMA is in progress,
+     * have to wait of the DMA to complete before can take other action which can start DMA. */
+    switch (context->dma_ring_state)
     {
-        pex_update_descriptor_in_ring (&context->ring, 1, (uint32_t) context->tx_buffer_iova + block_index,
-                context->tx_port->local_bus_base_address + UART_TX, PEX_LCS_DMADPRx_DIRECTION_PCI_TO_LOCAL);
-    }
-    pex_start_dma_ring (&context->ring);
-
-    while ((context->test_state == UART_TEST_RUNNING) && (serial_in (context->rx_port, UART_RFL) < UART_FIFO_DEPTH))
-    {
-        check_for_test_timeout (context, "Waiting for Rx");
-    }
-
-    if (context->test_state == UART_TEST_RUNNING)
-    {
-        for (uint32_t block_index = 0; (context->test_state == UART_TEST_RUNNING) && (block_index < UART_FIFO_DEPTH); block_index++)
+    case DMA_RING_IDLE:
         {
-            pex_update_descriptor_in_ring (&context->ring, 1, (uint32_t) context->rx_buffer_iova + block_index,
-                    context->rx_port->local_bus_base_address + UART_RX, PEX_LCS_DMADPRx_DIRECTION_LOCAL_TO_PCI);
+            /* Queue blocks for transmission by DMA. The size of each transfer, and therefore the number of transfers used,
+             * depends upon the command line argument which limits the size of each transfer. */
+            const uint32_t num_tx_blocks_to_queue = get_num_tx_blocks_to_queue (context);
+            if (num_tx_blocks_to_queue > 0)
+            {
+                uint32_t remaining_bytes = num_tx_blocks_to_queue * UART_BLOCK_SIZE_BYTES;
+                uint32_t num_bytes_queued = context->num_tx_blocks * UART_BLOCK_SIZE_BYTES;
+
+                while (remaining_bytes > 0)
+                {
+                    const uint32_t transfer_size_bytes =
+                            remaining_bytes < arg_dma_transfer_max_size ? remaining_bytes : arg_dma_transfer_max_size;
+
+                    pex_update_descriptor_in_ring (&context->ring, transfer_size_bytes,
+                            (uint32_t) context->tx_buffer_iova + num_bytes_queued,
+                            context->tx_port->local_bus_base_address + UART_TX, PEX_LCS_DMADPRx_DIRECTION_PCI_TO_LOCAL);
+                    remaining_bytes -= transfer_size_bytes;
+                    num_bytes_queued += transfer_size_bytes;
+                }
+
+                context->num_tx_blocks += num_tx_blocks_to_queue;
+                pex_start_dma_ring (&context->ring);
+                context->dma_ring_state = DMA_RING_TX_BLOCK_STARTED;
+            }
+
+            /* When DMA is idle, queue receive DMA when a block is available in the UART receive FIFO */
+            if ((context->dma_ring_state == DMA_RING_IDLE) && (context->num_tx_blocks > context->num_rx_blocks))
+            {
+                const uint8_t rx_fifo_level = serial_read_rx_fifo_level (context->rx_port, context->num_rx_blocks);
+
+                if (rx_fifo_level >= UART_BLOCK_SIZE_BYTES)
+                {
+                    uint32_t num_bytes_queued = context->num_rx_blocks * UART_BLOCK_SIZE_BYTES;
+                    if (context->read_lsr)
+                    {
+                        /* When reading LSR have to queue single byte transfers for the block, which alternate between
+                         * reading the UART LSR and RX registers */
+                        memset (context->rx_lsr_block, UART_LSR_BRK_ERROR_BITS, UART_BLOCK_SIZE_BYTES);
+                        for (uint32_t block_index = 0; block_index < UART_BLOCK_SIZE_BYTES; block_index++)
+                        {
+                            pex_update_descriptor_in_ring (&context->ring, 1, (uint32_t) context->rx_lsr_block_iova + block_index,
+                                    context->rx_port->local_bus_base_address + UART_LSR, PEX_LCS_DMADPRx_DIRECTION_LOCAL_TO_PCI);
+                            pex_update_descriptor_in_ring (&context->ring, 1, (uint32_t) context->rx_buffer_iova + num_bytes_queued,
+                                    context->rx_port->local_bus_base_address + UART_RX, PEX_LCS_DMADPRx_DIRECTION_LOCAL_TO_PCI);
+                        }
+                    }
+                    else
+                    {
+                        /* When not reading LSR, can queue transfers only to transfer from the UART RX register to the Rx buffer.
+                         * The size of each transfer, and therefore the number of transfers used, depends upon the
+                         * command line argument which limits the size of each transfer. */
+                        uint32_t remaining_bytes = UART_BLOCK_SIZE_BYTES;
+
+                        while (remaining_bytes > 0)
+                        {
+                            const uint32_t transfer_size_bytes =
+                                    remaining_bytes < arg_dma_transfer_max_size ? remaining_bytes : arg_dma_transfer_max_size;
+
+                            pex_update_descriptor_in_ring (&context->ring, transfer_size_bytes,
+                                    (uint32_t) context->rx_buffer_iova + num_bytes_queued,
+                                    context->rx_port->local_bus_base_address + UART_RX, PEX_LCS_DMADPRx_DIRECTION_LOCAL_TO_PCI);
+                            remaining_bytes -= transfer_size_bytes;
+                            num_bytes_queued += transfer_size_bytes;
+                        }
+                    }
+
+                    pex_start_dma_ring (&context->ring);
+                    context->dma_ring_state = DMA_RING_RX_BLOCK_STARTED;
+                }
+                else
+                {
+                    check_for_test_timeout (context, "waiting for Rx block using DMA ring");
+                }
+            }
         }
-        pex_start_dma_ring (&context->ring);
-    }
+        break;
 
-    while ((context->test_state == UART_TEST_RUNNING) && !pex_poll_dma_ring_completion (&context->ring))
-    {
-        check_for_test_timeout (context, "DMA completion");
-    }
+    case DMA_RING_TX_BLOCK_STARTED:
+        if (pex_poll_dma_ring_completion (&context->ring))
+        {
+            /* When Tx DMA has completed can allow further DMA operations */
+            test_timeout_reset (context);
+            context->dma_ring_state = DMA_RING_IDLE;
+        }
+        else
+        {
+            check_for_test_timeout (context, "DMA ring Tx completion");
+        }
+        break;
 
-    if (context->test_state == UART_TEST_RUNNING)
-    {
-        printf ("BAR %u Rx FIFO level %u\n", context->rx_port->bar_index, serial_in (context->rx_port, UART_RFL));
-        context->test_state = UART_TEST_COMPLETE;
+    case DMA_RING_RX_BLOCK_STARTED:
+        if (pex_poll_dma_ring_completion (&context->ring))
+        {
+            /* When Rx DMA has completed process the received block This can either:
+             * - Fail the test.
+             * - Determine when the test has completed.
+             */
+            process_rx_block (context);
+            test_timeout_reset (context);
+            context->dma_ring_state = DMA_RING_IDLE;
+        }
+        else
+        {
+            check_for_test_timeout (context, "DMA ring Rx completion");
+        }
     }
 }
 
@@ -1142,8 +1272,11 @@ static void perform_uart_tests (vfio_devices_t *const vfio_devices, const uint32
     {
         const uart_port_t *const port = &ports[port_index];
 
-        printf ("PORT BAR %d Rx FIFO level change min=%d max=%d\n",
-                port->bar_index, port->rx_fifo_level_change_min, port->rx_fifo_level_change_max);
+        printf ("PORT BAR %d Rx FIFO level change min=%d (%u->%u at num_rx_blocks %u) max=%d\n",
+                port->bar_index,
+                port->rx_fifo_level_change_min,
+                port->rfl_change_min_value_before, port->rfl_change_min_value_after, port->rfl_change_min_num_rx_blocks,
+                port->rx_fifo_level_change_max);
     }
 
     /* Disable ASR upon end of tests */

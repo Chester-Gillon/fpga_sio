@@ -365,7 +365,8 @@ void pex_start_dma_ring (pex_dma_ring_context_t *const ring)
 
 /**
  * @brief Poll a DMA ring to see if the transfer started by a call to pex_start_dma_ring() has completed
- * @details The poll is done by looking at the descriptors in host memory, rather than DMA channel registers
+ * @details The poll is done by looking at the descriptors in host memory, rather than DMA channel registers.
+ *          No-op if there is no transfer in progress.
  * @param[in/out] ring The DMA ring to poll for completion for
  * @return Returns true if the transfer has completed, or false if in progress
  */
