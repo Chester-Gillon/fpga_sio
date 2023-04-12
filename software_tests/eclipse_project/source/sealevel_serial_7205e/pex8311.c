@@ -234,7 +234,7 @@ static uint32_t pex_get_dma_bus_parameters (const uint8_t *const lcs)
 
 
 /**
- * @brief Initialise one DMA channel of the the PEX8311
+ * @brief Initialise one DMA channel of the the PEX8311 to use ring DMA
  * @details This function doesn't provide flexibility for the arguments to select all possible PEX8311 DMA options,
  *          but has been written around a specific use case as described in the comments.
  * @param[out] ring The initialised ring
@@ -332,6 +332,7 @@ void pex_initialise_dma_ring (pex_dma_ring_context_t *const ring,
  * @param[in/out] ring The DMA ring to update the descriptor in.
  * @param[in] transfer_size_bytes The transfer size in bytes
  * @param[in] pci_express_address_low The starting IOVA address as seen by the DMA device for the host memory for the transfer.
+ *                                    For the ring constrained to addresses below 4 GB
  * @param[in] first_local_address The starting local bus address for the transfer
  * @param[in] direction PEX_LCS_DMADPRx_DIRECTION_PCI_TO_LOCAL or PEX_LCS_DMADPRx_DIRECTION_LOCAL_TO_PCI
  */
@@ -415,6 +416,15 @@ bool pex_poll_dma_ring_completion (pex_dma_ring_context_t *const ring)
 }
 
 
+/**
+ * @brief Initialise one DMA channel of the the PEX8311 to use block mode DMA
+ * @brief Compared to ring mode DMA:
+ *        - Block mode DMA only allows one transfer to be outstanding at once
+ *        - DMA transfer are started by only writing to DMA registers, no descriptors are used in host memory
+ * @param[out] block The initialised DMA block control structure
+ * @param[in/out] lcs Mapped to the PCI Express Base Address of the PEX8311 Local Configuration Space registers
+ * @param[in] dma_channel Which DMA channel (0 or 1) to initialise the block for
+ */
 void pex_initialise_dma_block (pex_dma_block_context_t *const block,
                                uint8_t *const lcs,
                                const uint32_t dma_channel)
@@ -457,6 +467,14 @@ void pex_initialise_dma_block (pex_dma_block_context_t *const block,
 }
 
 
+/**
+ * @brief Start a single DMA transfer using block mode
+ * @param[in/out] block The DMA block control structure used
+ * @param[in] transfer_size_bytes The transfer size in bytes
+ * @param[in] pci_express_address The starting IOVA address as seen by the DMA device for the host memory for the transfer.
+ * @param[in] first_local_address The starting local bus address for the transfer
+ * @param[in] direction PEX_LCS_DMADPRx_DIRECTION_PCI_TO_LOCAL or PEX_LCS_DMADPRx_DIRECTION_LOCAL_TO_PCI
+ */
 void pex_start_dma_block (pex_dma_block_context_t *const block,
                           const uint32_t transfer_size_bytes,
                           const uint64_t pci_express_address,
@@ -476,6 +494,11 @@ void pex_start_dma_block (pex_dma_block_context_t *const block,
 }
 
 
+/**
+ * @brief Poll to see if a DMA transfer started by a call to pex_start_dma_block() has completed.
+ * @param[in/out] block The DMA block control structure used
+ * @return Returns true if the transfer has completed, or false if in progress
+ */
 bool pex_poll_dma_block_completion (pex_dma_block_context_t *const block)
 {
     const uint8_t csr_value = read_reg8 (block->lcs, block->dmacsr_offset);

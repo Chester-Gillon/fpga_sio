@@ -110,8 +110,7 @@ typedef enum
 } uart_test_state_t;
 
 /* Used to track the state of DMA when performing UART_TEST_MODE_DMA_RING.
- * This allows overlapping of DMA in progress between each test context
- */
+ * This allows overlapping of DMA in progress between each test context. */
 typedef enum
 {
     DMA_RING_IDLE,
@@ -119,13 +118,23 @@ typedef enum
     DMA_RING_RX_BLOCK_STARTED
 } dma_ring_state_t;
 
+/* Used to track the state of DMA when performing UART_TEST_MODE_DMA_BLOCK.
+ * This allows overlapping of DMA in progress between each test context. */
+typedef enum
+{
+    DMA_BLOCK_IDLE,
+    DMA_BLOCK_TX_DATA_STARTED,
+    DMA_BLOCK_LSR_STARTED,
+    DMA_BLOCK_RX_DATA_STARTED
+} dma_block_state_t;
+
 /* Structure which contains the context used for a UART test */
 typedef struct
 {
     /* Controls how the Line Status Register (LSR) is used during the test:
      * - When true, the LSR is read before each receive byte, and checked after each block has been received.
      * - When false the LSR is not read during the test, thus reducing the number of accesses to the UART registers.
-     *   If their are receive errors should be indicated by a receive timeout and/or incorrect received bytes.
+     *   If there are receive errors should be indicated by a receive timeout and/or incorrect received bytes.
      */
     bool read_lsr;
     /* Used to perform DMA for the test when UART_TEST_MODE_DMA_RING */
@@ -137,8 +146,14 @@ typedef struct
     uart_port_t *rx_port;
     /* Current state of the test */
     uart_test_state_t test_state;
-    /* Used to track the state of DMA */
+    /* Used to track the state of DMA for UART_TEST_MODE_DMA_RING */
     dma_ring_state_t dma_ring_state;
+    /* Used to track the state of DMA for UART_TEST_MODE_DMA_BLOCK */
+    dma_block_state_t dma_block_state;
+    uint32_t dma_block_remaining_bytes;
+    uint32_t dma_block_tx_buffer_index;
+    uint32_t dma_block_rx_buffer_index;
+    uint32_t dma_block_rx_lsr_block_index;
     /* Absolute time at which the test times-out for the current block */
     struct timespec block_timeout;
     /* Used to advance the expected receive test pattern */
@@ -675,6 +690,11 @@ static void test_context_reset (uart_test_context_t *const context, uint32_t *co
 
     context->test_state = UART_TEST_RUNNING;
     context->dma_ring_state = DMA_RING_IDLE;
+    context->dma_block_state = DMA_BLOCK_IDLE;
+    context->dma_block_remaining_bytes = 0;
+    context->dma_block_tx_buffer_index = 0;
+    context->dma_block_rx_lsr_block_index = 0;
+    context->dma_block_rx_buffer_index = 0;
     context->num_tx_blocks = 0u;
     context->num_rx_blocks = 0u;
     context->rx_test_pattern = *seed;
@@ -921,7 +941,7 @@ static void sequence_uart_loopback_test_dma_ring (uart_test_context_t *const con
     case DMA_RING_RX_BLOCK_STARTED:
         if (pex_poll_dma_ring_completion (&context->ring))
         {
-            /* When Rx DMA has completed process the received block This can either:
+            /* When Rx DMA has completed process the received block. This can either:
              * - Fail the test.
              * - Determine when the test has completed.
              */
@@ -938,6 +958,68 @@ static void sequence_uart_loopback_test_dma_ring (uart_test_context_t *const con
 
 
 /**
+ * @brief When using block DMA to test the UART, start the next DMA transfer
+ * @details This also uses the dma_block_remaining_bytes and dma_block_*_index variables to track how far through the
+ *          current UART_BLOCK_SIZE_BYTES have got.
+ * @params[in/out] context The UART test context
+ */
+static void sequence_dma_block_transfers (uart_test_context_t *const context)
+{
+    switch (context->dma_block_state)
+    {
+    case DMA_BLOCK_TX_DATA_STARTED:
+        {
+            /* Start the next DMA transfer for Tx data. The size of each transfer, and therefore the number of transfers
+             * used, depends upon the command line argument which limits the size of each transfer. */
+            const uint32_t transfer_size_bytes =
+                    context->dma_block_remaining_bytes < arg_dma_transfer_max_size ?
+                            context->dma_block_remaining_bytes : arg_dma_transfer_max_size;
+
+            pex_start_dma_block (&context->block, transfer_size_bytes,
+                    context->tx_buffer_iova + context->dma_block_tx_buffer_index,
+                    context->tx_port->local_bus_base_address + UART_TX, PEX_LCS_DMADPRx_DIRECTION_PCI_TO_LOCAL);
+            context->dma_block_remaining_bytes -= transfer_size_bytes;
+            context->dma_block_tx_buffer_index += transfer_size_bytes;
+        }
+        break;
+
+    case DMA_BLOCK_LSR_STARTED:
+        {
+            /* Start the next DMA transfer for one byte from the LSR register.
+             * Value of dma_block_remaining_bytes is left unchanged, as used for following DMA_BLOCK_RX_DATA_STARTED state */
+            const uint32_t transfer_size_bytes = 1;
+
+            pex_start_dma_block (&context->block, transfer_size_bytes, context->rx_lsr_block_iova + context->dma_block_rx_lsr_block_index,
+                    context->rx_port->local_bus_base_address + UART_LSR, PEX_LCS_DMADPRx_DIRECTION_LOCAL_TO_PCI);
+            context->dma_block_rx_lsr_block_index += transfer_size_bytes;
+        }
+        break;
+
+    case DMA_BLOCK_RX_DATA_STARTED:
+        {
+            /* Start the next DMA transfer for Rx data. When read_lsr is enabled has to transfer a single byte,
+             * otherwise use the command line argument which limits the size of each transfer. */
+            const uint32_t max_transfer_size = context->read_lsr ? 1 : arg_dma_transfer_max_size;
+            const uint32_t transfer_size_bytes =
+                    context->dma_block_remaining_bytes < max_transfer_size ? context->dma_block_remaining_bytes : max_transfer_size;
+
+            pex_start_dma_block (&context->block, transfer_size_bytes,
+                    context->rx_buffer_iova + context->dma_block_rx_buffer_index,
+                    context->rx_port->local_bus_base_address + UART_RX, PEX_LCS_DMADPRx_DIRECTION_LOCAL_TO_PCI);
+            context->dma_block_remaining_bytes -= transfer_size_bytes;
+            context->dma_block_rx_buffer_index += transfer_size_bytes;
+        }
+        break;
+
+    default:
+        printf ("Unexpected state\n");
+        exit (EXIT_FAILURE);
+        break;
+    }
+}
+
+
+/**
  * @brief Sequence running the UART loopback test for one context when using DMA block mode to transmit/receive
  * @details This updates the test context, transmitting and receiving as required until either the test has completed or failed.
  *          Attempts to overlap transmission with receipt to maximise the overall test throughput.
@@ -945,36 +1027,111 @@ static void sequence_uart_loopback_test_dma_ring (uart_test_context_t *const con
  */
 static void sequence_uart_loopback_test_dma_block (uart_test_context_t *const context)
 {
-    /*@todo just try some DMA */
-    for (uint32_t block_index = 0; (context->test_state == UART_TEST_RUNNING) && (block_index < UART_FIFO_DEPTH); block_index++)
+    /* As block mode DMA only allows one transfer to be in progress on a DMA channel at once, have to wait for the DMA to
+     * complete before can take any other action which starts DMA. */
+    switch (context->dma_block_state)
     {
-        pex_start_dma_block (&context->block, 1, context->tx_buffer_iova + block_index,
-                context->tx_port->local_bus_base_address + UART_TX, PEX_LCS_DMADPRx_DIRECTION_PCI_TO_LOCAL);
-        while ((context->test_state == UART_TEST_RUNNING) && !pex_poll_dma_block_completion (&context->block))
+    case DMA_BLOCK_IDLE:
         {
-            check_for_test_timeout (context, "DMA completion");
+            /* Starting queueing blocks for transmission by DMA */
+            const uint32_t num_tx_blocks_to_queue = get_num_tx_blocks_to_queue (context);
+            if (num_tx_blocks_to_queue > 0)
+            {
+                context->dma_block_remaining_bytes = num_tx_blocks_to_queue * UART_BLOCK_SIZE_BYTES;
+                context->dma_block_state = DMA_BLOCK_TX_DATA_STARTED;
+                context->num_tx_blocks += num_tx_blocks_to_queue;
+                sequence_dma_block_transfers (context);
+            }
+
+            /* When DMA is idle, queue receive DMA when a block is available in the UART receive FIFO */
+            if ((context->dma_block_state == DMA_BLOCK_IDLE) && (context->num_tx_blocks > context->num_rx_blocks))
+            {
+                const uint8_t rx_fifo_level = serial_read_rx_fifo_level (context->rx_port, context->num_rx_blocks);
+
+                if (rx_fifo_level >= UART_BLOCK_SIZE_BYTES)
+                {
+                    context->dma_block_remaining_bytes = UART_BLOCK_SIZE_BYTES;
+                    if (context->read_lsr)
+                    {
+                        context->dma_block_state = DMA_BLOCK_LSR_STARTED;
+                        memset (context->rx_lsr_block, UART_LSR_BRK_ERROR_BITS, UART_BLOCK_SIZE_BYTES);
+                        context->dma_block_rx_lsr_block_index = 0;
+                    }
+                    else
+                    {
+                        context->dma_block_state = DMA_BLOCK_RX_DATA_STARTED;
+                    }
+                    sequence_dma_block_transfers (context);
+                }
+                else
+                {
+                    check_for_test_timeout (context, "waiting for Rx block using DMA block");
+                }
+            }
         }
-    }
+        break;
 
-    while ((context->test_state == UART_TEST_RUNNING) && (serial_in (context->rx_port, UART_RFL) < UART_FIFO_DEPTH))
-    {
-        check_for_test_timeout (context, "Waiting for Rx");
-    }
-
-    for (uint32_t block_index = 0; (context->test_state == UART_TEST_RUNNING) && (block_index < UART_FIFO_DEPTH); block_index++)
-    {
-        pex_start_dma_block (&context->block, 1, context->rx_buffer_iova + block_index,
-                context->tx_port->local_bus_base_address + UART_RX, PEX_LCS_DMADPRx_DIRECTION_LOCAL_TO_PCI);
-        while ((context->test_state == UART_TEST_RUNNING) && !pex_poll_dma_block_completion (&context->block))
+    case DMA_BLOCK_TX_DATA_STARTED:
+        /* Poll for a DMA transfer of Tx data completing. When no more bytes remaining can change state */
+        if (pex_poll_dma_block_completion (&context->block))
         {
-            check_for_test_timeout (context, "DMA completion");
+            test_timeout_reset (context);
+            if (context->dma_block_remaining_bytes > 0)
+            {
+                sequence_dma_block_transfers (context);
+            }
+            else
+            {
+                context->dma_block_state = DMA_BLOCK_IDLE;
+            }
         }
-    }
+        else
+        {
+            check_for_test_timeout (context, "DMA completion Tx data");
+        }
+        break;
 
-    if (context->test_state == UART_TEST_RUNNING)
-    {
-        printf ("BAR %u Rx FIFO level %u\n", context->rx_port->bar_index, serial_in (context->rx_port, UART_RFL));
-        context->test_state = UART_TEST_COMPLETE;
+    case DMA_BLOCK_LSR_STARTED:
+        /* Poll for a DMA transfer of LSR completing. When completed starts the transfer for the corresponding Rx data byte. */
+        if (pex_poll_dma_block_completion (&context->block))
+        {
+            test_timeout_reset (context);
+            context->dma_block_state = DMA_BLOCK_RX_DATA_STARTED;
+            sequence_dma_block_transfers (context);
+        }
+        else
+        {
+            check_for_test_timeout (context, "DMA completion LSR");
+        }
+        break;
+
+    case DMA_BLOCK_RX_DATA_STARTED:
+        if (pex_poll_dma_block_completion (&context->block))
+        {
+            test_timeout_reset (context);
+            if (context->dma_block_remaining_bytes > 0)
+            {
+                if (context->read_lsr)
+                {
+                    context->dma_block_state = DMA_BLOCK_LSR_STARTED;
+                }
+                sequence_dma_block_transfers (context);
+            }
+            else
+            {
+                /* When Rx DMA has completed process the received block. This can either:
+                 * - Fail the test.
+                 * - Determine when the test has completed.
+                 */
+                process_rx_block (context);
+                context->dma_block_state = DMA_BLOCK_IDLE;
+            }
+        }
+        else
+        {
+            check_for_test_timeout (context, "DMA completion Rx data");
+        }
+        break;
     }
 }
 
@@ -1043,7 +1200,17 @@ static void perform_uart_loopback_test (uart_test_context_t contexts[const NUM_U
                     break;
 
                 case UART_TEST_MODE_DMA_BLOCK:
-                    sequence_uart_loopback_test_dma_block (context);
+                    if (arg_no_dma_channel_overlap)
+                    {
+                        do
+                        {
+                            sequence_uart_loopback_test_dma_block (context);
+                        } while ((context->test_state == UART_TEST_RUNNING) && (context->dma_block_state != DMA_BLOCK_IDLE));
+                    }
+                    else
+                    {
+                        sequence_uart_loopback_test_dma_block (context);
+                    }
                     break;
 
                 default:
