@@ -211,13 +211,18 @@ static uint64_t arg_iova_increment;
 static uint32_t arg_dma_transfer_max_size = UART_FIFO_DEPTH;
 
 
+/* Command line argument which when testing multiple UARTs using DMA prevent overlapping use of DMA between channels.
+ * I.e. when waits for DMA on one channel to complete before DMA on the other channel can be started. */
+static bool arg_no_dma_channel_overlap;
+
+
 /**
  * @brief Parse the command line arguments, storing the results in global variables
  * @param[in] argc, argv Arguments passed to main
  */
 static void parse_command_line_arguments (int argc, char *argv[])
 {
-    const char *const optstring = "edu:m:i:t:?";
+    const char *const optstring = "edu:m:i:t:o?";
     int option;
     char junk;
     uart_test_mode_t test_mode;
@@ -281,11 +286,16 @@ static void parse_command_line_arguments (int argc, char *argv[])
             }
             break;
 
+        case 'o':
+            arg_no_dma_channel_overlap = true;
+            break;
+
         case '?':
         default:
-            printf ("Usage %s [-e] [-d] [-u <num_uarts_tested>] [-m PIO|DMA_BLOCK|DMA_RING] [-i <IOVA_increment>] [-t <MAX_DMA_transfer_size_bytes>]\n", argv[0]);
+            printf ("Usage %s [-e] [-d] [-o] [-u <num_uarts_tested>] [-m PIO|DMA_BLOCK|DMA_RING] [-i <IOVA_increment>] [-t <MAX_DMA_transfer_size_bytes>]\n", argv[0]);
             printf ("  -e performs test using external loopback, in addition to internal loopback\n");
             printf ("  -d dumps the PEX8311 Local Configuration Space registers for debugging\n");
+            printf ("  -o disables overlapping DMA between different channels\n");
             printf ("  -m may be specified more than once to specify multiple test modes\n");
             printf ("     Defaults to all test modes if not specified\n");
             exit (EXIT_FAILURE);
@@ -1019,7 +1029,17 @@ static void perform_uart_loopback_test (uart_test_context_t contexts[const NUM_U
                     break;
 
                 case UART_TEST_MODE_DMA_RING:
-                    sequence_uart_loopback_test_dma_ring (context);
+                    if (arg_no_dma_channel_overlap)
+                    {
+                        do
+                        {
+                            sequence_uart_loopback_test_dma_ring (context);
+                        } while ((context->test_state == UART_TEST_RUNNING) && (context->dma_ring_state != DMA_RING_IDLE));
+                    }
+                    else
+                    {
+                        sequence_uart_loopback_test_dma_ring (context);
+                    }
                     break;
 
                 case UART_TEST_MODE_DMA_BLOCK:
