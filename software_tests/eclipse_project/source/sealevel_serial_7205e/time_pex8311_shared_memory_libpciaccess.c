@@ -18,16 +18,7 @@
 
 #include "vfio_access.h" /* Just to allocate buffers from the heap */
 #include "transfer_timing.h"
-
-
-/* BAR which contains the internal shared memory */
-#define PEX8311_SHARED_MEMORY_BAR_INDEX 0
-
-/* The size of the internal shared memory in the PEX 8311 */
-#define PEX8311_SHARED_MEMORY_SIZE_BYTES (8 * 1024)
-
-/* Offset to the internal shared memory in the PEX8311_SHARED_MEMORY_BAR_INDEX */
-#define PEX8311_SHARED_MEMORY_START_OFFSET 0x8000
+#include "pex8311.h"
 
 
 /**

@@ -12,6 +12,23 @@
 #include "vfio_access.h"
 
 
+/* BAR which contains the internal shared memory */
+#define PEX8311_SHARED_MEMORY_BAR_INDEX 0
+
+/* The size of the internal shared memory in the PEX 8311 */
+#define PEX8311_SHARED_MEMORY_SIZE_BYTES (8 * 1024)
+
+/* Offset to the internal shared memory in the PEX8311_SHARED_MEMORY_BAR_INDEX */
+#define PEX8311_SHARED_MEMORY_START_OFFSET 0x8000
+
+/* 16-bit Prefetchable Memory Base register, in either PCI configuration space or memory mapped */
+#define PEX_PECS_PREBASE 0x24
+
+#define PEX_PECS_PREBASE_CAPABILITY_MASK 0xf
+#define PEX_PECS_PREBASE_CAPABILITY_32_BIT 0
+#define PEX_PECS_PREBASE_CAPABILITY_64_BIT 1
+
+
 /* BAR for PCI Express Base Address for Memory Accesses to Local, Runtime, DMA, and Messaging Queue Registers */
 #define PEX_LCS_MMIO_BAR_INDEX 0
 

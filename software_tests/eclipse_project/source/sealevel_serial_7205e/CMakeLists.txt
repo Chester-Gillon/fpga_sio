@@ -12,3 +12,6 @@ endif()
 
 add_executable (time_pex8311_shared_memory_libpciaccess "time_pex8311_shared_memory_libpciaccess.c")
 target_link_libraries (time_pex8311_shared_memory_libpciaccess vfio_access transfer_timing pciaccess pci rt)
+
+add_executable (pex8311_enable_above_4GB_dma "pex8311_enable_above_4GB_dma.c")
+target_link_libraries (pex8311_enable_above_4GB_dma pciaccess)
