@@ -1,0 +1,1672 @@
+1. Tests which passed with IOMMU enabled
+========================================
+
+Using:
+a. A W-2123 system
+b. Secure boot enabled in the BIOS
+c. AlmaLinux 8.7 with Kernel 4.18.0-425.19.2.el8_7.x86_64
+d. Command line option to enable the IOMMU. Full command line:
+[mr_halfword@skylake-alma ~]$ cat /proc/cmdline 
+BOOT_IMAGE=(hd1,gpt2)/vmlinuz-4.18.0-425.19.2.el8_7.x86_64 root=/dev/mapper/almalinux_skylake--alma-root ro resume=/dev/mapper/almalinux_skylake--alma-swap rd.lvm.lv=almalinux_skylake-alma/root rd.lvm.lv=almalinux_skylake-alma/swap rhgb quiet memmap=10444K%0x6c144000-4+2 intel_iommu=on
+
+The vfio-pci device was bound by running the following script specifying the PLX vendor ID:
+[mr_halfword@skylake-alma eclipse_project]$ ./bind_device_to_vfio.sh 10b5
+IOMMU devices present: dmar0  dmar1  dmar2  dmar3
+Loading vfio-pci module
+[sudo] password for mr_halfword: 
+vfio-pci
+0000:2d:00.0
+tee: /sys/bus/pci/drivers/vfio-pci/bind: Invalid argument
+Bound vfio-pci driver to 0000:2d:00.0 10b5:8111 [0000:0000]
+chmod: cannot access '/dev/vfio/85': No such file or directory
+Giving user permission to IOMMU group 85 for 0000:2d:00.0 10b5:8111 [0000:0000]
+vfio-pci
+0000:2e:04.0
+Bound vfio-pci driver to 0000:2e:04.0 10b5:9056 [10b5:3198]
+Giving user permission to IOMMU group 85 for 0000:2e:04.0 10b5:9056 [10b5:3198]
+
+10b5:8111 is the "PEX 8111 PCI Express-to-PCI Bridge" which vfio-pci is unable to bind to.
+
+10b5:9056 is the "PCI9056 32-bit 66MHz PCI <-> IOBus Bridge" which vfio-pci is able to bind to, and is the PCIe device
+with the UARTs which is used by the test program.
+
+
+All tests using both UARTS with both internal and external loopback using PIO, DMA_RING and DMA_BLOCK passed with the
+following command line arguments:
+[mr_halfword@skylake-alma release]$ sealevel_serial_7205e/sealevel_serial_7205e_uart_tests -u 2 -m pio -m dma_ring -m dma_block -d -o -t 1 -e
+Opening device 0000:2e:04.0 (10b5:9056) with IOMMU group 85
+Enabling bus master for 0000:2e:04.0
+PEX8311 LCS initial register values:
+  Value  Offset Description
+fffffff0   000   LCS_LAS0RR Direct Slave Local Address Space 0 Range
+03000001   004   LCS_LAS0BA Direct Slave Local Address Space 0 Local Base Address (Remap)
+09210007   008   LCS_MARBR Mode/DMA Arbitration
+      00   00c   LCS_BIGEND Big/Little Endian Descriptor
+      84   00d   LCS_LMISC1 Local Miscellaneous Control 1
+      30   00e   LCS_PROT_AREA Serial EEPROM Write-Protected Address Boundary
+      20   00f   LCS_LMISC2 Local Miscellaneous Control 2
+00000000   010   LCS_EROMRR Direct Slave Expansion ROM Range
+00000000   014   LCS_EROMBA Direct Slave Expansion ROM Local Base Address (Remap) and BREQo Control
+42000300   018   LCS_LBRD0 Local Address Space 0/Expansion ROM Bus Region Descriptor
+00000000   01c   LCS_DMRR Local Range for Direct Master-to-PCI Express
+60000000   020   LCS_DMLBAM Local Base Address for Direct Master-to-PCI Express Memory
+50000000   024   LCS_DMLBAI Local Base Address for Direct Master-to-PCI Express I/O Configuration
+00000000   028   LCS_DMPBAM PCI Express Base Address (Remap) for Direct Master-to-PCI Express Memory
+00000000   02c   LCS_DMCFGA PCI Configuration Address for Direct Master-to-PCI Express I/O Configuration
+fffffff0   0f0   LCS_LAS1RR Direct Slave Local Address Space 1 Range
+03100001   0f4   LCS_LAS1BA Direct Slave Local Address Space 1 Local Base Address (Remap)
+00000000   0f8   LCS_LBRD1 Local Address Space 1 Bus Region Descriptor
+00000000   0fc   LCS_DMDAC Direct Master PCI Express Dual Address Cycles Upper Address
+00000000   100   LCS_PCIARB Internal Arbiter Control
+00000000   104   LCS_PABTADR PCI Abort Address
+00000000   040   LCS_MBOX0 Mailbox 0
+00000000   044   LCS_MBOX1 Mailbox 1
+00000000   048   LCS_MBOX2 Mailbox 2
+00000000   04c   LCS_MBOX3 Mailbox 3
+00000000   050   LCS_MBOX4 Mailbox 4
+00000000   054   LCS_MBOX5 Mailbox 5
+00000000   058   LCS_MBOX6 Mailbox 6
+00000000   05c   LCS_MBOX7 Mailbox 7
+00000000   060   LCS_P2LDBELL PCI Express-to-Local Doorbell
+00000000   064   LCS_L2PDBELL Local-to-PCI Express Doorbell
+0f010100   068   LCS_INTCSR Interrupt Control/Status
+100f767e   06c   LCS_CNTRL Serial EEPROM Control, PCI Command Codes, User I/O Control, and Init Control
+905610b5   070   LCS_PCIHIDR PCI Hardwired Configuration ID
+000000ba   074   LCS_PCIHREV PCI Hardwired Revision ID
+00000043   080   LCS_DMAMODE0 DMA Channel 0 Mode
+00000000   084   LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+00000000   088   LCS_DMALADR0 DMA Channel 0 Local Address
+00000000   08c   LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00000000   090   LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00000043   094   LCS_DMAMODE1 DMA Channel 1 Mode
+00000000   098   LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+00000000   09c   LCS_DMALADR1 DMA Channel 1 Local Address
+00000000   0a0   LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+00000000   0a4   LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      10   0a8   LCS_DMACSR0 DMA Channel 0 Command/Status
+      10   0a9   LCS_DMACSR1 DMA Channel 1 Command/Status
+09210007   0ac   LCS_DMAARB DMA Arbitration
+00000000   0b0   LCS_DMATHR DMA Threshold
+00000000   0b4   LCS_DMADAC0 DMA Channel 0 PCI Express Dual Address Cycle Upper Address
+00000000   0b8   LCS_DMADAC1 DMA Channel 1 PCI Express Dual Address Cycle Upper Address
+00000000   030   LCS_OPQIS Outbound Post Queue Interrupt Status
+00000008   034   LCS_OPQIM Outbound Post Queue Interrupt Mask
+00000000   040   LCS_IQP Inbound Queue Port
+00000000   044   LCS_OQP Outbound Queue Port
+00000002   0c0   LCS_MQCR Messaging Queue Configuration
+00000000   0c4   LCS_QBAR Queue Base Address
+00000000   0c8   LCS_IFHPR Inbound Free Head Pointer
+00000000   0cc   LCS_IFTPR Inbound Free Tail Pointer
+00000000   0d0   LCS_IPHPR Inbound Post Head Pointer
+00000000   0d4   LCS_IPTPR Inbound Post Tail Pointer
+00000000   0d8   LCS_OFHPR Outbound Free Head Pointer
+00000000   0dc   LCS_OFTPR Outbound Free Tail Pointer
+00000000   0e0   LCS_OPHPR Outbound Post Head Pointer
+00000000   0e4   LCS_OPTPR Outbound Post Tail Pointer
+00000050   0e8   LCS_QSR Queue Status/Control
+
+vfio_mapping iova=0x0 size=0x806000
+Performing tests with UART registers mapped into virtual address space using VFIO
+Detected 16C950 rev B on bar_index 2
+Detected 16C950 rev B on bar_index 3
+PEX8311 LCS changed values following UART setup:
+
+
+Testing 2 UARTs, mode PIO, reading LSR, using internal loopback ...
+2 UARTs, mode PIO, reading LSR, using internal loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.092768 (Mbytes/sec)
+
+Testing 2 UARTs, mode PIO, ignoring LSR, using internal loopback ...
+2 UARTs, mode PIO, ignoring LSR, using internal loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.163200 (Mbytes/sec)
+
+Testing 2 UARTs, mode PIO, reading LSR, using external loopback ...
+2 UARTs, mode PIO, reading LSR, using external loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.092822 (Mbytes/sec)
+
+Testing 2 UARTs, mode PIO, ignoring LSR, using external loopback ...
+2 UARTs, mode PIO, ignoring LSR, using external loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.163221 (Mbytes/sec)
+PEX8311 LCS changed values following test mode completion:
+
+PEX8311 LCS changed values following DMA ring setup:
+00000043 -> 00310a00 LCS_DMAMODE0 DMA Channel 0 Mode
+00000000 -> 00400081 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00000043 -> 00310a00 LCS_DMAMODE1 DMA Channel 1 Mode
+00000000 -> 004010c1 LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+
+
+Testing 2 UARTs, mode DMA_RING, reading LSR, using internal loopback ...
+2 UARTs, mode DMA_RING, reading LSR, using internal loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.020168 (Mbytes/sec)
+
+Testing 2 UARTs, mode DMA_RING, ignoring LSR, using internal loopback ...
+2 UARTs, mode DMA_RING, ignoring LSR, using internal loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.029328 (Mbytes/sec)
+
+Testing 2 UARTs, mode DMA_RING, reading LSR, using external loopback ...
+2 UARTs, mode DMA_RING, reading LSR, using external loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.020171 (Mbytes/sec)
+
+Testing 2 UARTs, mode DMA_RING, ignoring LSR, using external loopback ...
+2 UARTs, mode DMA_RING, ignoring LSR, using external loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.029329 (Mbytes/sec)
+PEX8311 LCS changed values following test mode completion:
+09210007 -> 09210000 LCS_MARBR Mode/DMA Arbitration
+00000000 -> 00401acc LCS_PABTADR PCI Abort Address
+00000000 -> 000fffbf LCS_DMALADR0 DMA Channel 0 Local Address
+00000000 -> 03100000 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00400081 -> 00400a89 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00000000 -> 002fffff LCS_DMALADR1 DMA Channel 1 Local Address
+00000000 -> 03000000 LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+004010c1 -> 00401ac9 LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      10 ->       11 LCS_DMACSR0 DMA Channel 0 Command/Status
+      10 ->       11 LCS_DMACSR1 DMA Channel 1 Command/Status
+09210007 -> 09210000 LCS_DMAARB DMA Arbitration
+
+PEX8311 LCS changed values following DMA block setup:
+00310a00 -> 00000800 LCS_DMAMODE0 DMA Channel 0 Mode
+00000000 -> 000fffbf LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+000fffbf -> 03100000 LCS_DMALADR0 DMA Channel 0 Local Address
+03100000 -> 00000000 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00310a00 -> 00000800 LCS_DMAMODE1 DMA Channel 1 Mode
+00000000 -> 002fffff LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+002fffff -> 03000000 LCS_DMALADR1 DMA Channel 1 Local Address
+03000000 -> 00000000 LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+      11 ->       10 LCS_DMACSR0 DMA Channel 0 Command/Status
+      11 ->       10 LCS_DMACSR1 DMA Channel 1 Command/Status
+
+
+Testing 2 UARTs, mode DMA_BLOCK, reading LSR, using internal loopback ...
+2 UARTs, mode DMA_BLOCK, reading LSR, using internal loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.035655 (Mbytes/sec)
+
+Testing 2 UARTs, mode DMA_BLOCK, ignoring LSR, using internal loopback ...
+2 UARTs, mode DMA_BLOCK, ignoring LSR, using internal loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.051654 (Mbytes/sec)
+
+Testing 2 UARTs, mode DMA_BLOCK, reading LSR, using external loopback ...
+2 UARTs, mode DMA_BLOCK, reading LSR, using external loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.035640 (Mbytes/sec)
+
+Testing 2 UARTs, mode DMA_BLOCK, ignoring LSR, using external loopback ...
+2 UARTs, mode DMA_BLOCK, ignoring LSR, using external loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.051706 (Mbytes/sec)
+PEX8311 LCS changed values following test mode completion:
+00401acc -> 0040003c LCS_PABTADR PCI Abort Address
+000fffbf -> 001fffff LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+00000000 -> 00000001 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00400a89 -> 00000008 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+002fffff -> 0040003f LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+00000000 -> 00000001 LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+00401ac9 -> 00000008 LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      10 ->       11 LCS_DMACSR0 DMA Channel 0 Command/Status
+      10 ->       11 LCS_DMACSR1 DMA Channel 1 Command/Status
+
+PORT BAR 2 Rx FIFO level change min=0 (64->64 at num_rx_blocks 16383) max=128 num_negative=0
+PORT BAR 3 Rx FIFO level change min=0 (64->64 at num_rx_blocks 16383) max=128 num_negative=0
+
+All 12 tests PASSED
+
+However, the transfer rates using DMA are lower than using PIO, since to get the DMA to work had to:
+a. Only allow DMA transfers to be in progress on one channel at once.
+b. Had to limit the DMA transfer size to a single byte.
+
+
+When using a single UART with PCI the transfer speed can achieve the full 2.4576 Mbaud set on the UART
+(allowing for 1 start bit, 8 data bits, 1 stop bit). In this case can sometimes sample the Rx FIFO level
+as going backwards, which the OX16C950B datasheet warns can happen since the UART clock is asynchronous with respect to the processor: 
+[mr_halfword@skylake-alma release]$ sealevel_serial_7205e/sealevel_serial_7205e_uart_tests -u 1 -m pio 1
+Opening device 0000:2e:04.0 (10b5:9056) with IOMMU group 85
+Enabling bus master for 0000:2e:04.0
+vfio_mapping iova=0x0 size=0x202000
+Performing tests with UART registers mapped into virtual address space using VFIO
+Detected 16C950 rev B on bar_index 2
+
+Testing 1 UARTs, mode PIO, reading LSR, using internal loopback ...
+1 UARTs, mode PIO, reading LSR, using internal loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.185599 (Mbytes/sec)
+
+Testing 1 UARTs, mode PIO, ignoring LSR, using internal loopback ...
+1 UARTs, mode PIO, ignoring LSR, using internal loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.245749 (Mbytes/sec)
+PORT BAR 2 Rx FIFO level change min=-16 (63->47 at num_rx_blocks 5757) max=74 num_negative=29
+
+All 2 tests PASSED
+
+
+2. DMA timeouts with IOMMU on and attempt to overlap DMA from two channels
+==========================================================================
+
+If leave the maximum DMA transfer size as one byte, but allow both DMA channels to overlap then both DMA_RING and DMA_BLOCK
+fail with "Timeout waiting for DMA completion Tx data" or "Timeout waiting for DMA ring Rx completion" after a few transfers:
+[mr_halfword@skylake-alma release]$ sealevel_serial_7205e/sealevel_serial_7205e_uart_tests -u 2 -m dma_ring -d -t 1
+Opening device 0000:2e:04.0 (10b5:9056) with IOMMU group 85
+Enabling bus master for 0000:2e:04.0
+PEX8311 LCS initial register values:
+  Value  Offset Description
+fffffff0   000   LCS_LAS0RR Direct Slave Local Address Space 0 Range
+03000001   004   LCS_LAS0BA Direct Slave Local Address Space 0 Local Base Address (Remap)
+09210007   008   LCS_MARBR Mode/DMA Arbitration
+      00   00c   LCS_BIGEND Big/Little Endian Descriptor
+      84   00d   LCS_LMISC1 Local Miscellaneous Control 1
+      30   00e   LCS_PROT_AREA Serial EEPROM Write-Protected Address Boundary
+      20   00f   LCS_LMISC2 Local Miscellaneous Control 2
+00000000   010   LCS_EROMRR Direct Slave Expansion ROM Range
+00000000   014   LCS_EROMBA Direct Slave Expansion ROM Local Base Address (Remap) and BREQo Control
+42000300   018   LCS_LBRD0 Local Address Space 0/Expansion ROM Bus Region Descriptor
+00000000   01c   LCS_DMRR Local Range for Direct Master-to-PCI Express
+60000000   020   LCS_DMLBAM Local Base Address for Direct Master-to-PCI Express Memory
+50000000   024   LCS_DMLBAI Local Base Address for Direct Master-to-PCI Express I/O Configuration
+00000000   028   LCS_DMPBAM PCI Express Base Address (Remap) for Direct Master-to-PCI Express Memory
+00000000   02c   LCS_DMCFGA PCI Configuration Address for Direct Master-to-PCI Express I/O Configuration
+fffffff0   0f0   LCS_LAS1RR Direct Slave Local Address Space 1 Range
+03100001   0f4   LCS_LAS1BA Direct Slave Local Address Space 1 Local Base Address (Remap)
+00000000   0f8   LCS_LBRD1 Local Address Space 1 Bus Region Descriptor
+00000000   0fc   LCS_DMDAC Direct Master PCI Express Dual Address Cycles Upper Address
+00000000   100   LCS_PCIARB Internal Arbiter Control
+001ffffc   104   LCS_PABTADR PCI Abort Address
+00000000   040   LCS_MBOX0 Mailbox 0
+00000000   044   LCS_MBOX1 Mailbox 1
+00000000   048   LCS_MBOX2 Mailbox 2
+00000000   04c   LCS_MBOX3 Mailbox 3
+00000000   050   LCS_MBOX4 Mailbox 4
+00000000   054   LCS_MBOX5 Mailbox 5
+00000000   058   LCS_MBOX6 Mailbox 6
+00000000   05c   LCS_MBOX7 Mailbox 7
+00000000   060   LCS_P2LDBELL PCI Express-to-Local Doorbell
+00000000   064   LCS_L2PDBELL Local-to-PCI Express Doorbell
+0f010100   068   LCS_INTCSR Interrupt Control/Status
+100f767e   06c   LCS_CNTRL Serial EEPROM Control, PCI Command Codes, User I/O Control, and Init Control
+905610b5   070   LCS_PCIHIDR PCI Hardwired Configuration ID
+000000ba   074   LCS_PCIHREV PCI Hardwired Revision ID
+00000800   080   LCS_DMAMODE0 DMA Channel 0 Mode
+001fffff   084   LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+03000000   088   LCS_DMALADR0 DMA Channel 0 Local Address
+00000001   08c   LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00000008   090   LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00000800   094   LCS_DMAMODE1 DMA Channel 1 Mode
+00200041   098   LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+03100000   09c   LCS_DMALADR1 DMA Channel 1 Local Address
+00000001   0a0   LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+00000000   0a4   LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      11   0a8   LCS_DMACSR0 DMA Channel 0 Command/Status
+      10   0a9   LCS_DMACSR1 DMA Channel 1 Command/Status
+09210007   0ac   LCS_DMAARB DMA Arbitration
+00000000   0b0   LCS_DMATHR DMA Threshold
+00000000   0b4   LCS_DMADAC0 DMA Channel 0 PCI Express Dual Address Cycle Upper Address
+00000000   0b8   LCS_DMADAC1 DMA Channel 1 PCI Express Dual Address Cycle Upper Address
+00000000   030   LCS_OPQIS Outbound Post Queue Interrupt Status
+00000008   034   LCS_OPQIM Outbound Post Queue Interrupt Mask
+00000000   040   LCS_IQP Inbound Queue Port
+00000000   044   LCS_OQP Outbound Queue Port
+00000002   0c0   LCS_MQCR Messaging Queue Configuration
+00000000   0c4   LCS_QBAR Queue Base Address
+00000000   0c8   LCS_IFHPR Inbound Free Head Pointer
+00000000   0cc   LCS_IFTPR Inbound Free Tail Pointer
+00000000   0d0   LCS_IPHPR Inbound Post Head Pointer
+00000000   0d4   LCS_IPTPR Inbound Post Tail Pointer
+00000000   0d8   LCS_OFHPR Outbound Free Head Pointer
+00000000   0dc   LCS_OFTPR Outbound Free Tail Pointer
+00000000   0e0   LCS_OPHPR Outbound Post Head Pointer
+00000000   0e4   LCS_OPTPR Outbound Post Tail Pointer
+00000050   0e8   LCS_QSR Queue Status/Control
+
+vfio_mapping iova=0x0 size=0x806000
+Performing tests with UART registers mapped into virtual address space using VFIO
+Detected 16C950 rev B on bar_index 2
+Detected 16C950 rev B on bar_index 3
+PEX8311 LCS changed values following UART setup:
+
+PEX8311 LCS changed values following DMA ring setup:
+00000800 -> 00310a00 LCS_DMAMODE0 DMA Channel 0 Mode
+001fffff -> 00000001 LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+03000000 -> 001fffff LCS_DMALADR0 DMA Channel 0 Local Address
+00000001 -> 03000000 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00000008 -> 00400081 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00000800 -> 00310a00 LCS_DMAMODE1 DMA Channel 1 Mode
+00200041 -> 00000001 LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+03100000 -> 00200041 LCS_DMALADR1 DMA Channel 1 Local Address
+00000001 -> 03100000 LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+00000000 -> 004010c1 LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      11 ->       10 LCS_DMACSR0 DMA Channel 0 Command/Status
+
+
+Testing 2 UARTs, mode DMA_RING, reading LSR, using internal loopback ...
+FAIL: Timeout waiting for DMA ring Rx completion : tx BAR=3 rx BAR=3 num_tx_blocks=11 num_rx_block=9 rx_fifo_level=128
+PEX8311 LCS changed values following timeout:
+09210007 -> 09210000 LCS_MARBR Mode/DMA Arbitration
+001ffffc -> 00400300 LCS_PABTADR PCI Abort Address
+00000001 -> 80000001 LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+001fffff -> 00109fe4 LCS_DMALADR0 DMA Channel 0 Local Address
+00400081 -> 00400349 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00000001 -> 80000001 LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+00200041 -> 00400040 LCS_DMALADR1 DMA Channel 1 Local Address
+03100000 -> 03100005 LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+004010c1 -> 00401469 LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      10 ->       01 LCS_DMACSR0 DMA Channel 0 Command/Status
+      10 ->       00 LCS_DMACSR1 DMA Channel 1 Command/Status
+09210007 -> 09210000 LCS_DMAARB DMA Arbitration
+
+
+Testing 2 UARTs, mode DMA_RING, ignoring LSR, using internal loopback ...
+FAIL: Timeout waiting for DMA ring Tx completion : tx BAR=3 rx BAR=3 num_tx_blocks=2 num_rx_block=0 rx_fifo_level=66
+PEX8311 LCS changed values following timeout:
+00400300 -> 0040066c LCS_PABTADR PCI Abort Address
+00109fe4 -> 0000d69b LCS_DMALADR0 DMA Channel 0 Local Address
+00400349 -> 00400691 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00400040 -> 00200042 LCS_DMALADR1 DMA Channel 1 Local Address
+03100005 -> 03100000 LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+00401469 -> 00401c81 LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+
+PEX8311 LCS changed values following test mode completion:
+0040066c -> 0040058c LCS_PABTADR PCI Abort Address
+80000001 -> 00000000 LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+0000d69b -> 000fffbf LCS_DMALADR0 DMA Channel 0 Local Address
+00400691 -> 00400589 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+      01 ->       11 LCS_DMACSR0 DMA Channel 0 Command/Status
+
+PORT BAR 2 Rx FIFO level change min=0 (64->64 at num_rx_blocks 16383) max=128 num_negative=0
+PORT BAR 3 Rx FIFO level change min=64 (64->128 at num_rx_blocks 1) max=128 num_negative=0
+
+2 out of 2 tests FAILED
+
+
+[mr_halfword@skylake-alma release]$ sealevel_serial_7205e/sealevel_serial_7205e_uart_tests -u 2 -m dma_block -d -t 1
+Opening device 0000:2e:04.0 (10b5:9056) with IOMMU group 85
+Enabling bus master for 0000:2e:04.0
+PEX8311 LCS initial register values:
+  Value  Offset Description
+fffffff0   000   LCS_LAS0RR Direct Slave Local Address Space 0 Range
+03000001   004   LCS_LAS0BA Direct Slave Local Address Space 0 Local Base Address (Remap)
+09210007   008   LCS_MARBR Mode/DMA Arbitration
+      00   00c   LCS_BIGEND Big/Little Endian Descriptor
+      84   00d   LCS_LMISC1 Local Miscellaneous Control 1
+      30   00e   LCS_PROT_AREA Serial EEPROM Write-Protected Address Boundary
+      20   00f   LCS_LMISC2 Local Miscellaneous Control 2
+00000000   010   LCS_EROMRR Direct Slave Expansion ROM Range
+00000000   014   LCS_EROMBA Direct Slave Expansion ROM Local Base Address (Remap) and BREQo Control
+42000300   018   LCS_LBRD0 Local Address Space 0/Expansion ROM Bus Region Descriptor
+00000000   01c   LCS_DMRR Local Range for Direct Master-to-PCI Express
+60000000   020   LCS_DMLBAM Local Base Address for Direct Master-to-PCI Express Memory
+50000000   024   LCS_DMLBAI Local Base Address for Direct Master-to-PCI Express I/O Configuration
+00000000   028   LCS_DMPBAM PCI Express Base Address (Remap) for Direct Master-to-PCI Express Memory
+00000000   02c   LCS_DMCFGA PCI Configuration Address for Direct Master-to-PCI Express I/O Configuration
+fffffff0   0f0   LCS_LAS1RR Direct Slave Local Address Space 1 Range
+03100001   0f4   LCS_LAS1BA Direct Slave Local Address Space 1 Local Base Address (Remap)
+00000000   0f8   LCS_LBRD1 Local Address Space 1 Bus Region Descriptor
+00000000   0fc   LCS_DMDAC Direct Master PCI Express Dual Address Cycles Upper Address
+00000000   100   LCS_PCIARB Internal Arbiter Control
+0040058c   104   LCS_PABTADR PCI Abort Address
+00000000   040   LCS_MBOX0 Mailbox 0
+00000000   044   LCS_MBOX1 Mailbox 1
+00000000   048   LCS_MBOX2 Mailbox 2
+00000000   04c   LCS_MBOX3 Mailbox 3
+00000000   050   LCS_MBOX4 Mailbox 4
+00000000   054   LCS_MBOX5 Mailbox 5
+00000000   058   LCS_MBOX6 Mailbox 6
+00000000   05c   LCS_MBOX7 Mailbox 7
+00000000   060   LCS_P2LDBELL PCI Express-to-Local Doorbell
+00000000   064   LCS_L2PDBELL Local-to-PCI Express Doorbell
+0f010100   068   LCS_INTCSR Interrupt Control/Status
+100f767e   06c   LCS_CNTRL Serial EEPROM Control, PCI Command Codes, User I/O Control, and Init Control
+905610b5   070   LCS_PCIHIDR PCI Hardwired Configuration ID
+000000ba   074   LCS_PCIHREV PCI Hardwired Revision ID
+00310a00   080   LCS_DMAMODE0 DMA Channel 0 Mode
+00000000   084   LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+000fffbf   088   LCS_DMALADR0 DMA Channel 0 Local Address
+03000000   08c   LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00400589   090   LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00310a00   094   LCS_DMAMODE1 DMA Channel 1 Mode
+80000001   098   LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+00200042   09c   LCS_DMALADR1 DMA Channel 1 Local Address
+03100000   0a0   LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+00401c81   0a4   LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      11   0a8   LCS_DMACSR0 DMA Channel 0 Command/Status
+      10   0a9   LCS_DMACSR1 DMA Channel 1 Command/Status
+09210007   0ac   LCS_DMAARB DMA Arbitration
+00000000   0b0   LCS_DMATHR DMA Threshold
+00000000   0b4   LCS_DMADAC0 DMA Channel 0 PCI Express Dual Address Cycle Upper Address
+00000000   0b8   LCS_DMADAC1 DMA Channel 1 PCI Express Dual Address Cycle Upper Address
+00000000   030   LCS_OPQIS Outbound Post Queue Interrupt Status
+00000008   034   LCS_OPQIM Outbound Post Queue Interrupt Mask
+00000000   040   LCS_IQP Inbound Queue Port
+00000000   044   LCS_OQP Outbound Queue Port
+00000002   0c0   LCS_MQCR Messaging Queue Configuration
+00000000   0c4   LCS_QBAR Queue Base Address
+00000000   0c8   LCS_IFHPR Inbound Free Head Pointer
+00000000   0cc   LCS_IFTPR Inbound Free Tail Pointer
+00000000   0d0   LCS_IPHPR Inbound Post Head Pointer
+00000000   0d4   LCS_IPTPR Inbound Post Tail Pointer
+00000000   0d8   LCS_OFHPR Outbound Free Head Pointer
+00000000   0dc   LCS_OFTPR Outbound Free Tail Pointer
+00000000   0e0   LCS_OPHPR Outbound Post Head Pointer
+00000000   0e4   LCS_OPTPR Outbound Post Tail Pointer
+00000050   0e8   LCS_QSR Queue Status/Control
+
+vfio_mapping iova=0x0 size=0x806000
+Performing tests with UART registers mapped into virtual address space using VFIO
+Detected 16C950 rev B on bar_index 2
+Detected 16C950 rev B on bar_index 3
+PEX8311 LCS changed values following UART setup:
+
+PEX8311 LCS changed values following DMA block setup:
+00310a00 -> 00000800 LCS_DMAMODE0 DMA Channel 0 Mode
+00000000 -> 000fffbf LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+000fffbf -> 03000000 LCS_DMALADR0 DMA Channel 0 Local Address
+03000000 -> 00000000 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00310a00 -> 00000800 LCS_DMAMODE1 DMA Channel 1 Mode
+80000001 -> 00200042 LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+00200042 -> 03100000 LCS_DMALADR1 DMA Channel 1 Local Address
+03100000 -> 80000001 LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+      11 ->       10 LCS_DMACSR0 DMA Channel 0 Command/Status
+
+
+Testing 2 UARTs, mode DMA_BLOCK, reading LSR, using internal loopback ...
+FAIL: Timeout waiting for DMA completion Tx data : tx BAR=3 rx BAR=3 num_tx_blocks=5 num_rx_block=3 rx_fifo_level=84
+PEX8311 LCS changed values following timeout:
+09210007 -> 09210000 LCS_MARBR Mode/DMA Arbitration
+0040058c -> 0000ea40 LCS_PABTADR PCI Abort Address
+000fffbf -> 0000ea43 LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+00000000 -> 00000001 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00400589 -> 00000000 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00200042 -> 00200153 LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+80000001 -> 00000001 LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+00401c81 -> 00000000 LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      10 ->       11 LCS_DMACSR0 DMA Channel 0 Command/Status
+      10 ->       00 LCS_DMACSR1 DMA Channel 1 Command/Status
+09210007 -> 09210000 LCS_DMAARB DMA Arbitration
+
+
+Testing 2 UARTs, mode DMA_BLOCK, ignoring LSR, using internal loopback ...
+FAIL: Timeout waiting for DMA completion Tx data : tx BAR=3 rx BAR=3 num_tx_blocks=2 num_rx_block=0 rx_fifo_level=88
+PEX8311 LCS changed values following timeout:
+0000ea40 -> 00015bf4 LCS_PABTADR PCI Abort Address
+0000ea43 -> 00015bf4 LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+00200153 -> 00200043 LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+
+PEX8311 LCS changed values following test mode completion:
+00015bf4 -> 001ffffc LCS_PABTADR PCI Abort Address
+00015bf4 -> 001fffff LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+00000000 -> 00000008 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+
+PORT BAR 2 Rx FIFO level change min=-64 (191->127 at num_rx_blocks 136) max=192 num_negative=1
+PORT BAR 3 Rx FIFO level change min=64 (64->128 at num_rx_blocks 1) max=128 num_negative=0
+
+2 out of 2 tests FAILED
+
+
+3. DMA timeouts with IOMMU on and attempt to use a DMA transfer size of 2 bytes
+===============================================================================
+
+If attempt to use a single UART / DMA channel and use a transfer size of 2 bytes then both DMA_RING and DMA_BLOCK
+fail with "Timeout waiting for waiting for Rx block" after a few transfers:
+[mr_halfword@skylake-alma release]$ sealevel_serial_7205e/sealevel_serial_7205e_uart_tests -u 1 -m dma_ring -d -t 2
+Opening device 0000:2e:04.0 (10b5:9056) with IOMMU group 85
+Enabling bus master for 0000:2e:04.0
+PEX8311 LCS initial register values:
+  Value  Offset Description
+fffffff0   000   LCS_LAS0RR Direct Slave Local Address Space 0 Range
+03000001   004   LCS_LAS0BA Direct Slave Local Address Space 0 Local Base Address (Remap)
+09210007   008   LCS_MARBR Mode/DMA Arbitration
+      00   00c   LCS_BIGEND Big/Little Endian Descriptor
+      84   00d   LCS_LMISC1 Local Miscellaneous Control 1
+      30   00e   LCS_PROT_AREA Serial EEPROM Write-Protected Address Boundary
+      20   00f   LCS_LMISC2 Local Miscellaneous Control 2
+00000000   010   LCS_EROMRR Direct Slave Expansion ROM Range
+00000000   014   LCS_EROMBA Direct Slave Expansion ROM Local Base Address (Remap) and BREQo Control
+42000300   018   LCS_LBRD0 Local Address Space 0/Expansion ROM Bus Region Descriptor
+00000000   01c   LCS_DMRR Local Range for Direct Master-to-PCI Express
+60000000   020   LCS_DMLBAM Local Base Address for Direct Master-to-PCI Express Memory
+50000000   024   LCS_DMLBAI Local Base Address for Direct Master-to-PCI Express I/O Configuration
+00000000   028   LCS_DMPBAM PCI Express Base Address (Remap) for Direct Master-to-PCI Express Memory
+00000000   02c   LCS_DMCFGA PCI Configuration Address for Direct Master-to-PCI Express I/O Configuration
+fffffff0   0f0   LCS_LAS1RR Direct Slave Local Address Space 1 Range
+03100001   0f4   LCS_LAS1BA Direct Slave Local Address Space 1 Local Base Address (Remap)
+00000000   0f8   LCS_LBRD1 Local Address Space 1 Bus Region Descriptor
+00000000   0fc   LCS_DMDAC Direct Master PCI Express Dual Address Cycles Upper Address
+00000000   100   LCS_PCIARB Internal Arbiter Control
+001ffffc   104   LCS_PABTADR PCI Abort Address
+00000000   040   LCS_MBOX0 Mailbox 0
+00000000   044   LCS_MBOX1 Mailbox 1
+00000000   048   LCS_MBOX2 Mailbox 2
+00000000   04c   LCS_MBOX3 Mailbox 3
+00000000   050   LCS_MBOX4 Mailbox 4
+00000000   054   LCS_MBOX5 Mailbox 5
+00000000   058   LCS_MBOX6 Mailbox 6
+00000000   05c   LCS_MBOX7 Mailbox 7
+00000000   060   LCS_P2LDBELL PCI Express-to-Local Doorbell
+00000000   064   LCS_L2PDBELL Local-to-PCI Express Doorbell
+0f010100   068   LCS_INTCSR Interrupt Control/Status
+100f767e   06c   LCS_CNTRL Serial EEPROM Control, PCI Command Codes, User I/O Control, and Init Control
+905610b5   070   LCS_PCIHIDR PCI Hardwired Configuration ID
+000000ba   074   LCS_PCIHREV PCI Hardwired Revision ID
+00000800   080   LCS_DMAMODE0 DMA Channel 0 Mode
+001ffffe   084   LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+03000000   088   LCS_DMALADR0 DMA Channel 0 Local Address
+00000002   08c   LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00000008   090   LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00000800   094   LCS_DMAMODE1 DMA Channel 1 Mode
+00200043   098   LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+03100000   09c   LCS_DMALADR1 DMA Channel 1 Local Address
+00000001   0a0   LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+00000000   0a4   LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      11   0a8   LCS_DMACSR0 DMA Channel 0 Command/Status
+      10   0a9   LCS_DMACSR1 DMA Channel 1 Command/Status
+09210007   0ac   LCS_DMAARB DMA Arbitration
+00000000   0b0   LCS_DMATHR DMA Threshold
+00000000   0b4   LCS_DMADAC0 DMA Channel 0 PCI Express Dual Address Cycle Upper Address
+00000000   0b8   LCS_DMADAC1 DMA Channel 1 PCI Express Dual Address Cycle Upper Address
+00000000   030   LCS_OPQIS Outbound Post Queue Interrupt Status
+00000008   034   LCS_OPQIM Outbound Post Queue Interrupt Mask
+00000000   040   LCS_IQP Inbound Queue Port
+00000000   044   LCS_OQP Outbound Queue Port
+00000002   0c0   LCS_MQCR Messaging Queue Configuration
+00000000   0c4   LCS_QBAR Queue Base Address
+00000000   0c8   LCS_IFHPR Inbound Free Head Pointer
+00000000   0cc   LCS_IFTPR Inbound Free Tail Pointer
+00000000   0d0   LCS_IPHPR Inbound Post Head Pointer
+00000000   0d4   LCS_IPTPR Inbound Post Tail Pointer
+00000000   0d8   LCS_OFHPR Outbound Free Head Pointer
+00000000   0dc   LCS_OFTPR Outbound Free Tail Pointer
+00000000   0e0   LCS_OPHPR Outbound Post Head Pointer
+00000000   0e4   LCS_OPTPR Outbound Post Tail Pointer
+00000050   0e8   LCS_QSR Queue Status/Control
+
+vfio_mapping iova=0x0 size=0x202000
+Performing tests with UART registers mapped into virtual address space using VFIO
+Detected 16C950 rev B on bar_index 2
+PEX8311 LCS changed values following UART setup:
+
+PEX8311 LCS changed values following DMA ring setup:
+00000800 -> 00310a00 LCS_DMAMODE0 DMA Channel 0 Mode
+001ffffe -> 00000002 LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+03000000 -> 001ffffe LCS_DMALADR0 DMA Channel 0 Local Address
+00000002 -> 03000000 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00000008 -> 00200041 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+      11 ->       10 LCS_DMACSR0 DMA Channel 0 Command/Status
+
+
+Testing 1 UARTs, mode DMA_RING, reading LSR, using internal loopback ...
+FAIL: Timeout waiting for waiting for Rx block using DMA ring : tx BAR=2 rx BAR=2 num_tx_blocks=3 num_rx_block=1 rx_fifo_level=32
+PEX8311 LCS changed values following timeout:
+001ffffc -> 00200e4c LCS_PABTADR PCI Abort Address
+00000002 -> 00000000 LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+001ffffe -> 00000000 LCS_DMALADR0 DMA Channel 0 Local Address
+00200041 -> 00200e41 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+      10 ->       11 LCS_DMACSR0 DMA Channel 0 Command/Status
+
+
+Testing 1 UARTs, mode DMA_RING, ignoring LSR, using internal loopback ...
+FAIL: BAR 2 Rx word 0 actual=0x61612121, expected=0xe1a40001
+PEX8311 LCS changed values following test mode completion:
+00200e4c -> 00200f4c LCS_PABTADR PCI Abort Address
+00000000 -> 000fff3e LCS_DMALADR0 DMA Channel 0 Local Address
+00200e41 -> 00200f49 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+
+PORT BAR 2 Rx FIFO level change min=0 (32->32 at num_rx_blocks 1) max=64 num_negative=0
+
+2 out of 2 tests FAILED
+
+
+[mr_halfword@skylake-alma release]$ sealevel_serial_7205e/sealevel_serial_7205e_uart_tests -u 1 -m dma_block -d -t 2
+Opening device 0000:2e:04.0 (10b5:9056) with IOMMU group 85
+Enabling bus master for 0000:2e:04.0
+PEX8311 LCS initial register values:
+  Value  Offset Description
+fffffff0   000   LCS_LAS0RR Direct Slave Local Address Space 0 Range
+03000001   004   LCS_LAS0BA Direct Slave Local Address Space 0 Local Base Address (Remap)
+09210007   008   LCS_MARBR Mode/DMA Arbitration
+      00   00c   LCS_BIGEND Big/Little Endian Descriptor
+      84   00d   LCS_LMISC1 Local Miscellaneous Control 1
+      30   00e   LCS_PROT_AREA Serial EEPROM Write-Protected Address Boundary
+      20   00f   LCS_LMISC2 Local Miscellaneous Control 2
+00000000   010   LCS_EROMRR Direct Slave Expansion ROM Range
+00000000   014   LCS_EROMBA Direct Slave Expansion ROM Local Base Address (Remap) and BREQo Control
+42000300   018   LCS_LBRD0 Local Address Space 0/Expansion ROM Bus Region Descriptor
+00000000   01c   LCS_DMRR Local Range for Direct Master-to-PCI Express
+60000000   020   LCS_DMLBAM Local Base Address for Direct Master-to-PCI Express Memory
+50000000   024   LCS_DMLBAI Local Base Address for Direct Master-to-PCI Express I/O Configuration
+00000000   028   LCS_DMPBAM PCI Express Base Address (Remap) for Direct Master-to-PCI Express Memory
+00000000   02c   LCS_DMCFGA PCI Configuration Address for Direct Master-to-PCI Express I/O Configuration
+fffffff0   0f0   LCS_LAS1RR Direct Slave Local Address Space 1 Range
+03100001   0f4   LCS_LAS1BA Direct Slave Local Address Space 1 Local Base Address (Remap)
+00000000   0f8   LCS_LBRD1 Local Address Space 1 Bus Region Descriptor
+00000000   0fc   LCS_DMDAC Direct Master PCI Express Dual Address Cycles Upper Address
+00000000   100   LCS_PCIARB Internal Arbiter Control
+00200f4c   104   LCS_PABTADR PCI Abort Address
+00000000   040   LCS_MBOX0 Mailbox 0
+00000000   044   LCS_MBOX1 Mailbox 1
+00000000   048   LCS_MBOX2 Mailbox 2
+00000000   04c   LCS_MBOX3 Mailbox 3
+00000000   050   LCS_MBOX4 Mailbox 4
+00000000   054   LCS_MBOX5 Mailbox 5
+00000000   058   LCS_MBOX6 Mailbox 6
+00000000   05c   LCS_MBOX7 Mailbox 7
+00000000   060   LCS_P2LDBELL PCI Express-to-Local Doorbell
+00000000   064   LCS_L2PDBELL Local-to-PCI Express Doorbell
+0f010100   068   LCS_INTCSR Interrupt Control/Status
+100f767e   06c   LCS_CNTRL Serial EEPROM Control, PCI Command Codes, User I/O Control, and Init Control
+905610b5   070   LCS_PCIHIDR PCI Hardwired Configuration ID
+000000ba   074   LCS_PCIHREV PCI Hardwired Revision ID
+00310a00   080   LCS_DMAMODE0 DMA Channel 0 Mode
+00000000   084   LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+000fff3e   088   LCS_DMALADR0 DMA Channel 0 Local Address
+03000000   08c   LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00200f49   090   LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00000800   094   LCS_DMAMODE1 DMA Channel 1 Mode
+00200043   098   LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+03100000   09c   LCS_DMALADR1 DMA Channel 1 Local Address
+00000001   0a0   LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+00000000   0a4   LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      11   0a8   LCS_DMACSR0 DMA Channel 0 Command/Status
+      10   0a9   LCS_DMACSR1 DMA Channel 1 Command/Status
+09210007   0ac   LCS_DMAARB DMA Arbitration
+00000000   0b0   LCS_DMATHR DMA Threshold
+00000000   0b4   LCS_DMADAC0 DMA Channel 0 PCI Express Dual Address Cycle Upper Address
+00000000   0b8   LCS_DMADAC1 DMA Channel 1 PCI Express Dual Address Cycle Upper Address
+00000000   030   LCS_OPQIS Outbound Post Queue Interrupt Status
+00000008   034   LCS_OPQIM Outbound Post Queue Interrupt Mask
+00000000   040   LCS_IQP Inbound Queue Port
+00000000   044   LCS_OQP Outbound Queue Port
+00000002   0c0   LCS_MQCR Messaging Queue Configuration
+00000000   0c4   LCS_QBAR Queue Base Address
+00000000   0c8   LCS_IFHPR Inbound Free Head Pointer
+00000000   0cc   LCS_IFTPR Inbound Free Tail Pointer
+00000000   0d0   LCS_IPHPR Inbound Post Head Pointer
+00000000   0d4   LCS_IPTPR Inbound Post Tail Pointer
+00000000   0d8   LCS_OFHPR Outbound Free Head Pointer
+00000000   0dc   LCS_OFTPR Outbound Free Tail Pointer
+00000000   0e0   LCS_OPHPR Outbound Post Head Pointer
+00000000   0e4   LCS_OPTPR Outbound Post Tail Pointer
+00000050   0e8   LCS_QSR Queue Status/Control
+
+vfio_mapping iova=0x0 size=0x202000
+Performing tests with UART registers mapped into virtual address space using VFIO
+Detected 16C950 rev B on bar_index 2
+PEX8311 LCS changed values following UART setup:
+
+PEX8311 LCS changed values following DMA block setup:
+00310a00 -> 00000800 LCS_DMAMODE0 DMA Channel 0 Mode
+00000000 -> 000fff3e LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+000fff3e -> 03000000 LCS_DMALADR0 DMA Channel 0 Local Address
+03000000 -> 00000000 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+      11 ->       10 LCS_DMACSR0 DMA Channel 0 Command/Status
+
+
+Testing 1 UARTs, mode DMA_BLOCK, reading LSR, using internal loopback ...
+FAIL: Timeout waiting for waiting for Rx block using DMA block : tx BAR=2 rx BAR=2 num_tx_blocks=3 num_rx_block=1 rx_fifo_level=32
+PEX8311 LCS changed values following timeout:
+00200f4c -> 000000bc LCS_PABTADR PCI Abort Address
+000fff3e -> 000000be LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+00000000 -> 00000002 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00200f49 -> 00000000 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+      10 ->       11 LCS_DMACSR0 DMA Channel 0 Command/Status
+
+
+Testing 1 UARTs, mode DMA_BLOCK, ignoring LSR, using internal loopback ...
+FAIL: BAR 2 Rx word 0 actual=0x61612121, expected=0xe1a40001
+PEX8311 LCS changed values following test mode completion:
+000000bc -> 001ffffc LCS_PABTADR PCI Abort Address
+000000be -> 001ffffe LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+00000000 -> 00000008 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+
+PORT BAR 2 Rx FIFO level change min=0 (32->32 at num_rx_blocks 1) max=65 num_negative=0
+
+2 out of 2 tests FAILED
+
+
+4. DMA_BLOCK timeouts with IOMMU on and attempt to use IOVA above 4GB
+=====================================================================
+
+In theory, the code which uses DMA_BLOCK mode should operate with PCIe addresses above 4GB.
+However, when attempt this by overriding the starting IOVA values the test fails with "Timeout waiting for DMA completion Tx data"
+on the first transfer:
+[mr_halfword@skylake-alma release]$ sealevel_serial_7205e/sealevel_serial_7205e_uart_tests -m dma_block -u 1 -d -t 1 -i 0x12300000000
+Opening device 0000:2e:04.0 (10b5:9056) with IOMMU group 85
+Enabling bus master for 0000:2e:04.0
+PEX8311 LCS initial register values:
+  Value  Offset Description
+fffffff0   000   LCS_LAS0RR Direct Slave Local Address Space 0 Range
+03000001   004   LCS_LAS0BA Direct Slave Local Address Space 0 Local Base Address (Remap)
+09210007   008   LCS_MARBR Mode/DMA Arbitration
+      00   00c   LCS_BIGEND Big/Little Endian Descriptor
+      84   00d   LCS_LMISC1 Local Miscellaneous Control 1
+      30   00e   LCS_PROT_AREA Serial EEPROM Write-Protected Address Boundary
+      20   00f   LCS_LMISC2 Local Miscellaneous Control 2
+00000000   010   LCS_EROMRR Direct Slave Expansion ROM Range
+00000000   014   LCS_EROMBA Direct Slave Expansion ROM Local Base Address (Remap) and BREQo Control
+42000300   018   LCS_LBRD0 Local Address Space 0/Expansion ROM Bus Region Descriptor
+00000000   01c   LCS_DMRR Local Range for Direct Master-to-PCI Express
+60000000   020   LCS_DMLBAM Local Base Address for Direct Master-to-PCI Express Memory
+50000000   024   LCS_DMLBAI Local Base Address for Direct Master-to-PCI Express I/O Configuration
+00000000   028   LCS_DMPBAM PCI Express Base Address (Remap) for Direct Master-to-PCI Express Memory
+00000000   02c   LCS_DMCFGA PCI Configuration Address for Direct Master-to-PCI Express I/O Configuration
+fffffff0   0f0   LCS_LAS1RR Direct Slave Local Address Space 1 Range
+03100001   0f4   LCS_LAS1BA Direct Slave Local Address Space 1 Local Base Address (Remap)
+00000000   0f8   LCS_LBRD1 Local Address Space 1 Bus Region Descriptor
+00000000   0fc   LCS_DMDAC Direct Master PCI Express Dual Address Cycles Upper Address
+00000000   100   LCS_PCIARB Internal Arbiter Control
+00000000   104   LCS_PABTADR PCI Abort Address
+00000000   040   LCS_MBOX0 Mailbox 0
+00000000   044   LCS_MBOX1 Mailbox 1
+00000000   048   LCS_MBOX2 Mailbox 2
+00000000   04c   LCS_MBOX3 Mailbox 3
+00000000   050   LCS_MBOX4 Mailbox 4
+00000000   054   LCS_MBOX5 Mailbox 5
+00000000   058   LCS_MBOX6 Mailbox 6
+00000000   05c   LCS_MBOX7 Mailbox 7
+00000000   060   LCS_P2LDBELL PCI Express-to-Local Doorbell
+00000000   064   LCS_L2PDBELL Local-to-PCI Express Doorbell
+0f010100   068   LCS_INTCSR Interrupt Control/Status
+100f767e   06c   LCS_CNTRL Serial EEPROM Control, PCI Command Codes, User I/O Control, and Init Control
+905610b5   070   LCS_PCIHIDR PCI Hardwired Configuration ID
+000000ba   074   LCS_PCIHREV PCI Hardwired Revision ID
+00000043   080   LCS_DMAMODE0 DMA Channel 0 Mode
+00000000   084   LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+00000000   088   LCS_DMALADR0 DMA Channel 0 Local Address
+00000000   08c   LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00000000   090   LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00000043   094   LCS_DMAMODE1 DMA Channel 1 Mode
+00000000   098   LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+00000000   09c   LCS_DMALADR1 DMA Channel 1 Local Address
+00000000   0a0   LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+00000000   0a4   LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      10   0a8   LCS_DMACSR0 DMA Channel 0 Command/Status
+      10   0a9   LCS_DMACSR1 DMA Channel 1 Command/Status
+09210007   0ac   LCS_DMAARB DMA Arbitration
+00000000   0b0   LCS_DMATHR DMA Threshold
+00000000   0b4   LCS_DMADAC0 DMA Channel 0 PCI Express Dual Address Cycle Upper Address
+00000000   0b8   LCS_DMADAC1 DMA Channel 1 PCI Express Dual Address Cycle Upper Address
+00000000   030   LCS_OPQIS Outbound Post Queue Interrupt Status
+00000008   034   LCS_OPQIM Outbound Post Queue Interrupt Mask
+00000000   040   LCS_IQP Inbound Queue Port
+00000000   044   LCS_OQP Outbound Queue Port
+00000002   0c0   LCS_MQCR Messaging Queue Configuration
+00000000   0c4   LCS_QBAR Queue Base Address
+00000000   0c8   LCS_IFHPR Inbound Free Head Pointer
+00000000   0cc   LCS_IFTPR Inbound Free Tail Pointer
+00000000   0d0   LCS_IPHPR Inbound Post Head Pointer
+00000000   0d4   LCS_IPTPR Inbound Post Tail Pointer
+00000000   0d8   LCS_OFHPR Outbound Free Head Pointer
+00000000   0dc   LCS_OFTPR Outbound Free Tail Pointer
+00000000   0e0   LCS_OPHPR Outbound Post Head Pointer
+00000000   0e4   LCS_OPTPR Outbound Post Tail Pointer
+00000050   0e8   LCS_QSR Queue Status/Control
+
+vfio_mapping iova=0x12300000000 size=0x202000
+Performing tests with UART registers mapped into virtual address space using VFIO
+Detected 16C950 rev B on bar_index 2
+PEX8311 LCS changed values following UART setup:
+
+PEX8311 LCS changed values following DMA block setup:
+00000043 -> 00000800 LCS_DMAMODE0 DMA Channel 0 Mode
+
+
+Testing 1 UARTs, mode DMA_BLOCK, reading LSR, using internal loopback ...
+FAIL: Timeout waiting for DMA completion Tx data : tx BAR=2 rx BAR=2 num_tx_blocks=2 num_rx_block=0 rx_fifo_level=0
+PEX8311 LCS changed values following timeout:
+0f010100 -> 0d014100 LCS_INTCSR Interrupt Control/Status
+00000000 -> 00000001 LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+00000000 -> 03000000 LCS_DMALADR0 DMA Channel 0 Local Address
+00000000 -> 00000001 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+      10 ->       01 LCS_DMACSR0 DMA Channel 0 Command/Status
+00000000 -> 00000123 LCS_DMADAC0 DMA Channel 0 PCI Express Dual Address Cycle Upper Address
+
+
+Testing 1 UARTs, mode DMA_BLOCK, ignoring LSR, using internal loopback ...
+FAIL: Timeout waiting for DMA completion Tx data : tx BAR=2 rx BAR=2 num_tx_blocks=2 num_rx_block=0 rx_fifo_level=0
+PEX8311 LCS changed values following timeout:
+00000001 -> 00000000 LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+
+PEX8311 LCS changed values following test mode completion:
+
+PORT BAR 2 Rx FIFO level change min=2147483647 (4294967295->4294967295 at num_rx_blocks 0) max=-2147483648 num_negative=0
+
+2 out of 2 tests FAILED
+
+
+5. DMA_BLOCK timeouts with IOMMU off and attempt to use physical addresses above 4GB
+====================================================================================
+
+Disabled secure boot, and changed the Linux command line to not enable the IOMMU and add memmap to reserve
+physical addresses starting at 4GB.
+
+The complete command line was:
+[mr_halfword@skylake-alma module]$ cat /proc/cmdline 
+BOOT_IMAGE=(hd1,gpt2)/vmlinuz-4.18.0-425.19.2.el8_7.x86_64 root=/dev/mapper/almalinux_skylake--alma-root ro resume=/dev/mapper/almalinux_skylake--alma-swap rd.lvm.lv=almalinux_skylake-alma/root rd.lvm.lv=almalinux_skylake-alma/swap rhgb quiet memmap=10444K%0x6c144000-4+2,2050M$4G,1M$6146M
+
+Loaded the cmem_gdb_access module to use physical memory:
+[mr_halfword@skylake-alma ~]$ cd ~/cmem_gdb_access/module/
+[mr_halfword@skylake-alma module]$ sudo ./load.sh 
+[sudo] password for mr_halfword: 
+
+Bound the vfio-pci driver to the device:
+[mr_halfword@skylake-alma eclipse_project]$ ./bind_device_to_vfio.sh 10b5
+No IOMMUs present
+Loading vfio module and enabling NOIOMMU (this taints the Kernel)
+[sudo] password for mr_halfword: 
+Loading vfio-pci module
+vfio-pci
+0000:2d:00.0
+tee: /sys/bus/pci/drivers/vfio-pci/bind: Invalid argument
+Bound vfio-pci driver to 0000:2d:00.0 10b5:8111 [0000:0000]
+vfio-pci
+0000:2e:04.0
+Bound vfio-pci driver to 0000:2e:04.0 10b5:9056 [10b5:3198]
+Giving user permission to IOMMU group noiommu-0 for 0000:2e:04.0 10b5:9056 [10b5:3198]
+
+
+Using physical memory with addresses starting at 4 GB failed with Timeout waiting for DMA completion Tx data" on the first transfer.
+I.e. same failure as the test in 4 where the IOMMU was used:
+[mr_halfword@skylake-alma release]$ sealevel_serial_7205e/sealevel_serial_7205e_uart_tests -m dma_block -u 1 -d -t 1
+Opening device 0000:2e:04.0 (10b5:9056) with IOMMU group 0
+Enabling bus master for 0000:2e:04.0
+PEX8311 LCS initial register values:
+  Value  Offset Description
+fffffff0   000   LCS_LAS0RR Direct Slave Local Address Space 0 Range
+03000001   004   LCS_LAS0BA Direct Slave Local Address Space 0 Local Base Address (Remap)
+09210007   008   LCS_MARBR Mode/DMA Arbitration
+      00   00c   LCS_BIGEND Big/Little Endian Descriptor
+      84   00d   LCS_LMISC1 Local Miscellaneous Control 1
+      30   00e   LCS_PROT_AREA Serial EEPROM Write-Protected Address Boundary
+      20   00f   LCS_LMISC2 Local Miscellaneous Control 2
+00000000   010   LCS_EROMRR Direct Slave Expansion ROM Range
+00000000   014   LCS_EROMBA Direct Slave Expansion ROM Local Base Address (Remap) and BREQo Control
+42000300   018   LCS_LBRD0 Local Address Space 0/Expansion ROM Bus Region Descriptor
+00000000   01c   LCS_DMRR Local Range for Direct Master-to-PCI Express
+60000000   020   LCS_DMLBAM Local Base Address for Direct Master-to-PCI Express Memory
+50000000   024   LCS_DMLBAI Local Base Address for Direct Master-to-PCI Express I/O Configuration
+00000000   028   LCS_DMPBAM PCI Express Base Address (Remap) for Direct Master-to-PCI Express Memory
+00000000   02c   LCS_DMCFGA PCI Configuration Address for Direct Master-to-PCI Express I/O Configuration
+fffffff0   0f0   LCS_LAS1RR Direct Slave Local Address Space 1 Range
+03100001   0f4   LCS_LAS1BA Direct Slave Local Address Space 1 Local Base Address (Remap)
+00000000   0f8   LCS_LBRD1 Local Address Space 1 Bus Region Descriptor
+00000000   0fc   LCS_DMDAC Direct Master PCI Express Dual Address Cycles Upper Address
+00000000   100   LCS_PCIARB Internal Arbiter Control
+00000000   104   LCS_PABTADR PCI Abort Address
+00000000   040   LCS_MBOX0 Mailbox 0
+00000000   044   LCS_MBOX1 Mailbox 1
+00000000   048   LCS_MBOX2 Mailbox 2
+00000000   04c   LCS_MBOX3 Mailbox 3
+00000000   050   LCS_MBOX4 Mailbox 4
+00000000   054   LCS_MBOX5 Mailbox 5
+00000000   058   LCS_MBOX6 Mailbox 6
+00000000   05c   LCS_MBOX7 Mailbox 7
+00000000   060   LCS_P2LDBELL PCI Express-to-Local Doorbell
+00000000   064   LCS_L2PDBELL Local-to-PCI Express Doorbell
+0f010100   068   LCS_INTCSR Interrupt Control/Status
+100f767e   06c   LCS_CNTRL Serial EEPROM Control, PCI Command Codes, User I/O Control, and Init Control
+905610b5   070   LCS_PCIHIDR PCI Hardwired Configuration ID
+000000ba   074   LCS_PCIHREV PCI Hardwired Revision ID
+00000800   080   LCS_DMAMODE0 DMA Channel 0 Mode
+00000000   084   LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+03000000   088   LCS_DMALADR0 DMA Channel 0 Local Address
+00000080   08c   LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00000000   090   LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00000043   094   LCS_DMAMODE1 DMA Channel 1 Mode
+00000000   098   LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+00000000   09c   LCS_DMALADR1 DMA Channel 1 Local Address
+00000000   0a0   LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+00000000   0a4   LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      11   0a8   LCS_DMACSR0 DMA Channel 0 Command/Status
+      10   0a9   LCS_DMACSR1 DMA Channel 1 Command/Status
+09210007   0ac   LCS_DMAARB DMA Arbitration
+00000000   0b0   LCS_DMATHR DMA Threshold
+00000001   0b4   LCS_DMADAC0 DMA Channel 0 PCI Express Dual Address Cycle Upper Address
+00000000   0b8   LCS_DMADAC1 DMA Channel 1 PCI Express Dual Address Cycle Upper Address
+00000000   030   LCS_OPQIS Outbound Post Queue Interrupt Status
+00000008   034   LCS_OPQIM Outbound Post Queue Interrupt Mask
+00000000   040   LCS_IQP Inbound Queue PortTimeout waiting for DMA completion Tx dat
+00000000   044   LCS_OQP Outbound Queue Port
+00000002   0c0   LCS_MQCR Messaging Queue Configuration
+00000000   0c4   LCS_QBAR Queue Base Address
+00000000   0c8   LCS_IFHPR Inbound Free Head Pointer
+00000000   0cc   LCS_IFTPR Inbound Free Tail Pointer
+00000000   0d0   LCS_IPHPR Inbound Post Head Pointer
+00000000   0d4   LCS_IPTPR Inbound Post Tail Pointer
+00000000   0d8   LCS_OFHPR Outbound Free Head Pointer
+00000000   0dc   LCS_OFTPR Outbound Free Tail Pointer
+00000000   0e0   LCS_OPHPR Outbound Post Head Pointer
+00000000   0e4   LCS_OPTPR Outbound Post Tail Pointer
+00000050   0e8   LCS_QSR Queue Status/Control
+
+Opened DMA MEM device : /dev/cmem (dev_desc = 0x00000007)
+Debug: mmap param length 0x202000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7f280c6c3000 
+vfio_mapping iova=0x100000000 size=0x202000
+Performing tests with UART registers mapped into virtual address space using VFIO
+Detected 16C950 rev B on bar_index 2
+PEX8311 LCS changed values following UART setup:
+
+PEX8311 LCS changed values following DMA block setup:
+      11 ->       10 LCS_DMACSR0 DMA Channel 0 Command/Status
+
+
+Testing 1 UARTs, mode DMA_BLOCK, reading LSR, using internal loopback ...
+FAIL: Timeout waiting for DMA completion Tx data : tx BAR=2 rx BAR=2 num_tx_blocks=2 num_rx_block=0 rx_fifo_level=0
+PEX8311 LCS changed values following timeout:
+0f010100 -> 0d014100 LCS_INTCSR Interrupt Control/Status
+00000000 -> 00000001 LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+00000080 -> 00000001 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+      10 ->       01 LCS_DMACSR0 DMA Channel 0 Command/Status
+
+
+Testing 1 UARTs, mode DMA_BLOCK, ignoring LSR, using internal loopback ...
+FAIL: Timeout waiting for DMA completion Tx data : tx BAR=2 rx BAR=2 num_tx_blocks=2 num_rx_block=0 rx_fifo_level=0
+PEX8311 LCS changed values following timeout:
+00000001 -> 00000000 LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+
+PEX8311 LCS changed values following test mode completion:
+
+PORT BAR 2 Rx FIFO level change min=2147483647 (4294967295->4294967295 at num_rx_blocks 0) max=-2147483648 num_negative=0
+
+2 out of 2 tests FAILED
+Memory Driver closed 
+
+
+6. Tests which passed with IOMMU disabled, and physical addresses below 4GB
+===========================================================================
+
+Disabled secure boot, and changed the Linux command line to not enable the IOMMU and add memmap to reserve
+physical addresses starting below 4GB.
+
+The complete command line was:
+[mr_halfword@skylake-alma module]$ cat /proc/cmdline 
+BOOT_IMAGE=(hd1,gpt2)/vmlinuz-4.18.0-425.19.2.el8_7.x86_64 root=/dev/mapper/almalinux_skylake--alma-root ro resume=/dev/mapper/almalinux_skylake--alma-swap rd.lvm.lv=almalinux_skylake-alma/root rd.lvm.lv=almalinux_skylake-alma/swap rhgb quiet memmap=10444K%0x6c144000-4+2,7M$1784M,1M$1791M
+
+Loaded the cmem_gdb_access module to use physical memory:
+[mr_halfword@skylake-alma ~]$ cd ~/cmem_gdb_access/module/
+[mr_halfword@skylake-alma module]$ sudo ./load.sh 
+[sudo] password for mr_halfword: 
+
+Bound the vfio-pci driver to the device:
+[mr_halfword@skylake-alma eclipse_project]$ ./bind_device_to_vfio.sh 10b5
+No IOMMUs present
+Loading vfio module and enabling NOIOMMU (this taints the Kernel)
+[sudo] password for mr_halfword: 
+Loading vfio-pci module
+vfio-pci
+0000:2d:00.0
+tee: /sys/bus/pci/drivers/vfio-pci/bind: Invalid argument
+Bound vfio-pci driver to 0000:2d:00.0 10b5:8111 [0000:0000]
+vfio-pci
+0000:2e:04.0
+Bound vfio-pci driver to 0000:2e:04.0 10b5:9056 [10b5:3198]
+Giving user permission to IOMMU group noiommu-0 for 0000:2e:04.0 10b5:9056 [10b5:3198]
+
+
+Ran the same tests used in 1 (which had the IOMMU enabled). With the IOMMU disabled and using physical addresses below 4GB
+all tests still passed. The transfer rates with the IOMMU disabled are the same as when the IOMMU was enabled:
+[mr_halfword@skylake-alma release]$ sealevel_serial_7205e/sealevel_serial_7205e_uart_tests -u 2 -m pio -m dma_ring -m dma_block -d -o -t 1 -e
+Opening device 0000:2e:04.0 (10b5:9056) with IOMMU group 0
+Enabling bus master for 0000:2e:04.0
+PEX8311 LCS initial register values:
+  Value  Offset Description
+fffffff0   000   LCS_LAS0RR Direct Slave Local Address Space 0 Range
+03000001   004   LCS_LAS0BA Direct Slave Local Address Space 0 Local Base Address (Remap)
+09210007   008   LCS_MARBR Mode/DMA Arbitration
+      00   00c   LCS_BIGEND Big/Little Endian Descriptor
+      84   00d   LCS_LMISC1 Local Miscellaneous Control 1
+      30   00e   LCS_PROT_AREA Serial EEPROM Write-Protected Address Boundary
+      20   00f   LCS_LMISC2 Local Miscellaneous Control 2
+00000000   010   LCS_EROMRR Direct Slave Expansion ROM Range
+00000000   014   LCS_EROMBA Direct Slave Expansion ROM Local Base Address (Remap) and BREQo Control
+42000300   018   LCS_LBRD0 Local Address Space 0/Expansion ROM Bus Region Descriptor
+00000000   01c   LCS_DMRR Local Range for Direct Master-to-PCI Express
+60000000   020   LCS_DMLBAM Local Base Address for Direct Master-to-PCI Express Memory
+50000000   024   LCS_DMLBAI Local Base Address for Direct Master-to-PCI Express I/O Configuration
+00000000   028   LCS_DMPBAM PCI Express Base Address (Remap) for Direct Master-to-PCI Express Memory
+00000000   02c   LCS_DMCFGA PCI Configuration Address for Direct Master-to-PCI Express I/O Configuration
+fffffff0   0f0   LCS_LAS1RR Direct Slave Local Address Space 1 Range
+03100001   0f4   LCS_LAS1BA Direct Slave Local Address Space 1 Local Base Address (Remap)
+00000000   0f8   LCS_LBRD1 Local Address Space 1 Bus Region Descriptor
+00000000   0fc   LCS_DMDAC Direct Master PCI Express Dual Address Cycles Upper Address
+00000000   100   LCS_PCIARB Internal Arbiter Control
+00000000   104   LCS_PABTADR PCI Abort Address
+00000000   040   LCS_MBOX0 Mailbox 0
+00000000   044   LCS_MBOX1 Mailbox 1
+00000000   048   LCS_MBOX2 Mailbox 2
+00000000   04c   LCS_MBOX3 Mailbox 3
+00000000   050   LCS_MBOX4 Mailbox 4
+00000000   054   LCS_MBOX5 Mailbox 5
+00000000   058   LCS_MBOX6 Mailbox 6
+00000000   05c   LCS_MBOX7 Mailbox 7
+00000000   060   LCS_P2LDBELL PCI Express-to-Local Doorbell
+00000000   064   LCS_L2PDBELL Local-to-PCI Express Doorbell
+0f010100   068   LCS_INTCSR Interrupt Control/Status
+100f767e   06c   LCS_CNTRL Serial EEPROM Control, PCI Command Codes, User I/O Control, and Init Control
+905610b5   070   LCS_PCIHIDR PCI Hardwired Configuration ID
+000000ba   074   LCS_PCIHREV PCI Hardwired Revision ID
+00000043   080   LCS_DMAMODE0 DMA Channel 0 Mode
+00000000   084   LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+00000000   088   LCS_DMALADR0 DMA Channel 0 Local Address
+00000000   08c   LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00000000   090   LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00000043   094   LCS_DMAMODE1 DMA Channel 1 Mode
+00000000   098   LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+00000000   09c   LCS_DMALADR1 DMA Channel 1 Local Address
+00000000   0a0   LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+00000000   0a4   LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      10   0a8   LCS_DMACSR0 DMA Channel 0 Command/Status
+      10   0a9   LCS_DMACSR1 DMA Channel 1 Command/Status
+09210007   0ac   LCS_DMAARB DMA Arbitration
+00000000   0b0   LCS_DMATHR DMA Threshold
+00000000   0b4   LCS_DMADAC0 DMA Channel 0 PCI Express Dual Address Cycle Upper Address
+00000000   0b8   LCS_DMADAC1 DMA Channel 1 PCI Express Dual Address Cycle Upper Address
+00000000   030   LCS_OPQIS Outbound Post Queue Interrupt Status
+00000008   034   LCS_OPQIM Outbound Post Queue Interrupt Mask
+00000000   040   LCS_IQP Inbound Queue Port
+00000000   044   LCS_OQP Outbound Queue Port
+00000002   0c0   LCS_MQCR Messaging Queue Configuration
+00000000   0c4   LCS_QBAR Queue Base Address
+00000000   0c8   LCS_IFHPR Inbound Free Head Pointer
+00000000   0cc   LCS_IFTPR Inbound Free Tail Pointer
+00000000   0d0   LCS_IPHPR Inbound Post Head Pointer
+00000000   0d4   LCS_IPTPR Inbound Post Tail Pointer
+00000000   0d8   LCS_OFHPR Outbound Free Head Pointer
+00000000   0dc   LCS_OFTPR Outbound Free Tail Pointer
+00000000   0e0   LCS_OPHPR Outbound Post Head Pointer
+00000000   0e4   LCS_OPTPR Outbound Post Tail Pointer
+00000050   0e8   LCS_QSR Queue Status/Control
+
+Opened DMA MEM device : /dev/cmem (dev_desc = 0x00000007)
+Debug: mmap param length 0x403000, Addr: 0x6f800000 
+Buff num 0: Phys addr : 0x6f800000 User Addr: 0x7f0169af4000 
+vfio_mapping iova=0x6f800000 size=0x403000
+Performing tests with UART registers mapped into virtual address space using VFIO
+Detected 16C950 rev B on bar_index 2
+Detected 16C950 rev B on bar_index 3
+PEX8311 LCS changed values following UART setup:
+
+
+Testing 2 UARTs, mode PIO, reading LSR, using internal loopback ...
+
+2 UARTs, mode PIO, reading LSR, using internal loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.092725 (Mbytes/sec)
+
+Testing 2 UARTs, mode PIO, ignoring LSR, using internal loopback ...
+2 UARTs, mode PIO, ignoring LSR, using internal loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.163006 (Mbytes/sec)
+
+Testing 2 UARTs, mode PIO, reading LSR, using external loopback ...
+2 UARTs, mode PIO, reading LSR, using external loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.092759 (Mbytes/sec)
+
+Testing 2 UARTs, mode PIO, ignoring LSR, using external loopback ...
+2 UARTs, mode PIO, ignoring LSR, using external loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.163064 (Mbytes/sec)
+PEX8311 LCS changed values following test mode completion:
+
+PEX8311 LCS changed values following DMA ring setup:
+00000043 -> 00310a00 LCS_DMAMODE0 DMA Channel 0 Mode
+00000000 -> 6fc00081 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00000043 -> 00310a00 LCS_DMAMODE1 DMA Channel 1 Mode
+00000000 -> 6fc010c1 LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+
+
+Testing 2 UARTs, mode DMA_RING, reading LSR, using internal loopback ...
+2 UARTs, mode DMA_RING, reading LSR, using internal loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.020171 (Mbytes/sec)
+
+Testing 2 UARTs, mode DMA_RING, ignoring LSR, using internal loopback ...
+2 UARTs, mode DMA_RING, ignoring LSR, using internal loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.029337 (Mbytes/sec)
+
+Testing 2 UARTs, mode DMA_RING, reading LSR, using external loopback ...
+2 UARTs, mode DMA_RING, reading LSR, using external loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.020172 (Mbytes/sec)
+
+Testing 2 UARTs, mode DMA_RING, ignoring LSR, using external loopback ...
+2 UARTs, mode DMA_RING, ignoring LSR, using external loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.029335 (Mbytes/sec)
+PEX8311 LCS changed values following test mode completion:
+09210007 -> 09210000 LCS_MARBR Mode/DMA Arbitration
+00000000 -> 6fc01acc LCS_PABTADR PCI Abort Address
+00000000 -> 6f8fffbf LCS_DMALADR0 DMA Channel 0 Local Address
+00000000 -> 03100000 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+6fc00081 -> 6fc00a89 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00000000 -> 6fafffff LCS_DMALADR1 DMA Channel 1 Local Address
+00000000 -> 03000000 LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+6fc010c1 -> 6fc01ac9 LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      10 ->       11 LCS_DMACSR0 DMA Channel 0 Command/Status
+      10 ->       11 LCS_DMACSR1 DMA Channel 1 Command/Status
+09210007 -> 09210000 LCS_DMAARB DMA Arbitration
+
+PEX8311 LCS changed values following DMA block setup:
+00310a00 -> 00000800 LCS_DMAMODE0 DMA Channel 0 Mode
+00000000 -> 6f8fffbf LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+6f8fffbf -> 03100000 LCS_DMALADR0 DMA Channel 0 Local Address
+03100000 -> 00000000 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00310a00 -> 00000800 LCS_DMAMODE1 DMA Channel 1 Mode
+00000000 -> 6fafffff LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+6fafffff -> 03000000 LCS_DMALADR1 DMA Channel 1 Local Address
+03000000 -> 00000000 LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+      11 ->       10 LCS_DMACSR0 DMA Channel 0 Command/Status
+      11 ->       10 LCS_DMACSR1 DMA Channel 1 Command/Status
+
+
+Testing 2 UARTs, mode DMA_BLOCK, reading LSR, using internal loopback ...
+2 UARTs, mode DMA_BLOCK, reading LSR, using internal loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.035618 (Mbytes/sec)
+
+Testing 2 UARTs, mode DMA_BLOCK, ignoring LSR, using internal loopback ...
+2 UARTs, mode DMA_BLOCK, ignoring LSR, using internal loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.051664 (Mbytes/sec)
+
+Testing 2 UARTs, mode DMA_BLOCK, reading LSR, using external loopback ...
+2 UARTs, mode DMA_BLOCK, reading LSR, using external loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.035623 (Mbytes/sec)
+
+Testing 2 UARTs, mode DMA_BLOCK, ignoring LSR, using external loopback ...
+2 UARTs, mode DMA_BLOCK, ignoring LSR, using external loopback timing for 1 transfers of 1048576 bytes:
+  Mean = 0.051673 (Mbytes/sec)
+PEX8311 LCS changed values following test mode completion:
+6fc01acc -> 6fc0003c LCS_PABTADR PCI Abort Address
+6f8fffbf -> 6f9fffff LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+00000000 -> 00000001 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+6fc00a89 -> 00000008 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+6fafffff -> 6fc0003f LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+00000000 -> 00000001 LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+6fc01ac9 -> 00000008 LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      10 ->       11 LCS_DMACSR0 DMA Channel 0 Command/Status
+      10 ->       11 LCS_DMACSR1 DMA Channel 1 Command/Status
+
+PORT BAR 2 Rx FIFO level change min=0 (64->64 at num_rx_blocks 16383) max=128 num_negative=0
+PORT BAR 3 Rx FIFO level change min=0 (64->64 at num_rx_blocks 16383) max=128 num_negative=0
+
+All 12 tests PASSED
+Memory Driver closed 
+
+
+7. DMA tests which still failed with IOMMU disabled, and physical addresses below 4GB
+=====================================================================================
+
+Using the configuration from 6, attempting to use overlapping DMA channels with 1 byte transfers still failed,
+as the tests with the IOMMU enabled did. I.e. the IOMMU being enabled isn't related to the failures:
+[mr_halfword@skylake-alma release]$ sealevel_serial_7205e/sealevel_serial_7205e_uart_tests -u 2 -m dma_ring -t 1 -d
+Opening device 0000:2e:04.0 (10b5:9056) with IOMMU group 0
+Enabling bus master for 0000:2e:04.0
+PEX8311 LCS initial register values:
+  Value  Offset Description
+fffffff0   000   LCS_LAS0RR Direct Slave Local Address Space 0 Range
+03000001   004   LCS_LAS0BA Direct Slave Local Address Space 0 Local Base Address (Remap)
+09210007   008   LCS_MARBR Mode/DMA Arbitration
+      00   00c   LCS_BIGEND Big/Little Endian Descriptor
+      84   00d   LCS_LMISC1 Local Miscellaneous Control 1
+      30   00e   LCS_PROT_AREA Serial EEPROM Write-Protected Address Boundary
+      20   00f   LCS_LMISC2 Local Miscellaneous Control 2
+00000000   010   LCS_EROMRR Direct Slave Expansion ROM Range
+00000000   014   LCS_EROMBA Direct Slave Expansion ROM Local Base Address (Remap) and BREQo Control
+42000300   018   LCS_LBRD0 Local Address Space 0/Expansion ROM Bus Region Descriptor
+00000000   01c   LCS_DMRR Local Range for Direct Master-to-PCI Express
+60000000   020   LCS_DMLBAM Local Base Address for Direct Master-to-PCI Express Memory
+50000000   024   LCS_DMLBAI Local Base Address for Direct Master-to-PCI Express I/O Configuration
+00000000   028   LCS_DMPBAM PCI Express Base Address (Remap) for Direct Master-to-PCI Express Memory
+00000000   02c   LCS_DMCFGA PCI Configuration Address for Direct Master-to-PCI Express I/O Configuration
+fffffff0   0f0   LCS_LAS1RR Direct Slave Local Address Space 1 Range
+03100001   0f4   LCS_LAS1BA Direct Slave Local Address Space 1 Local Base Address (Remap)
+00000000   0f8   LCS_LBRD1 Local Address Space 1 Bus Region Descriptor
+00000000   0fc   LCS_DMDAC Direct Master PCI Express Dual Address Cycles Upper Address
+00000000   100   LCS_PCIARB Internal Arbiter Control
+6fc0003c   104   LCS_PABTADR PCI Abort Address
+00000000   040   LCS_MBOX0 Mailbox 0
+00000000   044   LCS_MBOX1 Mailbox 1
+00000000   048   LCS_MBOX2 Mailbox 2
+00000000   04c   LCS_MBOX3 Mailbox 3
+00000000   050   LCS_MBOX4 Mailbox 4
+00000000   054   LCS_MBOX5 Mailbox 5
+00000000   058   LCS_MBOX6 Mailbox 6
+00000000   05c   LCS_MBOX7 Mailbox 7
+00000000   060   LCS_P2LDBELL PCI Express-to-Local Doorbell
+00000000   064   LCS_L2PDBELL Local-to-PCI Express Doorbell
+0f010100   068   LCS_INTCSR Interrupt Control/Status
+100f767e   06c   LCS_CNTRL Serial EEPROM Control, PCI Command Codes, User I/O Control, and Init Control
+905610b5   070   LCS_PCIHIDR PCI Hardwired Configuration ID
+000000ba   074   LCS_PCIHREV PCI Hardwired Revision ID
+00000800   080   LCS_DMAMODE0 DMA Channel 0 Mode
+6f9fffff   084   LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+03100000   088   LCS_DMALADR0 DMA Channel 0 Local Address
+00000001   08c   LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00000008   090   LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00000800   094   LCS_DMAMODE1 DMA Channel 1 Mode
+6fc0003f   098   LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+03000000   09c   LCS_DMALADR1 DMA Channel 1 Local Address
+00000001   0a0   LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+00000008   0a4   LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      11   0a8   LCS_DMACSR0 DMA Channel 0 Command/Status
+      11   0a9   LCS_DMACSR1 DMA Channel 1 Command/Status
+09210007   0ac   LCS_DMAARB DMA Arbitration
+00000000   0b0   LCS_DMATHR DMA Threshold
+00000000   0b4   LCS_DMADAC0 DMA Channel 0 PCI Express Dual Address Cycle Upper Address
+00000000   0b8   LCS_DMADAC1 DMA Channel 1 PCI Express Dual Address Cycle Upper Address
+00000000   030   LCS_OPQIS Outbound Post Queue Interrupt Status
+00000008   034   LCS_OPQIM Outbound Post Queue Interrupt Mask
+00000000   040   LCS_IQP Inbound Queue Port
+00000000   044   LCS_OQP Outbound Queue Port
+00000002   0c0   LCS_MQCR Messaging Queue Configuration
+00000000   0c4   LCS_QBAR Queue Base Address
+00000000   0c8   LCS_IFHPR Inbound Free Head Pointer
+00000000   0cc   LCS_IFTPR Inbound Free Tail Pointer
+00000000   0d0   LCS_IPHPR Inbound Post Head Pointer
+00000000   0d4   LCS_IPTPR Inbound Post Tail Pointer
+00000000   0d8   LCS_OFHPR Outbound Free Head Pointer
+00000000   0dc   LCS_OFTPR Outbound Free Tail Pointer
+00000000   0e0   LCS_OPHPR Outbound Post Head Pointer
+00000000   0e4   LCS_OPTPR Outbound Post Tail Pointer
+00000050   0e8   LCS_QSR Queue Status/Control
+
+Opened DMA MEM device : /dev/cmem (dev_desc = 0x00000007)
+Debug: mmap param length 0x403000, Addr: 0x6f800000 
+Buff num 0: Phys addr : 0x6f800000 User Addr: 0x7f6e586fb000 
+vfio_mapping iova=0x6f800000 size=0x403000
+Performing tests with UART registers mapped into virtual address space using VFIO
+Detected 16C950 rev B on bar_index 2
+Detected 16C950 rev B on bar_index 3
+PEX8311 LCS changed values following UART setup:
+
+PEX8311 LCS changed values following DMA ring setup:
+00000800 -> 00310a00 LCS_DMAMODE0 DMA Channel 0 Mode
+6f9fffff -> 00000001 LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+03100000 -> 6f9fffff LCS_DMALADR0 DMA Channel 0 Local Address
+00000001 -> 03100000 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00000008 -> 6fc00081 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00000800 -> 00310a00 LCS_DMAMODE1 DMA Channel 1 Mode
+6fc0003f -> 00000001 LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+03000000 -> 6fc0003f LCS_DMALADR1 DMA Channel 1 Local Address
+00000001 -> 03000000 LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+00000008 -> 6fc010c1 LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      11 ->       10 LCS_DMACSR0 DMA Channel 0 Command/Status
+      11 ->       10 LCS_DMACSR1 DMA Channel 1 Command/Status
+
+
+Testing 2 UARTs, mode DMA_RING, reading LSR, using internal loopback ...
+FAIL: Timeout waiting for DMA ring Tx completion : tx BAR=3 rx BAR=3 num_tx_blocks=7 num_rx_block=5 rx_fifo_level=64
+PEX8311 LCS changed values following timeout:
+09210007 -> 09210000 LCS_MARBR Mode/DMA Arbitration
+6fc0003c -> 6fc001d8 LCS_PABTADR PCI Abort Address
+00000001 -> 80000001 LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+6f9fffff -> 6f909ed9 LCS_DMALADR0 DMA Channel 0 Local Address
+03100000 -> 03000000 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+6fc00081 -> 6fc00219 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00000001 -> 80000001 LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+6fc0003f -> 6fa001c0 LCS_DMALADR1 DMA Channel 1 Local Address
+03000000 -> 03100000 LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+6fc010c1 -> 6fc020a1 LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      10 ->       01 LCS_DMACSR0 DMA Channel 0 Command/Status
+      10 ->       00 LCS_DMACSR1 DMA Channel 1 Command/Status
+09210007 -> 09210000 LCS_DMAARB DMA Arbitration
+
+
+Testing 2 UARTs, mode DMA_RING, ignoring LSR, using internal loopback ...
+FAIL: Timeout waiting for DMA ring Tx completion : tx BAR=3 rx BAR=3 num_tx_blocks=2 num_rx_block=0 rx_fifo_level=128
+PEX8311 LCS changed values following timeout:
+6fc001d8 -> 6fc0013c LCS_PABTADR PCI Abort Address
+6f909ed9 -> 6f90d609 LCS_DMALADR0 DMA Channel 0 Local Address
+6fc00219 -> 6fc00179 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+6fa001c0 -> 6fa00082 LCS_DMALADR1 DMA Channel 1 Local Address
+6fc020a1 -> 6fc018b1 LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+
+PEX8311 LCS changed values following test mode completion:
+6fc0013c -> 6fc0058c LCS_PABTADR PCI Abort Address
+80000001 -> 00000000 LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+6f90d609 -> 6f8fffbf LCS_DMALADR0 DMA Channel 0 Local Address
+6fc00179 -> 6fc00589 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+      01 ->       11 LCS_DMACSR0 DMA Channel 0 Command/Status
+
+PORT BAR 2 Rx FIFO level change min=0 (64->64 at num_rx_blocks 16383) max=128 num_negative=0
+PORT BAR 3 Rx FIFO level change min=64 (64->128 at num_rx_blocks 1) max=128 num_negative=0
+
+2 out of 2 tests FAILED
+Memory Driver closed 
+
+[mr_halfword@skylake-alma release]$ sealevel_serial_7205e/sealevel_serial_7205e_uart_tests -u 2 -m dma_block -t 1 -d
+Opening device 0000:2e:04.0 (10b5:9056) with IOMMU group 0
+Enabling bus master for 0000:2e:04.0
+PEX8311 LCS initial register values:
+  Value  Offset Description
+fffffff0   000   LCS_LAS0RR Direct Slave Local Address Space 0 Range
+03000001   004   LCS_LAS0BA Direct Slave Local Address Space 0 Local Base Address (Remap)
+09210007   008   LCS_MARBR Mode/DMA Arbitration
+      00   00c   LCS_BIGEND Big/Little Endian Descriptor
+      84   00d   LCS_LMISC1 Local Miscellaneous Control 1
+      30   00e   LCS_PROT_AREA Serial EEPROM Write-Protected Address Boundary
+      20   00f   LCS_LMISC2 Local Miscellaneous Control 2
+00000000   010   LCS_EROMRR Direct Slave Expansion ROM Range
+00000000   014   LCS_EROMBA Direct Slave Expansion ROM Local Base Address (Remap) and BREQo Control
+42000300   018   LCS_LBRD0 Local Address Space 0/Expansion ROM Bus Region Descriptor
+00000000   01c   LCS_DMRR Local Range for Direct Master-to-PCI Express
+60000000   020   LCS_DMLBAM Local Base Address for Direct Master-to-PCI Express Memory
+50000000   024   LCS_DMLBAI Local Base Address for Direct Master-to-PCI Express I/O Configuration
+00000000   028   LCS_DMPBAM PCI Express Base Address (Remap) for Direct Master-to-PCI Express Memory
+00000000   02c   LCS_DMCFGA PCI Configuration Address for Direct Master-to-PCI Express I/O Configuration
+fffffff0   0f0   LCS_LAS1RR Direct Slave Local Address Space 1 Range
+03100001   0f4   LCS_LAS1BA Direct Slave Local Address Space 1 Local Base Address (Remap)
+00000000   0f8   LCS_LBRD1 Local Address Space 1 Bus Region Descriptor
+00000000   0fc   LCS_DMDAC Direct Master PCI Express Dual Address Cycles Upper Address
+00000000   100   LCS_PCIARB Internal Arbiter Control
+6fc0058c   104   LCS_PABTADR PCI Abort Address
+00000000   040   LCS_MBOX0 Mailbox 0
+00000000   044   LCS_MBOX1 Mailbox 1
+00000000   048   LCS_MBOX2 Mailbox 2
+00000000   04c   LCS_MBOX3 Mailbox 3
+00000000   050   LCS_MBOX4 Mailbox 4
+00000000   054   LCS_MBOX5 Mailbox 5
+00000000   058   LCS_MBOX6 Mailbox 6
+00000000   05c   LCS_MBOX7 Mailbox 7
+00000000   060   LCS_P2LDBELL PCI Express-to-Local Doorbell
+00000000   064   LCS_L2PDBELL Local-to-PCI Express Doorbell
+0f010100   068   LCS_INTCSR Interrupt Control/Status
+100f767e   06c   LCS_CNTRL Serial EEPROM Control, PCI Command Codes, User I/O Control, and Init Control
+905610b5   070   LCS_PCIHIDR PCI Hardwired Configuration ID
+000000ba   074   LCS_PCIHREV PCI Hardwired Revision ID
+00310a00   080   LCS_DMAMODE0 DMA Channel 0 Mode
+00000000   084   LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+6f8fffbf   088   LCS_DMALADR0 DMA Channel 0 Local Address
+03000000   08c   LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+6fc00589   090   LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00310a00   094   LCS_DMAMODE1 DMA Channel 1 Mode
+80000001   098   LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+6fa00082   09c   LCS_DMALADR1 DMA Channel 1 Local Address
+03100000   0a0   LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+6fc018b1   0a4   LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      11   0a8   LCS_DMACSR0 DMA Channel 0 Command/Status
+      10   0a9   LCS_DMACSR1 DMA Channel 1 Command/Status
+09210007   0ac   LCS_DMAARB DMA Arbitration
+00000000   0b0   LCS_DMATHR DMA Threshold
+00000000   0b4   LCS_DMADAC0 DMA Channel 0 PCI Express Dual Address Cycle Upper Address
+00000000   0b8   LCS_DMADAC1 DMA Channel 1 PCI Express Dual Address Cycle Upper Address
+00000000   030   LCS_OPQIS Outbound Post Queue Interrupt Status
+00000008   034   LCS_OPQIM Outbound Post Queue Interrupt Mask
+00000000   040   LCS_IQP Inbound Queue Port
+00000000   044   LCS_OQP Outbound Queue Port
+00000002   0c0   LCS_MQCR Messaging Queue Configuration
+00000000   0c4   LCS_QBAR Queue Base Address
+00000000   0c8   LCS_IFHPR Inbound Free Head Pointer
+00000000   0cc   LCS_IFTPR Inbound Free Tail Pointer
+00000000   0d0   LCS_IPHPR Inbound Post Head Pointer
+00000000   0d4   LCS_IPTPR Inbound Post Tail Pointer
+00000000   0d8   LCS_OFHPR Outbound Free Head Pointer
+00000000   0dc   LCS_OFTPR Outbound Free Tail Pointer
+00000000   0e0   LCS_OPHPR Outbound Post Head Pointer
+00000000   0e4   LCS_OPTPR Outbound Post Tail Pointer
+00000050   0e8   LCS_QSR Queue Status/Control
+
+Opened DMA MEM device : /dev/cmem (dev_desc = 0x00000007)
+Debug: mmap param length 0x403000, Addr: 0x6f800000 
+Buff num 0: Phys addr : 0x6f800000 User Addr: 0x7fcd7186b000 
+vfio_mapping iova=0x6f800000 size=0x403000
+Performing tests with UART registers mapped into virtual address space using VFIO
+Detected 16C950 rev B on bar_index 2
+Detected 16C950 rev B on bar_index 3
+PEX8311 LCS changed values following UART setup:
+
+PEX8311 LCS changed values following DMA block setup:
+00310a00 -> 00000800 LCS_DMAMODE0 DMA Channel 0 Mode
+00000000 -> 6f8fffbf LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+6f8fffbf -> 03000000 LCS_DMALADR0 DMA Channel 0 Local Address
+03000000 -> 00000000 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00310a00 -> 00000800 LCS_DMAMODE1 DMA Channel 1 Mode
+80000001 -> 6fa00082 LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+6fa00082 -> 03100000 LCS_DMALADR1 DMA Channel 1 Local Address
+03100000 -> 80000001 LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+      11 ->       10 LCS_DMACSR0 DMA Channel 0 Command/Status
+
+
+Testing 2 UARTs, mode DMA_BLOCK, reading LSR, using internal loopback ...
+FAIL: Timeout waiting for DMA completion Tx data : tx BAR=3 rx BAR=3 num_tx_blocks=2 num_rx_block=0 rx_fifo_level=117
+PEX8311 LCS changed values following timeout:
+09210007 -> 09210000 LCS_MARBR Mode/DMA Arbitration
+6fc0058c -> 6f80e8a8 LCS_PABTADR PCI Abort Address
+6f8fffbf -> 6f80e8aa LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+00000000 -> 00000001 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+6fc00589 -> 00000000 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+6fa00082 -> 6fa000b4 LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+80000001 -> 00000001 LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+6fc018b1 -> 00000000 LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      10 ->       11 LCS_DMACSR0 DMA Channel 0 Command/Status
+      10 ->       00 LCS_DMACSR1 DMA Channel 1 Command/Status
+09210007 -> 09210000 LCS_DMAARB DMA Arbitration
+
+
+Testing 2 UARTs, mode DMA_BLOCK, ignoring LSR, using internal loopback ...
+FAIL: Timeout waiting for DMA completion Tx data : tx BAR=3 rx BAR=3 num_tx_blocks=2 num_rx_block=0 rx_fifo_level=119
+PEX8311 LCS changed values following timeout:
+6f80e8a8 -> 6f9159bc LCS_PABTADR PCI Abort Address
+6f80e8aa -> 6f9159bf LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+00000000 -> 00000008 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+6fa000b4 -> 6fa00041 LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+
+PEX8311 LCS changed values following test mode completion:
+6f9159bc -> 6f9ffffc LCS_PABTADR PCI Abort Address
+6f9159bf -> 6f9fffff LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+
+PORT BAR 2 Rx FIFO level change min=-63 (191->128 at num_rx_blocks 196) max=192 num_negative=2
+PORT BAR 3 Rx FIFO level change min=2147483647 (4294967295->4294967295 at num_rx_blocks 0) max=-2147483648 num_negative=0
+
+2 out of 2 tests FAILED
+Memory Driver closed 
+
+
+Using the configuration from 6, attempting one DMA channel with 2 byte transfers still failed,
+as the tests with the IOMMU enabled did:
+[mr_halfword@skylake-alma release]$ sealevel_serial_7205e/sealevel_serial_7205e_uart_tests -u 1 -m dma_ring -t 2 -d
+Opening device 0000:2e:04.0 (10b5:9056) with IOMMU group 0
+Enabling bus master for 0000:2e:04.0
+PEX8311 LCS initial register values:
+  Value  Offset Description
+fffffff0   000   LCS_LAS0RR Direct Slave Local Address Space 0 Range
+03000001   004   LCS_LAS0BA Direct Slave Local Address Space 0 Local Base Address (Remap)
+09210007   008   LCS_MARBR Mode/DMA Arbitration
+      00   00c   LCS_BIGEND Big/Little Endian Descriptor
+      84   00d   LCS_LMISC1 Local Miscellaneous Control 1
+      30   00e   LCS_PROT_AREA Serial EEPROM Write-Protected Address Boundary
+      20   00f   LCS_LMISC2 Local Miscellaneous Control 2
+00000000   010   LCS_EROMRR Direct Slave Expansion ROM Range
+00000000   014   LCS_EROMBA Direct Slave Expansion ROM Local Base Address (Remap) and BREQo Control
+42000300   018   LCS_LBRD0 Local Address Space 0/Expansion ROM Bus Region Descriptor
+00000000   01c   LCS_DMRR Local Range for Direct Master-to-PCI Express
+60000000   020   LCS_DMLBAM Local Base Address for Direct Master-to-PCI Express Memory
+50000000   024   LCS_DMLBAI Local Base Address for Direct Master-to-PCI Express I/O Configuration
+00000000   028   LCS_DMPBAM PCI Express Base Address (Remap) for Direct Master-to-PCI Express Memory
+00000000   02c   LCS_DMCFGA PCI Configuration Address for Direct Master-to-PCI Express I/O Configuration
+fffffff0   0f0   LCS_LAS1RR Direct Slave Local Address Space 1 Range
+03100001   0f4   LCS_LAS1BA Direct Slave Local Address Space 1 Local Base Address (Remap)
+00000000   0f8   LCS_LBRD1 Local Address Space 1 Bus Region Descriptor
+00000000   0fc   LCS_DMDAC Direct Master PCI Express Dual Address Cycles Upper Address
+00000000   100   LCS_PCIARB Internal Arbiter Control
+6f9ffffc   104   LCS_PABTADR PCI Abort Address
+00000000   040   LCS_MBOX0 Mailbox 0
+00000000   044   LCS_MBOX1 Mailbox 1
+00000000   048   LCS_MBOX2 Mailbox 2
+00000000   04c   LCS_MBOX3 Mailbox 3
+00000000   050   LCS_MBOX4 Mailbox 4
+00000000   054   LCS_MBOX5 Mailbox 5
+00000000   058   LCS_MBOX6 Mailbox 6
+00000000   05c   LCS_MBOX7 Mailbox 7
+00000000   060   LCS_P2LDBELL PCI Express-to-Local Doorbell
+00000000   064   LCS_L2PDBELL Local-to-PCI Express Doorbell
+0f010100   068   LCS_INTCSR Interrupt Control/Status
+100f767e   06c   LCS_CNTRL Serial EEPROM Control, PCI Command Codes, User I/O Control, and Init Control
+905610b5   070   LCS_PCIHIDR PCI Hardwired Configuration ID
+000000ba   074   LCS_PCIHREV PCI Hardwired Revision ID
+00000800   080   LCS_DMAMODE0 DMA Channel 0 Mode
+6f9fffff   084   LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+03000000   088   LCS_DMALADR0 DMA Channel 0 Local Address
+00000001   08c   LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00000008   090   LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00000800   094   LCS_DMAMODE1 DMA Channel 1 Mode
+6fa00041   098   LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+03100000   09c   LCS_DMALADR1 DMA Channel 1 Local Address
+00000001   0a0   LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+00000000   0a4   LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      11   0a8   LCS_DMACSR0 DMA Channel 0 Command/Status
+      10   0a9   LCS_DMACSR1 DMA Channel 1 Command/Status
+09210007   0ac   LCS_DMAARB DMA Arbitration
+00000000   0b0   LCS_DMATHR DMA Threshold
+00000000   0b4   LCS_DMADAC0 DMA Channel 0 PCI Express Dual Address Cycle Upper Address
+00000000   0b8   LCS_DMADAC1 DMA Channel 1 PCI Express Dual Address Cycle Upper Address
+00000000   030   LCS_OPQIS Outbound Post Queue Interrupt Status
+00000008   034   LCS_OPQIM Outbound Post Queue Interrupt Mask
+00000000   040   LCS_IQP Inbound Queue Port
+00000000   044   LCS_OQP Outbound Queue Port
+00000002   0c0   LCS_MQCR Messaging Queue Configuration
+00000000   0c4   LCS_QBAR Queue Base Address
+00000000   0c8   LCS_IFHPR Inbound Free Head Pointer
+00000000   0cc   LCS_IFTPR Inbound Free Tail Pointer
+00000000   0d0   LCS_IPHPR Inbound Post Head Pointer
+00000000   0d4   LCS_IPTPR Inbound Post Tail Pointer
+00000000   0d8   LCS_OFHPR Outbound Free Head Pointer
+00000000   0dc   LCS_OFTPR Outbound Free Tail Pointer
+00000000   0e0   LCS_OPHPR Outbound Post Head Pointer
+00000000   0e4   LCS_OPTPR Outbound Post Tail Pointer
+00000050   0e8   LCS_QSR Queue Status/Control
+
+Opened DMA MEM device : /dev/cmem (dev_desc = 0x00000007)
+Debug: mmap param length 0x202000, Addr: 0x6f800000 
+Buff num 0: Phys addr : 0x6f800000 User Addr: 0x7f898337d000 
+vfio_mapping iova=0x6f800000 size=0x202000
+Performing tests with UART registers mapped into virtual address space using VFIO
+Detected 16C950 rev B on bar_index 2
+PEX8311 LCS changed values following UART setup:
+
+PEX8311 LCS changed values following DMA ring setup:
+00000800 -> 00310a00 LCS_DMAMODE0 DMA Channel 0 Mode
+6f9fffff -> 00000001 LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+03000000 -> 6f9fffff LCS_DMALADR0 DMA Channel 0 Local Address
+00000001 -> 03000000 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+00000008 -> 6fa00041 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+      11 ->       10 LCS_DMACSR0 DMA Channel 0 Command/Status
+
+
+Testing 1 UARTs, mode DMA_RING, reading LSR, using internal loopback ...
+FAIL: Timeout waiting for waiting for Rx block using DMA ring : tx BAR=2 rx BAR=2 num_tx_blocks=3 num_rx_block=1 rx_fifo_level=32
+PEX8311 LCS changed values following timeout:
+6f9ffffc -> 6fa00e4c LCS_PABTADR PCI Abort Address
+00000001 -> 00000000 LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+6f9fffff -> 00000000 LCS_DMALADR0 DMA Channel 0 Local Address
+6fa00041 -> 6fa00e41 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+      10 ->       11 LCS_DMACSR0 DMA Channel 0 Command/Status
+
+
+Testing 1 UARTs, mode DMA_RING, ignoring LSR, using internal loopback ...
+FAIL: BAR 2 Rx word 0 actual=0x61612121, expected=0xe1a40001
+PEX8311 LCS changed values following test mode completion:
+6fa00e4c -> 6fa00f4c LCS_PABTADR PCI Abort Address
+00000000 -> 6f8fff3e LCS_DMALADR0 DMA Channel 0 Local Address
+6fa00e41 -> 6fa00f49 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+
+PORT BAR 2 Rx FIFO level change min=0 (32->32 at num_rx_blocks 1) max=64 num_negative=0
+
+2 out of 2 tests FAILED
+Memory Driver closed 
+
+[mr_halfword@skylake-alma release]$ sealevel_serial_7205e/sealevel_serial_7205e_uart_tests -u 1 -m dma_block -t 2 -d
+Opening device 0000:2e:04.0 (10b5:9056) with IOMMU group 0
+Enabling bus master for 0000:2e:04.0
+PEX8311 LCS initial register values:
+  Value  Offset Description
+fffffff0   000   LCS_LAS0RR Direct Slave Local Address Space 0 Range
+03000001   004   LCS_LAS0BA Direct Slave Local Address Space 0 Local Base Address (Remap)
+09210007   008   LCS_MARBR Mode/DMA Arbitration
+      00   00c   LCS_BIGEND Big/Little Endian Descriptor
+      84   00d   LCS_LMISC1 Local Miscellaneous Control 1
+      30   00e   LCS_PROT_AREA Serial EEPROM Write-Protected Address Boundary
+      20   00f   LCS_LMISC2 Local Miscellaneous Control 2
+00000000   010   LCS_EROMRR Direct Slave Expansion ROM Range
+00000000   014   LCS_EROMBA Direct Slave Expansion ROM Local Base Address (Remap) and BREQo Control
+42000300   018   LCS_LBRD0 Local Address Space 0/Expansion ROM Bus Region Descriptor
+00000000   01c   LCS_DMRR Local Range for Direct Master-to-PCI Express
+60000000   020   LCS_DMLBAM Local Base Address for Direct Master-to-PCI Express Memory
+50000000   024   LCS_DMLBAI Local Base Address for Direct Master-to-PCI Express I/O Configuration
+00000000   028   LCS_DMPBAM PCI Express Base Address (Remap) for Direct Master-to-PCI Express Memory
+00000000   02c   LCS_DMCFGA PCI Configuration Address for Direct Master-to-PCI Express I/O Configuration
+fffffff0   0f0   LCS_LAS1RR Direct Slave Local Address Space 1 Range
+03100001   0f4   LCS_LAS1BA Direct Slave Local Address Space 1 Local Base Address (Remap)
+00000000   0f8   LCS_LBRD1 Local Address Space 1 Bus Region Descriptor
+00000000   0fc   LCS_DMDAC Direct Master PCI Express Dual Address Cycles Upper Address
+00000000   100   LCS_PCIARB Internal Arbiter Control
+6fa00f4c   104   LCS_PABTADR PCI Abort Address
+00000000   040   LCS_MBOX0 Mailbox 0
+00000000   044   LCS_MBOX1 Mailbox 1
+00000000   048   LCS_MBOX2 Mailbox 2
+00000000   04c   LCS_MBOX3 Mailbox 3
+00000000   050   LCS_MBOX4 Mailbox 4
+00000000   054   LCS_MBOX5 Mailbox 5
+00000000   058   LCS_MBOX6 Mailbox 6
+00000000   05c   LCS_MBOX7 Mailbox 7
+00000000   060   LCS_P2LDBELL PCI Express-to-Local Doorbell
+00000000   064   LCS_L2PDBELL Local-to-PCI Express Doorbell
+0f010100   068   LCS_INTCSR Interrupt Control/Status
+100f767e   06c   LCS_CNTRL Serial EEPROM Control, PCI Command Codes, User I/O Control, and Init Control
+905610b5   070   LCS_PCIHIDR PCI Hardwired Configuration ID
+000000ba   074   LCS_PCIHREV PCI Hardwired Revision ID
+00310a00   080   LCS_DMAMODE0 DMA Channel 0 Mode
+00000000   084   LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+6f8fff3e   088   LCS_DMALADR0 DMA Channel 0 Local Address
+03000000   08c   LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+6fa00f49   090   LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+00000800   094   LCS_DMAMODE1 DMA Channel 1 Mode
+6fa00041   098   LCS_DMAPADR1 DMA Channel 1 PCI Express Address
+03100000   09c   LCS_DMALADR1 DMA Channel 1 Local Address
+00000001   0a0   LCS_DMASIZ1 DMA Channel 1 Transfer Size (Bytes)
+00000000   0a4   LCS_DMADPR1 DMA Channel 1 Descriptor Pointer
+      11   0a8   LCS_DMACSR0 DMA Channel 0 Command/Status
+      10   0a9   LCS_DMACSR1 DMA Channel 1 Command/Status
+09210007   0ac   LCS_DMAARB DMA Arbitration
+00000000   0b0   LCS_DMATHR DMA Threshold
+00000000   0b4   LCS_DMADAC0 DMA Channel 0 PCI Express Dual Address Cycle Upper Address
+00000000   0b8   LCS_DMADAC1 DMA Channel 1 PCI Express Dual Address Cycle Upper Address
+00000000   030   LCS_OPQIS Outbound Post Queue Interrupt Status
+00000008   034   LCS_OPQIM Outbound Post Queue Interrupt Mask
+00000000   040   LCS_IQP Inbound Queue Port
+00000000   044   LCS_OQP Outbound Queue Port
+00000002   0c0   LCS_MQCR Messaging Queue Configuration
+00000000   0c4   LCS_QBAR Queue Base Address
+00000000   0c8   LCS_IFHPR Inbound Free Head Pointer
+00000000   0cc   LCS_IFTPR Inbound Free Tail Pointer
+00000000   0d0   LCS_IPHPR Inbound Post Head Pointer
+00000000   0d4   LCS_IPTPR Inbound Post Tail Pointer
+00000000   0d8   LCS_OFHPR Outbound Free Head Pointer
+00000000   0dc   LCS_OFTPR Outbound Free Tail Pointer
+00000000   0e0   LCS_OPHPR Outbound Post Head Pointer
+00000000   0e4   LCS_OPTPR Outbound Post Tail Pointer
+00000050   0e8   LCS_QSR Queue Status/Control
+
+Opened DMA MEM device : /dev/cmem (dev_desc = 0x00000007)
+Debug: mmap param length 0x202000, Addr: 0x6f800000 
+Buff num 0: Phys addr : 0x6f800000 User Addr: 0x7f8c4f9a9000 
+vfio_mapping iova=0x6f800000 size=0x202000
+Performing tests with UART registers mapped into virtual address space using VFIO
+Detected 16C950 rev B on bar_index 2
+PEX8311 LCS changed values following UART setup:
+
+PEX8311 LCS changed values following DMA block setup:
+00310a00 -> 00000800 LCS_DMAMODE0 DMA Channel 0 Mode
+00000000 -> 6f8fff3e LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+6f8fff3e -> 03000000 LCS_DMALADR0 DMA Channel 0 Local Address
+03000000 -> 00000000 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+      11 ->       10 LCS_DMACSR0 DMA Channel 0 Command/Status
+
+
+Testing 1 UARTs, mode DMA_BLOCK, reading LSR, using internal loopback ...
+FAIL: Timeout waiting for waiting for Rx block using DMA block : tx BAR=2 rx BAR=2 num_tx_blocks=3 num_rx_block=1 rx_fifo_level=32
+PEX8311 LCS changed values following timeout:
+6fa00f4c -> 6f8000bc LCS_PABTADR PCI Abort Address
+6f8fff3e -> 6f8000be LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+00000000 -> 00000002 LCS_DMASIZ0 DMA Channel 0 Transfer Size (Bytes)
+6fa00f49 -> 00000000 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+      10 ->       11 LCS_DMACSR0 DMA Channel 0 Command/Status
+
+
+Testing 1 UARTs, mode DMA_BLOCK, ignoring LSR, using internal loopback ...
+FAIL: BAR 2 Rx word 0 actual=0x61612121, expected=0xe1a40001
+PEX8311 LCS changed values following test mode completion:
+6f8000bc -> 6f9ffffc LCS_PABTADR PCI Abort Address
+6f8000be -> 6f9ffffe LCS_DMAPADR0 DMA Channel 0 PCI Express Address
+00000000 -> 00000008 LCS_DMADPR0 DMA Channel 0 Descriptor Pointer
+
+PORT BAR 2 Rx FIFO level change min=0 (32->32 at num_rx_blocks 1) max=65 num_negative=0
+
+2 out of 2 tests FAILED
+Memory Driver closed 

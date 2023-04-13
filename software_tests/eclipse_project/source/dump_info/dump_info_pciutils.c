@@ -27,6 +27,8 @@ int main (int argc, char *argv[])
     u16 command;
     int vendor;
     char junk;
+    u8 header_type;
+    char header_type_name[64];
 
     /* Initialise using the defaults */
     pacc = pci_alloc ();
@@ -73,13 +75,28 @@ int main (int argc, char *argv[])
             {
                 subvendor_id = pci_read_word (dev, PCI_SUBSYSTEM_VENDOR_ID);
                 subdevice_id = pci_read_word (dev, PCI_SUBSYSTEM_ID);
-                printf ("domain=%04x bus=%02x dev=%02x func=%02x\n  vendor_id=%04x (%s) device_id=%04x (%s) subvendor_id=%04x subdevice_id=%04x\n",
+                header_type = pci_read_byte (dev, PCI_HEADER_TYPE) & PCI_HEADER_TYPE_MASK;
+                switch (header_type)
+                {
+                case PCI_HEADER_TYPE_NORMAL:
+                    snprintf (header_type_name, sizeof (header_type_name), "%s", "NORMAL");
+                    break;
+                case PCI_HEADER_TYPE_BRIDGE:
+                    snprintf (header_type_name, sizeof (header_type_name), "%s", "BRIDGE");
+                    break;
+                case PCI_HEADER_TYPE_CARDBUS:
+                    snprintf (header_type_name, sizeof (header_type_name), "%s", "CARDBUS");
+                    break;
+                default:
+                    snprintf (header_type_name, sizeof (header_type_name), "Unknown (0x%x)", header_type);
+                }
+                printf ("domain=%04x bus=%02x dev=%02x func=%02x\n  vendor_id=%04x (%s) device_id=%04x (%s) subvendor_id=%04x subdevice_id=%04x header_type=%s\n",
                         dev->domain, dev->bus, dev->dev, dev->func,
                         dev->vendor_id,
                         pci_lookup_name (pacc, vendor_name, sizeof (vendor_name), PCI_LOOKUP_VENDOR, dev->vendor_id),
                         dev->device_id,
                         pci_lookup_name (pacc, device_name, sizeof (device_name), PCI_LOOKUP_DEVICE, dev->vendor_id, dev->device_id),
-                        subvendor_id, subdevice_id);
+                        subvendor_id, subdevice_id, header_type_name);
 
                 command = pci_read_word (dev, PCI_COMMAND);
                 printf ("  control: I/O%s Mem%s BusMaster%s\n",

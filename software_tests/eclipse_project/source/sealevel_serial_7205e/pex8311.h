@@ -193,7 +193,7 @@ typedef struct
 
 
 void pex_dump_lcs_registers (const uint8_t *const lcs, const char *const point_of_dump);
-void pex_check_iova_constraints (const vfio_dma_mapping_t *const mapping);
+bool pex_check_ring_dma_iova_constraints (const vfio_dma_mapping_t *const mapping);
 void pex_initialise_dma_ring (pex_dma_ring_context_t *const ring,
                               uint8_t *const lcs,
                               const uint32_t dma_channel,

@@ -213,3 +213,57 @@ card-to-host PIO mapped with write-combining (flush posted writes) timing for 10
 
 The results show that "write-combining (flush posted writes)" reports a lower write transfer rate than "write-combining".
 The rate for write transfer using "write-combining (flush posted writes)" now doesn't exceed the PCIe bandwidth.
+
+
+3. Unable to make the shared memory test use VFIO
+=================================================
+
+With the card fitted in a W-2123 system with AlmaLinux 8.7, a 4.18.0-425.19.2.el8_7.x86_64 Kernel and the IOMMU enabled
+attempted to bind the vfio-pci driver to all devices with the PCI vendor ID for PLX:
+
+[mr_halfword@skylake-alma eclipse_project]$ ./bind_device_to_vfio.sh 10b5
+IOMMU devices present: dmar0  dmar1  dmar2  dmar3
+Loading vfio-pci module
+vfio-pci
+0000:2d:00.0
+tee: /sys/bus/pci/drivers/vfio-pci/bind: Invalid argument
+Bound vfio-pci driver to 0000:2d:00.0 10b5:8111 [0000:0000]
+chmod: cannot access '/dev/vfio/85': No such file or directory
+Giving user permission to IOMMU group 85 for 0000:2d:00.0 10b5:8111 [0000:0000]
+vfio-pci
+0000:2e:04.0
+Bound vfio-pci driver to 0000:2e:04.0 10b5:9056 [10b5:3198]
+Giving user permission to IOMMU group 85 for 0000:2e:04.0 10b5:9056 [10b5:3198]
+
+Where EINVAL is reported trying to bind vfio-pci to the 10b5:8111 device which is the PEX 8111 PCI Express-to-PCI Bridge
+containing the shared memory.
+
+dmesg contained:
+[  614.058523] vfio-pci: probe of 0000:2d:00.0 failed with error -22
+
+Think the "probe of" message is reported by the call_driver_probe() function in
+/usr/src/debug/kernel-4.18.0-425.19.2.el8_7/linux-4.18.0-425.19.2.el8_7.x86_64/drivers/base/dd.c
+
+The vfio_pci_probe() function in /usr/src/debug/kernel-4.18.0-425.19.2.el8_7/linux-4.18.0-425.19.2.el8_7.x86_64/drivers/vfio/pci/vfio_pci.c
+contains the following:
+    if (pdev->hdr_type != PCI_HEADER_TYPE_NORMAL)
+        return -EINVAL;
+
+I.e. vfio-pci will only bind to a device with a NORMAL header type.
+
+As expected, 10b5:8111 reports a BRIDGE header type, which explain why vfio-pci won't bind to it:
+[mr_halfword@skylake-alma coverage]$ dump_info/dump_info_pciutils 10b5
+Access method : linux-sysfs
+domain=0000 bus=2d dev=00 func=00
+  vendor_id=10b5 (PLX Technology, Inc.) device_id=8111 (PEX 8111 PCI Express-to-PCI Bridge) subvendor_id=0000 subdevice_id=0000 header_type=BRIDGE
+  control: I/O+ Mem+ BusMaster+
+  IOMMU group: 85
+  bar[0] base_addr=38ffffe00000 size=10000 is_IO=0 is_prefetchable=1 is_64=1
+domain=0000 bus=2e dev=04 func=00
+  vendor_id=10b5 (PLX Technology, Inc.) device_id=9056 (PCI9056 32-bit 66MHz PCI <-> IOBus Bridge) subvendor_id=10b5 subdevice_id=3198 header_type=NORMAL
+  control: I/O- Mem+ BusMaster-
+  IOMMU group: 85
+  Driver: vfio-pci
+  bar[0] base_addr=97900000 size=200 is_IO=0 is_prefetchable=0 is_64=0
+  bar[2] base_addr=97902000 size=10 is_IO=0 is_prefetchable=0 is_64=0
+  bar[3] base_addr=97901000 size=10 is_IO=0 is_prefetchable=0 is_64=0

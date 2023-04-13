@@ -95,6 +95,7 @@ typedef struct
     uint32_t rfl_change_min_num_rx_blocks;
     uint32_t rfl_change_min_value_before;
     uint32_t rfl_change_min_value_after;
+    uint32_t rfl_change_num_negative;
 } uart_port_t;
 
 
@@ -418,6 +419,10 @@ static uint8_t serial_read_rx_fifo_level (uart_port_t *const port, const uint32_
     const uint8_t rx_fifo_level = serial_in (port, UART_RFL);
     const int32_t rx_fifo_level_change = (int32_t) rx_fifo_level - port->previous_rx_fifo_level;
 
+    if (rx_fifo_level_change < 0)
+    {
+        port->rfl_change_num_negative++;
+    }
     if (rx_fifo_level_change < port->rx_fifo_level_change_min)
     {
         port->rx_fifo_level_change_min = rx_fifo_level_change;
@@ -617,6 +622,7 @@ static void set_uart_operational_mode (uart_port_t *const port)
     port->rfl_change_min_num_rx_blocks = 0;
     port->rfl_change_min_value_before = UINT32_MAX;
     port->rfl_change_min_value_after = UINT32_MAX;
+    port->rfl_change_num_negative = 0;
 }
 
 
@@ -1144,11 +1150,15 @@ static void sequence_uart_loopback_test_dma_block (uart_test_context_t *const co
  * @param[in] read_lsr Used to control if the Line Status Register is read and checked as part of the test.
  * @param[in] internal_loopback If true internal loopback is being used, or external loopback if false.
  *                              Used to describe the test. The caller has already configure the UARTs.
+ * @param[in/out] total_tests Incremented for every call.
+ * @param[in/out] total_test_failures Incremented if the test fails
  */
 static void perform_uart_loopback_test (uart_test_context_t contexts[const NUM_UARTS],
                                         uart_test_mode_t test_mode,
                                         uint32_t *const seed,
-                                        const bool read_lsr, const bool internal_loopback)
+                                        const bool read_lsr, const bool internal_loopback,
+                                        uint32_t *const total_tests,
+                                        uint32_t *const total_test_failures)
 {
     unsigned int context_index;
     bool test_running;
@@ -1256,6 +1266,11 @@ static void perform_uart_loopback_test (uart_test_context_t contexts[const NUM_U
     {
         display_transfer_timing_statistics (&timing);
     }
+    else
+    {
+        (*total_test_failures)++;
+    }
+    (*total_tests)++;
 }
 
 
@@ -1275,6 +1290,8 @@ static void perform_uart_tests (vfio_devices_t *const vfio_devices, const uint32
     bool internal_loopback;
     uint32_t seed;
     bool read_lsr;
+    uint32_t total_tests = 0;
+    uint32_t total_test_failures = 0;
 
     map_vfio_device_bar_before_use (vfio_device, PEX_LCS_MMIO_BAR_INDEX);
     uint8_t *const lcs = vfio_device->mapped_bars[PEX_LCS_MMIO_BAR_INDEX];
@@ -1321,7 +1338,7 @@ static void perform_uart_tests (vfio_devices_t *const vfio_devices, const uint32
             vfio_align_cache_line_size ((TEST_DMA_RING_SIZE * sizeof (pex_ring_dma_descriptor_short_format_t))); /* DMA descriptors */
     const size_t required_iova_size = arg_num_uarts_tested * per_context_iova_size;
     const size_t aligned_iova_size = ((required_iova_size + page_size - 1) / page_size) * page_size;
-    allocate_vfio_dma_mapping (vfio_devices, &vfio_mapping, arg_num_uarts_tested * aligned_iova_size,
+    allocate_vfio_dma_mapping (vfio_devices, &vfio_mapping, aligned_iova_size,
             VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, VFIO_BUFFER_ALLOCATION_HEAP);
     if (vfio_mapping.buffer.vaddr == NULL)
     {
@@ -1381,7 +1398,11 @@ static void perform_uart_tests (vfio_devices_t *const vfio_devices, const uint32
             /* Perform initialisation to use DMA, using a different DMA channel for each test context.
              * Depending upon if internal or external loopback is used for a test the DMA channel can target one or both UARTs.
              * This doesn't start any DMA. */
-            pex_check_iova_constraints (&vfio_mapping);
+            if (!pex_check_ring_dma_iova_constraints (&vfio_mapping))
+            {
+                printf ("Skipping DMA ring test, as IOVA above 4GB address boundary\n");
+                continue;
+            }
             for (context_index = 0; context_index < arg_num_uarts_tested; context_index++)
             {
                 pex_initialise_dma_ring (&contexts[context_index].ring, lcs, context_index, TEST_DMA_RING_SIZE, &vfio_mapping);
@@ -1420,9 +1441,9 @@ static void perform_uart_tests (vfio_devices_t *const vfio_devices, const uint32
         }
 
         read_lsr = true;
-        perform_uart_loopback_test (contexts, test_mode, &seed, read_lsr, internal_loopback);
+        perform_uart_loopback_test (contexts, test_mode, &seed, read_lsr, internal_loopback, &total_tests, &total_test_failures);
         read_lsr = false;
-        perform_uart_loopback_test (contexts, test_mode, &seed, read_lsr, internal_loopback);
+        perform_uart_loopback_test (contexts, test_mode, &seed, read_lsr, internal_loopback, &total_tests, &total_test_failures);
 
         if (arg_test_external_loopback)
         {
@@ -1444,9 +1465,9 @@ static void perform_uart_tests (vfio_devices_t *const vfio_devices, const uint32
 
             /* Perform a test using external loopback and PIO */
             read_lsr = true;
-            perform_uart_loopback_test (contexts, test_mode, &seed, read_lsr, internal_loopback);
+            perform_uart_loopback_test (contexts, test_mode, &seed, read_lsr, internal_loopback, &total_tests, &total_test_failures);
             read_lsr = false;
-            perform_uart_loopback_test (contexts, test_mode, &seed, read_lsr, internal_loopback);
+            perform_uart_loopback_test (contexts, test_mode, &seed, read_lsr, internal_loopback, &total_tests, &total_test_failures);
         }
 
         if (arg_dump_pex_registers)
@@ -1460,11 +1481,11 @@ static void perform_uart_tests (vfio_devices_t *const vfio_devices, const uint32
     {
         const uart_port_t *const port = &ports[port_index];
 
-        printf ("PORT BAR %d Rx FIFO level change min=%d (%u->%u at num_rx_blocks %u) max=%d\n",
+        printf ("PORT BAR %d Rx FIFO level change min=%d (%u->%u at num_rx_blocks %u) max=%d num_negative=%u\n",
                 port->bar_index,
                 port->rx_fifo_level_change_min,
                 port->rfl_change_min_value_before, port->rfl_change_min_value_after, port->rfl_change_min_num_rx_blocks,
-                port->rx_fifo_level_change_max);
+                port->rx_fifo_level_change_max, port->rfl_change_num_negative);
     }
 
     /* Disable ASR upon end of tests */
@@ -1475,6 +1496,18 @@ static void perform_uart_tests (vfio_devices_t *const vfio_devices, const uint32
     }
 
     free_vfio_dma_mapping (vfio_devices, &vfio_mapping);
+
+    if (total_tests > 0)
+    {
+        if (total_test_failures > 0)
+        {
+            printf ("\n%u out of %u tests FAILED\n", total_test_failures, total_tests);
+        }
+        else
+        {
+            printf ("\nAll %u tests PASSED\n", total_tests);
+        }
+    }
 }
 
 

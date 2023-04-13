@@ -182,29 +182,24 @@ void pex_dump_lcs_registers (const uint8_t *const lcs, const char *const point_o
 }
 
 /*
- * @brief Check that VFIO DMA constraints for use with the PEX8311 are satisfied.
- * @details This file has been written to only program the PEX8311 to support DMA access below the 4-GB Address Boundary space.
- *
- *          Scatter/Gather DMA using Ring Management DMA (Valid Mode) is used to minimise access to device registers to
+ * @brief Check that VFIO constraints to use ring DMA with the PEX8311 are satisfied.
+ * @details Scatter/Gather DMA using Ring Management DMA (Valid Mode) is used to minimise access to device registers to
  *          start DMA / check for completion.
  *
  *          While the descriptors in host memory can be configured to address memory above the 4-GB Address Boundary space,
  *          section "9.5.5.1 Scatter/Gather DMA PCI Express Long Address Format" of the databook says
  *             "Ensure that descriptor blocks reside below the 4-GB Address Boundary space."
  *
- *          Changing to use DMA Block Mode, which doesn't use descriptors in host memory, would avoid this constraint.
+ *          Using DMA Block Mode, which doesn't use descriptors in host memory, should avoid this constraint.
  * @param[in] mapping the VFIO DMA mapping to validate
+ * @return Returns true if ring DMA can be used.
  */
-void pex_check_iova_constraints (const vfio_dma_mapping_t *const mapping)
+bool pex_check_ring_dma_iova_constraints (const vfio_dma_mapping_t *const mapping)
 {
     const uint64_t iova_end_address = mapping->iova + mapping->buffer.size - 1;
     const uint64_t pex8311_max_iova = 0x100000000ULL;
 
-    if (iova_end_address >= pex8311_max_iova)
-    {
-        printf ("To support PEX8311 DMA IOVA must be below the 4-GB Address Boundary space\n");
-        exit (EXIT_FAILURE);
-    }
+    return iova_end_address < pex8311_max_iova;
 }
 
 
