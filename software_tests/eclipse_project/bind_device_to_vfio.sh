@@ -93,15 +93,32 @@ do
             echo "${device_identification} is already bound to driver ${existing_driver}"
         else
             # Bind the device to the vfio-pci driver.
-            echo vfio-pci | sudo tee ${pci_dir}/driver_override
-            echo ${pci_dbdf} | sudo tee /sys/bus/pci/drivers/vfio-pci/bind
-            echo "Bound vfio-pci driver to ${device_identification}"
-
-            if [ -a ${pci_dir}/iommu_group ]
+            echo vfio-pci | sudo tee ${pci_dir}/driver_override > /dev/null
+            echo ${pci_dbdf} | sudo tee /sys/bus/pci/drivers/vfio-pci/bind > /dev/null
+            exit_status=$?
+            if [ ${exit_status} -eq 0 ]
             then
-                iommu_group=`basename \`readlink ${pci_dir}/iommu_group\``
-                sudo chmod o+rw /dev/vfio/${iommu_group_prefix}${iommu_group}
-                echo "Giving user permission to IOMMU group ${iommu_group_prefix}${iommu_group} for ${device_identification}"
+                echo "Bound vfio-pci driver to ${device_identification}"
+
+                if [ -a ${pci_dir}/iommu_group ]
+                then
+                    # Wait for the group file to exist, due to a delay before the file exists following binding the device
+                    # to the vfio-pci. Without this wait, sometimes the chmod would fail reporting the group file didn't exist.
+                    iommu_group=`basename \`readlink ${pci_dir}/iommu_group\``
+                    iommu_group_file=/dev/vfio/${iommu_group_prefix}${iommu_group}
+                    echo "Waiting for ${iommu_group_file} to be created"
+                    until [ -a ${iommu_group_file} ]
+                    do
+                        sleep 1
+                    done
+
+                    sudo chmod o+rw ${iommu_group_file}
+                    echo "Giving user permission to IOMMU group ${iommu_group_prefix}${iommu_group} for ${device_identification}"
+                fi
+            else
+                # This may happen since vfio-pci can only bind to devices with a "normal" PCI header type.
+                # I.e. unable to bind to bridges.
+                echo "Failed to bind vfio-pci driver to ${device_identification}"
             fi
         fi
     fi
