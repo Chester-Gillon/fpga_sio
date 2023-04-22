@@ -203,7 +203,7 @@ int main (int argc, char *argv[])
                             success && (ddr_word_index < ddr_size_words);
                             ddr_word_index += num_words_per_c2h_xfer)
                     {
-                        const uint32_t ddr_byte_index = ddr_word_index * sizeof (uint32_t);
+                        const size_t ddr_byte_index = ddr_word_index * sizeof (uint32_t);
                         x2x_transfer_set_card_start_address (&c2h_context, ddr_byte_index);
                         transfer_time_start (&c2h_timing);
                         success = x2x_start_transfer (&c2h_context);

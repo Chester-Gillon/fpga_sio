@@ -23,7 +23,7 @@
 #include <stdint.h>
 
 /* Defines one DMA descriptor */
-#define DMA_DESCRIPTOR_MAGIC (0xad4b << 16)
+#define DMA_DESCRIPTOR_MAGIC (0xad4bU << 16)
 
 #define DMA_DESCRIPTOR_CONTROL_EOP       (1 << 4)
 #define DMA_DESCRIPTOR_CONTROL_COMPLETED (1 << 1)

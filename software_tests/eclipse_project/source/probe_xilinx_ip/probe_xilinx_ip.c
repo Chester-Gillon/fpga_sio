@@ -127,13 +127,13 @@ static void test_reg32_pattern (uint8_t *const mapped_bar, const uint64_t reg_of
     /* Test walking ones */
     for (bit = 0; success && (bit < 32); bit++)
     {
-        success = test_reg32 (mapped_bar, reg_offset, 1 << bit);
+        success = test_reg32 (mapped_bar, reg_offset, 1U << bit);
     }
 
     /* Test walking zeros */
     for (bit = 0; success && (bit < 32); bit++)
     {
-        success = test_reg32 (mapped_bar, reg_offset, UINT32_MAX ^ (1 << bit));
+        success = test_reg32 (mapped_bar, reg_offset, UINT32_MAX ^ (1U << bit));
     }
 
     const uint32_t final_reg_value = read_reg32 (mapped_bar, reg_offset);
@@ -333,7 +333,7 @@ static void probe_xilinx_dma_bridge (uint8_t *const mapped_bar, const uint64_t b
 static void probe_vfio_device_for_xilinx_ip (vfio_device_t *const vfio_device)
 {
     bool match;
-    for (int bar_index = 0; bar_index < PCI_STD_NUM_BARS; bar_index++)
+    for (uint32_t bar_index = 0; bar_index < PCI_STD_NUM_BARS; bar_index++)
     {
         map_vfio_device_bar_before_use (vfio_device, bar_index);
 

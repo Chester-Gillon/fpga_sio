@@ -76,12 +76,12 @@ void set_led (uint8_t *const csr, int shift, unsigned char state)
     led = read_reg8 (csr, MEMCTRLCMD_LEDCTRL);
     if (state == LED_FLIP)
     {
-        led ^= (1<<shift);
+        led ^= (uint8_t) (1<<shift);
     }
     else
     {
-        led &= ~(0x03 << shift);
-        led |= (state << shift);
+        led &= (uint8_t) (~(0x03 << shift));
+        led |= (uint8_t) (state << shift);
     }
     write_reg8 (csr, MEMCTRLCMD_LEDCTRL, led);
 }
@@ -151,7 +151,7 @@ bool initialise_nvram_transfer_context (nvram_transfer_context_t *const context,
     memset (context->descriptor, 0, sizeof (*context->descriptor));
     context->descriptor->local_addr = 0; /* Start from first NVRAM address */
     context->descriptor->pci_addr = data_iova;
-    context->descriptor->transfer_size = data_mapping->buffer.size;
+    context->descriptor->transfer_size = (uint32_t) data_mapping->buffer.size;
 
     /* Set the semaphore address used to indicate completion to the sem_control_bits within the descriptor */
     context->descriptor->sem_addr = context->descriptor_iova + offsetof (struct mm_dma_desc, sem_control_bits);

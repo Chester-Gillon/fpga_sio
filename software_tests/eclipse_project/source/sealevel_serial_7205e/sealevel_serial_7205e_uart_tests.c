@@ -69,7 +69,7 @@
 typedef struct
 {
     /** The index of the PCI BAR to which the UART is mapped */
-    int bar_index;
+    uint32_t bar_index;
     /** The virtual address which is mapped to the PCI BAR to allow direct access to the UART registers */
     uint8_t *bar_mapping;
     /* Base address of the UART on the local bus, to addressing by the PEX8311 DMA */
@@ -368,9 +368,9 @@ static void serial_icr_write (uart_port_t *const port, const uint8_t offset, con
     serial_out (port, UART_ICR, value);
 }
 
-static unsigned int serial_icr_read (uart_port_t *const port, const uint8_t offset)
+static uint8_t serial_icr_read (uart_port_t *const port, const uint8_t offset)
 {
-    unsigned int value;
+    uint8_t value;
 
     serial_icr_write (port, UART_ACR, port->acr | UART_ACR_ICRRD);
     serial_out (port, UART_SCR, offset);
@@ -752,7 +752,7 @@ static void process_rx_block (uart_test_context_t *const context)
 
     if (context->test_state == UART_TEST_RUNNING)
     {
-        context->rx_port->previous_rx_fifo_level -= UART_BLOCK_SIZE_BYTES;
+        context->rx_port->previous_rx_fifo_level = (uint8_t)  (context->rx_port->previous_rx_fifo_level - UART_BLOCK_SIZE_BYTES);
 
         context->num_rx_blocks++;
         if (context->num_rx_blocks == TEST_DURATION_BLOCKS)

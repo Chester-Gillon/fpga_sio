@@ -173,7 +173,7 @@ int main (int argc, char *argv[])
                                         region->size, num_zero_bytes, num_all_ones_bytes);
                             }
                             printf ("  Total time for byte reads from memory region = %" PRIi64 " ns, or average of %" PRIi64 " ns per byte\n",
-                                    read_duration_ns, read_duration_ns / region->size);
+                                    read_duration_ns, read_duration_ns / (int64_t) region->size);
 
                             /* Initialise the memory */
                             (void) snprintf (mapping->initialised_text, sizeof (mapping->initialised_text), "%s%s",

@@ -28,7 +28,7 @@ endif()
 include (CheckSymbolExists)
 
 # -fmessage-length=0 is to allow Eclipse traceback for error messages
-set (COMMON_FLAGS "${PLATFORM_CFLAGS} -Wall -fmessage-length=0")
+set (COMMON_FLAGS "${PLATFORM_CFLAGS} -Wall -Wconversion -fmessage-length=0")
 
 set (CMAKE_C_FLAGS "${COMMON_FLAGS}")
 set (CMAKE_CXX_FLAGS "${COMMON_FLAGS}")

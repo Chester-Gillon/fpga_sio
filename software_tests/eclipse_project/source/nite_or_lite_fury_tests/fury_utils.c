@@ -170,7 +170,7 @@ void display_open_fds (const char *const process_name)
                 ssize_t link_num_bytes = readlink (fd_ent_pathname, pathname_of_fd, sizeof (pathname_of_fd));
                 if (link_num_bytes > 0)
                 {
-                    if (strncmp (pathname_of_fd, pid_fd_dir, link_num_bytes) != 0)
+                    if (strncmp (pathname_of_fd, pid_fd_dir, (size_t) link_num_bytes) != 0)
                     {
                         printf ("  fd %s -> %.*s\n", fd_ent->d_name, (int) link_num_bytes, pathname_of_fd);
                     }

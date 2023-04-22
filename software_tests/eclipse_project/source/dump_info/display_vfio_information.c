@@ -228,7 +228,7 @@ static void read_pci_config_bytes (const int device_fd, const uint32_t offset, c
         return;
     }
 
-    num_read = pread (device_fd, config_bytes, num_bytes, region_info.offset + offset);
+    num_read = pread (device_fd, config_bytes, num_bytes, (off_t) (region_info.offset + offset));
     if (num_read != (ssize_t) num_bytes)
     {
         printf ("  PCI config read of %zu bytes from offset %" PRIu32 " only read %zd bytes : %s\n",
@@ -336,7 +336,7 @@ static void display_device_information (const int group_fd, const char *const de
     if ((device_info.flags & VFIO_DEVICE_FLAGS_PCI) != 0)
     {
         /* Display the implemented regions, which have a non-zero size */
-        for (int region_index = 0; region_index < VFIO_PCI_NUM_REGIONS; region_index++)
+        for (uint32_t region_index = 0; region_index < VFIO_PCI_NUM_REGIONS; region_index++)
         {
             /* Determine the size to get the capabilities */
             memset (&region_info_size, 0, sizeof (region_info_size));
@@ -376,7 +376,7 @@ static void display_device_information (const int group_fd, const char *const de
                 if (region_index <= VFIO_PCI_BAR5_REGION_INDEX)
                 {
                     /* Display information from the BAR which shows how to decode the BAR information */
-                    raw_base_addr = read_pci_config_long (device_fd, PCI_BASE_ADDRESS_0 + (region_index * sizeof (uint32_t)));
+                    raw_base_addr = read_pci_config_long (device_fd, (uint32_t) (PCI_BASE_ADDRESS_0 + (region_index * sizeof (uint32_t))));
                     is_IO = (raw_base_addr & PCI_BASE_ADDRESS_SPACE) == PCI_BASE_ADDRESS_SPACE_IO;
                     is_prefetchable = (!is_IO) && ((raw_base_addr & PCI_BASE_ADDRESS_MEM_PREFETCH) != 0);
                     is_64 = (!is_IO) && ((raw_base_addr & PCI_BASE_ADDRESS_MEM_TYPE_64) != 0);
@@ -384,7 +384,7 @@ static void display_device_information (const int group_fd, const char *const de
                     if (is_64)
                     {
                         raw_base_addr |= ((uint64_t) read_pci_config_long (device_fd,
-                                PCI_BASE_ADDRESS_0 + ((region_index + 1) * sizeof (uint32_t)))) << 32;
+                                (uint32_t) (PCI_BASE_ADDRESS_0 + ((region_index + 1) * sizeof (uint32_t))))) << 32;
                     }
                     base_addr = is_IO ? (raw_base_addr & PCI_BASE_ADDRESS_IO_MASK) : (raw_base_addr & PCI_BASE_ADDRESS_MEM_MASK);
 
@@ -475,7 +475,7 @@ static void display_device_information (const int group_fd, const char *const de
         }
 
         /* Display the implemented IRQ blocks, which have non-zero counts */
-        for (int irq_index = 0; irq_index < VFIO_PCI_NUM_IRQS; irq_index++)
+        for (uint32_t irq_index = 0; irq_index < VFIO_PCI_NUM_IRQS; irq_index++)
         {
             memset (&irq_info, 0, sizeof (irq_info));
             irq_info.argsz = sizeof (irq_info);

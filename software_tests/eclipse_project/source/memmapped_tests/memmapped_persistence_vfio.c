@@ -75,7 +75,7 @@ static void test_memmapped_device (vfio_device_t *const dev)
     printf ("Testing device %s in IOMMU group %s\n", dev->device_name, dev->iommu_group);
 
     /* Test all possible BARs */
-    for (int bar_index = 0; bar_index < PCI_STD_NUM_BARS; bar_index++)
+    for (uint32_t bar_index = 0; bar_index < PCI_STD_NUM_BARS; bar_index++)
     {
         map_vfio_device_bar_before_use (dev, bar_index);
 

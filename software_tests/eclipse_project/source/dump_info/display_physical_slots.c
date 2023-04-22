@@ -28,7 +28,7 @@ int main (int argc, char *argv[])
         exit (EXIT_FAILURE);
     }
     pci_init (pacc);
-    printf ("Access method : %s\n", pci_get_method_name (pacc->method));
+    printf ("Access method : %s\n", pci_get_method_name ((int) pacc->method));
 
     /* Scan the entire bus */
     pci_scan_bus (pacc);

@@ -38,7 +38,7 @@ int main (int argc, char *argv[])
         exit (EXIT_FAILURE);
     }
     pci_init (pacc);
-    printf ("Access method : %s\n", pci_get_method_name (pacc->method));
+    printf ("Access method : %s\n", pci_get_method_name ((int) pacc->method));
 
     /* Use an option command line argument to specify the vendor ID to display information for */
     vendor = FPGA_SIO_VENDOR_ID;

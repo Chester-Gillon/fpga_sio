@@ -114,7 +114,7 @@ static bool i2c_dynamic_byte_read (uint8_t *const iic_regs, const uint8_t i2c_sl
     write_reg32 (iic_regs, IIC_CONTROL_REGISTER_OFFSET, IIC_CR_EN_MASK);
 
     /* Set start bit, device address and read access */
-    tx_fifo_word = IIC_TX_FIFO_START_MASK | (i2c_slave_address << 1) | 0x01;
+    tx_fifo_word = (uint16_t) (IIC_TX_FIFO_START_MASK | (i2c_slave_address << 1) | 0x01);
     write_reg16 (iic_regs, IIC_TX_FIFO_OFFSET, tx_fifo_word);
 
     /* Set stop bit and indicate one byte to be read */
@@ -193,7 +193,7 @@ static bool i2c_standard_byte_read (uint8_t *const iic_regs, const uint8_t i2c_s
     write_reg32 (iic_regs, IIC_CONTROL_REGISTER_OFFSET, iic_cr);
 
     /* Write the I2C slave address and indicate a read */
-    tx_fifo_byte = (i2c_slave_address << 1) | 0x01;
+    tx_fifo_byte = (uint8_t) ((i2c_slave_address << 1) | 0x01);
     write_reg8 (iic_regs, IIC_TX_FIFO_OFFSET, tx_fifo_byte);
 
     /* Leave TX clear as a receiver.
@@ -245,7 +245,7 @@ static void probe_i2c_addresses (vfio_device_t *const vfio_device)
     uint32_t total_responses_per_address[256] = {0};
 
     /* The FPGA has a single BAR with the IIC registers at offset zero in the BAR */
-    const int iic_bar_index = 0;
+    const uint32_t iic_bar_index = 0;
 
     /* Range of valid I2C 7-bit addresses excluding reserved addresses */
     const uint8_t min_i2c_addr = 0x08;

@@ -89,7 +89,7 @@ int main (int argc, char *argv[])
                 /* Used memory mapped access to set 64-bit capability */
                 uint8_t *const pcs = addr;
                 prefetchable_capability_mm = read_reg16 (pcs, PEX_PECS_PREBASE);
-                prefetchable_capability_mm &= ~PEX_PECS_PREBASE_CAPABILITY_MASK;
+                prefetchable_capability_mm &= (uint16_t) (~PEX_PECS_PREBASE_CAPABILITY_MASK);
                 prefetchable_capability_mm |= PEX_PECS_PREBASE_CAPABILITY_64_BIT;
                 write_reg16 (pcs, PEX_PECS_PREBASE, prefetchable_capability_mm);
 

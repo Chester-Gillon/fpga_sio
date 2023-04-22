@@ -154,7 +154,8 @@ bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
 
     /* Calculate the number of descriptors needed for context->data_mapping.size */
     const uint32_t aligned_max_descriptor_len = (DMA_DESCRIPTOR_MAX_LEN / context->addr_alignment) * context->addr_alignment;
-    context->num_descriptors = (context->data_mapping.buffer.size + (aligned_max_descriptor_len - 1)) / aligned_max_descriptor_len;
+    context->num_descriptors =
+            (uint32_t) ((context->data_mapping.buffer.size + (aligned_max_descriptor_len - 1)) / aligned_max_descriptor_len);
 
     /* Allocate space for the DMA descriptors and initialise them. card address starts at zero but may be changed
      * before the transfer is started. */
@@ -186,7 +187,8 @@ bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
             previous_descriptor->nxt_adr = descriptor_iova;
         }
         descriptor->magic_nxt_adj_control = DMA_DESCRIPTOR_MAGIC;
-        descriptor->len = (remaining_data_bytes < aligned_max_descriptor_len) ? remaining_data_bytes : aligned_max_descriptor_len;
+        descriptor->len =
+                (uint32_t) ((remaining_data_bytes < aligned_max_descriptor_len) ? remaining_data_bytes : aligned_max_descriptor_len);
         if (context->channels_submodule == DMA_SUBMODULE_H2C_CHANNELS)
         {
             descriptor->src_adr = data_iova;
@@ -236,12 +238,12 @@ bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
     /* Disable the use of descriptor crediting, as just let the transfer run to completion */
     const uint32_t credit_enable_low_bit = (context->channels_submodule == DMA_SUBMODULE_H2C_CHANNELS) ?
             SGDMA_DESCRIPTOR_H2C_DSC_CREDIT_ENABLE_LOW_BIT : SGDMA_DESCRIPTOR_C2H_DSC_CREDIT_ENABLE_LOW_BIT;
-    write_reg32 (context->sgdma_common_regs, SGDMA_DESCRIPTOR_CREDIT_MODE_ENABLE_W1C_OFFSET, 1 << (credit_enable_low_bit + channel_id));
+    write_reg32 (context->sgdma_common_regs, SGDMA_DESCRIPTOR_CREDIT_MODE_ENABLE_W1C_OFFSET, 1U << (credit_enable_low_bit + channel_id));
 
-    /* Clear descriptor half flag for the channel */
+    /* Clear descriptor halt flag for the channel */
     const uint32_t halt_low_bit = (context->channels_submodule == DMA_SUBMODULE_H2C_CHANNELS) ?
             SGDMA_DESCRIPTOR_H2C_DSC_HALT_LOW_BIT : SGDMA_DESCRIPTOR_C2H_DSC_HALT_LOW_BIT;
-    write_reg32 (context->sgdma_common_regs, SGDMA_DESCRIPTOR_CONTROL_W1C_OFFSET, 1 << (halt_low_bit + channel_id));
+    write_reg32 (context->sgdma_common_regs, SGDMA_DESCRIPTOR_CONTROL_W1C_OFFSET, 1U << (halt_low_bit + channel_id));
 
     return success;
 }

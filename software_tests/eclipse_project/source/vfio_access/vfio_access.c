@@ -75,7 +75,7 @@ void create_vfio_buffer (vfio_buffer_t *const buffer,
             return;
         }
 
-        rc = posix_fallocate (buffer->fd, 0, buffer->size);
+        rc = posix_fallocate (buffer->fd, 0, (off_t) buffer->size);
         if (rc != 0)
         {
             printf ("posix_fallocate(%s) failed : %s\n", buffer->pathname, strerror (errno));
@@ -221,7 +221,7 @@ void free_vfio_buffer (vfio_buffer_t *const buffer)
  * @param[in/out] vfio_device The VFIO device to map a BAR for
  * @param[in] bar_index Which BAR on the VFIO device to map
  */
-void map_vfio_device_bar_before_use (vfio_device_t *const vfio_device, const int bar_index)
+void map_vfio_device_bar_before_use (vfio_device_t *const vfio_device, const uint32_t bar_index)
 {
     int rc;
     void *addr;
@@ -261,7 +261,7 @@ void map_vfio_device_bar_before_use (vfio_device_t *const vfio_device, const int
         if ((region_info->size > 0) && ((region_info->flags & VFIO_REGION_INFO_FLAG_MMAP) != 0))
         {
             /* Map the entire BAR */
-            addr = mmap (NULL, region_info->size, PROT_READ | PROT_WRITE, MAP_SHARED, vfio_device->device_fd, region_info->offset);
+            addr = mmap (NULL, region_info->size, PROT_READ | PROT_WRITE, MAP_SHARED, vfio_device->device_fd, (off_t) region_info->offset);
             if (addr == MAP_FAILED)
             {
                 printf ("mmap() failed : %s\n", strerror (errno));
@@ -355,7 +355,7 @@ static int find_fd_from_primary_process (const char *const pathname_to_find)
                 snprintf (fd_ent_pathname, sizeof (fd_ent_pathname), "%s/%s", fd_path, fd_ent->d_name);
 
                 link_num_bytes = readlink (fd_ent_pathname, pathname_of_fd, sizeof (pathname_of_fd));
-                if ((link_num_bytes > 0) && (strncmp (pathname_to_find, pathname_of_fd, link_num_bytes) == 0))
+                if ((link_num_bytes > 0) && (strncmp (pathname_to_find, pathname_of_fd, (size_t) link_num_bytes) == 0))
                 {
                     existing_fd = atoi (fd_ent->d_name);
                 }
@@ -971,7 +971,7 @@ static void vfio_read_pci_config_bytes (const vfio_device_t *const vfio_device,
         return;
     }
 
-    num_read = pread (vfio_device->device_fd, config_bytes, num_bytes, region_info.offset + offset);
+    num_read = pread (vfio_device->device_fd, config_bytes, num_bytes, (off_t) (region_info.offset + offset));
     if (num_read != (ssize_t) num_bytes)
     {
         printf ("  PCI config read of %zu bytes from offset %" PRIu32 " only read %zd bytes : %s\n",
@@ -1040,7 +1040,7 @@ static void vfio_write_pci_config_bytes (const vfio_device_t *const vfio_device,
         return;
     }
 
-    num_written = pwrite (vfio_device->device_fd, config_bytes, num_bytes, region_info.offset + offset);
+    num_written = pwrite (vfio_device->device_fd, config_bytes, num_bytes, (off_t) (region_info.offset + offset));
     if (num_written != (ssize_t) num_bytes)
     {
         printf ("  PCI config write of %zu bytes to offset %" PRIu32 " only wrote %zd bytes : %s\n",

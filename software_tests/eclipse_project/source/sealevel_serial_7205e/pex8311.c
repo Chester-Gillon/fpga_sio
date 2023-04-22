@@ -122,11 +122,11 @@ void pex_dump_lcs_registers (const uint8_t *const lcs, const char *const point_o
     {
         if (pex_lcs_registers[register_index].offset < 0)
         {
-            pex_current_lcs_register_values[register_index] = read_reg8 (lcs, -pex_lcs_registers[register_index].offset);
+            pex_current_lcs_register_values[register_index] = read_reg8 (lcs, (uint32_t) (-pex_lcs_registers[register_index].offset));
         }
         else
         {
-            pex_current_lcs_register_values[register_index] = read_reg32 (lcs, pex_lcs_registers[register_index].offset);
+            pex_current_lcs_register_values[register_index] = read_reg32 (lcs, (uint32_t) (pex_lcs_registers[register_index].offset));
         }
     }
 

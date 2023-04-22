@@ -97,7 +97,7 @@
 #define PEX_LCS_DMADPRx_LOCATION_PCI_EXPRESS_ADDRESS_SPACE (1 << 0)
 #define PEX_LCS_DMADPRx_END_OF_CHAIN                       (1 << 1)
 #define PEX_LCS_DMADPRx_INTERRUPT_AFTER_TERMINAL_COUNT     (1 << 2)
-#define PEX_LCS_DMADPRx_DIRECTION_MASK                     (1 << 3)
+#define PEX_LCS_DMADPRx_DIRECTION_MASK                     (1U << 3)
 #define PEX_LCS_DMADPRx_DIRECTION_PCI_TO_LOCAL             (0 << 3)
 #define PEX_LCS_DMADPRx_DIRECTION_LOCAL_TO_PCI             (1 << 3)
 
@@ -168,7 +168,7 @@ typedef struct
 } pex_ring_dma_descriptor_short_format_t;
 
 /* Flag for transfer_size_bytes in pex_ring_dma_descriptor_short_format_t */
-#define PEX_XFER_SIZE_RING_MANAGEMENT_VALID (1 << 31)
+#define PEX_XFER_SIZE_RING_MANAGEMENT_VALID (1U << 31)
 
 
 /* Defines the content used to manage a ring of DMA descriptors for one DMA channel of a PEX8311. */

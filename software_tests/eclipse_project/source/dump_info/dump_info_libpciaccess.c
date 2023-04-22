@@ -17,7 +17,7 @@
 int main (int argc, char *argv[])
 {
     int rc;
-    int vendor;
+    uint32_t vendor;
     char junk;
 
     rc = pci_system_init ();
