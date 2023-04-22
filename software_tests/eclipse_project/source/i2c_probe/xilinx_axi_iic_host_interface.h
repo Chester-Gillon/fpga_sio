@@ -28,9 +28,17 @@
 /* Used to enable or disable interrupts. Uses the same IIC_ISR_*MASK as IIC_INTERRUPT_STATUS_REGISTER_OFFSET */
 #define IIC_INTERRUPT_ENABLE_REGISTER_OFFSET 0x028
 
-/* Soft Reset Register is not defined as not sure if necessary.
- * The description of an AXI SLVERR being returned if don't write the Reset Key could be a way of testing
- * how errors get reported on the PCIe bus. */
+/* Firmware can write to the SOFTR to initialize all of the AXI IIC core registers to their default
+   states. To accomplish this, firmware must write the reset key (RKEY) value of 0xA to the least
+   significant nibble of the 32-bit word. After recognizing a write of 0xA the proc_common
+   soft_reset module issues a pulse four clocks long to reset the AXI IIC core. At the end of the
+   pulse the SOFTR acknowledges the AXI transaction. That prevents anything further from
+   happening while the reset occurs. */
+#define IIC_SOFT_RESET_REGISTER_OFFSET 0x040
+#define IIC_SOFT_RESET_KEY 0xA /* Firmware must write a value of 0xA to this field to
+                                  cause a soft reset of the Interrupt registers of AXI IIC controller.
+                                  Writing any other value results in an AXI transaction
+                                  acknowledgement with SLVERR and no reset occurs. */
 
 /* Writing to the Control register configures the AXI IIC core operation mode and simultaneously allows for IIC
  * transactions to be initiated. */

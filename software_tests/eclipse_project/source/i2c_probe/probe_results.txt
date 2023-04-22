@@ -1,4 +1,4 @@
-The result of running the probe on TEF1001-02-B2IX4-A for which have yet to fit the FMC module or DD3 module was:
+The result of running the probe on TEF1001-02-B2IX4-A for which have yet to fit the FMC module or DDR3 module was:
 [mr_halfword@skylake-alma release]$ i2c_probe/i2c_probe 
 Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 25
 Using BAR 0 in device 0000:15:00.0 of size 0x2000
@@ -11,9 +11,83 @@ Slave 0x74 replied with data 0xaf
 
 From the documenation under https://shop.trenz-electronic.de/en/TEF1001-02-B2IX4-A-PCIe-FMC-Carrier-with-Xilinx-Kintex-7-160T-4-Lane-PCIe-GEN2-DDR3-SODIMM-ECC?path=Trenz_Electronic/PCIe_Cards/TEF1001/REV02/Documents
 then the I2C addresses are:
-a. 0x40 is the DCDC U3 LTM4676, which provides 4V and 1.5V.
-b. 0x4f is the DCDC U4 LTM4676, which provides 1V.
+a. 0x40 is the DCDC U3 LTM4676A, which provides 4V and 1.5V.
+b. 0x4f is the DCDC U4 LTM4676A, which provides 1V.
 c. 0x5a and 0x5b look to be in the range for the DDR3 SPD, but for which the DDR3 SODIMM isn't yet populated.
    Not sure if the CPLD which provides the I2C MUX to the FPGA is providing the ACK for these addresses.
 d. 0x70 is the Si5338A programmable quad PLL clock generator on-board.
 e. 0x74 is the FAN1 control in the CPLD.
+
+
+After fitting the DDR3 module (https://web.archive.org/web/20160904161832/http://www.crucial.com/usa/en/ct102472bf160b#productDetails)
+the result from the first probe was:
+[mr_halfword@skylake-alma coverage]$ i2c_probe/i2c_probe 
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Using BAR 0 in device 0000:15:00.0 of size 0x2000
+Slave 0x19 replied with data 0x00
+Slave 0x31 replied with data 0xff
+Slave 0x40 replied with data 0xff
+Slave 0x4f replied with data 0xff
+Slave 0x51 replied with data 0x92
+Slave 0x5a replied with data 0xff
+Slave 0x5b replied with data 0xff
+Slave 0x70 replied with data 0x01
+Slave 0x74 replied with data 0xff
+
+Running again got:
+[mr_halfword@skylake-alma coverage]$ i2c_probe/i2c_probe 
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Using BAR 0 in device 0000:15:00.0 of size 0x2000
+Slave 0x0c replied with data 0x9e
+Slave 0x19 replied with data 0x00
+Slave 0x31 replied with data 0xff
+Slave 0x40 replied with data 0xff
+Slave 0x4f replied with data 0xff
+Slave 0x51 replied with data 0x0b
+Slave 0x5a replied with data 0xff
+Slave 0x5b replied with data 0xff
+Slave 0x70 replied with data 0x26
+Slave 0x74 replied with data 0xae
+
+Think the Slave 0x0c is spurious, since on further runs didn't get a reply.
+
+To try and identify the I2C addresses for the DDR3 SODIMM:
+a. https://media-www.micron.com/-/media/client/global/documents/products/data-sheet/modules/sodimm/ksf18c256_512_1gx72hz.pdf?rev=46354f659a7f4f69af156d4bd634b8db
+   is a spec for a 204-Pin DDR3L SODIMM with ECC. Shows the following connections to the SPD EEPROM:
+   - EVT - EVENT# (open drain temperature event)
+   - A0 - SA0
+   - A1 - SA1
+   - A2 - Vss
+b. https://shop.trenz-electronic.de/trenzdownloads/Trenz_Electronic/PCIe_Cards/TEF1001/REV02/Documents/SCH-TEF1001-02(-160-2I).PDF
+   shows for the SODIMM:
+   - EVENT# - connected to FPGA via a 1V5 pull-up.
+   - SA0 - 3V3
+   - SA1 - GND
+   - Vdd - 1V5. While the CT102472BF160B is a DDR3L module, is being operated at 1.5V instead of 1.35V
+c. https://media-www.micron.com/-/media/client/global/documents/products/technical-note/dram-modules/tn_04_42.pdf?rev=719f35ea22ae4ba0ab5b54b5a991055f
+   is "Technical Note Memory Module Serial Presence-Detect".
+   Using "Table 2: Device Select Codes" and the above address connections then expect the following:
+     Memory Area Function                      Address (7 bits)  Supported R/W 
+     READ/WRITE SPD memory                      0x51             Read or Write
+     SET WRITE PROTECTION (SWP)                 0x31             Write only
+     CLEAR WRITE PROTECTION (CWP)               0x33             Write only
+     PERMANENTLY SET WRITE PROTECTION (PSWP)    0x31             Write only
+     READ SWP                                   0x31             Read only
+     READ PSWP                                  0x31             Read only
+     READ/WRITE temperature registers           0x19             Read or Write
+
+After inserting the DDR3 SODIMM the additional I2C addresses probed, via attempted reads, were 0x19, 0x31, 0x51 which are
+addresses expected to respond to reads on the DDR3 SODIMM according to the above.
+
+When the "TEF0008 FMC to QSFP+ Module with MAX10" is fitted then:
+a. Address 0x50 should be the 24LC128-I/ST EEPROM, addressable by the same I2C interface as the above, via the CPLD.
+b. The Si5345A and J4 to J7 SFP+ I2C interfaces are connected by a different I2C interface to the FPGA by dedicated FMC pins.
+   The following directions are from the point of view of the TEF0008:
+   - SCL In
+   - SDA In
+   - SDA Out
+   - I2C MUX 0: SEL[0]
+   - I2C MUX 1: SEL[1]
+   - I2C MUX 2: SEL[2]
+
+Still don't know what is at the 0x5a and 0x5b addresses.
