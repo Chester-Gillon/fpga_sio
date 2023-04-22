@@ -87,7 +87,7 @@ static bool i2c_dynamic_byte_read (uint8_t *const iic_regs, const uint8_t i2c_sl
     bool slave_responded;
     uint32_t iic_isr;
     uint32_t iic_sr;
-    uint16_t tx_fifo_word; /* Write to the Tx FIFO as a 16-bit word to activate Dynamic Mode */
+    uint32_t tx_fifo_word; /* Write to the Tx FIFO as a 32-bit word to activate Dynamic Mode */
 
     /* Clear any completion interrupt from a previous test */
     iic_isr = read_reg32 (iic_regs, IIC_INTERRUPT_STATUS_REGISTER_OFFSET);
@@ -100,7 +100,7 @@ static bool i2c_dynamic_byte_read (uint8_t *const iic_regs, const uint8_t i2c_sl
     iic_sr = read_reg32 (iic_regs, IIC_STATUS_REGISTER_OFFSET);
     while ((iic_sr & IIC_SR_RX_FIFO_EMPTY_MASK) == 0)
     {
-        *data_read = read_reg8 (iic_regs, IIC_RX_FIFO_OFFSET);
+        *data_read = (uint8_t) read_reg32 (iic_regs, IIC_RX_FIFO_OFFSET);
         iic_sr = read_reg32 (iic_regs, IIC_STATUS_REGISTER_OFFSET);
     }
 
@@ -114,12 +114,12 @@ static bool i2c_dynamic_byte_read (uint8_t *const iic_regs, const uint8_t i2c_sl
     write_reg32 (iic_regs, IIC_CONTROL_REGISTER_OFFSET, IIC_CR_EN_MASK);
 
     /* Set start bit, device address and read access */
-    tx_fifo_word = (uint16_t) (IIC_TX_FIFO_START_MASK | (i2c_slave_address << 1) | 0x01);
-    write_reg16 (iic_regs, IIC_TX_FIFO_OFFSET, tx_fifo_word);
+    tx_fifo_word = IIC_TX_FIFO_START_MASK | ((uint32_t) i2c_slave_address << 1) | 0x01;
+    write_reg32 (iic_regs, IIC_TX_FIFO_OFFSET, tx_fifo_word);
 
     /* Set stop bit and indicate one byte to be read */
     tx_fifo_word = IIC_TX_FIFO_STOP_MASK | 0x01;
-    write_reg16 (iic_regs, IIC_TX_FIFO_OFFSET, tx_fifo_word);
+    write_reg32 (iic_regs, IIC_TX_FIFO_OFFSET, tx_fifo_word);
 
     /* Wait for receive to complete, without or without error.
      * The assumption is:
@@ -137,7 +137,7 @@ static bool i2c_dynamic_byte_read (uint8_t *const iic_regs, const uint8_t i2c_sl
     if ((iic_sr & IIC_SR_RX_FIFO_EMPTY_MASK) == 0)
     {
         /* The slave responded with a byte */
-        *data_read = read_reg8 (iic_regs, IIC_RX_FIFO_OFFSET);
+        *data_read = (uint8_t) read_reg32 (iic_regs, IIC_RX_FIFO_OFFSET);
         slave_responded = true;
     }
     else
@@ -152,8 +152,16 @@ static bool i2c_dynamic_byte_read (uint8_t *const iic_regs, const uint8_t i2c_sl
 
 /**
  * @brief Use the Xilinx IIC, in standard mode, to perform a single byte read from an I2C address
- * @todo This function can intermittently lock-up in the loop waiting for IIC_ISR_TRANSMIT_ERROR_SLAVE_TRANSMIT_COMPLETE_MASK
- *       to be set.
+ * @details When this function was first created the write to IIC_TX_FIFO_OFFSET and read from IIC_RX_FIFO_OFFSET were both
+ *          done as 8-bits. However, that cause the function to intermittently lock-up in the loop waiting for
+ *          IIC_ISR_TRANSMIT_ERROR_SLAVE_TRANSMIT_COMPLETE_MASK to be set.
+ *
+ *          When the function was changed to access IIC_TX_FIFO_OFFSET and IIC_RX_FIFO_OFFSET as 32-bits the lock-up no
+ *          longer occurred. The idea to change to all 32-bit accesses was taken from the following change history comment
+ *          in https://github.com/Xilinx/embeddedsw/blob/master/XilinxProcessorIPLib/drivers/iic/src/xiic_l.c :
+ *             2.00a sdm  10/22/09 Converted all register accesses to 32 bit access.
+ *
+ *          Possibly the 8-bit write to the IIC_TX_FIFO_OFFSET caused the IIC to enter Dynamic Mode.
  * @param[in/out] iic_regs The mapped registers for the Xilinx IIC.
  * @param[in] i2c_slave_address 7-bit slave address to try and read from.
  * @param[out] data_read The byte read from the slave device. Only valid when the function returns true.
@@ -165,7 +173,7 @@ static bool i2c_standard_byte_read (uint8_t *const iic_regs, const uint8_t i2c_s
     uint32_t iic_isr;
     uint32_t iic_sr;
     uint32_t iic_cr;
-    uint8_t tx_fifo_byte;
+    uint32_t tx_fifo_word;
 
     /* Clear any completion interrupt from a previous test */
     iic_isr = read_reg32 (iic_regs, IIC_INTERRUPT_STATUS_REGISTER_OFFSET);
@@ -178,7 +186,7 @@ static bool i2c_standard_byte_read (uint8_t *const iic_regs, const uint8_t i2c_s
     iic_sr = read_reg32 (iic_regs, IIC_STATUS_REGISTER_OFFSET);
     while ((iic_sr & IIC_SR_RX_FIFO_EMPTY_MASK) == 0)
     {
-        *data_read = read_reg8 (iic_regs, IIC_RX_FIFO_OFFSET);
+        *data_read = (uint8_t) read_reg32 (iic_regs, IIC_RX_FIFO_OFFSET);
         iic_sr = read_reg32 (iic_regs, IIC_STATUS_REGISTER_OFFSET);
     }
 
@@ -193,8 +201,8 @@ static bool i2c_standard_byte_read (uint8_t *const iic_regs, const uint8_t i2c_s
     write_reg32 (iic_regs, IIC_CONTROL_REGISTER_OFFSET, iic_cr);
 
     /* Write the I2C slave address and indicate a read */
-    tx_fifo_byte = (uint8_t) ((i2c_slave_address << 1) | 0x01);
-    write_reg8 (iic_regs, IIC_TX_FIFO_OFFSET, tx_fifo_byte);
+    tx_fifo_word = ((uint32_t) i2c_slave_address << 1) | 0x01;
+    write_reg32 (iic_regs, IIC_TX_FIFO_OFFSET, tx_fifo_word);
 
     /* Leave TX clear as a receiver.
      * Set TXAK as only trying to read a single byte so need to NACK the byte.
@@ -218,7 +226,7 @@ static bool i2c_standard_byte_read (uint8_t *const iic_regs, const uint8_t i2c_s
     if ((iic_sr & IIC_SR_RX_FIFO_EMPTY_MASK) == 0)
     {
         /* The slave responded with a byte */
-        *data_read = read_reg8 (iic_regs, IIC_RX_FIFO_OFFSET);
+        *data_read = (uint8_t) read_reg32 (iic_regs, IIC_RX_FIFO_OFFSET);
         slave_responded = true;
     }
     else

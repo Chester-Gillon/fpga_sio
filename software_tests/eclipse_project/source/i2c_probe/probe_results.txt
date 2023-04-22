@@ -91,3 +91,53 @@ b. The Si5345A and J4 to J7 SFP+ I2C interfaces are connected by a different I2C
    - I2C MUX 2: SEL[2]
 
 Still don't know what is at the 0x5a and 0x5b addresses.
+
+
+The following is the result of running "i2c_probe/i2c_probe -i 100000" built for coverage, after a reboot of the PC:
+<<snip>>
+Iteration 100000 of 100000 using IIC Standard Mode
+Slave 0x19 replied with data 0x00
+Slave 0x31 replied with data 0xff
+Slave 0x40 replied with data 0xff
+Slave 0x4f replied with data 0xff
+Slave 0x51 replied with data 0x88
+Slave 0x5a replied with data 0xff
+Slave 0x5b replied with data 0xff
+Slave 0x70 replied with data 0x00
+Slave 0x74 replied with data 0xae
+
+Number of responses for each I2C address:
+0x19 : 100000
+0x31 : 99998
+0x40 : 100000
+0x4f : 100000
+0x51 : 100000
+0x5a : 100000
+0x5b : 100000
+0x70 : 100000
+0x74 : 100000
+
+
+The following is the result of running "i2c_probe/i2c_probe -d -i 100000" built for coverage, after a reboot of the PC:
+<<snip>>
+Iteration 100000 of 100000 using IIC Dynamic Mode
+Slave 0x19 replied with data 0x00
+Slave 0x31 replied with data 0xff
+Slave 0x40 replied with data 0xff
+Slave 0x4f replied with data 0xff
+Slave 0x51 replied with data 0xff
+Slave 0x5a replied with data 0xff
+Slave 0x5b replied with data 0xff
+Slave 0x70 replied with data 0x00
+Slave 0x74 replied with data 0xae
+
+Number of responses for each I2C address:
+0x19 : 100000
+0x31 : 99999
+0x40 : 100000
+0x4f : 100000
+0x51 : 99999
+0x5a : 100000
+0x5b : 100000
+0x70 : 100000
+0x74 : 100000
