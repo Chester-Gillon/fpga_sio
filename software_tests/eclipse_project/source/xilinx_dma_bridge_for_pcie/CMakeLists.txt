@@ -1,4 +1,4 @@
-# Build a library for using the Xilinx DMA Bridge for PCIe in use space using VFIO
+# Build a library for using the Xilinx DMA Bridge for PCIe in user space using VFIO
 
 project (xilinx_dma_bridge_for_pci C)
 

@@ -10,24 +10,39 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 #include <stdio.h>
 
 #include <unistd.h>
 
+#include "xilinx_axi_iic_transfers.h"
 #include "vfio_access.h"
 #include "fpga_sio_pci_ids.h"
 #include "xilinx_axi_iic_host_interface.h"
 
 
-/* Command line argument which controls now the IIC is used:
- * - False means Standard Mode
- * - True means Dynamic Mode
- */
-static bool arg_dynamic_mode;
+/* Command line argument which controls how the IIC is used */
+typedef enum
+{
+    /* Standard mode access using functions in this file. */
+    IIC_ACCESS_MODE_STANDARD,
+    /* Dynamic mode access using functions in this file. */
+    IIC_ACCESS_MODE_DYNAMIC,
+    /* Uses the functions in xilinx_axi_iic_transfers. */
+    IIC_ACCESS_MODE_IIC_LIB,
+} iic_access_mode_t;
+static iic_access_mode_t arg_iic_access_mode = IIC_ACCESS_MODE_IIC_LIB;
+
+static const char *const iic_access_mode_names[] =
+{
+    [IIC_ACCESS_MODE_STANDARD] = "Standard",
+    [IIC_ACCESS_MODE_DYNAMIC ] = "Dynamic",
+    [IIC_ACCESS_MODE_IIC_LIB ] = "IIC lib"
+};
 
 
 /* Command line argument which controls the number of test iterations, to check if I2C addresses are reliably probed */
-static uint32_t arg_num_iterations;
+static uint32_t arg_num_iterations = 1;
 
 
 /**
@@ -36,7 +51,7 @@ static uint32_t arg_num_iterations;
  */
 static void parse_command_line_arguments (int argc, char *argv[])
 {
-    const char *const optstring = "di:?";
+    const char *const optstring = "m:i:?";
     int option;
     char junk;
 
@@ -45,8 +60,24 @@ static void parse_command_line_arguments (int argc, char *argv[])
     {
         switch (option)
         {
-        case 'd':
-            arg_dynamic_mode = true;
+        case 'm':
+            if (strcmp (optarg, "standard") == 0)
+            {
+                arg_iic_access_mode = IIC_ACCESS_MODE_STANDARD;
+            }
+            else if (strcmp (optarg, "dynamic") == 0)
+            {
+                arg_iic_access_mode = IIC_ACCESS_MODE_DYNAMIC;
+            }
+            else if (strcmp (optarg, "iic_lib") == 0)
+            {
+                arg_iic_access_mode = IIC_ACCESS_MODE_IIC_LIB;
+            }
+            else
+            {
+                printf ("Error: Invalid access mode \"%s\"\n", optarg);
+                exit (EXIT_FAILURE);
+            }
             break;
 
         case 'i':
@@ -59,8 +90,7 @@ static void parse_command_line_arguments (int argc, char *argv[])
 
         case '?':
         default:
-            printf ("Usage %s [-d] [-i <num_iterations>]\n", argv[0]);
-            printf ("  -d enables IIC Dynamic Mode, rather than Standard Mode\n");
+            printf ("Usage %s [-m standard|dynamic|iic_lib] [-i <num_iterations>]\n", argv[0]);
             exit (EXIT_FAILURE);
             break;
         }
@@ -114,7 +144,7 @@ static bool i2c_dynamic_byte_read (uint8_t *const iic_regs, const uint8_t i2c_sl
     write_reg32 (iic_regs, IIC_CONTROL_REGISTER_OFFSET, IIC_CR_EN_MASK);
 
     /* Set start bit, device address and read access */
-    tx_fifo_word = IIC_TX_FIFO_START_MASK | ((uint32_t) i2c_slave_address << 1) | 0x01;
+    tx_fifo_word = IIC_TX_FIFO_START_MASK | ((uint32_t) i2c_slave_address << 1) | IIC_TX_FIFO_READ_OPERATION;
     write_reg32 (iic_regs, IIC_TX_FIFO_OFFSET, tx_fifo_word);
 
     /* Set stop bit and indicate one byte to be read */
@@ -201,7 +231,7 @@ static bool i2c_standard_byte_read (uint8_t *const iic_regs, const uint8_t i2c_s
     write_reg32 (iic_regs, IIC_CONTROL_REGISTER_OFFSET, iic_cr);
 
     /* Write the I2C slave address and indicate a read */
-    tx_fifo_word = ((uint32_t) i2c_slave_address << 1) | 0x01;
+    tx_fifo_word = ((uint32_t) i2c_slave_address << 1) | IIC_TX_FIFO_READ_OPERATION;
     write_reg32 (iic_regs, IIC_TX_FIFO_OFFSET, tx_fifo_word);
 
     /* Leave TX clear as a receiver.
@@ -251,6 +281,8 @@ static void probe_i2c_addresses (vfio_device_t *const vfio_device)
     bool slave_responded;
     uint8_t i2c_slave_address;
     uint32_t total_responses_per_address[256] = {0};
+    iic_controller_context_t iic_controller = {0};
+    iic_transfer_status_t transfer_status;
 
     /* The FPGA has a single BAR with the IIC registers at offset zero in the BAR */
     const uint32_t iic_bar_index = 0;
@@ -267,38 +299,57 @@ static void probe_i2c_addresses (vfio_device_t *const vfio_device)
         printf ("Using BAR %d in device %s of size 0x%llx\n",
                 iic_bar_index, vfio_device->device_name, vfio_device->regions_info[iic_bar_index].size);
 
-        /* The IIC in the FPGA should be the only master, so an error if bus is busy before starting the probe.
-         * Attempt one soft-reset of the IIC in case a 'glitch' from a previous run left the IIC in control of the I2C bus. */
-        iic_sr = read_reg32 (iic_regs, IIC_STATUS_REGISTER_OFFSET);
-        if ((iic_sr & IIC_SR_BB_MASK) != 0)
+        if (arg_iic_access_mode == IIC_ACCESS_MODE_IIC_LIB)
         {
-            write_reg32 (iic_regs, IIC_SOFT_RESET_REGISTER_OFFSET, IIC_SOFT_RESET_KEY);
-            iic_sr = read_reg32 (iic_regs, IIC_STATUS_REGISTER_OFFSET);
-            if ((iic_sr & IIC_SR_BB_MASK) == 0)
+            transfer_status = iic_initialise_controller (&iic_controller, iic_regs);
+            if (transfer_status != IIC_TRANSFER_STATUS_SUCCESS)
             {
-                printf ("Performed soft-reset of IIC to clear I2C bus busy\n");
-            }
-            else
-            {
-                printf ("I2C bus is busy, not probing\n");
+                printf ("iic_initialise_controller() failed\n");
                 return;
+            }
+        }
+        else
+        {
+            /* The IIC in the FPGA should be the only master, so an error if bus is busy before starting the probe.
+             * Attempt one soft-reset of the IIC in case a 'glitch' from a previous run left the IIC in control of the I2C bus. */
+            iic_sr = read_reg32 (iic_regs, IIC_STATUS_REGISTER_OFFSET);
+            if ((iic_sr & IIC_SR_BB_MASK) != 0)
+            {
+                write_reg32 (iic_regs, IIC_SOFT_RESET_REGISTER_OFFSET, IIC_SOFT_RESET_KEY);
+                iic_sr = read_reg32 (iic_regs, IIC_STATUS_REGISTER_OFFSET);
+                if ((iic_sr & IIC_SR_BB_MASK) == 0)
+                {
+                    printf ("Performed soft-reset of IIC to clear I2C bus busy\n");
+                }
+                else
+                {
+                    printf ("I2C bus is busy, not probing\n");
+                    return;
+                }
             }
         }
 
         for (uint32_t iteration = 1; iteration <= arg_num_iterations; iteration++)
         {
             printf ("Iteration %u of %u using IIC %s\n",
-                    iteration, arg_num_iterations, arg_dynamic_mode ? "Dynamic Mode" : "Standard Mode");
+                    iteration, arg_num_iterations, iic_access_mode_names[arg_iic_access_mode]);
             for (i2c_slave_address = min_i2c_addr; i2c_slave_address <= max_i2c_addr; i2c_slave_address++)
             {
-                if (arg_dynamic_mode)
+                switch (arg_iic_access_mode)
                 {
-                    slave_responded = i2c_dynamic_byte_read (iic_regs, i2c_slave_address, &data_read);
-                }
-                else
-                {
+                case IIC_ACCESS_MODE_STANDARD:
                     slave_responded = i2c_standard_byte_read (iic_regs, i2c_slave_address, &data_read);
+                    break;
+
+                case IIC_ACCESS_MODE_DYNAMIC:
+                    slave_responded = i2c_dynamic_byte_read (iic_regs, i2c_slave_address, &data_read);
+                    break;
+
+                case IIC_ACCESS_MODE_IIC_LIB:
+                    transfer_status = iic_read (&iic_controller, i2c_slave_address, 1, &data_read, IIC_TRANSFER_OPTION_STOP);
+                    slave_responded = transfer_status == IIC_TRANSFER_STATUS_SUCCESS;
                 }
+
                 if (slave_responded)
                 {
                     total_responses_per_address[i2c_slave_address]++;
