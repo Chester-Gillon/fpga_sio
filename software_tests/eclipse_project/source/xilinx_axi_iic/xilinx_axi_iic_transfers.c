@@ -190,8 +190,9 @@ static iic_transfer_status_t iic_receive (iic_controller_context_t *const contro
 
         /* Clear the latched interrupt status so that it will be updated with the new state when it changes,
          * this must be done after the receive register is read */
-        iic_clear_isr (controller, IIC_ISR_ARBITRATION_LOST_MASK | IIC_ISR_TRANSMIT_ERROR_SLAVE_TRANSMIT_COMPLETE_MASK |
-                IIC_ISR_IIC_BUS_IS_NOT_BUSY_MASK);
+        iic_clear_isr (controller, IIC_ISR_RECEIVE_FIFO_FULL_MASK |
+                IIC_ISR_TRANSMIT_ERROR_SLAVE_TRANSMIT_COMPLETE_MASK |
+                IIC_ISR_ARBITRATION_LOST_MASK);
         remaining_bytes--;
     }
 

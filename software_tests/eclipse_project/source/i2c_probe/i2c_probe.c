@@ -35,14 +35,19 @@ static iic_access_mode_t arg_iic_access_mode = IIC_ACCESS_MODE_IIC_LIB;
 
 static const char *const iic_access_mode_names[] =
 {
-    [IIC_ACCESS_MODE_STANDARD] = "Standard",
-    [IIC_ACCESS_MODE_DYNAMIC ] = "Dynamic",
-    [IIC_ACCESS_MODE_IIC_LIB ] = "IIC lib"
+    [IIC_ACCESS_MODE_STANDARD] = "standard",
+    [IIC_ACCESS_MODE_DYNAMIC ] = "dynamic",
+    [IIC_ACCESS_MODE_IIC_LIB ] = "iic_lib"
 };
 
 
 /* Command line argument which controls the number of test iterations, to check if I2C addresses are reliably probed */
 static uint32_t arg_num_iterations = 1;
+
+
+/* Command line argument which controls the number of bytes read */
+#define MAX_BYTES_READ 16
+static uint32_t arg_num_bytes_read = 1;
 
 
 /**
@@ -51,7 +56,7 @@ static uint32_t arg_num_iterations = 1;
  */
 static void parse_command_line_arguments (int argc, char *argv[])
 {
-    const char *const optstring = "m:i:?";
+    const char *const optstring = "m:i:n:?";
     int option;
     char junk;
 
@@ -88,13 +93,30 @@ static void parse_command_line_arguments (int argc, char *argv[])
             }
             break;
 
+        case 'n':
+            if ((sscanf (optarg, "%u%c", &arg_num_bytes_read, &junk) != 1) ||
+                (arg_num_bytes_read < 1) || (arg_num_bytes_read > MAX_BYTES_READ))
+            {
+                printf ("Error: Invalid num_bytes_read \"%s\"\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            break;
+
         case '?':
         default:
-            printf ("Usage %s [-m standard|dynamic|iic_lib] [-i <num_iterations>]\n", argv[0]);
+            printf ("Usage %s [-m standard|dynamic|iic_lib] [-i <num_iterations>] [-n num_bytes_read]\n", argv[0]);
             exit (EXIT_FAILURE);
             break;
         }
         option = getopt (argc, argv, optstring);
+    }
+
+    if ((arg_num_bytes_read != 1) &&
+        ((arg_iic_access_mode == IIC_ACCESS_MODE_STANDARD) || (arg_iic_access_mode == IIC_ACCESS_MODE_DYNAMIC)))
+    {
+
+        printf ("Error: num_bytes_read must be 1 when using standard or dynamic mode\n");
+        exit (EXIT_FAILURE);
     }
 }
 
@@ -277,8 +299,8 @@ static bool i2c_standard_byte_read (uint8_t *const iic_regs, const uint8_t i2c_s
 static void probe_i2c_addresses (vfio_device_t *const vfio_device)
 {
     uint32_t iic_sr;
-    uint8_t data_read;
-    bool slave_responded;
+    uint8_t data[MAX_BYTES_READ];
+    bool slave_responded = false;
     uint8_t i2c_slave_address;
     uint32_t total_responses_per_address[256] = {0};
     iic_controller_context_t iic_controller = {0};
@@ -338,22 +360,28 @@ static void probe_i2c_addresses (vfio_device_t *const vfio_device)
                 switch (arg_iic_access_mode)
                 {
                 case IIC_ACCESS_MODE_STANDARD:
-                    slave_responded = i2c_standard_byte_read (iic_regs, i2c_slave_address, &data_read);
+                    slave_responded = i2c_standard_byte_read (iic_regs, i2c_slave_address, data);
                     break;
 
                 case IIC_ACCESS_MODE_DYNAMIC:
-                    slave_responded = i2c_dynamic_byte_read (iic_regs, i2c_slave_address, &data_read);
+                    slave_responded = i2c_dynamic_byte_read (iic_regs, i2c_slave_address, data);
                     break;
 
                 case IIC_ACCESS_MODE_IIC_LIB:
-                    transfer_status = iic_read (&iic_controller, i2c_slave_address, 1, &data_read, IIC_TRANSFER_OPTION_STOP);
+                    transfer_status = iic_read (&iic_controller, i2c_slave_address, arg_num_bytes_read, data, IIC_TRANSFER_OPTION_STOP);
                     slave_responded = transfer_status == IIC_TRANSFER_STATUS_SUCCESS;
+                    break;
                 }
 
                 if (slave_responded)
                 {
                     total_responses_per_address[i2c_slave_address]++;
-                    printf ("Slave 0x%02x replied with data 0x%02x\n", i2c_slave_address, data_read);
+                    printf ("Slave 0x%02x replied with data", i2c_slave_address);
+                    for (uint32_t byte_index = 0; byte_index < arg_num_bytes_read; byte_index++)
+                    {
+                        printf (" 0x%02x", data[byte_index]);
+                    }
+                    printf ("\n");
                 }
             }
         }
