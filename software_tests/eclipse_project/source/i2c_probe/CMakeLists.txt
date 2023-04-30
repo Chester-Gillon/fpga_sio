@@ -3,4 +3,7 @@
 project (i2c_probe C)
 
 add_executable (i2c_probe "i2c_probe.c")
+if (${HAVE_XILINX_EMBEDDEDSW})
+    target_link_libraries (i2c_probe xiic_l)
+endif()
 target_link_libraries (i2c_probe xilinx_axi_iic_transfers vfio_access pci rt)

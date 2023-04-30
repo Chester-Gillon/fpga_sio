@@ -20,6 +20,10 @@
 #include "fpga_sio_pci_ids.h"
 #include "xilinx_axi_iic_host_interface.h"
 
+#ifdef HAVE_XILINX_EMBEDDEDSW
+#include "xiic_l.h"
+#endif
+
 
 /* Command line argument which controls how the IIC is used */
 typedef enum
@@ -30,14 +34,22 @@ typedef enum
     IIC_ACCESS_MODE_DYNAMIC,
     /* Uses the functions in xilinx_axi_iic_transfers. */
     IIC_ACCESS_MODE_IIC_LIB,
+#ifdef HAVE_XILINX_EMBEDDEDSW
+    IIC_ACCESS_MODE_XIIC_LIB_STANDARD,
+    IIC_ACCESS_MODE_XIIC_LIB_DYNAMIC,
+#endif
 } iic_access_mode_t;
 static iic_access_mode_t arg_iic_access_mode = IIC_ACCESS_MODE_IIC_LIB;
 
 static const char *const iic_access_mode_names[] =
 {
-    [IIC_ACCESS_MODE_STANDARD] = "standard",
-    [IIC_ACCESS_MODE_DYNAMIC ] = "dynamic",
-    [IIC_ACCESS_MODE_IIC_LIB ] = "iic_lib"
+    [IIC_ACCESS_MODE_STANDARD         ] = "standard",
+    [IIC_ACCESS_MODE_DYNAMIC          ] = "dynamic",
+    [IIC_ACCESS_MODE_IIC_LIB          ] = "iic_lib",
+#ifdef HAVE_XILINX_EMBEDDEDSW
+    [IIC_ACCESS_MODE_XIIC_LIB_STANDARD] = "xiic_lib_standard",
+    [IIC_ACCESS_MODE_XIIC_LIB_DYNAMIC ] = "xiic_lib_dynamic"
+#endif
 };
 
 
@@ -50,14 +62,22 @@ static uint32_t arg_num_iterations = 1;
 static uint32_t arg_num_bytes_read = 1;
 
 
+/* Command line arguments which specify the range of I2C 7-bit addresses probed.
+ * Default values exclude reserved addresses. */
+static uint8_t arg_min_i2c_addr = 0x08;
+static uint8_t arg_max_i2c_addr = 0x77;
+
+
 /**
  * @brief Parse the command line arguments, storing the results in global variables
  * @param[in] argc, argv Arguments passed to main
  */
 static void parse_command_line_arguments (int argc, char *argv[])
 {
-    const char *const optstring = "m:i:n:?";
+    const char *const optstring = "m:i:n:a:?";
     int option;
+    int min_i2c_addr;
+    int max_i2c_addr;
     char junk;
 
     option = getopt (argc, argv, optstring);
@@ -78,6 +98,16 @@ static void parse_command_line_arguments (int argc, char *argv[])
             {
                 arg_iic_access_mode = IIC_ACCESS_MODE_IIC_LIB;
             }
+#ifdef HAVE_XILINX_EMBEDDEDSW
+            else if (strcmp (optarg, "xiic_lib_standard") == 0)
+            {
+                arg_iic_access_mode = IIC_ACCESS_MODE_XIIC_LIB_STANDARD;
+            }
+            else if (strcmp (optarg, "xiic_lib_dynamic") == 0)
+            {
+                arg_iic_access_mode = IIC_ACCESS_MODE_XIIC_LIB_DYNAMIC;
+            }
+#endif
             else
             {
                 printf ("Error: Invalid access mode \"%s\"\n", optarg);
@@ -102,9 +132,26 @@ static void parse_command_line_arguments (int argc, char *argv[])
             }
             break;
 
+        case 'a':
+            if ((sscanf (optarg, "%i:%i%c", &min_i2c_addr, &max_i2c_addr, &junk) != 2) ||
+                (min_i2c_addr < 0) || (min_i2c_addr > 255) ||
+                (max_i2c_addr < 0) || (max_i2c_addr > 255) ||
+                (min_i2c_addr > max_i2c_addr))
+            {
+                printf ("Error: Invalid <min_i2c_addr>:<max_i2c_addr> \"%s\"\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            arg_min_i2c_addr = (uint8_t) min_i2c_addr;
+            arg_max_i2c_addr = (uint8_t) max_i2c_addr;
+            break;
+
         case '?':
         default:
-            printf ("Usage %s [-m standard|dynamic|iic_lib] [-i <num_iterations>] [-n num_bytes_read]\n", argv[0]);
+            printf ("Usage %s [-m standard|dynamic|iic_lib"
+#ifdef HAVE_XILINX_EMBEDDEDSW
+                    "|xiic_lib_standard|xiic_lib_dynamic"
+#endif
+                    "] [-i <num_iterations>] [-n <num_bytes_read>] [-a <min_i2c_addr>:<max_i2c_addr> \n", argv[0]);
             exit (EXIT_FAILURE);
             break;
         }
@@ -305,13 +352,13 @@ static void probe_i2c_addresses (vfio_device_t *const vfio_device)
     uint32_t total_responses_per_address[256] = {0};
     iic_controller_context_t iic_controller = {0};
     iic_transfer_status_t transfer_status;
+    int xiic_status;
+#ifdef HAVE_XILINX_EMBEDDEDSW
+    unsigned num_bytes_received;
+#endif
 
     /* The FPGA has a single BAR with the IIC registers at offset zero in the BAR */
     const uint32_t iic_bar_index = 0;
-
-    /* Range of valid I2C 7-bit addresses excluding reserved addresses */
-    const uint8_t min_i2c_addr = 0x08;
-    const uint8_t max_i2c_addr = 0x77;
 
     map_vfio_device_bar_before_use (vfio_device, iic_bar_index);
     if (vfio_device->mapped_bars[iic_bar_index] != NULL)
@@ -321,17 +368,11 @@ static void probe_i2c_addresses (vfio_device_t *const vfio_device)
         printf ("Using BAR %d in device %s of size 0x%llx\n",
                 iic_bar_index, vfio_device->device_name, vfio_device->regions_info[iic_bar_index].size);
 
-        if (arg_iic_access_mode == IIC_ACCESS_MODE_IIC_LIB)
+        /* Perform access mode specific initialisation */
+        switch (arg_iic_access_mode)
         {
-            transfer_status = iic_initialise_controller (&iic_controller, iic_regs);
-            if (transfer_status != IIC_TRANSFER_STATUS_SUCCESS)
-            {
-                printf ("iic_initialise_controller() failed\n");
-                return;
-            }
-        }
-        else
-        {
+        case IIC_ACCESS_MODE_STANDARD:
+        case IIC_ACCESS_MODE_DYNAMIC:
             /* The IIC in the FPGA should be the only master, so an error if bus is busy before starting the probe.
              * Attempt one soft-reset of the IIC in case a 'glitch' from a previous run left the IIC in control of the I2C bus. */
             iic_sr = read_reg32 (iic_regs, IIC_STATUS_REGISTER_OFFSET);
@@ -349,13 +390,36 @@ static void probe_i2c_addresses (vfio_device_t *const vfio_device)
                     return;
                 }
             }
+            break;
+
+        case IIC_ACCESS_MODE_IIC_LIB:
+            transfer_status = iic_initialise_controller (&iic_controller, iic_regs);
+            if (transfer_status != IIC_TRANSFER_STATUS_SUCCESS)
+            {
+                printf ("iic_initialise_controller() failed\n");
+                return;
+            }
+            break;
+
+        case IIC_ACCESS_MODE_XIIC_LIB_STANDARD:
+            /* No initialise function in the Xilinx embeddedsw library for standard mode */
+            break;
+
+        case IIC_ACCESS_MODE_XIIC_LIB_DYNAMIC:
+            xiic_status = XIic_DynInit ((UINTPTR) iic_regs);
+            if (xiic_status != XST_SUCCESS)
+            {
+                printf ("XIic_DynInit() failed\n");
+                return;
+            }
+            break;
         }
 
         for (uint32_t iteration = 1; iteration <= arg_num_iterations; iteration++)
         {
             printf ("Iteration %u of %u using IIC %s\n",
                     iteration, arg_num_iterations, iic_access_mode_names[arg_iic_access_mode]);
-            for (i2c_slave_address = min_i2c_addr; i2c_slave_address <= max_i2c_addr; i2c_slave_address++)
+            for (i2c_slave_address = arg_min_i2c_addr; i2c_slave_address <= arg_max_i2c_addr; i2c_slave_address++)
             {
                 switch (arg_iic_access_mode)
                 {
@@ -371,6 +435,17 @@ static void probe_i2c_addresses (vfio_device_t *const vfio_device)
                     transfer_status = iic_read (&iic_controller, i2c_slave_address, arg_num_bytes_read, data, IIC_TRANSFER_OPTION_STOP);
                     slave_responded = transfer_status == IIC_TRANSFER_STATUS_SUCCESS;
                     break;
+#ifdef HAVE_XILINX_EMBEDDEDSW
+                case IIC_ACCESS_MODE_XIIC_LIB_STANDARD:
+                    num_bytes_received = XIic_Recv ((UINTPTR) iic_regs, i2c_slave_address, data, arg_num_bytes_read, XIIC_STOP);
+                    slave_responded = num_bytes_received == arg_num_bytes_read;
+                    break;
+
+                case IIC_ACCESS_MODE_XIIC_LIB_DYNAMIC:
+                    num_bytes_received = XIic_DynRecv ((UINTPTR) iic_regs, i2c_slave_address, data, (u8) arg_num_bytes_read);
+                    slave_responded = num_bytes_received == arg_num_bytes_read;
+                    break;
+#endif
                 }
 
                 if (slave_responded)
@@ -390,7 +465,7 @@ static void probe_i2c_addresses (vfio_device_t *const vfio_device)
         {
             /* Display the total number of responses to all addresses, as a summary */
             printf ("\nNumber of responses for each I2C address:\n");
-            for (i2c_slave_address = min_i2c_addr; i2c_slave_address <= max_i2c_addr; i2c_slave_address++)
+            for (i2c_slave_address = arg_min_i2c_addr; i2c_slave_address <= arg_max_i2c_addr; i2c_slave_address++)
             {
                 if (total_responses_per_address[i2c_slave_address] > 0)
                 {
