@@ -29,17 +29,72 @@
         <spirit:configurableElementValue spirit:referenceId="RUNTIME_PARAM.OUTPUTDIR">../../../../axi_iic_0_ex.gen/sources_1/ip/SCF1001_0</spirit:configurableElementValue>
         <spirit:configurableElementValue spirit:referenceId="RUNTIME_PARAM.SELECTEDSIMMODEL"/>
         <spirit:configurableElementValue spirit:referenceId="RUNTIME_PARAM.SHAREDDIR">.</spirit:configurableElementValue>
-        <spirit:configurableElementValue spirit:referenceId="RUNTIME_PARAM.SWVERSION">2021.2</spirit:configurableElementValue>
+        <spirit:configurableElementValue spirit:referenceId="RUNTIME_PARAM.SWVERSION">2022.1</spirit:configurableElementValue>
         <spirit:configurableElementValue spirit:referenceId="RUNTIME_PARAM.SYNTHESISFLOW">OUT_OF_CONTEXT</spirit:configurableElementValue>
       </spirit:configurableElementValues>
       <spirit:vendorExtensions>
         <xilinx:componentInstanceExtensions>
           <xilinx:boundaryDescriptionInfo>
-            <xilinx:boundaryDescription xilinx:boundaryDescriptionJSON="{&quot;ip_boundary&quot;:{&quot;ports&quot;:{&quot;CPLD_14_OE&quot;:[{&quot;direction&quot;:&quot;out&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;is_vector&quot;:&quot;false&quot;}],&quot;CPLD_16_SDA&quot;:[{&quot;direction&quot;:&quot;in&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;is_vector&quot;:&quot;false&quot;}],&quot;CPLD_1_SCL&quot;:[{&quot;direction&quot;:&quot;out&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;is_vector&quot;:&quot;false&quot;}],&quot;ext_scl_i&quot;:[{&quot;direction&quot;:&quot;in&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;is_vector&quot;:&quot;false&quot;}],&quot;ext_scl_o&quot;:[{&quot;direction&quot;:&quot;out&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;is_vector&quot;:&quot;false&quot;}],&quot;ext_scl_t&quot;:[{&quot;direction&quot;:&quot;out&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;is_vector&quot;:&quot;false&quot;}],&quot;ext_sda_i&quot;:[{&quot;direction&quot;:&quot;in&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;is_vector&quot;:&quot;false&quot;}],&quot;ext_sda_o&quot;:[{&quot;direction&quot;:&quot;out&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;is_vector&quot;:&quot;false&quot;}],&quot;ext_sda_t&quot;:[{&quot;direction&quot;:&quot;out&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;is_vector&quot;:&quot;false&quot;}],&quot;scl_i&quot;:[{&quot;direction&quot;:&quot;out&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;is_vector&quot;:&quot;false&quot;}],&quot;scl_o&quot;:[{&quot;direction&quot;:&quot;in&quot;,
-&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;is_vector&quot;:&quot;false&quot;}],&quot;scl_t&quot;:[{&quot;direction&quot;:&quot;in&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;is_vector&quot;:&quot;false&quot;}],&quot;sda_i&quot;:[{&quot;direction&quot;:&quot;out&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;is_vector&quot;:&quot;false&quot;}],&quot;sda_o&quot;:[{&quot;direction&quot;:&quot;in&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;is_vector&quot;:&quot;false&quot;}],&quot;sda_t&quot;:[{&quot;direction&quot;:&quot;in&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;is_vector&quot;:&quot;false&quot;}]},&quot;interfaces&quot;:{&quot;EMIO_I2C&quot;:{&quot;vlnv&quot;:&quot;xilinx.com:interface:iic:1.0&quot;,&quot;abstraction_type&quot;:&quot;xilinx.com:interface:iic_rtl:1.0&quot;,&quot;mode&quot;:&quot;slave&quot;,&quot;parameters&quot;:{},&quot;port_maps&quot;:{&quot;SCL_I&quot;:[{&quot;physical_name&quot;:&quot;scl_i&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;logical_left&quot;:&quot;0&quot;,&quot;logical_right&quot;:&quot;0&quot;,&quot;port_maps_used&quot;:&quot;none&quot;}],&quot;SCL_O&quot;:[{&quot;physical_name&quot;:&quot;scl_o&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;logical_left&quot;:&quot;0&quot;,&quot;logical_right&quot;:&quot;0&quot;,&quot;port_maps_used&quot;:&quot;none&quot;}],&quot;SCL_T&quot;:[{&quot;physical_name&quot;:&quot;scl_t&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;logical_left&quot;:&quot;0&quot;,&quot;logical_right&quot;:&quot;0&quot;,&quot;port_maps_used&quot;:&quot;
-none&quot;}],&quot;SDA_I&quot;:[{&quot;physical_name&quot;:&quot;sda_i&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;logical_left&quot;:&quot;0&quot;,&quot;logical_right&quot;:&quot;0&quot;,&quot;port_maps_used&quot;:&quot;none&quot;}],&quot;SDA_O&quot;:[{&quot;physical_name&quot;:&quot;sda_o&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;logical_left&quot;:&quot;0&quot;,&quot;logical_right&quot;:&quot;0&quot;,&quot;port_maps_used&quot;:&quot;none&quot;}],&quot;SDA_T&quot;:[{&quot;physical_name&quot;:&quot;sda_t&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;logical_left&quot;:&quot;0&quot;,&quot;logical_right&quot;:&quot;0&quot;,&quot;port_maps_used&quot;:&quot;none&quot;}]}},&quot;EXT_I2C&quot;:{&quot;vlnv&quot;:&quot;xilinx.com:interface:iic:1.0&quot;,&quot;abstraction_type&quot;:&quot;xilinx.com:interface:iic_rtl:1.0&quot;,&quot;mode&quot;:&quot;master&quot;,&quot;parameters&quot;:{},&quot;port_maps&quot;:{&quot;SCL_I&quot;:[{&quot;physical_name&quot;:&quot;ext_scl_i&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;logical_left&quot;:&quot;0&quot;,&quot;logical_right&quot;:&quot;0&quot;,&quot;port_maps_used&quot;:&quot;none&quot;}],&quot;SCL_O&quot;:[{&quot;physical_name&quot;:&quot;ext_scl_o&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;logical_left&quot;:&quot;0&quot;,&quot;logical_right&quot;:&quot;0&quot;,&quot;port_maps_used&quot;:&quot;none&quot;}],&quot;SCL_T&quot;:[{&quot;physical_name&quot;:&quot;ext_scl_t&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;logical_left&quot;:&quot;0&quot;,&quot;logical_right&quot;:&quot;0&quot;,&quot;port_maps_used
-&quot;:&quot;none&quot;}],&quot;SDA_I&quot;:[{&quot;physical_name&quot;:&quot;ext_sda_i&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;logical_left&quot;:&quot;0&quot;,&quot;logical_right&quot;:&quot;0&quot;,&quot;port_maps_used&quot;:&quot;none&quot;}],&quot;SDA_O&quot;:[{&quot;physical_name&quot;:&quot;ext_sda_o&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;logical_left&quot;:&quot;0&quot;,&quot;logical_right&quot;:&quot;0&quot;,&quot;port_maps_used&quot;:&quot;none&quot;}],&quot;SDA_T&quot;:[{&quot;physical_name&quot;:&quot;ext_sda_t&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;logical_left&quot;:&quot;0&quot;,&quot;logical_right&quot;:&quot;0&quot;,&quot;port_maps_used&quot;:&quot;none&quot;}]}},&quot;SCF&quot;:{&quot;vlnv&quot;:&quot;trenz.biz:user:SCF1001_bus:1.0&quot;,&quot;abstraction_type&quot;:&quot;trenz.biz:user:SCF1001_bus_rtl:1.0&quot;,&quot;mode&quot;:&quot;master&quot;,&quot;parameters&quot;:{},&quot;port_maps&quot;:{&quot;CPLD_14_OE&quot;:[{&quot;physical_name&quot;:&quot;CPLD_14_OE&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;logical_left&quot;:&quot;0&quot;,&quot;logical_right&quot;:&quot;0&quot;,&quot;port_maps_used&quot;:&quot;none&quot;}],&quot;CPLD_16_SDA&quot;:[{&quot;physical_name&quot;:&quot;CPLD_16_SDA&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;logical_left&quot;:&quot;0&quot;,&quot;logical_right&quot;:&quot;0&quot;,&quot;port_maps_used&quot;:&quot;none&quot;}],&quot;CPLD_1_SCL&quot;:[{&quot;physical_name&quot;:&quot;CPLD_1_SCL&quot;,&quot;physical_left&quot;:&quot;0&quot;,&quot;physical_right&quot;:&quot;0&quot;,&quot;logical_left&quot;:&quot;0&quot;,
-&quot;logical_right&quot;:&quot;0&quot;,&quot;port_maps_used&quot;:&quot;none&quot;}]}}}}}"/>
+            <xilinx:boundaryDescription xilinx:boundaryDescriptionJSON="{
+              &quot;schema&quot;: &quot;xilinx.com:schema:json_boundary:1.0&quot;,
+              &quot;boundary&quot;: {
+                &quot;ports&quot;: {
+                  &quot;ext_sda_i&quot;: [ { &quot;direction&quot;: &quot;in&quot;, &quot;driver_value&quot;: &quot;1&quot; } ],
+                  &quot;ext_sda_o&quot;: [ { &quot;direction&quot;: &quot;out&quot;, &quot;driver_value&quot;: &quot;1&quot; } ],
+                  &quot;ext_sda_t&quot;: [ { &quot;direction&quot;: &quot;out&quot;, &quot;driver_value&quot;: &quot;1&quot; } ],
+                  &quot;ext_scl_i&quot;: [ { &quot;direction&quot;: &quot;in&quot;, &quot;driver_value&quot;: &quot;1&quot; } ],
+                  &quot;ext_scl_o&quot;: [ { &quot;direction&quot;: &quot;out&quot;, &quot;driver_value&quot;: &quot;1&quot; } ],
+                  &quot;ext_scl_t&quot;: [ { &quot;direction&quot;: &quot;out&quot;, &quot;driver_value&quot;: &quot;1&quot; } ],
+                  &quot;CPLD_1_SCL&quot;: [ { &quot;direction&quot;: &quot;out&quot;, &quot;driver_value&quot;: &quot;1&quot; } ],
+                  &quot;CPLD_14_OE&quot;: [ { &quot;direction&quot;: &quot;out&quot;, &quot;driver_value&quot;: &quot;1&quot; } ],
+                  &quot;CPLD_16_SDA&quot;: [ { &quot;direction&quot;: &quot;in&quot;, &quot;driver_value&quot;: &quot;1&quot; } ],
+                  &quot;sda_i&quot;: [ { &quot;direction&quot;: &quot;out&quot; } ],
+                  &quot;sda_o&quot;: [ { &quot;direction&quot;: &quot;in&quot; } ],
+                  &quot;sda_t&quot;: [ { &quot;direction&quot;: &quot;in&quot; } ],
+                  &quot;scl_i&quot;: [ { &quot;direction&quot;: &quot;out&quot; } ],
+                  &quot;scl_o&quot;: [ { &quot;direction&quot;: &quot;in&quot; } ],
+                  &quot;scl_t&quot;: [ { &quot;direction&quot;: &quot;in&quot; } ]
+                },
+                &quot;interfaces&quot;: {
+                  &quot;EMIO_I2C&quot;: {
+                    &quot;vlnv&quot;: &quot;xilinx.com:interface:iic:1.0&quot;,
+                    &quot;abstraction_type&quot;: &quot;xilinx.com:interface:iic_rtl:1.0&quot;,
+                    &quot;mode&quot;: &quot;slave&quot;,
+                    &quot;port_maps&quot;: {
+                      &quot;SCL_T&quot;: [ { &quot;physical_name&quot;: &quot;scl_t&quot; } ],
+                      &quot;SDA_O&quot;: [ { &quot;physical_name&quot;: &quot;sda_o&quot; } ],
+                      &quot;SDA_T&quot;: [ { &quot;physical_name&quot;: &quot;sda_t&quot; } ],
+                      &quot;SCL_O&quot;: [ { &quot;physical_name&quot;: &quot;scl_o&quot; } ],
+                      &quot;SDA_I&quot;: [ { &quot;physical_name&quot;: &quot;sda_i&quot; } ],
+                      &quot;SCL_I&quot;: [ { &quot;physical_name&quot;: &quot;scl_i&quot; } ]
+                    }
+                  },
+                  &quot;EXT_I2C&quot;: {
+                    &quot;vlnv&quot;: &quot;xilinx.com:interface:iic:1.0&quot;,
+                    &quot;abstraction_type&quot;: &quot;xilinx.com:interface:iic_rtl:1.0&quot;,
+                    &quot;mode&quot;: &quot;master&quot;,
+                    &quot;port_maps&quot;: {
+                      &quot;SCL_T&quot;: [ { &quot;physical_name&quot;: &quot;ext_scl_t&quot; } ],
+                      &quot;SDA_O&quot;: [ { &quot;physical_name&quot;: &quot;ext_sda_o&quot; } ],
+                      &quot;SDA_I&quot;: [ { &quot;physical_name&quot;: &quot;ext_sda_i&quot; } ],
+                      &quot;SDA_T&quot;: [ { &quot;physical_name&quot;: &quot;ext_sda_t&quot; } ],
+                      &quot;SCL_O&quot;: [ { &quot;physical_name&quot;: &quot;ext_scl_o&quot; } ],
+                      &quot;SCL_I&quot;: [ { &quot;physical_name&quot;: &quot;ext_scl_i&quot; } ]
+                    }
+                  },
+                  &quot;SCF&quot;: {
+                    &quot;vlnv&quot;: &quot;trenz.biz:user:SCF1001_bus:1.0&quot;,
+                    &quot;abstraction_type&quot;: &quot;trenz.biz:user:SCF1001_bus_rtl:1.0&quot;,
+                    &quot;mode&quot;: &quot;master&quot;,
+                    &quot;port_maps&quot;: {
+                      &quot;CPLD_14_OE&quot;: [ { &quot;physical_name&quot;: &quot;CPLD_14_OE&quot; } ],
+                      &quot;CPLD_16_SDA&quot;: [ { &quot;physical_name&quot;: &quot;CPLD_16_SDA&quot; } ],
+                      &quot;CPLD_1_SCL&quot;: [ { &quot;physical_name&quot;: &quot;CPLD_1_SCL&quot; } ]
+                    }
+                  }
+                }
+              }
+            }"/>
           </xilinx:boundaryDescriptionInfo>
         </xilinx:componentInstanceExtensions>
       </spirit:vendorExtensions>
