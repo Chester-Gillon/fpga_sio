@@ -1,103 +1,96 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<spirit:design xmlns:xilinx="http://www.xilinx.com" xmlns:spirit="http://www.spiritconsortium.org/XMLSchema/SPIRIT/1685-2009" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <spirit:vendor>xilinx.com</spirit:vendor>
-  <spirit:library>xci</spirit:library>
-  <spirit:name>unknown</spirit:name>
-  <spirit:version>1.0</spirit:version>
-  <spirit:componentInstances>
-    <spirit:componentInstance>
-      <spirit:instanceName>SCF1001_0</spirit:instanceName>
-      <spirit:componentRef spirit:vendor="trenz.biz" spirit:library="user" spirit:name="SCF1001" spirit:version="1.0"/>
-      <spirit:configurableElementValues>
-        <spirit:configurableElementValue spirit:referenceId="PARAM_VALUE.Component_Name">SCF1001_0</spirit:configurableElementValue>
-        <spirit:configurableElementValue spirit:referenceId="PROJECT_PARAM.ARCHITECTURE">kintex7</spirit:configurableElementValue>
-        <spirit:configurableElementValue spirit:referenceId="PROJECT_PARAM.BASE_BOARD_PART">trenz.biz:tef1001_160_2i:part0:1.1</spirit:configurableElementValue>
-        <spirit:configurableElementValue spirit:referenceId="PROJECT_PARAM.BOARD_CONNECTIONS"/>
-        <spirit:configurableElementValue spirit:referenceId="PROJECT_PARAM.DEVICE">xc7k160t</spirit:configurableElementValue>
-        <spirit:configurableElementValue spirit:referenceId="PROJECT_PARAM.PACKAGE">fbg676</spirit:configurableElementValue>
-        <spirit:configurableElementValue spirit:referenceId="PROJECT_PARAM.PREFHDL">VERILOG</spirit:configurableElementValue>
-        <spirit:configurableElementValue spirit:referenceId="PROJECT_PARAM.SILICON_REVISION"/>
-        <spirit:configurableElementValue spirit:referenceId="PROJECT_PARAM.SIMULATOR_LANGUAGE">MIXED</spirit:configurableElementValue>
-        <spirit:configurableElementValue spirit:referenceId="PROJECT_PARAM.SPEEDGRADE">-2</spirit:configurableElementValue>
-        <spirit:configurableElementValue spirit:referenceId="PROJECT_PARAM.STATIC_POWER"/>
-        <spirit:configurableElementValue spirit:referenceId="PROJECT_PARAM.TEMPERATURE_GRADE"/>
-        <spirit:configurableElementValue spirit:referenceId="PROJECT_PARAM.USE_RDI_CUSTOMIZATION">TRUE</spirit:configurableElementValue>
-        <spirit:configurableElementValue spirit:referenceId="PROJECT_PARAM.USE_RDI_GENERATION">TRUE</spirit:configurableElementValue>
-        <spirit:configurableElementValue spirit:referenceId="RUNTIME_PARAM.IPCONTEXT">IP_Flow</spirit:configurableElementValue>
-        <spirit:configurableElementValue spirit:referenceId="RUNTIME_PARAM.IPREVISION">5</spirit:configurableElementValue>
-        <spirit:configurableElementValue spirit:referenceId="RUNTIME_PARAM.MANAGED">TRUE</spirit:configurableElementValue>
-        <spirit:configurableElementValue spirit:referenceId="RUNTIME_PARAM.OUTPUTDIR">../../../../axi_iic_0_ex.gen/sources_1/ip/SCF1001_0</spirit:configurableElementValue>
-        <spirit:configurableElementValue spirit:referenceId="RUNTIME_PARAM.SELECTEDSIMMODEL"/>
-        <spirit:configurableElementValue spirit:referenceId="RUNTIME_PARAM.SHAREDDIR">.</spirit:configurableElementValue>
-        <spirit:configurableElementValue spirit:referenceId="RUNTIME_PARAM.SWVERSION">2022.1</spirit:configurableElementValue>
-        <spirit:configurableElementValue spirit:referenceId="RUNTIME_PARAM.SYNTHESISFLOW">OUT_OF_CONTEXT</spirit:configurableElementValue>
-      </spirit:configurableElementValues>
-      <spirit:vendorExtensions>
-        <xilinx:componentInstanceExtensions>
-          <xilinx:boundaryDescriptionInfo>
-            <xilinx:boundaryDescription xilinx:boundaryDescriptionJSON="{
-              &quot;schema&quot;: &quot;xilinx.com:schema:json_boundary:1.0&quot;,
-              &quot;boundary&quot;: {
-                &quot;ports&quot;: {
-                  &quot;ext_sda_i&quot;: [ { &quot;direction&quot;: &quot;in&quot;, &quot;driver_value&quot;: &quot;1&quot; } ],
-                  &quot;ext_sda_o&quot;: [ { &quot;direction&quot;: &quot;out&quot;, &quot;driver_value&quot;: &quot;1&quot; } ],
-                  &quot;ext_sda_t&quot;: [ { &quot;direction&quot;: &quot;out&quot;, &quot;driver_value&quot;: &quot;1&quot; } ],
-                  &quot;ext_scl_i&quot;: [ { &quot;direction&quot;: &quot;in&quot;, &quot;driver_value&quot;: &quot;1&quot; } ],
-                  &quot;ext_scl_o&quot;: [ { &quot;direction&quot;: &quot;out&quot;, &quot;driver_value&quot;: &quot;1&quot; } ],
-                  &quot;ext_scl_t&quot;: [ { &quot;direction&quot;: &quot;out&quot;, &quot;driver_value&quot;: &quot;1&quot; } ],
-                  &quot;CPLD_1_SCL&quot;: [ { &quot;direction&quot;: &quot;out&quot;, &quot;driver_value&quot;: &quot;1&quot; } ],
-                  &quot;CPLD_14_OE&quot;: [ { &quot;direction&quot;: &quot;out&quot;, &quot;driver_value&quot;: &quot;1&quot; } ],
-                  &quot;CPLD_16_SDA&quot;: [ { &quot;direction&quot;: &quot;in&quot;, &quot;driver_value&quot;: &quot;1&quot; } ],
-                  &quot;sda_i&quot;: [ { &quot;direction&quot;: &quot;out&quot; } ],
-                  &quot;sda_o&quot;: [ { &quot;direction&quot;: &quot;in&quot; } ],
-                  &quot;sda_t&quot;: [ { &quot;direction&quot;: &quot;in&quot; } ],
-                  &quot;scl_i&quot;: [ { &quot;direction&quot;: &quot;out&quot; } ],
-                  &quot;scl_o&quot;: [ { &quot;direction&quot;: &quot;in&quot; } ],
-                  &quot;scl_t&quot;: [ { &quot;direction&quot;: &quot;in&quot; } ]
-                },
-                &quot;interfaces&quot;: {
-                  &quot;EMIO_I2C&quot;: {
-                    &quot;vlnv&quot;: &quot;xilinx.com:interface:iic:1.0&quot;,
-                    &quot;abstraction_type&quot;: &quot;xilinx.com:interface:iic_rtl:1.0&quot;,
-                    &quot;mode&quot;: &quot;slave&quot;,
-                    &quot;port_maps&quot;: {
-                      &quot;SCL_T&quot;: [ { &quot;physical_name&quot;: &quot;scl_t&quot; } ],
-                      &quot;SDA_O&quot;: [ { &quot;physical_name&quot;: &quot;sda_o&quot; } ],
-                      &quot;SDA_T&quot;: [ { &quot;physical_name&quot;: &quot;sda_t&quot; } ],
-                      &quot;SCL_O&quot;: [ { &quot;physical_name&quot;: &quot;scl_o&quot; } ],
-                      &quot;SDA_I&quot;: [ { &quot;physical_name&quot;: &quot;sda_i&quot; } ],
-                      &quot;SCL_I&quot;: [ { &quot;physical_name&quot;: &quot;scl_i&quot; } ]
-                    }
-                  },
-                  &quot;EXT_I2C&quot;: {
-                    &quot;vlnv&quot;: &quot;xilinx.com:interface:iic:1.0&quot;,
-                    &quot;abstraction_type&quot;: &quot;xilinx.com:interface:iic_rtl:1.0&quot;,
-                    &quot;mode&quot;: &quot;master&quot;,
-                    &quot;port_maps&quot;: {
-                      &quot;SCL_T&quot;: [ { &quot;physical_name&quot;: &quot;ext_scl_t&quot; } ],
-                      &quot;SDA_O&quot;: [ { &quot;physical_name&quot;: &quot;ext_sda_o&quot; } ],
-                      &quot;SDA_I&quot;: [ { &quot;physical_name&quot;: &quot;ext_sda_i&quot; } ],
-                      &quot;SDA_T&quot;: [ { &quot;physical_name&quot;: &quot;ext_sda_t&quot; } ],
-                      &quot;SCL_O&quot;: [ { &quot;physical_name&quot;: &quot;ext_scl_o&quot; } ],
-                      &quot;SCL_I&quot;: [ { &quot;physical_name&quot;: &quot;ext_scl_i&quot; } ]
-                    }
-                  },
-                  &quot;SCF&quot;: {
-                    &quot;vlnv&quot;: &quot;trenz.biz:user:SCF1001_bus:1.0&quot;,
-                    &quot;abstraction_type&quot;: &quot;trenz.biz:user:SCF1001_bus_rtl:1.0&quot;,
-                    &quot;mode&quot;: &quot;master&quot;,
-                    &quot;port_maps&quot;: {
-                      &quot;CPLD_14_OE&quot;: [ { &quot;physical_name&quot;: &quot;CPLD_14_OE&quot; } ],
-                      &quot;CPLD_16_SDA&quot;: [ { &quot;physical_name&quot;: &quot;CPLD_16_SDA&quot; } ],
-                      &quot;CPLD_1_SCL&quot;: [ { &quot;physical_name&quot;: &quot;CPLD_1_SCL&quot; } ]
-                    }
-                  }
-                }
-              }
-            }"/>
-          </xilinx:boundaryDescriptionInfo>
-        </xilinx:componentInstanceExtensions>
-      </spirit:vendorExtensions>
-    </spirit:componentInstance>
-  </spirit:componentInstances>
-</spirit:design>
+{
+  "schema": "xilinx.com:schema:json_instance:1.0",
+  "ip_inst": {
+    "xci_name": "SCF1001_0",
+    "component_reference": "trenz.biz:user:SCF1001:1.0",
+    "ip_revision": "5",
+    "gen_directory": "../../../../axi_iic_0_ex.gen/sources_1/ip/SCF1001_0",
+    "parameters": {
+      "component_parameters": {
+        "Component_Name": [ { "value": "SCF1001_0", "resolve_type": "user", "usage": "all" } ]
+      },
+      "project_parameters": {
+        "ARCHITECTURE": [ { "value": "kintex7" } ],
+        "BASE_BOARD_PART": [ { "value": "trenz.biz:tef1001_160_2i:part0:1.1" } ],
+        "BOARD_CONNECTIONS": [ { "value": "" } ],
+        "DEVICE": [ { "value": "xc7k160t" } ],
+        "PACKAGE": [ { "value": "fbg676" } ],
+        "PREFHDL": [ { "value": "VERILOG" } ],
+        "SILICON_REVISION": [ { "value": "" } ],
+        "SIMULATOR_LANGUAGE": [ { "value": "MIXED" } ],
+        "SPEEDGRADE": [ { "value": "-2" } ],
+        "STATIC_POWER": [ { "value": "" } ],
+        "TEMPERATURE_GRADE": [ { "value": "" } ],
+        "USE_RDI_CUSTOMIZATION": [ { "value": "TRUE" } ],
+        "USE_RDI_GENERATION": [ { "value": "TRUE" } ]
+      },
+      "runtime_parameters": {
+        "IPCONTEXT": [ { "value": "IP_Flow" } ],
+        "IPREVISION": [ { "value": "5" } ],
+        "MANAGED": [ { "value": "TRUE" } ],
+        "OUTPUTDIR": [ { "value": "../../../../axi_iic_0_ex.gen/sources_1/ip/SCF1001_0" } ],
+        "SELECTEDSIMMODEL": [ { "value": "" } ],
+        "SHAREDDIR": [ { "value": "." } ],
+        "SWVERSION": [ { "value": "2022.2" } ],
+        "SYNTHESISFLOW": [ { "value": "OUT_OF_CONTEXT" } ]
+      }
+    },
+    "boundary": {
+      "ports": {
+        "ext_sda_i": [ { "direction": "in", "driver_value": "1" } ],
+        "ext_sda_o": [ { "direction": "out", "driver_value": "1" } ],
+        "ext_sda_t": [ { "direction": "out", "driver_value": "1" } ],
+        "ext_scl_i": [ { "direction": "in", "driver_value": "1" } ],
+        "ext_scl_o": [ { "direction": "out", "driver_value": "1" } ],
+        "ext_scl_t": [ { "direction": "out", "driver_value": "1" } ],
+        "CPLD_1_SCL": [ { "direction": "out", "driver_value": "1" } ],
+        "CPLD_14_OE": [ { "direction": "out", "driver_value": "1" } ],
+        "CPLD_16_SDA": [ { "direction": "in", "driver_value": "1" } ],
+        "sda_i": [ { "direction": "out" } ],
+        "sda_o": [ { "direction": "in" } ],
+        "sda_t": [ { "direction": "in" } ],
+        "scl_i": [ { "direction": "out" } ],
+        "scl_o": [ { "direction": "in" } ],
+        "scl_t": [ { "direction": "in" } ]
+      },
+      "interfaces": {
+        "EMIO_I2C": {
+          "vlnv": "xilinx.com:interface:iic:1.0",
+          "abstraction_type": "xilinx.com:interface:iic_rtl:1.0",
+          "mode": "slave",
+          "port_maps": {
+            "SCL_T": [ { "physical_name": "scl_t" } ],
+            "SDA_O": [ { "physical_name": "sda_o" } ],
+            "SDA_T": [ { "physical_name": "sda_t" } ],
+            "SCL_O": [ { "physical_name": "scl_o" } ],
+            "SDA_I": [ { "physical_name": "sda_i" } ],
+            "SCL_I": [ { "physical_name": "scl_i" } ]
+          }
+        },
+        "EXT_I2C": {
+          "vlnv": "xilinx.com:interface:iic:1.0",
+          "abstraction_type": "xilinx.com:interface:iic_rtl:1.0",
+          "mode": "master",
+          "port_maps": {
+            "SCL_T": [ { "physical_name": "ext_scl_t" } ],
+            "SDA_O": [ { "physical_name": "ext_sda_o" } ],
+            "SDA_I": [ { "physical_name": "ext_sda_i" } ],
+            "SDA_T": [ { "physical_name": "ext_sda_t" } ],
+            "SCL_O": [ { "physical_name": "ext_scl_o" } ],
+            "SCL_I": [ { "physical_name": "ext_scl_i" } ]
+          }
+        },
+        "SCF": {
+          "vlnv": "trenz.biz:user:SCF1001_bus:1.0",
+          "abstraction_type": "trenz.biz:user:SCF1001_bus_rtl:1.0",
+          "mode": "master",
+          "port_maps": {
+            "CPLD_14_OE": [ { "physical_name": "CPLD_14_OE" } ],
+            "CPLD_16_SDA": [ { "physical_name": "CPLD_16_SDA" } ],
+            "CPLD_1_SCL": [ { "physical_name": "CPLD_1_SCL" } ]
+          }
+        }
+      }
+    }
+  }
+}
