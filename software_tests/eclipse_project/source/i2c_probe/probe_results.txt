@@ -185,3 +185,32 @@ The following I2C addresses reliable get an ACK:
 The following I2C addresses intermittently get an ACK:
 - 0x40, 0x4f : LTM4676A
 - 0x5a, 0x5b : Not sure what these devices are
+
+
+Modified to add the following delays after each change of SCL or SDA, to allow to signal transition times:
+#define T_RISE   1000 /* t r rise time of both SDA and SCL signals */
+#define T_FALL    300 /* t f fall time of both SDA and SCL signals */
+
+Which resulted in all addresses reliably getting an ACK, when compiled for release:
+$ i2c_probe/i2c_probe -m bit_banged -n 1 -i 10000 
+Iteration 10000 of 10000 using IIC bit_banged
+Slave 0x19 replied with data 0x00
+Slave 0x31 replied with data 0xfe
+Slave 0x40 replied with data 0xfe
+Slave 0x4f replied with data 0xfe
+Slave 0x51 replied with data 0xfe
+Slave 0x5a replied with data 0xfe
+Slave 0x5b replied with data 0xfe
+Slave 0x70 replied with data 0x00
+Slave 0x74 replied with data 0x5c
+
+Number of responses for each I2C address:
+0x19 : 10000
+0x31 : 10000
+0x40 : 10000
+0x4f : 10000
+0x51 : 10000
+0x5a : 10000
+0x5b : 10000
+0x70 : 10000
+0x74 : 10000

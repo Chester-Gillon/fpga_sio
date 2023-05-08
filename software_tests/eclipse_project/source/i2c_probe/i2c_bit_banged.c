@@ -5,7 +5,7 @@
  * @brief Implements a GPIO bit-banged I2C controller, which is the only master on the I2C bus.
  * @details
  *   Designed for use with the I2C bus on the Trenz Electronic TEF1001-02-B2IX4-A. A limitation of that board is that the SCL
- *   from the FPGA is output, i.e. can't readback the actual SCL bus signal. This is what limits this implmentation to:
+ *   from the FPGA is output, i.e. can't readback the actual SCL bus signal. This is what limits this implementation to:
  *   a. Being master only.
  *   b. The only master on the I2C bus.
  *   c. Unable to handle I2C slaves which stretch SCL.
@@ -47,6 +47,8 @@
 
 
 /* Delay values taken from the I2C bus specification UM10204, for Standard Mode using a 100 KHz SCL clock frequency */
+#define T_RISE   1000 /* t r rise time of both SDA and SCL signals */
+#define T_FALL    300 /* t f fall time of both SDA and SCL signals */
 #define T_BUF    4700 /* t BUF bus free time between a STOP and START condition */
 #define T_SU_STA 4700 /* t SU;STA set-up time for a repeated START condition in Standard Mode */
 #define T_HD_STA 4000 /* t HD;STA hold time (repeated) START condition in Standard Mode */
@@ -89,11 +91,7 @@ static inline void scl_low (bit_banged_i2c_controller_context_t *const controlle
 {
     controller->gpio_data_out &= ~GPIO_DATA_SCL_OUT_MASK;
     write_reg32 (controller->gpio_regs, GPIO_DATA_OFFSET, controller->gpio_data_out);
-
-    /* Provides internal hold time for SDA following falling edge of SCL as per UM10204:
-         A device must internally provide a hold time of at least 300 ns for the SDA signal (with respect to the V IH(min)
-         of the SCL signal) to bridge the undefined region of the falling edge of SCL. */
-    bit_bang_delay (300);
+    bit_bang_delay (T_FALL);
 }
 
 
@@ -101,6 +99,7 @@ static inline void scl_high (bit_banged_i2c_controller_context_t *const controll
 {
     controller->gpio_data_out |= GPIO_DATA_SCL_OUT_MASK;
     write_reg32 (controller->gpio_regs, GPIO_DATA_OFFSET, controller->gpio_data_out);
+    bit_bang_delay (T_RISE);
 }
 
 
@@ -108,6 +107,7 @@ static inline void sda_low (bit_banged_i2c_controller_context_t *const controlle
 {
     controller->gpio_data_out &= ~GPIO_DATA_SDA_OUT_MASK;
     write_reg32 (controller->gpio_regs, GPIO_DATA_OFFSET, controller->gpio_data_out);
+    bit_bang_delay (T_FALL);
 }
 
 
@@ -115,6 +115,7 @@ static inline void sda_high (bit_banged_i2c_controller_context_t *const controll
 {
     controller->gpio_data_out |= GPIO_DATA_SDA_OUT_MASK;
     write_reg32 (controller->gpio_regs, GPIO_DATA_OFFSET, controller->gpio_data_out);
+    bit_bang_delay (T_RISE);
 }
 
 
