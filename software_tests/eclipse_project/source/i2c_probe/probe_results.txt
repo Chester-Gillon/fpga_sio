@@ -141,3 +141,47 @@ Number of responses for each I2C address:
 0x5b : 100000
 0x70 : 100000
 0x74 : 100000
+
+
+=== bit-banged I2C controller ===
+
+The following is the result of running the controller built for release when:
+a. scl_low() contains a 300 ns delay after setting the SCL output low.
+b. Other timing delays are:
+#define T_BUF    4700 /* t BUF bus free time between a STOP and START condition */
+#define T_SU_STA 4700 /* t SU;STA set-up time for a repeated START condition in Standard Mode */
+#define T_HD_STA 4000 /* t HD;STA hold time (repeated) START condition in Standard Mode */
+#define T_SU_STO 4000 /* t SU;STO set-up time for STOP condition */
+#define T_LOW    4700 /* t LOW LOW period of the SCL clock */
+#define T_HIGH   4000 /* t HIGH HIGH period of the SCL clock */
+
+$ i2c_probe/i2c_probe -m bit_banged -n 1 -i 10000 
+<<snip>>
+Iteration 10000 of 10000 using IIC bit_banged
+Slave 0x19 replied with data 0x00
+Slave 0x31 replied with data 0xfe
+Slave 0x51 replied with data 0xfe
+Slave 0x70 replied with data 0x20
+Slave 0x74 replied with data 0x5c
+
+Number of responses for each I2C address:
+0x19 : 10000
+0x31 : 10000
+0x40 : 7
+0x4f : 4
+0x51 : 10000
+0x5a : 3
+0x5b : 11
+0x70 : 10000
+0x74 : 10000
+
+The following I2C addresses reliable get an ACK:
+- 0x19 : DDR READ/WRITE temperature registers
+- 0x31 : DDR READ SWP or READ PSWP
+- 0x51 : READ/WRITE SPD memory
+- 0x70 : Si5338A programmable quad PLL clock generator
+- 0x74 : CPLD fan control
+
+The following I2C addresses intermittently get an ACK:
+- 0x40, 0x4f : LTM4676A
+- 0x5a, 0x5b : Not sure what these devices are

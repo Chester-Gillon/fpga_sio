@@ -27,7 +27,7 @@
 /* The FPGA which just exposes memory mapped block RAM in multiple BARs */
 #define FPGA_SIO_SUBDEVICE_ID_MEMMAPPED_BLKRAM 0x0001
 
-/* The FPGA which contains a single BAR which contains a AXI IIC Bus Interface PG090 */
+/* The FPGA which contains a single BAR which contains a AXI IIC Bus Interface PG090 and AXI GPIO PG144*/
 #define FPGA_SIO_SUBDEVICE_ID_I2C_PROBE 0x0002
 
 /* The FPGA which uses the DMA/Bridge Subsystem to access block RAM */

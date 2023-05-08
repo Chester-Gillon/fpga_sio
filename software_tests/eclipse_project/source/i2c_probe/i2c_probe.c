@@ -19,6 +19,7 @@
 #include "vfio_access.h"
 #include "fpga_sio_pci_ids.h"
 #include "xilinx_axi_iic_host_interface.h"
+#include "i2c_bit_banged.h"
 
 #ifdef HAVE_XILINX_EMBEDDEDSW
 #include "xiic_l.h"
@@ -34,6 +35,8 @@ typedef enum
     IIC_ACCESS_MODE_DYNAMIC,
     /* Uses the functions in xilinx_axi_iic_transfers. */
     IIC_ACCESS_MODE_IIC_LIB,
+    /* Used bit-banged GPIO */
+    IIC_ACCESS_MODE_BIT_BANGED,
 #ifdef HAVE_XILINX_EMBEDDEDSW
     IIC_ACCESS_MODE_XIIC_LIB_STANDARD,
     IIC_ACCESS_MODE_XIIC_LIB_DYNAMIC,
@@ -46,6 +49,7 @@ static const char *const iic_access_mode_names[] =
     [IIC_ACCESS_MODE_STANDARD         ] = "standard",
     [IIC_ACCESS_MODE_DYNAMIC          ] = "dynamic",
     [IIC_ACCESS_MODE_IIC_LIB          ] = "iic_lib",
+    [IIC_ACCESS_MODE_BIT_BANGED       ] = "bit_banged",
 #ifdef HAVE_XILINX_EMBEDDEDSW
     [IIC_ACCESS_MODE_XIIC_LIB_STANDARD] = "xiic_lib_standard",
     [IIC_ACCESS_MODE_XIIC_LIB_DYNAMIC ] = "xiic_lib_dynamic"
@@ -97,6 +101,10 @@ static void parse_command_line_arguments (int argc, char *argv[])
             else if (strcmp (optarg, "iic_lib") == 0)
             {
                 arg_iic_access_mode = IIC_ACCESS_MODE_IIC_LIB;
+            }
+            else if (strcmp (optarg, "bit_banged") == 0)
+            {
+                arg_iic_access_mode = IIC_ACCESS_MODE_BIT_BANGED;
             }
 #ifdef HAVE_XILINX_EMBEDDEDSW
             else if (strcmp (optarg, "xiic_lib_standard") == 0)
@@ -351,24 +359,30 @@ static void probe_i2c_addresses (vfio_device_t *const vfio_device)
     uint8_t i2c_slave_address;
     uint32_t total_responses_per_address[256] = {0};
     iic_controller_context_t iic_controller = {0};
+    bit_banged_i2c_controller_context_t bit_banged_controller = {0};
     iic_transfer_status_t transfer_status;
     int xiic_status;
 #ifdef HAVE_XILINX_EMBEDDEDSW
     unsigned num_bytes_received;
 #endif
 
-    /* The FPGA has a single BAR with the IIC registers at offset zero in the BAR */
-    const uint32_t iic_bar_index = 0;
+    /* The FPGA has a single BAR, containing IIC and GPIO registers */
+    const uint32_t bar_index = 0;
+    const uint32_t iic_base_offset = 0;
+    const uint32_t gpio_base_offset = 0x1000;
+    const uint32_t expected_bar_size = 0x2000;
 
-    map_vfio_device_bar_before_use (vfio_device, iic_bar_index);
-    if (vfio_device->mapped_bars[iic_bar_index] != NULL)
+    map_vfio_device_bar_before_use (vfio_device, bar_index);
+    if ((vfio_device->mapped_bars[bar_index] != NULL) && (vfio_device->regions_info[bar_index].size >= expected_bar_size))
     {
-        uint8_t *const iic_regs = vfio_device->mapped_bars[iic_bar_index];
+        uint8_t *const iic_regs = &vfio_device->mapped_bars[bar_index][iic_base_offset];
+        uint8_t *const gpio_regs = &vfio_device->mapped_bars[bar_index][gpio_base_offset];
 
         printf ("Using BAR %d in device %s of size 0x%llx\n",
-                iic_bar_index, vfio_device->device_name, vfio_device->regions_info[iic_bar_index].size);
+                bar_index, vfio_device->device_name, vfio_device->regions_info[bar_index].size);
 
         /* Perform access mode specific initialisation */
+        select_i2c_controller (arg_iic_access_mode == IIC_ACCESS_MODE_BIT_BANGED, gpio_regs, &bit_banged_controller);
         switch (arg_iic_access_mode)
         {
         case IIC_ACCESS_MODE_STANDARD:
@@ -413,6 +427,10 @@ static void probe_i2c_addresses (vfio_device_t *const vfio_device)
                 return;
             }
             break;
+
+        case IIC_ACCESS_MODE_BIT_BANGED:
+            /* Handled by select_i2c_controller() call above */
+            break;
         }
 
         for (uint32_t iteration = 1; iteration <= arg_num_iterations; iteration++)
@@ -435,6 +453,11 @@ static void probe_i2c_addresses (vfio_device_t *const vfio_device)
                     transfer_status = iic_read (&iic_controller, i2c_slave_address, arg_num_bytes_read, data, IIC_TRANSFER_OPTION_STOP);
                     slave_responded = transfer_status == IIC_TRANSFER_STATUS_SUCCESS;
                     break;
+
+                case IIC_ACCESS_MODE_BIT_BANGED:
+                    slave_responded = bit_banged_i2c_read (&bit_banged_controller, i2c_slave_address, arg_num_bytes_read, data, true);
+                    break;
+
 #ifdef HAVE_XILINX_EMBEDDEDSW
                 case IIC_ACCESS_MODE_XIIC_LIB_STANDARD:
                     num_bytes_received = XIic_Recv ((UINTPTR) iic_regs, i2c_slave_address, data, arg_num_bytes_read, XIIC_STOP);
