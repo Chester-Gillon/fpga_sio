@@ -28,5 +28,13 @@ bool bit_banged_i2c_read (bit_banged_i2c_controller_context_t *const controller,
                           const uint8_t i2c_slave_address,
                           const size_t num_bytes, uint8_t data[const num_bytes],
                           const bool generate_stop);
+size_t bit_banged_i2c_write (bit_banged_i2c_controller_context_t *const controller,
+                             const uint8_t i2c_slave_address,
+                             const size_t num_bytes, const uint8_t data[const num_bytes],
+                             const bool generate_stop);
+bool bit_banged_i2c_read_byte_addressable_reg (bit_banged_i2c_controller_context_t *const controller,
+                                               const uint8_t i2c_slave_address,
+                                               const uint8_t reg_address,
+                                               const size_t num_bytes, uint8_t data[const num_bytes]);
 
 #endif /* I2C_BIT_BANGED_H_ */

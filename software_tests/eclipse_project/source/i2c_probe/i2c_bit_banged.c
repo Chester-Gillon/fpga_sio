@@ -264,8 +264,9 @@ static bool i2c_begin (bit_banged_i2c_controller_context_t *const controller,
     {
         /* When called with SCL low the bus is in use so generate a RESTART condition */
         sda_high (controller); /* Need to ensure SDA is high, to generate a falling edge to signify a RESTART condition */
+        scl_high (controller); /* Take SCL high in preparation for the RESTART condition */
         bit_bang_delay (T_SU_STA);
-        sda_low (controller); /* Take SDA low to generate the start condition */
+        sda_low (controller); /* Take SDA low to generate the RESTART condition */
         bit_bang_delay (T_HD_STA);
     }
 
@@ -342,6 +343,76 @@ bool bit_banged_i2c_read (bit_banged_i2c_controller_context_t *const controller,
     {
         /* No ACK from the slave, so have to generate a STOP condition */
         generate_i2c_stop (controller);
+    }
+
+    return success;
+}
+
+
+/**
+ * @brief Perform a write to the I2C bus using the GPIO bit-banged interface
+ * @param[in/out] controller The controller for the GPIO bit-banged interface
+ * @param[in] i2c_slave_address 7-bit slave address for the transfer
+ * @param[in] num_bytes The number of bytes to write to the I2C slave
+ * @param[in] data The bytes to write to the I2C slave
+ * @param[in] generate_stop Determines if to generate an I2C STOP condition once all bytes written.
+ *                          If false then the next transfer will generate a RESTART condition
+ * @return The number of bytes successfully written to the slave:
+ *         - 0 means no ACK from the slave for the address
+ *         - num_bytes means an ACK from the slave for all bytes
+ *         - Any other value means an ACK from the slave for only some of the bytes
+ *
+ *         A STOP condition has been generated when the less than num_bytes returned, as considered an error.
+ */
+size_t bit_banged_i2c_write (bit_banged_i2c_controller_context_t *const controller,
+                             const uint8_t i2c_slave_address,
+                             const size_t num_bytes, const uint8_t data[const num_bytes],
+                             const bool generate_stop)
+{
+    bool success;
+    size_t num_bytes_written = 0;
+
+    success = i2c_begin (controller, i2c_slave_address, WRITE_OPERATION);
+    while (success && (num_bytes_written < num_bytes))
+    {
+        success = i2c_transmit_byte (controller, data[num_bytes_written]);
+        if (success)
+        {
+            num_bytes_written++;
+        }
+    }
+
+    if ((!success) || generate_stop)
+    {
+        generate_i2c_stop (controller);
+    }
+
+    return num_bytes_written;
+}
+
+
+/**
+ * @brief Use the GPIO bit-banged controller to read from a I2C device with a byte wide register address
+ * @param[in/out] controller The controller for the GPIO bit-banged interface
+ * @param[in] i2c_slave_address 7-bit slave address to read from
+ * @param[in] reg_address Starting register address for the read
+ * @param[in] num_bytes The number of bytes to read
+ * @param[out] data The bytes read from the I2C device register
+ * @return Returns true if the register read was successful, or false if a NACK from the I2C slave
+ */
+bool bit_banged_i2c_read_byte_addressable_reg (bit_banged_i2c_controller_context_t *const controller,
+                                               const uint8_t i2c_slave_address,
+                                               const uint8_t reg_address,
+                                               const size_t num_bytes, uint8_t data[const num_bytes])
+{
+    size_t num_bytes_written;
+    bool success;
+
+    num_bytes_written = bit_banged_i2c_write (controller, i2c_slave_address, sizeof (reg_address), &reg_address, false);
+    success = num_bytes_written == sizeof (reg_address);
+    if (success)
+    {
+        success = bit_banged_i2c_read (controller, i2c_slave_address, num_bytes, data, true);
     }
 
     return success;

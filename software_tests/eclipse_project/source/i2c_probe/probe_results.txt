@@ -13,8 +13,10 @@ From the documenation under https://shop.trenz-electronic.de/en/TEF1001-02-B2IX4
 then the I2C addresses are:
 a. 0x40 is the DCDC U3 LTM4676A, which provides 4V and 1.5V.
 b. 0x4f is the DCDC U4 LTM4676A, which provides 1V.
-c. 0x5a and 0x5b look to be in the range for the DDR3 SPD, but for which the DDR3 SODIMM isn't yet populated.
-   Not sure if the CPLD which provides the I2C MUX to the FPGA is providing the ACK for these addresses.
+c. https://www.analog.com/media/en/technical-documentation/data-sheets/4676afa.pdf contains:
+      "The LTM4676A always responds to its global slave addresses, 0x5A and 0x5B."
+
+   Which explains that 0x5a and 0x5b are the LTM4676A DCDC converters.
 d. 0x70 is the Si5338A programmable quad PLL clock generator on-board.
 e. 0x74 is the FAN1 control in the CPLD.
 
@@ -89,8 +91,6 @@ b. The Si5345A and J4 to J7 SFP+ I2C interfaces are connected by a different I2C
    - I2C MUX 0: SEL[0]
    - I2C MUX 1: SEL[1]
    - I2C MUX 2: SEL[2]
-
-Still don't know what is at the 0x5a and 0x5b addresses.
 
 
 The following is the result of running "i2c_probe/i2c_probe -i 100000" built for coverage, after a reboot of the PC:
@@ -183,8 +183,8 @@ The following I2C addresses reliable get an ACK:
 - 0x74 : CPLD fan control
 
 The following I2C addresses intermittently get an ACK:
-- 0x40, 0x4f : LTM4676A
-- 0x5a, 0x5b : Not sure what these devices are
+- 0x40, 0x4f : LTM4676A programmed addresses
+- 0x5a, 0x5b : LTM4676A global addresses
 
 
 Modified to add the following delays after each change of SCL or SDA, to allow to signal transition times:
@@ -214,3 +214,30 @@ Number of responses for each I2C address:
 0x5b : 10000
 0x70 : 10000
 0x74 : 10000
+
+
+== i2c_dump_info results ==
+
+$ i2c_probe/i2c_dump_info 
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Using BAR 0 in device 0000:15:00.0 of size 0x2000
+FAN Control register = 0xe8 (fan Enabled)
+FAN1 Revolutions per second = 150
+Failed to read FAN Control register using repeated start
+Failed to read FAN1 Revolutions per second register using repeated start
+DDR temperature Capabilities = 0x00de
+DDR temperature configuration register = 0x0000
+DDR temperature high limit register = 0x0000 (0.0 C)
+DDR temperature low limit register = 0x0000 (0.0 C)
+DDR temperature critical limit register = 0x0000 (0.0 C)
+DDR ambient temperature register = 0x8218 above TCRIT (33.5 C)
+DDR temperature sensor manufacturer ID register = 0x2094
+
+Notes:
+a. The DDR temperature is reasonable, as the temperature reported by the FPGA XADC over JTAG.
+b. The DDR limit registers and the configuration register all read as zero, which is the documented default.
+c. The TCRIT flag is set in the ambient temperature register, but that is explained by the temperature critical limit register
+   being zero.
+d. Not sure why the CPLD FAN register fail to read when attempt a repeated start transaction.
+e. Not sure if the CPLD FAN register values readback make sense - could try writing to the fan control but would need to
+   monitor the FPGA temperature and check if a change is non-volatile or volatile.
