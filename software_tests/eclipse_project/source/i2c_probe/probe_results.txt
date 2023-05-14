@@ -221,23 +221,34 @@ Number of responses for each I2C address:
 $ i2c_probe/i2c_dump_info 
 Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
 Using BAR 0 in device 0000:15:00.0 of size 0x2000
-FAN Control register = 0xe8 (fan Enabled)
-FAN1 Revolutions per second = 150
-Failed to read FAN Control register using repeated start
-Failed to read FAN1 Revolutions per second register using repeated start
+FAN Control register = 0xfe (fan Enabled)
+FAN1 Revolutions per second = 90 (5400 RPM)
 DDR temperature Capabilities = 0x00de
 DDR temperature configuration register = 0x0000
 DDR temperature high limit register = 0x0000 (0.0 C)
 DDR temperature low limit register = 0x0000 (0.0 C)
 DDR temperature critical limit register = 0x0000 (0.0 C)
-DDR ambient temperature register = 0x8218 above TCRIT (33.5 C)
+DDR ambient temperature register = 0x82e0 above TCRIT (46.0 C)
 DDR temperature sensor manufacturer ID register = 0x2094
 
 Notes:
-a. The DDR temperature is reasonable, as the temperature reported by the FPGA XADC over JTAG.
+a. The DDR temperature looks reasonable.
+   If run multiple times after the PC has been powered on can see the reported temperature
 b. The DDR limit registers and the configuration register all read as zero, which is the documented default.
 c. The TCRIT flag is set in the ambient temperature register, but that is explained by the temperature critical limit register
    being zero.
+d. The documentation for the v3 CPLD FAN control register says bit 7 is the fan enable bit, which the above code uses
+   to report if the fan is enabled.
+   However, the v2 CPLD source code show FAN control register bit 0 is the fan enable bit. Based on that, the fan PWM is
+   actually disabled - which might cause the fan to then run at a default speed.
+
+   https://shop.trenz-electronic.de/en/25130-Heat-Sink-including-fan-for-Trenz-Electronic-TEB0911-and-TEF1001-Series says
+   the fan type is "EFB0512HA" which is quoted as a a 5500 RPM fan, which is close the to reported RPM.
 d. Not sure why the CPLD FAN register fail to read when attempt a repeated start transaction.
-e. Not sure if the CPLD FAN register values readback make sense - could try writing to the fan control but would need to
-   monitor the FPGA temperature and check if a change is non-volatile or volatile.
+e. Did try and monify the CPLD FAN registers but although the FAN control register is supposed to be read/write:
+   - Most of the write attempts fail to affect the readback value
+   - When the readback value does change the value isn't that written. Could be the value written to the FAN PWM register
+     is the value which actually gets written to the FAN control register.
+
+   A power-cycle restores the register values reported by i2c_dump_info, so the changes are volatile.
+f. Unable to find who is the sensor manufacturer ID.

@@ -17,6 +17,17 @@
 /**
  * @brief Display information by reading the fan control register in the CPLD
  * @details https://wiki.trenz-electronic.de/display/PD/TEF1001+CPLD#TEF1001CPLD-FAN1 documents the register information.
+ *
+ *          This function uses a STOP after writing the register address, so the read of the register value is done
+ *          using a START. I.e. a bit_banged_i2c_write() call followed by bit_banged_i2c_read()
+ *
+ *          An initial attempt to use bit_banged_i2c_read_byte_addressable_reg() which uses a repeated START failed
+ *          to perform the read.
+ *
+ *          The TEF1001 board used for the test is a revision 2 board which uses a revision 3 CPLD.
+ *          The revision 3 CPLD source code isn't available, but the revision 2 CPLD source code is.
+ *          Looking the revision 2 CPLD source code in the i2c_ram.vhd source file the ST_DATA_IN state only
+ *          supports looking for i2c_stop, i.e. doesn't support a repeated START after a write of the register address.
  * @param[in/out] controller The controller for the GPIO bit-banged interface
  */
 static void dump_tef1001_fan_info (bit_banged_i2c_controller_context_t *const controller)
@@ -27,7 +38,6 @@ static void dump_tef1001_fan_info (bit_banged_i2c_controller_context_t *const co
 
     uint8_t reg_value;
 
-    /* @todo Read without repeated start seem to work */
     if (bit_banged_i2c_write (controller, i2c_slave_address, sizeof (fan_ctrl_reg_address), &fan_ctrl_reg_address, true)
             == sizeof (fan_ctrl_reg_address))
     {
@@ -46,33 +56,12 @@ static void dump_tef1001_fan_info (bit_banged_i2c_controller_context_t *const co
     {
         if (bit_banged_i2c_read (controller, i2c_slave_address, sizeof (reg_value), &reg_value, true))
         {
-            printf ("FAN1 Revolutions per second = %u\n", reg_value);
+            printf ("FAN1 Revolutions per second = %u (%u RPM)\n", reg_value, reg_value * 60);
         }
         else
         {
             printf ("Failed to read FAN1 Revolutions per second register\n");
         }
-    }
-
-    /* @todo Whereas read with repeated start fail */
-    if (bit_banged_i2c_read_byte_addressable_reg (controller, i2c_slave_address, fan_ctrl_reg_address,
-            sizeof (reg_value), &reg_value))
-    {
-        printf ("FAN Control register = 0x%02x (fan %s)\n", reg_value, ((reg_value & 0x80) != 0) ? "Enabled" : "Disabled");
-    }
-    else
-    {
-        printf ("Failed to read FAN Control register using repeated start\n");
-    }
-
-    if (bit_banged_i2c_read_byte_addressable_reg (controller, i2c_slave_address, fan1_rps_reg_address,
-            sizeof (reg_value), &reg_value))
-    {
-        printf ("FAN1 Revolutions per second = %u\n", reg_value);
-    }
-    else
-    {
-        printf ("Failed to read FAN1 Revolutions per second register using repeated start\n");
     }
 }
 

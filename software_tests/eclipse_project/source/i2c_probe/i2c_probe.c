@@ -155,7 +155,7 @@ static void parse_command_line_arguments (int argc, char *argv[])
 
         case '?':
         default:
-            printf ("Usage %s [-m standard|dynamic|iic_lib"
+            printf ("Usage %s [-m standard|dynamic|iic_lib|bit_banged"
 #ifdef HAVE_XILINX_EMBEDDEDSW
                     "|xiic_lib_standard|xiic_lib_dynamic"
 #endif
