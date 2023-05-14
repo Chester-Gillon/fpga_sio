@@ -213,13 +213,13 @@ static uint8_t i2c_receive_byte (bit_banged_i2c_controller_context_t *const cont
     /* Receive most significant bit first */
     for (uint32_t bit = 0u; bit < 8u; bit++)
     {
+        rx_byte = (uint8_t) (rx_byte << 1U);
+
         bit_bang_delay (T_LOW);
         rx_byte |= read_sda (controller);
         scl_high (controller);
         bit_bang_delay (T_HIGH);
         scl_low (controller);
-
-        rx_byte = (uint8_t) (rx_byte << 1U);
     }
 
     /* Send a NACK on the last byte, or a ACK otherwise */

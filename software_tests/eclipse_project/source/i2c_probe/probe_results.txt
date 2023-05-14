@@ -221,34 +221,52 @@ Number of responses for each I2C address:
 $ i2c_probe/i2c_dump_info 
 Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
 Using BAR 0 in device 0000:15:00.0 of size 0x2000
-FAN Control register = 0xfe (fan Enabled)
-FAN1 Revolutions per second = 90 (5400 RPM)
-DDR temperature Capabilities = 0x00de
+FAN Control register = 0xff (fan Enabled)
+FAN1 RPM = 5220
+DDR temperature Capabilities = 0x006f
 DDR temperature configuration register = 0x0000
 DDR temperature high limit register = 0x0000 (0.0 C)
 DDR temperature low limit register = 0x0000 (0.0 C)
 DDR temperature critical limit register = 0x0000 (0.0 C)
-DDR ambient temperature register = 0x82e0 above TCRIT (46.0 C)
-DDR temperature sensor manufacturer ID register = 0x2094
+DDR ambient temperature register = 0xc184 above TCRIT above HIGH (24.2 C)
+DDR temperature sensor manufacturer ID register = 0x104a (STMicroelectronics)
+DDR3 SPD decode:
+  CRC coverage bytes=117  SPD bytes total=256  SPD bytes used=176
+  Actual CRC=0xa1bd  Expected CRC=0xa1bd : CRC PASS
+  SPD revision 1.3
+  Module type : 72b-SO-UDIMM
+  Bank Address Bits=3  Total SDRAM Capacity (Mibibits)=4096
+  Row Address Bits=16  Column Addess Bits=10
+  Module Nominal Voltage : NOT 1.25 V operable  1.35 V operable  1.5 V operable
+  Number of Ranks=2  SDRAM Device Width (bits)=8
+  Bus width extension (bits)=8  Primary bus width (bits)=64
+  Module capacity (MiB)=8192
+  Module Part Number "18KSF1G72HZ-1G6P1 "
+  72b-SO-UDIMM Rank 1 Mapping : standard
 
 Notes:
-a. The DDR temperature looks reasonable.
-   If run multiple times after the PC has been powered on can see the reported temperature
+a. The DDR temperature looks reasonable, based upon the ambient temperature.
 b. The DDR limit registers and the configuration register all read as zero, which is the documented default.
-c. The TCRIT flag is set in the ambient temperature register, but that is explained by the temperature critical limit register
-   being zero.
+c. The TCRIT and HIGH flags are set in the ambient temperature register, but that is explained by the
+   temperature critical limit and temperature high limit registers being  being zero.
 d. The documentation for the v3 CPLD FAN control register says bit 7 is the fan enable bit, which the above code uses
    to report if the fan is enabled.
    However, the v2 CPLD source code show FAN control register bit 0 is the fan enable bit. Based on that, the fan PWM is
    actually disabled - which might cause the fan to then run at a default speed.
 
+   The default fan PWM speed is documented as 80%. 
+
    https://shop.trenz-electronic.de/en/25130-Heat-Sink-including-fan-for-Trenz-Electronic-TEB0911-and-TEF1001-Series says
-   the fan type is "EFB0512HA" which is quoted as a a 5500 RPM fan, which is close the to reported RPM.
-d. Not sure why the CPLD FAN register fail to read when attempt a repeated start transaction.
-e. Did try and monify the CPLD FAN registers but although the FAN control register is supposed to be read/write:
+   the fan type is "EFB0512HA" which is quoted as a 5500 RPM fan
+   The reported RPM is 95% of the rated RPM, rather than the 80% PWM default, but still within the expected range -
+   as not sure if the FAN RPM increases linearly with the PWM.
+e. Did try and modify the CPLD FAN registers but although the FAN control register is supposed to be read/write:
    - Most of the write attempts fail to affect the readback value
    - When the readback value does change the value isn't that written. Could be the value written to the FAN PWM register
      is the value which actually gets written to the FAN control register.
 
    A power-cycle restores the register values reported by i2c_dump_info, so the changes are volatile.
-f. Unable to find who is the sensor manufacturer ID.
+f. https://www.micron.com/products/dram-modules/sodimm/part-catalog/mt18ksf1g72hz-1g6/mt18ksf1g72hz-1g6p1/
+   is the SPD for the DDR3 module part number. The DDR3 module was Crucial branded, but the actual module is from Micron.
+
+   The calculated module capacity is the 8GiB expected, and ECC is also reported.
