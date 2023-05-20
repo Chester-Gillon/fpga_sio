@@ -361,8 +361,8 @@ static void probe_i2c_addresses (vfio_device_t *const vfio_device)
     iic_controller_context_t iic_controller = {0};
     bit_banged_i2c_controller_context_t bit_banged_controller = {0};
     iic_transfer_status_t transfer_status;
-    int xiic_status;
 #ifdef HAVE_XILINX_EMBEDDEDSW
+    int xiic_status;
     unsigned num_bytes_received;
 #endif
 
@@ -415,6 +415,7 @@ static void probe_i2c_addresses (vfio_device_t *const vfio_device)
             }
             break;
 
+#ifdef HAVE_XILINX_EMBEDDEDSW
         case IIC_ACCESS_MODE_XIIC_LIB_STANDARD:
             /* No initialise function in the Xilinx embeddedsw library for standard mode */
             break;
@@ -427,6 +428,7 @@ static void probe_i2c_addresses (vfio_device_t *const vfio_device)
                 return;
             }
             break;
+#endif
 
         case IIC_ACCESS_MODE_BIT_BANGED:
             /* Handled by select_i2c_controller() call above */
