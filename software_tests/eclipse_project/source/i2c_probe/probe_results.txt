@@ -224,7 +224,7 @@ Using BAR 0 in device 0000:15:00.0 of size 0x2000
 
 TEF1001 CPLD fan information:
   FAN Control register = 0xff (fan Enabled)
-  FAN1 RPM = 5190
+  FAN1 RPM = 5220
 
 DDR temperature sensor information:
   Capabilities = 0x006f
@@ -232,7 +232,7 @@ DDR temperature sensor information:
   Temperature high limit register = 0x0000 (0.0 C)
   Temperature low limit register = 0x0000 (0.0 C)
   Temperature critical limit register = 0x0000 (0.0 C)
-  Ambient temperature register = 0xc198 above TCRIT above HIGH (25.5 C)
+  Ambient temperature register = 0xc194 above TCRIT above HIGH (25.2 C)
   Sensor manufacturer ID register = 0x104a (STMicroelectronics)
 
 DDR3 SPD decode:
@@ -250,14 +250,18 @@ DDR3 SPD decode:
   72b-SO-UDIMM Rank 1 Mapping : standard
 
 LTM4676A at I2C address 0x40
-  PMBus capability=0xb0 : PEC supported  Max bus speed=400 kHz SMBALERT# supported
+  PMBus capability=0xb0 : PEC supported  Max bus speed=400 kHz  SMBALERT# supported
   PMBus revision=0x22 : Part I revision 1.2  Part II revision 1.2
   MFR_ID=LTC  MFR_MODEL=LTM4676A
+  WRITE_PROTECT=0x00 : Enable writes to all commands
+  MFR_COMMON=0xfc : WP pin INACTIVE
 
 LTM4676A at I2C address 0x4f
-  PMBus capability=0xb0 : PEC supported  Max bus speed=400 kHz SMBALERT# supported
+  PMBus capability=0xb0 : PEC supported  Max bus speed=400 kHz  SMBALERT# supported
   PMBus revision=0x22 : Part I revision 1.2  Part II revision 1.2
   MFR_ID=LTC  MFR_MODEL=LTM4676A
+  WRITE_PROTECT=0x00 : Enable writes to all commands
+  MFR_COMMON=0xfc : WP pin INACTIVE
 
 Notes:
 a. The DDR temperature looks reasonable, based upon the ambient temperature.
@@ -286,3 +290,6 @@ f. https://www.micron.com/products/dram-modules/sodimm/part-catalog/mt18ksf1g72h
 
    The calculated module capacity is the 8GiB expected, and ECC is also reported.
 g. The PMBus capability, revision, MFR_ID and MFR_MODEL reported for the LTM4676A match the expected values from the datasheet.
+h. The WRITE_PROTECT isn't enabled at power-up, so consider enabling WRITE_PROTECT by modifying the NVRAM to avoid
+   unintended Changes via I2C.
+i. The MFR_COMMON reads back with bit 2 set, which according to the LTM4676A datasheet is "reserved" and should read as zero.

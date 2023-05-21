@@ -11,6 +11,7 @@
 
 #include "i2c_bit_banged.h"
 #include "pmbus_access.h"
+#include "ltm4676a_access.h"
 #include "vfio_access.h"
 #include "fpga_sio_pci_ids.h"
 
@@ -547,35 +548,6 @@ static void dump_ddr3_spd_information (bit_banged_i2c_controller_context_t *cons
     else
     {
         printf ("Failed to read DDR3 SPD\n");
-    }
-}
-
-
-/**
- * @brief Dump information for one DCDC LTM4676A
- * @details Sources of information used:
- *   https://www.analog.com/media/en/technical-documentation/data-sheets/4676afa.pdf : The LTM4676A datasheet
- * @param[in/out] controller The controller for the GPIO bit-banged interface
- * @param[in] i2c_slave_address The I2C address of the LTM4676A to dump the information for
- */
-static void dump_ltm4676a_information (bit_banged_i2c_controller_context_t *const controller, const uint8_t i2c_slave_address)
-{
-    smbus_transfer_status_t status;
-
-    printf ("\nLTM4676A at I2C address 0x%02x\n", i2c_slave_address);
-
-    /* First check can read the PMBus capability and revision */
-    status = report_pmbus_capability_and_revision (controller, i2c_slave_address);
-
-    /* Report the ID and model, as an initial check of a variable length BLOCK READ */
-    if (status == SMBUS_TRANSFER_SUCCESS)
-    {
-        status = report_pmbus_id_and_model (controller, i2c_slave_address);
-    }
-
-    if (status != SMBUS_TRANSFER_SUCCESS)
-    {
-        report_pmbus_transfer_failure (controller, status);
     }
 }
 

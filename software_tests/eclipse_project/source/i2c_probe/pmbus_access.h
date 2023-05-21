@@ -12,6 +12,7 @@
 
 
 /* The command codes defined in the PMBus specification */
+#define PMBUS_COMMAND_WRITE_PROTECT  0x10
 #define PMBUS_COMMAND_CAPABILITY     0x19
 #define PMBUS_COMMAND_PMBUS_REVISION 0x98
 #define PMBUS_COMMAND_MFR_ID         0x99

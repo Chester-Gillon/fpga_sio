@@ -93,7 +93,7 @@ smbus_transfer_status_t report_pmbus_capability_and_revision (bit_banged_i2c_con
                 capability,
                 (capability & PMBUS_CAPABILITY_PEC_SUPPORTED_MASK) != 0 ? " PEC supported" : "",
                 max_bus_speed,
-                (capability & PMBUS_CAPABILITY_SMBALERT_SUPPORTED_MASK) != 0 ? " SMBALERT# supported" : "");
+                (capability & PMBUS_CAPABILITY_SMBALERT_SUPPORTED_MASK) != 0 ? "  SMBALERT# supported" : "");
 
         char *part_I_revision;
         char *part_II_revision;
