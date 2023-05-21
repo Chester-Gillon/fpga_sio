@@ -75,7 +75,8 @@ const char *const smbus_transfer_status_descriptions[SMBUS_TRANSFER_ARRAY_SIZE] 
     [SMBUS_TRANSFER_WRITE_ADDRESS_NACK] = "write address NACK",
     [SMBUS_TRANSFER_WRITE_DATA_NACK] = "write data NACK",
     [SMBUS_TRANSFER_READ_ADDRESS_NACK] = "read address NACK",
-    [SMBUS_TRANSFER_READ_INCORRECT_PEC] = "read incorrect PEC"
+    [SMBUS_TRANSFER_READ_INCORRECT_PEC] = "read incorrect PEC",
+    [SMBUS_TRANSFER_INVALID_BLOCK_BYTE_COUNT] = "invalid block byte count"
 };
 
 
@@ -605,6 +606,76 @@ smbus_transfer_status_t bit_banged_smbus_read (bit_banged_i2c_controller_context
 
     /* Read the data bytes, which may change the status if the PEC verification fails */
     read_smbus_data_bytes (controller, num_data_bytes, data, &status);
+
+    /* Always generate a STOP condition to free the I2C bus, regardless of if the SMBus message transfer was successful */
+    generate_i2c_stop (controller);
+
+    return status;
+}
+
+
+/**
+ * @brief Perform a SMBus BLOCK READ, for a variable number of bytes
+ * @param[in/out] controller The controller for the GPIO bit-banged interface
+ * @param[in] i2c_slave_address 7-bit slave address to read from
+ * @param[in] command_code The SMBus command code to perform the read from.
+ * @param[in] max_data_bytes The maximum number of data bytes to read
+ * @param[out] data The bytes read from the SMBus slave.
+ * @param[out] num_data_bytes The actual number of bytes provided by the SMBus slave.
+ *                            According to the SMBus specification zero is considered as invalid, and sets the
+ *                            status as SMBUS_TRANSFER_INVALID_BLOCK_BYTE_COUNT
+ * @return Indicates if the READ was successful or not.
+ */
+smbus_transfer_status_t bit_banged_smbus_block_read (bit_banged_i2c_controller_context_t *const controller,
+                                                     const uint8_t i2c_slave_address,
+                                                     const uint8_t command_code,
+                                                     const size_t max_data_bytes, uint8_t data[const max_data_bytes],
+                                                     size_t *const num_data_bytes)
+{
+    smbus_transfer_status_t status;
+
+    *num_data_bytes = 0;
+
+    /* Begin the message with a write operation for the command */
+    initialise_smbus_message_crc (controller, i2c_slave_address, command_code);
+    if (!i2c_begin (controller, i2c_slave_address, WRITE_OPERATION))
+    {
+        status = SMBUS_TRANSFER_WRITE_ADDRESS_NACK;
+    }
+
+    /* Write the command code */
+    if (status == SMBUS_TRANSFER_SUCCESS)
+    {
+        if (!i2c_transmit_byte (controller, command_code))
+        {
+            status = SMBUS_TRANSFER_WRITE_DATA_NACK;
+        }
+    }
+
+    /* Issue a re-START for the read */
+    if (status == SMBUS_TRANSFER_SUCCESS)
+    {
+        if (!i2c_begin (controller, i2c_slave_address, READ_OPERATION))
+        {
+            status = SMBUS_TRANSFER_READ_ADDRESS_NACK;
+        }
+    }
+
+    if (status == SMBUS_TRANSFER_SUCCESS)
+    {
+        /* Read, and validate, the number of bytes in the block */
+        controller->last_smbus_block_byte_count = i2c_receive_byte (controller, false);
+        *num_data_bytes = controller->last_smbus_block_byte_count;
+        if ((controller->last_smbus_block_byte_count == 0) || (controller->last_smbus_block_byte_count > max_data_bytes))
+        {
+            status = SMBUS_TRANSFER_INVALID_BLOCK_BYTE_COUNT;
+        }
+        else
+        {
+            /* Read the variable length data bytes. This may change the status if the PEC verification fails */
+            read_smbus_data_bytes (controller, *num_data_bytes, data, &status);
+        }
+    }
 
     /* Always generate a STOP condition to free the I2C bus, regardless of if the SMBus message transfer was successful */
     generate_i2c_stop (controller);

@@ -33,6 +33,8 @@ typedef enum
     SMBUS_TRANSFER_READ_ADDRESS_NACK,
     /* An incorrect PEC byte was received for a read */
     SMBUS_TRANSFER_READ_INCORRECT_PEC,
+    /* The Byte Count received from the SMBus slave was outside of the expected range in a Block Read */
+    SMBUS_TRANSFER_INVALID_BLOCK_BYTE_COUNT,
 
     SMBUS_TRANSFER_ARRAY_SIZE
 } smbus_transfer_status_t;
@@ -64,6 +66,8 @@ typedef struct
     uint8_t smbus_actual_pec_byte;
     /* The last SMBus command attempting, for reporting diagnostic information about an unsuccessful transfer */
     uint8_t last_smbus_command_code;
+    /* The last SMBus block Byte Count received, for recording diagnostic information for SMBUS_TRANSFER_INVALID_BLOCK_BYTE_COUNT */
+    uint8_t last_smbus_block_byte_count;
 } bit_banged_i2c_controller_context_t;
 
 
@@ -87,5 +91,10 @@ smbus_transfer_status_t bit_banged_smbus_read (bit_banged_i2c_controller_context
                                                const uint8_t i2c_slave_address,
                                                const uint8_t command_code,
                                                const size_t num_data_bytes, uint8_t data[const num_data_bytes]);
+smbus_transfer_status_t bit_banged_smbus_block_read (bit_banged_i2c_controller_context_t *const controller,
+                                                     const uint8_t i2c_slave_address,
+                                                     const uint8_t command_code,
+                                                     const size_t max_data_bytes, uint8_t data[const max_data_bytes],
+                                                     size_t *const num_data_bytes);
 
 #endif /* I2C_BIT_BANGED_H_ */

@@ -14,6 +14,8 @@
 /* The command codes defined in the PMBus specification */
 #define PMBUS_COMMAND_CAPABILITY     0x19
 #define PMBUS_COMMAND_PMBUS_REVISION 0x98
+#define PMBUS_COMMAND_MFR_ID         0x99
+#define PMBUS_COMMAND_MFR_MODEL      0x9A
 
 
 /* Bit masks for the CAPABILITY COMMAND Data Byte */
@@ -30,5 +32,7 @@ smbus_transfer_status_t report_pmbus_capability_and_revision (bit_banged_i2c_con
                                                               const uint8_t i2c_slave_address);
 void report_pmbus_transfer_failure (const bit_banged_i2c_controller_context_t *const controller,
                                     const smbus_transfer_status_t status);
+smbus_transfer_status_t report_pmbus_id_and_model (bit_banged_i2c_controller_context_t *const controller,
+                                                   const uint8_t i2c_slave_address);
 
 #endif /* PMBUS_ACCESS_H_ */

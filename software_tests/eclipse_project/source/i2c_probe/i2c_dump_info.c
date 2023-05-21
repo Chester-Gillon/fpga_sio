@@ -567,6 +567,12 @@ static void dump_ltm4676a_information (bit_banged_i2c_controller_context_t *cons
     /* First check can read the PMBus capability and revision */
     status = report_pmbus_capability_and_revision (controller, i2c_slave_address);
 
+    /* Report the ID and model, as an initial check of a variable length BLOCK READ */
+    if (status == SMBUS_TRANSFER_SUCCESS)
+    {
+        status = report_pmbus_id_and_model (controller, i2c_slave_address);
+    }
+
     if (status != SMBUS_TRANSFER_SUCCESS)
     {
         report_pmbus_transfer_failure (controller, status);

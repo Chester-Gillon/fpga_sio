@@ -252,10 +252,12 @@ DDR3 SPD decode:
 LTM4676A at I2C address 0x40
   PMBus capability=0xb0 : PEC supported  Max bus speed=400 kHz SMBALERT# supported
   PMBus revision=0x22 : Part I revision 1.2  Part II revision 1.2
+  MFR_ID=LTC  MFR_MODEL=LTM4676A
 
 LTM4676A at I2C address 0x4f
   PMBus capability=0xb0 : PEC supported  Max bus speed=400 kHz SMBALERT# supported
   PMBus revision=0x22 : Part I revision 1.2  Part II revision 1.2
+  MFR_ID=LTC  MFR_MODEL=LTM4676A
 
 Notes:
 a. The DDR temperature looks reasonable, based upon the ambient temperature.
@@ -283,4 +285,4 @@ f. https://www.micron.com/products/dram-modules/sodimm/part-catalog/mt18ksf1g72h
    is the SPD for the DDR3 module part number. The DDR3 module was Crucial branded, but the actual module is from Micron.
 
    The calculated module capacity is the 8GiB expected, and ECC is also reported.
-g. The PMBus capability and revision reported for the LTM4676A matches the expected values from the datasheet.
+g. The PMBus capability, revision, MFR_ID and MFR_MODEL reported for the LTM4676A match the expected values from the datasheet.

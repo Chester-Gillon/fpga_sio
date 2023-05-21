@@ -139,9 +139,45 @@ void report_pmbus_transfer_failure (const bit_banged_i2c_controller_context_t *c
                 controller->smbus_actual_pec_byte, controller->smbus_expected_pec_byte);
         break;
 
+    case SMBUS_TRANSFER_INVALID_BLOCK_BYTE_COUNT:
+        printf ("  block byte count=%u\n", controller->last_smbus_block_byte_count);
+        break;
+
     default:
         /* No supplementary information */
         printf ("\n");
         break;
     }
+}
+
+
+/**
+ * @brief Report the manufacturer ID and model for a PMBus device, which are formatted as variable length ASCII strings
+ * @param[in/out] controller The controller for the GPIO bit-banged interface
+ * @param[in] i2c_slave_address 7-bit slave address of the PMBus device
+ * @return Indicates if the ID and model were read successfully or not.
+ */
+smbus_transfer_status_t report_pmbus_id_and_model (bit_banged_i2c_controller_context_t *const controller,
+                                                   const uint8_t i2c_slave_address)
+{
+    smbus_transfer_status_t status;
+    char mfr_id[255];
+    char mfr_model[255];
+    size_t mfr_id_len = 0;
+    size_t mfr_model_len = 0;
+
+    status = bit_banged_smbus_block_read (controller, i2c_slave_address, PMBUS_COMMAND_MFR_ID,
+            sizeof (mfr_id), (uint8_t *) mfr_id, &mfr_id_len);
+    if (status == SMBUS_TRANSFER_SUCCESS)
+    {
+        status = bit_banged_smbus_block_read (controller, i2c_slave_address, PMBUS_COMMAND_MFR_MODEL,
+                sizeof (mfr_model), (uint8_t *) mfr_model, &mfr_model_len);
+    }
+
+    if (status == SMBUS_TRANSFER_SUCCESS)
+    {
+        printf ("  MFR_ID=%.*s  MFR_MODEL=%.*s\n", (int) mfr_id_len, mfr_id, (int) mfr_model_len, mfr_model);
+    }
+
+    return status;
 }
