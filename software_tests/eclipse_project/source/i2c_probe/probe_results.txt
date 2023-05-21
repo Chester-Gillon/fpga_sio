@@ -219,17 +219,22 @@ Number of responses for each I2C address:
 == i2c_dump_info results ==
 
 $ i2c_probe/i2c_dump_info 
-Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 25
 Using BAR 0 in device 0000:15:00.0 of size 0x2000
-FAN Control register = 0xff (fan Enabled)
-FAN1 RPM = 5220
-DDR temperature Capabilities = 0x006f
-DDR temperature configuration register = 0x0000
-DDR temperature high limit register = 0x0000 (0.0 C)
-DDR temperature low limit register = 0x0000 (0.0 C)
-DDR temperature critical limit register = 0x0000 (0.0 C)
-DDR ambient temperature register = 0xc184 above TCRIT above HIGH (24.2 C)
-DDR temperature sensor manufacturer ID register = 0x104a (STMicroelectronics)
+
+TEF1001 CPLD fan information:
+  FAN Control register = 0xff (fan Enabled)
+  FAN1 RPM = 5190
+
+DDR temperature sensor information:
+  Capabilities = 0x006f
+  Configuration register = 0x0000
+  Temperature high limit register = 0x0000 (0.0 C)
+  Temperature low limit register = 0x0000 (0.0 C)
+  Temperature critical limit register = 0x0000 (0.0 C)
+  Ambient temperature register = 0xc198 above TCRIT above HIGH (25.5 C)
+  Sensor manufacturer ID register = 0x104a (STMicroelectronics)
+
 DDR3 SPD decode:
   CRC coverage bytes=117  SPD bytes total=256  SPD bytes used=176
   Actual CRC=0xa1bd  Expected CRC=0xa1bd : CRC PASS
@@ -243,6 +248,14 @@ DDR3 SPD decode:
   Module capacity (MiB)=8192
   Module Part Number "18KSF1G72HZ-1G6P1 "
   72b-SO-UDIMM Rank 1 Mapping : standard
+
+LTM4676A at I2C address 0x40
+  PMBus capability=0xb0 : PEC supported  Max bus speed=400 kHz SMBALERT# supported
+  PMBus revision=0x22 : Part I revision 1.2  Part II revision 1.2
+
+LTM4676A at I2C address 0x4f
+  PMBus capability=0xb0 : PEC supported  Max bus speed=400 kHz SMBALERT# supported
+  PMBus revision=0x22 : Part I revision 1.2  Part II revision 1.2
 
 Notes:
 a. The DDR temperature looks reasonable, based upon the ambient temperature.
@@ -270,3 +283,4 @@ f. https://www.micron.com/products/dram-modules/sodimm/part-catalog/mt18ksf1g72h
    is the SPD for the DDR3 module part number. The DDR3 module was Crucial branded, but the actual module is from Micron.
 
    The calculated module capacity is the 8GiB expected, and ECC is also reported.
+g. The PMBus capability and revision reported for the LTM4676A matches the expected values from the datasheet.

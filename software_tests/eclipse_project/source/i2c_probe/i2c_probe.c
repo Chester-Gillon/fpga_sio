@@ -142,8 +142,8 @@ static void parse_command_line_arguments (int argc, char *argv[])
 
         case 'a':
             if ((sscanf (optarg, "%i:%i%c", &min_i2c_addr, &max_i2c_addr, &junk) != 2) ||
-                (min_i2c_addr < 0) || (min_i2c_addr > 255) ||
-                (max_i2c_addr < 0) || (max_i2c_addr > 255) ||
+                (min_i2c_addr < 0) || (min_i2c_addr > 127) ||
+                (max_i2c_addr < 0) || (max_i2c_addr > 127) ||
                 (min_i2c_addr > max_i2c_addr))
             {
                 printf ("Error: Invalid <min_i2c_addr>:<max_i2c_addr> \"%s\"\n", optarg);
@@ -357,7 +357,7 @@ static void probe_i2c_addresses (vfio_device_t *const vfio_device)
     uint8_t data[MAX_BYTES_READ];
     bool slave_responded = false;
     uint8_t i2c_slave_address;
-    uint32_t total_responses_per_address[256] = {0};
+    uint32_t total_responses_per_address[I2C_MAX_NUM_7_BIT_ADDRESSES] = {0};
     iic_controller_context_t iic_controller = {0};
     bit_banged_i2c_controller_context_t bit_banged_controller = {0};
     iic_transfer_status_t transfer_status;

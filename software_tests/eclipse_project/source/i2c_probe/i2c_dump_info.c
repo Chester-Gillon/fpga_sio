@@ -10,6 +10,7 @@
 #include <stdio.h>
 
 #include "i2c_bit_banged.h"
+#include "pmbus_access.h"
 #include "vfio_access.h"
 #include "fpga_sio_pci_ids.h"
 
@@ -38,12 +39,14 @@ static void dump_tef1001_fan_info (bit_banged_i2c_controller_context_t *const co
 
     uint8_t reg_value;
 
+    printf ("\nTEF1001 CPLD fan information:\n");
+
     if (bit_banged_i2c_write (controller, i2c_slave_address, sizeof (fan_ctrl_reg_address), &fan_ctrl_reg_address, true)
             == sizeof (fan_ctrl_reg_address))
     {
         if (bit_banged_i2c_read (controller, i2c_slave_address, sizeof (reg_value), &reg_value, true))
         {
-            printf ("FAN Control register = 0x%02x (fan %s)\n", reg_value, ((reg_value & 0x80) != 0) ? "Enabled" : "Disabled");
+            printf ("  FAN Control register = 0x%02x (fan %s)\n", reg_value, ((reg_value & 0x80) != 0) ? "Enabled" : "Disabled");
         }
         else
         {
@@ -66,7 +69,7 @@ static void dump_tef1001_fan_info (bit_banged_i2c_controller_context_t *const co
             const uint32_t fan_sense_pulses_per_rotation = 2;
             const uint32_t fan_rpm = ((uint32_t) reg_value) * (secs_per_minute / fan_sense_pulses_per_rotation);
 
-            printf ("FAN1 RPM = %u\n", fan_rpm);
+            printf ("  FAN1 RPM = %u\n", fan_rpm);
         }
         else
         {
@@ -145,9 +148,11 @@ static void dump_ddr_temperature_information (bit_banged_i2c_controller_context_
 
     uint16_t reg_value;
 
+    printf ("\nDDR temperature sensor information:\n");
+
     if (read_ddr_temperature_register (controller, capabilities_reg_address, &reg_value))
     {
-        printf ("DDR temperature Capabilities = 0x%04x\n", reg_value);
+        printf ("  Capabilities = 0x%04x\n", reg_value);
     }
     else
     {
@@ -156,7 +161,7 @@ static void dump_ddr_temperature_information (bit_banged_i2c_controller_context_
 
     if (read_ddr_temperature_register (controller, configuration_reg_address, &reg_value))
     {
-        printf ("DDR temperature configuration register = 0x%04x\n", reg_value);
+        printf ("  Configuration register = 0x%04x\n", reg_value);
     }
     else
     {
@@ -165,7 +170,7 @@ static void dump_ddr_temperature_information (bit_banged_i2c_controller_context_
 
     if (read_ddr_temperature_register (controller, high_limit_reg_address, &reg_value))
     {
-        printf ("DDR temperature high limit register = 0x%04x ", reg_value);
+        printf ("  Temperature high limit register = 0x%04x ", reg_value);
         decode_ddr_temperature (reg_value);
         printf ("\n");
     }
@@ -176,7 +181,7 @@ static void dump_ddr_temperature_information (bit_banged_i2c_controller_context_
 
     if (read_ddr_temperature_register (controller, low_limit_reg_address, &reg_value))
     {
-        printf ("DDR temperature low limit register = 0x%04x ", reg_value);
+        printf ("  Temperature low limit register = 0x%04x ", reg_value);
         decode_ddr_temperature (reg_value);
         printf ("\n");
     }
@@ -187,7 +192,7 @@ static void dump_ddr_temperature_information (bit_banged_i2c_controller_context_
 
     if (read_ddr_temperature_register (controller, tcrit_limit_reg_address, &reg_value))
     {
-        printf ("DDR temperature critical limit register = 0x%04x ", reg_value);
+        printf ("  Temperature critical limit register = 0x%04x ", reg_value);
         decode_ddr_temperature (reg_value);
         printf ("\n");
     }
@@ -203,7 +208,7 @@ static void dump_ddr_temperature_information (bit_banged_i2c_controller_context_
         const uint16_t high_mask = 0x4000;
         const uint16_t low_mask = 0x2000;
 
-        printf ("DDR ambient temperature register = 0x%04x%s%s%s ",
+        printf ("  Ambient temperature register = 0x%04x%s%s%s ",
                 reg_value,
                 (reg_value & tcrit_mask) != 0 ? " above TCRIT" : "",
                 (reg_value & high_mask) != 0 ? " above HIGH" : "",
@@ -219,7 +224,7 @@ static void dump_ddr_temperature_information (bit_banged_i2c_controller_context_
     if (read_ddr_temperature_register (controller, manufacter_id_reg_address, &reg_value))
     {
         pci_lookup_name (pacc, vendor_name, sizeof (vendor_name), PCI_LOOKUP_VENDOR, reg_value);
-        printf ("DDR temperature sensor manufacturer ID register = 0x%04x (%s)\n", reg_value, vendor_name);
+        printf ("  Sensor manufacturer ID register = 0x%04x (%s)\n", reg_value, vendor_name);
     }
     else
     {
@@ -293,7 +298,7 @@ static void dump_ddr3_spd_information (bit_banged_i2c_controller_context_t *cons
     /* Read the entire 256 byte DDR3 SPD contents */
     if (bit_banged_i2c_read_byte_addressable_reg (controller, i2c_slave_address, start_address, sizeof (ddr3_spd), ddr3_spd))
     {
-        printf ("DDR3 SPD decode:\n");
+        printf ("\nDDR3 SPD decode:\n");
 
         /* First extract the number of bytes */
         const uint8_t bytes_used_info = ddr3_spd[0];
@@ -547,6 +552,29 @@ static void dump_ddr3_spd_information (bit_banged_i2c_controller_context_t *cons
 
 
 /**
+ * @brief Dump information for one DCDC LTM4676A
+ * @details Sources of information used:
+ *   https://www.analog.com/media/en/technical-documentation/data-sheets/4676afa.pdf : The LTM4676A datasheet
+ * @param[in/out] controller The controller for the GPIO bit-banged interface
+ * @param[in] i2c_slave_address The I2C address of the LTM4676A to dump the information for
+ */
+static void dump_ltm4676a_information (bit_banged_i2c_controller_context_t *const controller, const uint8_t i2c_slave_address)
+{
+    smbus_transfer_status_t status;
+
+    printf ("\nLTM4676A at I2C address 0x%02x\n", i2c_slave_address);
+
+    /* First check can read the PMBus capability and revision */
+    status = report_pmbus_capability_and_revision (controller, i2c_slave_address);
+
+    if (status != SMBUS_TRANSFER_SUCCESS)
+    {
+        report_pmbus_transfer_failure (controller, status);
+    }
+}
+
+
+/**
  * @brief Dump information from I2C devices TEF1001-02-B2IX4-A
  * @param[in/out] vfio_device The VFIO device containing the Xilinx FPGA to use for the probe
  * @param[in] pacc Used to lookup vendor IDs.
@@ -554,6 +582,10 @@ static void dump_ddr3_spd_information (bit_banged_i2c_controller_context_t *cons
 static void dump_tef1001_information (vfio_device_t *const vfio_device, struct pci_access *const pacc)
 {
     bit_banged_i2c_controller_context_t controller = {0};
+
+    /* The I2C address of the two DCDC LTM4676A regulators */
+    const uint8_t u3_ltm4676a_i2c_slave_address = 0x40; /* provides 4V and 1.5V */
+    const uint8_t u4_ltm4676a_i2c_slave_address = 0x4f; /* provides 1V */
 
     /* The FPGA has a single BAR, containing IIC and GPIO registers. This program only used the GPIO registers */
     const uint32_t bar_index = 0;
@@ -572,6 +604,8 @@ static void dump_tef1001_information (vfio_device_t *const vfio_device, struct p
         dump_tef1001_fan_info (&controller);
         dump_ddr_temperature_information (&controller, pacc);
         dump_ddr3_spd_information (&controller);
+        dump_ltm4676a_information (&controller, u3_ltm4676a_i2c_slave_address);
+        dump_ltm4676a_information (&controller, u4_ltm4676a_i2c_slave_address);
     }
 }
 

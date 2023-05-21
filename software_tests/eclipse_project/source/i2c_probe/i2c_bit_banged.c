@@ -11,9 +11,20 @@
  *   c. Unable to handle I2C slaves which stretch SCL.
  *
  *   Attempts to use a nominal I2C "Standard" SCL frequency of 100 KHz.
+ *
+ *   Includes support for System Management Bus (SMBus) since:
+ *   a. Allows the encapsulation of the Packet Error Code (PEC) calculation, which is computed over the entire message
+ *      from the first START condition. I.e. includes the byte sent by i2c_begin() which is not exposed by the API.
+ *   b. For a SMBus Block Read the number of bytes to be returned is indicated by the first byte read.
+ *      I.e. for a Block Read a variable number of bytes is returned which the bit_banged_i2c_read() API function
+ *      doesn't handle.
+ *
+ *   The SMBus support is based upon SMBus 2.0 (http://smbus.org/specs/smbus20.pdf) since that is the SMBus version
+ *   used by Power Management Bus (PMBus).
  */
 
 #include <time.h>
+#include <string.h>
 
 #include "i2c_bit_banged.h"
 #include "vfio_access.h"
@@ -55,6 +66,17 @@
 #define T_SU_STO 4000 /* t SU;STO set-up time for STOP condition */
 #define T_LOW    4700 /* t LOW LOW period of the SCL clock */
 #define T_HIGH   4000 /* t HIGH HIGH period of the SCL clock */
+
+
+/* Describes the different SMBus transfer status values */
+const char *const smbus_transfer_status_descriptions[SMBUS_TRANSFER_ARRAY_SIZE] =
+{
+    [SMBUS_TRANSFER_SUCCESS] = "success",
+    [SMBUS_TRANSFER_WRITE_ADDRESS_NACK] = "write address NACK",
+    [SMBUS_TRANSFER_WRITE_DATA_NACK] = "write data NACK",
+    [SMBUS_TRANSFER_READ_ADDRESS_NACK] = "read address NACK",
+    [SMBUS_TRANSFER_READ_INCORRECT_PEC] = "read incorrect PEC"
+};
 
 
 /**
@@ -148,10 +170,25 @@ static void generate_i2c_stop (bit_banged_i2c_controller_context_t *const contro
 
 
 /**
+ * @brief When a SMBus CRC is enabled for the current message, update the message CRC with one byte of the message
+ * @details The CRC includes the I2C address + read/write bit
+ * @param[in/out] controller The controller for the GPIO bit-banged interface
+ * @param[in] message_byte The byte to update the CRC with
+ */
+static void update_smbus_crc_with_byte (bit_banged_i2c_controller_context_t *const controller, const uint8_t message_byte)
+{
+    if (controller->smbus_message_uses_crc)
+    {
+        controller->smbus_crc = controller->crc_table[controller->smbus_crc ^ message_byte];
+    }
+}
+
+
+/**
  * @brief Transmit one byte on the I2C bus.
  * @details Assumes SCL is low when called
  * @param[in/out] controller The controller for the GPIO bit-banged interface
- * @param[in] tx_byte The byte to transmit
+ * @param[in] tx_byte The byte to transmit, which is also used to update the SMBus message CRC if enabled for the current message
  */
 static bool i2c_transmit_byte (bit_banged_i2c_controller_context_t *const controller, const uint8_t tx_byte)
 {
@@ -190,6 +227,8 @@ static bool i2c_transmit_byte (bit_banged_i2c_controller_context_t *const contro
     bit_bang_delay (T_LOW);
     slave_acked = sampled_sda == 0;
 
+    update_smbus_crc_with_byte (controller, tx_byte);
+
     return slave_acked;
 }
 
@@ -201,7 +240,7 @@ static bool i2c_transmit_byte (bit_banged_i2c_controller_context_t *const contro
  * @param[in] last_byte Indicates if being called for the last byte to be read:
  *                      - When false sends an ACK to tell the slave another byte will be read
  *                      - When true sends an NACK to tell the slave all bytes have been read
- * @return The received byte
+ * @return The received byte, which is also used to the update SMBus message CRC if enabled for the current message
  */
 static uint8_t i2c_receive_byte (bit_banged_i2c_controller_context_t *const controller, const bool last_byte)
 {
@@ -235,6 +274,8 @@ static uint8_t i2c_receive_byte (bit_banged_i2c_controller_context_t *const cont
     scl_high (controller);
     bit_bang_delay (T_HIGH);
     scl_low (controller);
+
+    update_smbus_crc_with_byte (controller, rx_byte);
 
     return rx_byte;
 }
@@ -288,6 +329,9 @@ void select_i2c_controller (const bool select_bit_banged, uint8_t *const gpio_re
 {
     controller->gpio_regs = gpio_regs;
 
+    /* Default to SMBus PEC disabled */
+    (void) memset (controller->smbus_pec_enables, false, sizeof (controller->smbus_pec_enables));
+
     /* Assume the I2C bus is idle so can initialise the GPIO data output to both SDA and SLA high without
      * needing to try and complete any previous failed transaction.
      *
@@ -302,6 +346,26 @@ void select_i2c_controller (const bool select_bit_banged, uint8_t *const gpio_re
         controller->gpio_data_out |= GPIO_DATA_SELECT_BIT_BANG_MASK;
     }
     write_reg32 (controller->gpio_regs, GPIO_DATA_OFFSET, controller->gpio_data_out);
+
+    /* Create the SMBus CRC look-up table, which uses the "CRC-8-CCITT" algorithm */
+    for (uint32_t crc_table_index = 0; crc_table_index < SMBUS_CRC_TABLE_SIZE; crc_table_index++)
+    {
+        uint8_t data = (uint8_t) crc_table_index;
+
+        for (uint32_t bit_index = 0; bit_index < 8; bit_index++)
+        {
+            if ((data & 0x80) != 0)
+            {
+                data = (uint8_t) (data << 1);
+                data ^= 0x07;
+            }
+            else
+            {
+                data = (uint8_t) (data << 1);
+            }
+        }
+        controller->crc_table[crc_table_index] = data;
+    }
 }
 
 
@@ -324,6 +388,7 @@ bool bit_banged_i2c_read (bit_banged_i2c_controller_context_t *const controller,
 {
     bool success;
 
+    controller->smbus_message_uses_crc = false;
     success = i2c_begin (controller, i2c_slave_address, READ_OPERATION);
     if (success)
     {
@@ -372,6 +437,7 @@ size_t bit_banged_i2c_write (bit_banged_i2c_controller_context_t *const controll
     bool success;
     size_t num_bytes_written = 0;
 
+    controller->smbus_message_uses_crc = false;
     success = i2c_begin (controller, i2c_slave_address, WRITE_OPERATION);
     while (success && (num_bytes_written < num_bytes))
     {
@@ -416,4 +482,132 @@ bool bit_banged_i2c_read_byte_addressable_reg (bit_banged_i2c_controller_context
     }
 
     return success;
+}
+
+
+/**
+ * @brief Enable PEC for a SMBus slave, so PEC will be used in further SMBus transfers for the slave
+ * @details By storing the PEC enable state in the controller context per SMBus slave, avoids the need for the SMBus transfer
+ *          API functions to take a parameter controlling PEC.
+ * @param[in/out] controller The controller for the GPIO bit-banged interface
+ * @param[in] i2c_slave_address 7-bit slave address to enable PEC for
+ */
+void bit_banged_smbus_enable_pec (bit_banged_i2c_controller_context_t *const controller, const uint8_t i2c_slave_address)
+{
+    controller->smbus_pec_enables[i2c_slave_address] = true;
+}
+
+
+/**
+ * @brief Called prior to starting a SMBus message, to reset the CRC if PEC is enabled for the SMBus slave.
+ * @param[in/out] controller The controller for the GPIO bit-banged interface
+ * @param[in] i2c_slave_address The 7-bit SMBus slave address the message transfer is for.
+ */
+static void initialise_smbus_message_crc (bit_banged_i2c_controller_context_t *const controller,
+                                          const uint8_t i2c_slave_address, const uint8_t command_code)
+{
+    controller->smbus_message_uses_crc = controller->smbus_pec_enables[i2c_slave_address];
+    if (controller->smbus_message_uses_crc)
+    {
+        controller->smbus_crc = 0;
+    }
+    controller->last_smbus_command_code = command_code;
+}
+
+
+/**
+ * @brief Read data bytes for a SMBus message, and check the PEC byte if PEC is enabled for the message.
+ * @param[in/out] controller The controller for the GPIO bit-banged interface
+ * @param[in] num_data_bytes The number of data bytes to be read
+ * @param[out] data The data bytes read
+ * @param[in/out] status Used to record the overall status of the message transfer.
+ */
+static void read_smbus_data_bytes (bit_banged_i2c_controller_context_t *const controller,
+                                   const size_t num_data_bytes, uint8_t data[const num_data_bytes],
+                                   smbus_transfer_status_t *const status)
+{
+    size_t byte_index;
+    bool last_byte;
+
+    if (*status == SMBUS_TRANSFER_SUCCESS)
+    {
+        if (controller->smbus_message_uses_crc)
+        {
+            /* Receive the data bytes */
+            last_byte = false;
+            for (byte_index = 0; byte_index < num_data_bytes; byte_index++)
+            {
+                data[byte_index] = i2c_receive_byte (controller, last_byte);
+            }
+
+            /* Receive the PEC byte and verify it */
+            last_byte = true;
+            controller->smbus_expected_pec_byte = controller->smbus_crc;
+            controller->smbus_actual_pec_byte = i2c_receive_byte (controller, last_byte);
+            if (controller->smbus_actual_pec_byte != controller->smbus_expected_pec_byte)
+            {
+                *status = SMBUS_TRANSFER_READ_INCORRECT_PEC;
+            }
+        }
+        else
+        {
+            /* No PEC used - just receive the data bytes */
+            for (byte_index = 0; byte_index < num_data_bytes; byte_index++)
+            {
+                last_byte = (byte_index + 1) == num_data_bytes;
+                data[byte_index] = i2c_receive_byte (controller, last_byte);
+            }
+        }
+    }
+}
+
+
+/**
+ * @brief Perform a SMBus READ for a fixed number of bytes.
+ * @param[in/out] controller The controller for the GPIO bit-banged interface
+ * @param[in] i2c_slave_address 7-bit slave address to read from
+ * @param[in] command_code The SMBus command code to perform the read from.
+ * @param[in] num_data_bytes The number of bytes to read, which excludes any PEC byte
+ * @param[out] data The bytes read from the SMBus slave.
+ * @return Indicates if the READ was successful or not.
+ */
+smbus_transfer_status_t bit_banged_smbus_read (bit_banged_i2c_controller_context_t *const controller,
+                                               const uint8_t i2c_slave_address,
+                                               const uint8_t command_code,
+                                               const size_t num_data_bytes, uint8_t data[const num_data_bytes])
+{
+    smbus_transfer_status_t status = SMBUS_TRANSFER_SUCCESS;
+
+    /* Begin the message with a write operation for the command */
+    initialise_smbus_message_crc (controller, i2c_slave_address, command_code);
+    if (!i2c_begin (controller, i2c_slave_address, WRITE_OPERATION))
+    {
+        status = SMBUS_TRANSFER_WRITE_ADDRESS_NACK;
+    }
+
+    /* Write the command code */
+    if (status == SMBUS_TRANSFER_SUCCESS)
+    {
+        if (!i2c_transmit_byte (controller, command_code))
+        {
+            status = SMBUS_TRANSFER_WRITE_DATA_NACK;
+        }
+    }
+
+    /* Issue a re-START for the read */
+    if (status == SMBUS_TRANSFER_SUCCESS)
+    {
+        if (!i2c_begin (controller, i2c_slave_address, READ_OPERATION))
+        {
+            status = SMBUS_TRANSFER_READ_ADDRESS_NACK;
+        }
+    }
+
+    /* Read the data bytes, which may change the status if the PEC verification fails */
+    read_smbus_data_bytes (controller, num_data_bytes, data, &status);
+
+    /* Always generate a STOP condition to free the I2C bus, regardless of if the SMBus message transfer was successful */
+    generate_i2c_stop (controller);
+
+    return status;
 }
