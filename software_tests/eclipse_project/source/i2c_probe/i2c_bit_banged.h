@@ -96,5 +96,13 @@ smbus_transfer_status_t bit_banged_smbus_block_read (bit_banged_i2c_controller_c
                                                      const uint8_t command_code,
                                                      const size_t max_data_bytes, uint8_t data[const max_data_bytes],
                                                      size_t *const num_data_bytes);
+smbus_transfer_status_t bit_banged_smbus_block_write_block_read_process_call (bit_banged_i2c_controller_context_t *const controller,
+                                                                              const uint8_t i2c_slave_address,
+                                                                              const uint8_t command_code,
+                                                                              const size_t write_block_count,
+                                                                              const uint8_t write_block[const write_block_count],
+                                                                              const size_t read_max_block_count,
+                                                                              uint8_t read_block[const read_max_block_count],
+                                                                              size_t *const read_actual_block_count);
 
 #endif /* I2C_BIT_BANGED_H_ */

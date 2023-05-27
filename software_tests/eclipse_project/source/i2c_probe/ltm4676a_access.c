@@ -12,6 +12,118 @@
 
 #include <stdio.h>
 
+/* The LTM4676A is a dual-channel DCDC converter, with channel specific sensors per-page */
+#define LTM4676A_NUM_PAGES 2
+
+/* Defines the LTM4676A sensors which are read and displayed.
+ * The sensors with a PMBUS_COMMAND_* prefix are defined by the PMBus specification.
+ * The sensors with a LTM4674A_COMMAND_MFR_* prefix are manufacturer specific. */
+#define LTM4676A_NUM_SENSORS (sizeof (ltm4676a_sensor_definitions) / sizeof (ltm4676a_sensor_definitions[0]))
+static const pmbus_sensor_definition_t ltm4676a_sensor_definitions[] =
+{
+    {
+        .command_code = PMBUS_COMMAND_READ_VIN,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_5S_11S,
+        .paged = false,
+        .name = "Measured input supply (SVin) voltage",
+        .units = "V"
+    },
+    {
+        .command_code = PMBUS_COMMAND_READ_VOUT,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_16U,
+        .paged = true,
+        .name = "Measured output voltage",
+        .units = "V"
+    },
+    {
+        .command_code = PMBUS_COMMAND_READ_IIN,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_5S_11S,
+        .paged = false,
+        .name = "Calculated input supply current",
+        .units = "A"
+    },
+    {
+        .command_code = LTM4676A_COMMAND_MFR_READ_IIN,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_5S_11S,
+        .paged = true,
+        .name = "Calculated input current per channel",
+        .units = "A"
+    },
+    {
+        .command_code = PMBUS_COMMAND_READ_IOUT,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_5S_11S,
+        .paged = true,
+        .name = "Measured output current",
+        .units = "A"
+    },
+    {
+        .command_code = PMBUS_COMMAND_READ_TEMPERATURE_1,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_5S_11S,
+        .paged = true,
+        .name = "Power stage temperature sensor",
+        .units = "C"
+    },
+    {
+        .command_code = PMBUS_COMMAND_READ_TEMPERATURE_2,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_5S_11S,
+        .paged = false,
+        .name = "Control IC die temperature",
+        .units = "C"
+    },
+    {
+        .command_code = PMBUS_COMMAND_READ_DUTY_CYCLE,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_5S_11S,
+        .paged = true,
+        .name = "Duty cycle of the top gate control signal",
+        .units = "%"
+    },
+    {
+        .command_code = PMBUS_COMMAND_READ_POUT,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_5S_11S,
+        .paged = true,
+        .name = "Calculated output power",
+        .units = "W"
+    },
+    {
+        .command_code = LTM4676A_COMMAND_MFR_VOUT_PEAK,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_16U,
+        .paged = true,
+        .name = "Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS",
+        .units = "V"
+    },
+    {
+        .command_code = LTM4676A_COMMAND_MFR_VIN_PEAK,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_5S_11S,
+        .paged = false,
+        .name = "Maximum measured value of READ_VIN since last MFR_CLEAR_PEAKS",
+        .units = "V"
+    },
+    {
+        .command_code = LTM4676A_COMMAND_MFR_TEMPERATURE_1_PEAK,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_5S_11S,
+        .paged = true,
+        .name = "Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS",
+        .units = "C"
+    },
+    {
+        .command_code = LTM4676A_COMMAND_MFR_TEMPERATURE_2_PEAK,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_5S_11S,
+        .paged = false,
+        .name = "Maximum measured value of control IC die temperature since last MFR_CLEAR_PEAKS",
+        .units = "C"
+    },
+    {
+        .command_code = LTM4676A_COMMAND_MFR_IOUT_PEAK,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_5S_11S,
+        .paged = true,
+        .name = "Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS",
+        .units = "A"
+    }
+};
+
+/* Used to store the sensor readings read from one LTM4676A */
+static pmbus_sensor_reading_t ltm4676a_sensor_readings[LTM4676A_NUM_SENSORS];
+
 
 /**
  * @brief Display write protect information for a LTM4676A
@@ -41,7 +153,7 @@ static smbus_transfer_status_t report_ltm4676a_write_protect (bit_banged_i2c_con
         switch (write_protect_data_byte)
         {
         case 0x80: write_protect = "Disable all writes except to the WRITE_PROTECT, PAGE, MFR_EE_UNLOCK and STORE_USER_ALL command"; break;
-        case 0x40: write_protect = "Disable all writes except to the WRITE_PROTECT, PAGE, MFR_EE_UNLOCK, MFR_CLEAR_PEAKS, STORE_USER_ALL, OPERATION and CLEAR_FAULTS command. individual fault bits can be cleared by writing a 1 to the respective bits in the STATUS registers."; break;
+        case 0x40: write_protect = "Disable all writes except to the WRITE_PROTECT, PAGE, MFR_EE_UNLOCK, MFR_CLEAR_PEAKS, STORE_USER_ALL, OPERATION and CLEAR_FAULTS command. Individual fault bits can be cleared by writing a 1 to the respective bits in the STATUS registers."; break;
         case 0x20: write_protect = "Disable all writes except to the WRITE_PROTECT, OPERATION, MFR_EE_UNLOCK, MFR_CLEAR_PEAKS, CLEAR_FAULTS, PAGE, ON_OFF_CONFIG, VOUT_COMMAND and STORE_USER_ ALL. Individual fault bits can be cleared by writing a 1 to the respective bits in the STATUS registers."; break;
         case 0x00: write_protect = "Enable writes to all commands"; break;
         default: write_protect = "unknown";
@@ -81,6 +193,19 @@ void dump_ltm4676a_information (bit_banged_i2c_controller_context_t *const contr
     if (status == SMBUS_TRANSFER_SUCCESS)
     {
         report_ltm4676a_write_protect (controller, i2c_slave_address);
+    }
+
+    /* Obtain sensor readings */
+    if (status == SMBUS_TRANSFER_SUCCESS)
+    {
+        status = read_pmbus_sensors (controller, i2c_slave_address, LTM4676A_NUM_PAGES, LTM4676A_NUM_SENSORS,
+                ltm4676a_sensor_definitions, ltm4676a_sensor_readings);
+    }
+
+    /* Display the sensor readings */
+    if (status == SMBUS_TRANSFER_SUCCESS)
+    {
+        display_pmbus_sensors (LTM4676A_NUM_PAGES, LTM4676A_NUM_SENSORS, ltm4676a_sensor_definitions, ltm4676a_sensor_readings);
     }
 
     if (status != SMBUS_TRANSFER_SUCCESS)

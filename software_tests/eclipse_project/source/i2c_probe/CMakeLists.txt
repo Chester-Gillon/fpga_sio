@@ -13,4 +13,4 @@ endif()
 target_link_libraries (i2c_probe i2c_bit_banged xilinx_axi_iic_transfers vfio_access pci rt)
 
 add_executable (i2c_dump_info "i2c_dump_info.c")
-target_link_libraries (i2c_dump_info ltm4676a_access pmbus_access i2c_bit_banged vfio_access pci rt)
+target_link_libraries (i2c_dump_info ltm4676a_access pmbus_access i2c_bit_banged vfio_access pci rt m)

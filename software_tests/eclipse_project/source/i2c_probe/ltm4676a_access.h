@@ -12,7 +12,13 @@
 
 
 /* PMBus command codes which are specific to a LTM4676A, which are "Manufacturer Specific" in the PMBus specification */
-#define LTM4676A_COMMAND_MFR_COMMON 0xEF /* Manufacturer status bits that are common across multiple LTC ICs/modules. */
+#define LTM4676A_COMMAND_MFR_VOUT_PEAK          0xDD
+#define LTM4676A_COMMAND_MFR_VIN_PEAK           0xDE
+#define LTM4676A_COMMAND_MFR_TEMPERATURE_1_PEAK 0xDF
+#define LTM4676A_COMMAND_MFR_READ_IIN           0xED
+#define LTM4676A_COMMAND_MFR_COMMON             0xEF /* Manufacturer status bits that are common across multiple LTC ICs/modules. */
+#define LTM4676A_COMMAND_MFR_TEMPERATURE_2_PEAK 0xF4
+#define LTM4676A_COMMAND_MFR_IOUT_PEAK          0xD7
 
 /* Bit masks for the MFR_COMMON command */
 #define LTM4676A_MFR_COMMON_MODULE_NOT_DRIVING_ALERT_LOW_MASK      0x80
