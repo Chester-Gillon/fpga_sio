@@ -21,6 +21,7 @@
 #define LTM4676A_NUM_SENSORS (sizeof (ltm4676a_sensor_definitions) / sizeof (ltm4676a_sensor_definitions[0]))
 static const pmbus_sensor_definition_t ltm4676a_sensor_definitions[] =
 {
+    /* From the TELEMETRY list of PMBus commands in the LTM4676A datasheet */
     {
         .command_code = PMBUS_COMMAND_READ_VIN,
         .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_5S_11S,
@@ -118,6 +119,110 @@ static const pmbus_sensor_definition_t ltm4676a_sensor_definitions[] =
         .paged = true,
         .name = "Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS",
         .units = "A"
+    },
+
+    /* From the Output Voltage and Limits list of PMBus commands in the LTM4676A datasheet */
+    {
+        .command_code = PMBUS_COMMAND_VOUT_MAX,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_16U,
+        .paged = true,
+        .name = "Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH",
+        .units = "V"
+    },
+    {
+        .command_code = PMBUS_COMMAND_VOUT_OV_FAULT_LIMIT,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_16U,
+        .paged = true,
+        .name = "Output overvoltage fault limit",
+        .units = "V"
+    },
+    {
+        .command_code = PMBUS_COMMAND_VOUT_OV_WARN_LIMIT,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_16U,
+        .paged = true,
+        .name = "Output overvoltage warning limit",
+        .units = "V"
+    },
+    {
+        .command_code = PMBUS_COMMAND_VOUT_MARGIN_HIGH,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_16U,
+        .paged = true,
+        .name = "Margin high output voltage set point",
+        .units = "V"
+    },
+    {
+        .command_code = PMBUS_COMMAND_VOUT_COMMAND,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_16U,
+        .paged = true,
+        .name = "Nominal output voltage set point",
+        .units = "V"
+    },
+    {
+        .command_code = PMBUS_COMMAND_VOUT_MARGIN_LOW,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_16U,
+        .paged = true,
+        .name = "Margin low output voltage set point",
+        .units = "V"
+    },
+    {
+        .command_code = PMBUS_COMMAND_VOUT_UV_WARN_LIMIT,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_16U,
+        .paged = true,
+        .name = "Output undervoltage warning limit",
+        .units = "V"
+    },
+    {
+        .command_code = PMBUS_COMMAND_VOUT_UV_FAULT_LIMIT,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_16U,
+        .paged = true,
+        .name = "Output undervoltage fault limit",
+        .units = "V"
+    },
+    {
+        .command_code = PMBUS_COMMAND_MFR_VOUT_MAX,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_16U,
+        .paged = true,
+        .name = "Maximum allowed output voltage including VOUT_OV_FAULT_LIMIT",
+        .units = "V"
+    },
+
+    /* From the Output Current list of PMBus commands in the LTM4676A datasheet */
+    {
+        .command_code = PMBUS_COMMAND_IOUT_OC_FAULT_LIMIT,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_5S_11S,
+        .paged = true,
+        .name = "Output overcurrent fault limit",
+        .units = "A"
+    },
+    {
+        .command_code = PMBUS_COMMAND_IOUT_OC_WARN_LIMIT,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_5S_11S,
+        .paged = true,
+        .name = "Output overcurrent warning limit",
+        .units = "A"
+    },
+
+    /* From the Power Stage Temperature Limits list of PMBus commands in the LTM4676A datasheet */
+    {
+        .command_code = PMBUS_COMMAND_OT_FAULT_LIMIT,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_5S_11S,
+        .paged = true,
+        .name = "Power stage overtemperature fault limit",
+        .units = "C"
+    },
+    {
+        .command_code = PMBUS_COMMAND_OT_WARN_LIMIT,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_5S_11S,
+        .paged = true,
+        .name = "Power stage overtemperature warning limit",
+        .units = "C"
+    },
+    {
+        .command_code = PMBUS_COMMAND_UT_FAULT_LIMIT,
+        .sensor_format = PMBUS_SENSOR_FORMAT_LINEAR_5S_11S,
+        .paged = true,
+        .name = "Power stage undertemperature fault limit",
+        .units = "C"
     }
 };
 
