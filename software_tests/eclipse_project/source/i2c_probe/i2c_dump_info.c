@@ -553,6 +553,113 @@ static void dump_ddr3_spd_information (bit_banged_i2c_controller_context_t *cons
 
 
 /**
+ * @brief Write to the PAGE_SEL register in a Si5338 to select the page of registers to access.
+ * @details This is necessary as the register address is only a byte, but the Si5338 has more than 256 registers
+ * @param[in/out] controller The controller for the GPIO bit-banged interface
+ * @param[in] i2c_slave_address Address of the Si5338 to set PAGE_SEL in
+ * @param[in] page_sel Value of PAGE_SEL to write
+ * @return Returns true if the write was successful
+ */
+static bool si5338_select_page (bit_banged_i2c_controller_context_t *const controller,
+                                const uint8_t i2c_slave_address, const uint8_t page_sel)
+{
+    bool success;
+    const uint8_t page_sel_reg_address = 0xff;
+    const uint8_t write_data[] = {page_sel_reg_address, page_sel};
+    uint8_t page_sel_readback;
+
+    /* Write the the PAGE_SEL register */
+    success = bit_banged_i2c_write (controller, i2c_slave_address, sizeof (write_data), write_data, true);
+
+    /* Readback the PAGE_SEL register to check took effect */
+    if (success)
+    {
+        success = bit_banged_i2c_read_byte_addressable_reg (controller, i2c_slave_address, page_sel_reg_address,
+                sizeof (page_sel_readback), &page_sel_readback);
+    }
+
+    if (success)
+    {
+        success = page_sel_readback == page_sel;
+        if (!success)
+        {
+            printf ("Wrote %u to PAGE_SEL, but readback %u\n", page_sel, page_sel_readback);
+        }
+    }
+    else
+    {
+        printf ("Failed to modify PAGE_SEL\n");
+    }
+
+    return success;
+}
+
+
+/**
+ * @brief Read all Si5338 registers to test communication, and decode registers related to the device identity.
+ * @details As the Si5338 OTP is delivered blank, expect that the Si5338 registers related to clock outputs will be the
+ *          reset values which leave the clock outputs disabled.
+ *
+ *          The registers are defined in
+ *          https://www.skyworksinc.com/-/media/Skyworks/SL/documents/public/reference-manuals/Si5338-RM.pdf
+ * @param[in/out] controller The controller for the GPIO bit-banged interface
+ */
+static void dump_si5338_information (bit_banged_i2c_controller_context_t *const controller)
+{
+    bool success;
+    const uint8_t i2c_slave_address = 0x70;
+    uint8_t all_registers[351] = {0}; /* Si5338-RM shows register addresses go up to 350 */
+
+    printf ("\nSi5338 Clock Generator information:\n");
+
+    /* Read the registers in page 1 */
+    success = si5338_select_page (controller, i2c_slave_address, 1);
+    if (success)
+    {
+        const size_t upper_reg_start_offset = 256;
+        success = bit_banged_i2c_read_byte_addressable_reg (controller, i2c_slave_address,
+                0, sizeof (all_registers) - upper_reg_start_offset, &all_registers[upper_reg_start_offset]);
+    }
+
+    /* Read the registers in page 0 */
+    if (success)
+    {
+        success = si5338_select_page (controller, i2c_slave_address, 0);
+        if (success)
+        {
+            success = bit_banged_i2c_read_byte_addressable_reg (controller, i2c_slave_address,
+                    0, 256, all_registers);
+        }
+    }
+
+    if (success)
+    {
+        /* Display the device identity */
+        const int device_revision_id = ((char) (all_registers[0] & 0x7)) + 'A';
+        const uint32_t base_part_number = all_registers[2] & 0x3f;
+        const int device_grade = ((char) ((all_registers[3] & 0xf1) >> 3)) + 'A';
+        printf ("  Device: Si53%u%c revision %c\n", base_part_number, device_grade, device_revision_id);
+
+        /* Display the NVM code, which is expected to be zero as the TEF1001 documentation says the Si5338A is delivered
+         * with the "OTP Area" not programmed. */
+        const uint32_t nvm_code = (((uint32_t) all_registers[3] & 0x1) << 16) |
+                (((uint32_t) all_registers[4]) << 16) |
+                ((uint32_t) all_registers[5]);
+        printf ("  NVM code=%u\n", nvm_code);
+
+        /* Display the configured I2C address from the register, which should match the i2c_slave_address constant
+         * as otherwise wouldn't be able to communicate with the Si5338A. */
+        const uint32_t configured_i2c_address = all_registers[27] & 0x7f;
+        printf ("  Configured 7-bit I2C address=0x%x\n", configured_i2c_address);
+    }
+    else
+    {
+        printf ("Failed to read Si5338 registers\n");
+    }
+}
+
+
+/**
  * @brief Dump information from I2C devices TEF1001-02-B2IX4-A
  * @param[in/out] vfio_device The VFIO device containing the Xilinx FPGA to use for the probe
  * @param[in] pacc Used to lookup vendor IDs.
@@ -584,6 +691,7 @@ static void dump_tef1001_information (vfio_device_t *const vfio_device, struct p
         dump_ddr3_spd_information (&controller);
         dump_ltm4676a_information (&controller, u3_ltm4676a_i2c_slave_address);
         dump_ltm4676a_information (&controller, u4_ltm4676a_i2c_slave_address);
+        dump_si5338_information (&controller);
     }
 }
 
