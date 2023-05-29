@@ -286,7 +286,7 @@ static uint32_t calculate_spd_crc (const uint32_t crc_coverage_bytes, const uint
 /**
  * @brief Decode the DDR3 SPD information, for the DDR3 module fitted in the TEF1001.
  * @details JEDEC standard No. 21-C 4.1.2.11 - 1 "Serial Presence Detect (SPD) for DDR3 SDRAM Modules DDR3 SPD"
- *          was used to obtain the register definitions.
+ *          Document Release 6 was used to obtain the register definitions.
  * @param[in/out] controller The controller for the GPIO bit-banged interface
  */
 static void dump_ddr3_spd_information (bit_banged_i2c_controller_context_t *const controller)
@@ -301,7 +301,19 @@ static void dump_ddr3_spd_information (bit_banged_i2c_controller_context_t *cons
     {
         printf ("\nDDR3 SPD decode:\n");
 
-        /* First extract the number of bytes */
+        /* Display the RAW SPD bytes, to allow debugging of the decode. Byte indices in decimal to match JEDEC standard */
+        printf ("  RAW bytes:");
+        for (uint32_t byte_index = 0; byte_index < sizeof (ddr3_spd); byte_index++)
+        {
+            if ((byte_index % 16) == 0)
+            {
+                printf ("\n    %3u-%3u:", byte_index, byte_index + 15);
+            }
+            printf (" %02x", ddr3_spd[byte_index]);
+        }
+        printf ("\n");
+
+        /* Extract the number of bytes before attempting a decode */
         const uint8_t bytes_used_info = ddr3_spd[0];
         const uint32_t crc_coverage_bytes_field = ddr3_spd_extract_field (bytes_used_info, 1, 7);
         const uint32_t spd_bytes_total_field = ddr3_spd_extract_field (bytes_used_info, 3, 4);
@@ -544,6 +556,203 @@ static void dump_ddr3_spd_information (bit_banged_i2c_controller_context_t *cons
             printf ("  Module specific decoding not implemented for module type %s\n", module_type);
             break;
         }
+
+        /* Display supported CAS latencies, which is a bit mask */
+        const uint32_t cas_latencies_supported_low_byte = ddr3_spd[14];
+        const uint32_t cas_latencies_supported_high_byte = ddr3_spd[15];
+        const uint32_t cas_latencies_supported_mask = (cas_latencies_supported_high_byte << 8) | cas_latencies_supported_low_byte;
+        const uint32_t num_cas_latency_bits = 15;
+        const uint32_t bit_to_cas_latency_offset = 4;
+        printf ("  Supported CAS latencies:");
+        for (uint32_t latency_bit = 0; latency_bit < num_cas_latency_bits; latency_bit++)
+        {
+            if ((cas_latencies_supported_mask & (1u << latency_bit)) != 0)
+            {
+                printf (" %u", latency_bit + bit_to_cas_latency_offset);
+            }
+        }
+        printf ("\n");
+
+        /* Display the timebases */
+        const uint8_t fine_timebase_byte = ddr3_spd[9];
+        const uint32_t fine_timebase_dividend = ddr3_spd_extract_field (fine_timebase_byte, 4, 4);
+        const uint32_t fine_timebase_divisor = ddr3_spd_extract_field (fine_timebase_byte, 4, 0);
+        const double ftb_ns = 1E-3 * ((double) fine_timebase_dividend / (double) fine_timebase_divisor);
+        printf ("  Fine Timebase Dividend=%u Divisor=%u FTB=%.3f ns\n", fine_timebase_dividend, fine_timebase_divisor, ftb_ns);
+
+        const uint8_t medium_timebase_dividend = ddr3_spd[10];
+        const uint8_t medium_timebase_divisor = ddr3_spd[11];
+        const double mtb_ns = (double) medium_timebase_dividend / (double) medium_timebase_divisor;
+        printf ("  Medium Timebase Dividend=%u Divisor=%u MTB=%.3f ns\n", medium_timebase_dividend, medium_timebase_divisor, mtb_ns);
+
+        /* Display times computed from multiples of medium/fine timebases */
+        const uint8_t tCKmin_mtb_units = ddr3_spd[12];
+        const int8_t tCKmin_ftb_units = (int8_t) ddr3_spd[34];
+        const double tCKmin = (mtb_ns * tCKmin_mtb_units) + (ftb_ns * tCKmin_ftb_units);
+        printf ("  SDRAM Minimum Cycle Time (tCKmin)=%.3f ns\n", tCKmin);
+
+        const uint8_t tAAmin_mtb_units = ddr3_spd[16];
+        const int8_t tAAmin_ftb_units = (int8_t) ddr3_spd[35];
+        const double tAAmin = (mtb_ns * tAAmin_mtb_units) + (ftb_ns * tAAmin_ftb_units);
+        printf ("  Minimum CAS Latency Time (tAAmin)=%.3f ns\n", tAAmin);
+
+        const uint8_t tWRmin_mtb_units = ddr3_spd[17];
+        const double tWRmin = mtb_ns * tWRmin_mtb_units;
+        printf ("  Minimum Write Recovery Time (tWRmin)=%0.3f ns\n", tWRmin);
+
+        const uint8_t tRCDmin_mtb_units = ddr3_spd[18];
+        const int8_t tRCDmin_ftb_units = (int8_t) ddr3_spd[36];
+        const double tRCDmin = (mtb_ns * tRCDmin_mtb_units) + (ftb_ns * tRCDmin_ftb_units);
+        printf ("  Minimum RAS# to CAS# Delay Time (tRCDmin)=%0.3f ns\n", tRCDmin);
+
+        const uint8_t tRRDmin_mtb_units = ddr3_spd[19];
+        const double tRRDmin = mtb_ns * tRRDmin_mtb_units;
+        printf ("  Minimum Row Active to Row Active Delay Time (tRRDmin)=%0.3f ns\n", tRRDmin);
+
+        const uint8_t tRPmin_mtb_units = ddr3_spd[20];
+        const int8_t tRPmin_ftb_units = (int8_t) ddr3_spd[37];
+        const double tRPmin = (mtb_ns * tRPmin_mtb_units) + (ftb_ns * tRPmin_ftb_units);
+        printf ("  Minimum Row Precharge Delay Time (tRPmin)=%0.3f ns\n", tRPmin);
+
+        const uint8_t tRAS_tRC_upper_nibbles_byte = ddr3_spd[21];
+        const uint32_t tRASmin_msn_mtb_units = ddr3_spd_extract_field (tRAS_tRC_upper_nibbles_byte, 4, 0);
+        const uint32_t tRCmin_msn_mtb_units  = ddr3_spd_extract_field (tRAS_tRC_upper_nibbles_byte, 4, 4);
+
+        const uint32_t tRASmin_mtb_units = (tRASmin_msn_mtb_units << 8) | ddr3_spd[22];
+        const double tRASmin = mtb_ns * tRASmin_mtb_units;
+        printf ("  Minimum Active to Precharge Delay Time (tRASmin)=%0.3f ns\n", tRASmin);
+
+        const uint32_t tRCmin_mtb_units = (tRCmin_msn_mtb_units << 8) | ddr3_spd[23];
+        const int8_t tRCmin_ftb_units = (int8_t) ddr3_spd[38];
+        const double tRCmin = (mtb_ns * tRCmin_mtb_units) + (ftb_ns * tRCmin_ftb_units);
+        printf ("  Minimum Active to Active/Refresh Delay Time (tRCmin)=%0.3f ns\n", tRCmin);
+
+        const uint32_t tRFCmin_lsb_mtb_units = ddr3_spd[24];
+        const uint32_t tRFCmin_msb_mtb_units = ddr3_spd[25];
+        const uint32_t tRFCmin_mtb_units = (tRFCmin_msb_mtb_units << 8) | tRFCmin_lsb_mtb_units;
+        const double tRFCmin = mtb_ns * tRFCmin_mtb_units;
+        printf ("  Minimum Refresh Recovery Delay Time (tRFCmin)=%0.3f ns\n", tRFCmin);
+
+        const uint8_t tWTRmin_mtb_units = ddr3_spd[26];
+        const double tWTRmin = mtb_ns * tWTRmin_mtb_units;
+        printf ("  Minimum Internal Write to Read Command Delay Time (tWTRmin)=%0.3f ns\n", tWTRmin);
+
+        const uint8_t tRTPmin_mtb_units = ddr3_spd[27];
+        const double tRTPmin = mtb_ns * tRTPmin_mtb_units;
+        printf ("  Minimum Internal Read to Precharge Command Delay Time (tRTPmin)=%0.3f ns\n", tRTPmin);
+
+        const uint32_t tFAWmin_msn_mtb_units = ddr3_spd_extract_field (ddr3_spd[28], 4, 0);
+        const uint32_t tFAWmin_mtb_units = (tFAWmin_msn_mtb_units << 8) | ddr3_spd[29];
+        const double tFAWmin = mtb_ns * tFAWmin_mtb_units;
+        printf ("  Minimum Four Activate Window Delay Time (tFAWmin)=%0.3f ns\n", tFAWmin);
+
+        /* Display SDRAM optional features */
+        const uint8_t optional_features_mask = ddr3_spd[30];
+        printf ("  SDRAM Optional Features : DLL-Off Mode Support %s  RZQ/7 %s  RZQ/6 %s\n",
+                ddr3_spd_extract_field (optional_features_mask, 1, 7) ? "Supported" : "Not Supported",
+                ddr3_spd_extract_field (optional_features_mask, 1, 1) ? "Supported" : "Not Supported",
+                ddr3_spd_extract_field (optional_features_mask, 1, 0) ? "Supported" : "Not Supported");
+
+        /* Display SDRAM Thermal and Refresh Options */
+        const uint8_t thermal_and_refresh_mask = ddr3_spd[31];
+        printf ("  SDRAM Thermal and Refresh Options:\n");
+        printf ("    Partial Array Self Refresh (PASR) : %s\n",
+                ddr3_spd_extract_field (thermal_and_refresh_mask, 1, 7) ? "Supported" : "Not Supported");
+        printf ("    On-die Thermal Sensor (ODTS) Readout : %s\n",
+                ddr3_spd_extract_field (thermal_and_refresh_mask, 1, 3) ?
+                        "On-die thermal sensor readout is supported" : "On-die thermal sensor readout is not supported");
+        printf ("    Auto Self Refresh (ASR) : %s\n",
+                ddr3_spd_extract_field (thermal_and_refresh_mask, 1, 2) ?
+                        "ASR is supported and the SDRAM will determine the proper refresh rate for any supported temperature" :
+                        "ASR is not supported");
+        printf ("    Extended Temperature Refresh Rate : %s\n",
+                ddr3_spd_extract_field (thermal_and_refresh_mask, 1, 1) ?
+                        "Extended operating temperature range from 85-95 C supported with standard 1X refresh rate" :
+                        "Use in extended operating temperature range from 85-95 C requires 2X refresh rate");
+        printf ("    Extended Temperature Range : %s\n",
+                ddr3_spd_extract_field (thermal_and_refresh_mask, 1, 0) ?
+                        "Normal and extended operating temperature range 0-95 C supported" :
+                        "Normal operating temperature range 0-85 C supported");
+
+        /* Display supported thermal options */
+        const uint8_t thermal_options = ddr3_spd[32];
+        printf ("  Thermal Sensor : %s\n", ddr3_spd_extract_field (thermal_options, 1, 7) ?
+                "Thermal sensor incorporated onto this assembly" : "Thermal sensor not incorporated onto this assembly");
+
+        /* Display SDRAM Device Type */
+        const uint8_t device_type_byte = ddr3_spd[33];
+        const uint32_t device_type_field = ddr3_spd_extract_field (device_type_byte, 1, 7);
+        const uint32_t die_count_field = ddr3_spd_extract_field (device_type_byte, 3, 6);
+        const uint32_t signal_loading_field = ddr3_spd_extract_field (device_type_byte, 2, 0);
+        const char *die_count = NULL;
+        const char *signal_loading = NULL;
+        switch (die_count_field)
+        {
+        case 0 : die_count = "Not Specified"; break;
+        case 1 : die_count = "Single die"; break;
+        case 2 : die_count = "2 die"; break;
+        case 3 : die_count = "4 die"; break;
+        case 4 : die_count = "8 die"; break;
+        default: decode_valid = false; break;
+        }
+
+        switch (signal_loading_field)
+        {
+        case 0: signal_loading = "Not specified"; break;
+        case 1: signal_loading = "Multi load stack"; break;
+        case 2: signal_loading = "Single load stack"; break;
+        default: decode_valid = false; break;
+        }
+
+        if (!decode_valid)
+        {
+            printf ("  Unable to decode device_type_byte=0x%x\n", device_type_byte);
+            return;
+        }
+
+        printf ("  SDRAM Device Type : %s\n", device_type_field ? "Non-Standard Device" : "Standard Monolithic DRAM Device");
+        printf ("  Die Count : %s\n", die_count);
+        printf ("  Signal Loading : %s\n", signal_loading);
+
+        /* Display SDRAM Maximum Active Count (MAC) Value.
+         * tMAW is described as multiples of tREFI, but the value of tREFI isn't defined in the SPD information.
+         * Need to find the datasheet for the underlying DDR3 device to get the value of tREFI. */
+        const uint8_t mac_byte = ddr3_spd[41];
+        const uint32_t vendor_specific_field = ddr3_spd_extract_field (mac_byte, 2, 6);
+        const uint32_t tMAW_field = ddr3_spd_extract_field (mac_byte, 2, 4);
+        const uint32_t MAC_field = ddr3_spd_extract_field (mac_byte, 4, 0);
+        const char *tMAW = NULL;
+        const char *MAC = NULL;
+
+        switch (tMAW_field)
+        {
+        case 0: tMAW = "8192 * tREFI"; break;
+        case 1: tMAW = "4096 * tREFI"; break;
+        case 2: tMAW = "2048 * tREFI"; break;
+        default: decode_valid = false; break;
+        }
+
+        switch (MAC_field)
+        {
+        case 0: MAC = "Untested MAC"; break;
+        case 1: MAC = "700 K"; break;
+        case 2: MAC = "600 K"; break;
+        case 3: MAC = "500 K"; break;
+        case 4: MAC = "400 K"; break;
+        case 5: MAC = "300 K"; break;
+        case 6: MAC = "200 K"; break;
+        case 8: MAC = "Unrestricted MAC"; break;
+        default: decode_valid = false; break;
+        }
+
+        if (!decode_valid)
+        {
+            printf ("  Unable to decode mac_byte=0x%x\n", mac_byte);
+            return;
+        }
+
+        printf ("  Maximum Activate : Vendor Specific=%u  Maximum Activate Window (tMAW)=%s  Maximum Activate Count (MAC)=%s\n",
+                vendor_specific_field, tMAW, MAC);
     }
     else
     {

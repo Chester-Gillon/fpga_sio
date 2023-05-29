@@ -219,7 +219,7 @@ Number of responses for each I2C address:
 == i2c_dump_info results ==
 
 $ i2c_probe/i2c_dump_info 
-Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 25
 Using BAR 0 in device 0000:15:00.0 of size 0x2000
 
 TEF1001 CPLD fan information:
@@ -232,10 +232,27 @@ DDR temperature sensor information:
   Temperature high limit register = 0x0000 (0.0 C)
   Temperature low limit register = 0x0000 (0.0 C)
   Temperature critical limit register = 0x0000 (0.0 C)
-  Ambient temperature register = 0xc1a4 above TCRIT above HIGH (26.2 C)
+  Ambient temperature register = 0xc190 above TCRIT above HIGH (25.0 C)
   Sensor manufacturer ID register = 0x104a (STMicroelectronics)
 
 DDR3 SPD decode:
+  RAW bytes:
+      0- 15: 92 13 0b 08 04 21 02 09 0b 11 01 08 0a 00 fe 00
+     16- 31: 69 78 69 30 69 11 18 81 20 08 3c 3c 00 f0 83 05
+     32- 47: 80 00 00 00 00 00 00 00 00 88 00 00 00 00 00 00
+     48- 63: 00 00 00 00 00 00 00 00 00 00 00 00 0f 11 23 00
+     64- 79: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+     80- 95: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+     96-111: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    112-127: 00 00 00 00 00 80 2c 0f 16 17 12 6a fb a9 bd a1
+    128-143: 31 38 4b 53 46 31 47 37 32 48 5a 2d 31 47 36 50
+    144-159: 31 20 50 31 80 2c 44 50 41 47 39 46 41 30 30 31
+    160-175: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    176-191: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+    192-207: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+    208-223: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+    224-239: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+    240-255: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
   CRC coverage bytes=117  SPD bytes total=256  SPD bytes used=176
   Actual CRC=0xa1bd  Expected CRC=0xa1bd : CRC PASS
   SPD revision 1.3
@@ -248,6 +265,33 @@ DDR3 SPD decode:
   Module capacity (MiB)=8192
   Module Part Number "18KSF1G72HZ-1G6P1 "
   72b-SO-UDIMM Rank 1 Mapping : standard
+  Supported CAS latencies: 5 6 7 8 9 10 11
+  Fine Timebase Dividend=1 Divisor=1 FTB=0.001 ns
+  Medium Timebase Dividend=1 Divisor=8 MTB=0.125 ns
+  SDRAM Minimum Cycle Time (tCKmin)=1.250 ns
+  Minimum CAS Latency Time (tAAmin)=13.125 ns
+  Minimum Write Recovery Time (tWRmin)=15.000 ns
+  Minimum RAS# to CAS# Delay Time (tRCDmin)=13.125 ns
+  Minimum Row Active to Row Active Delay Time (tRRDmin)=6.000 ns
+  Minimum Row Precharge Delay Time (tRPmin)=13.125 ns
+  Minimum Active to Precharge Delay Time (tRASmin)=35.000 ns
+  Minimum Active to Active/Refresh Delay Time (tRCmin)=48.125 ns
+  Minimum Refresh Recovery Delay Time (tRFCmin)=260.000 ns
+  Minimum Internal Write to Read Command Delay Time (tWTRmin)=7.500 ns
+  Minimum Internal Read to Precharge Command Delay Time (tRTPmin)=7.500 ns
+  Minimum Four Activate Window Delay Time (tFAWmin)=30.000 ns
+  SDRAM Optional Features : DLL-Off Mode Support Supported  RZQ/7 Supported  RZQ/6 Supported
+  SDRAM Thermal and Refresh Options:
+    Partial Array Self Refresh (PASR) : Not Supported
+    On-die Thermal Sensor (ODTS) Readout : On-die thermal sensor readout is not supported
+    Auto Self Refresh (ASR) : ASR is supported and the SDRAM will determine the proper refresh rate for any supported temperature
+    Extended Temperature Refresh Rate : Use in extended operating temperature range from 85-95 C requires 2X refresh rate
+    Extended Temperature Range : Normal and extended operating temperature range 0-95 C supported
+  Thermal Sensor : Thermal sensor incorporated onto this assembly
+  SDRAM Device Type : Standard Monolithic DRAM Device
+  Die Count : Not Specified
+  Signal Loading : Not specified
+  Maximum Activate : Vendor Specific=2  Maximum Activate Window (tMAW)=8192 * tREFI  Maximum Activate Count (MAC)=Unrestricted MAC
 
 LTM4676A at I2C address 0x40
   PMBus capability=0xb0 : PEC supported  Max bus speed=400 kHz  SMBALERT# supported
@@ -256,19 +300,19 @@ LTM4676A at I2C address 0x40
   WRITE_PROTECT=0x00 : Enable writes to all commands
   MFR_COMMON=0xfc : WP pin INACTIVE
   Measured input supply (SVin) voltage                                                  :  12.125 V
-  Calculated input supply current                                                       :   0.303 A
-  Control IC die temperature                                                            :  62.875 C
-  Maximum measured value of READ_VIN since last MFR_CLEAR_PEAKS                         :  12.156 V
-  Maximum measured value of control IC die temperature since last MFR_CLEAR_PEAKS       :  63.312 C
+  Calculated input supply current                                                       :   0.305 A
+  Control IC die temperature                                                            :  61.750 C
+  Maximum measured value of READ_VIN since last MFR_CLEAR_PEAKS                         :  12.141 V
+  Maximum measured value of control IC die temperature since last MFR_CLEAR_PEAKS       :  62.188 C
   Measured output voltage                                                         page 0:   1.500 V
   Calculated input current per channel                                            page 0:   0.174 A
-  Measured output current                                                         page 0:   1.105 A
-  Power stage temperature sensor                                                  page 0:  45.125 C
+  Measured output current                                                         page 0:   1.104 A
+  Power stage temperature sensor                                                  page 0:  44.062 C
   Duty cycle of the top gate control signal                                       page 0:  13.000 %
   Calculated output power                                                         page 0:   1.656 W
   Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 0:   1.501 V
-  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 0:  45.562 C
-  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 0:   1.119 A
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 0:  44.500 C
+  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 0:   1.117 A
   Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 0:   1.613 V
   Output overvoltage fault limit                                                  page 0:   1.650 V
   Output overvoltage warning limit                                                page 0:   1.613 V
@@ -284,14 +328,14 @@ LTM4676A at I2C address 0x40
   Power stage overtemperature warning limit                                       page 0: 125.000 C
   Power stage undertemperature fault limit                                        page 0: -45.000 C
   Measured output voltage                                                         page 1:   4.000 V
-  Calculated input current per channel                                            page 1:   0.129 A
-  Measured output current                                                         page 1:   0.298 A
-  Power stage temperature sensor                                                  page 1:  46.750 C
+  Calculated input current per channel                                            page 1:   0.131 A
+  Measured output current                                                         page 1:   0.305 A
+  Power stage temperature sensor                                                  page 1:  45.500 C
   Duty cycle of the top gate control signal                                       page 1:  33.250 %
-  Calculated output power                                                         page 1:   1.191 W
+  Calculated output power                                                         page 1:   1.219 W
   Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 1:   4.001 V
-  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 1:  47.062 C
-  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 1:   0.335 A
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 1:  45.875 C
+  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 1:   0.338 A
   Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 1:   4.300 V
   Output overvoltage fault limit                                                  page 1:   4.400 V
   Output overvoltage warning limit                                                page 1:   4.300 V
@@ -315,17 +359,17 @@ LTM4676A at I2C address 0x4f
   MFR_COMMON=0xfc : WP pin INACTIVE
   Measured input supply (SVin) voltage                                                  :  12.156 V
   Calculated input supply current                                                       :   0.089 A
-  Control IC die temperature                                                            :  56.250 C
+  Control IC die temperature                                                            :  55.125 C
   Maximum measured value of READ_VIN since last MFR_CLEAR_PEAKS                         :  12.188 V
-  Maximum measured value of control IC die temperature since last MFR_CLEAR_PEAKS       :  56.688 C
+  Maximum measured value of control IC die temperature since last MFR_CLEAR_PEAKS       :  55.562 C
   Measured output voltage                                                         page 0:   1.001 V
-  Calculated input current per channel                                            page 0:   0.053 A
-  Measured output current                                                         page 0:   0.275 A
-  Power stage temperature sensor                                                  page 0:  42.812 C
+  Calculated input current per channel                                            page 0:   0.052 A
+  Measured output current                                                         page 0:   0.267 A
+  Power stage temperature sensor                                                  page 0:  41.750 C
   Duty cycle of the top gate control signal                                       page 0:   8.578 %
-  Calculated output power                                                         page 0:   0.275 W
+  Calculated output power                                                         page 0:   0.267 W
   Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 0:   1.001 V
-  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 0:  43.250 C
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 0:  42.188 C
   Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 0:   0.998 A
   Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 0:   1.076 V
   Output overvoltage fault limit                                                  page 0:   1.101 V
@@ -342,14 +386,14 @@ LTM4676A at I2C address 0x4f
   Power stage overtemperature warning limit                                       page 0: 125.000 C
   Power stage undertemperature fault limit                                        page 0: -45.000 C
   Measured output voltage                                                         page 1:   1.001 V
-  Calculated input current per channel                                            page 1:   0.036 A
-  Measured output current                                                         page 1:   0.068 A
-  Power stage temperature sensor                                                  page 1:  44.062 C
-  Duty cycle of the top gate control signal                                       page 1:   8.531 %
-  Calculated output power                                                         page 1:   0.068 W
-  Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 1:   1.002 V
-  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 1:  44.250 C
-  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 1:   0.882 A
+  Calculated input current per channel                                            page 1:   0.037 A
+  Measured output current                                                         page 1:   0.078 A
+  Power stage temperature sensor                                                  page 1:  43.000 C
+  Duty cycle of the top gate control signal                                       page 1:   8.547 %
+  Calculated output power                                                         page 1:   0.078 W
+  Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 1:   1.001 V
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 1:  43.125 C
+  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 1:   0.879 A
   Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 1:   1.076 V
   Output overvoltage fault limit                                                  page 1:   1.101 V
   Output overvoltage warning limit                                                page 1:   1.076 V
@@ -395,7 +439,19 @@ e. Did try and modify the CPLD FAN registers but although the FAN control regist
 f. https://www.micron.com/products/dram-modules/sodimm/part-catalog/mt18ksf1g72hz-1g6/mt18ksf1g72hz-1g6p1/
    is the SPD for the DDR3 module part number. The DDR3 module was Crucial branded, but the actual module is from Micron.
 
+   The datasheet for the SODIMM is:
+     https://media-www.micron.com/-/media/client/global/documents/products/data-sheet/modules/sodimm/ksf18c256_512_1gx72hz.pdf?rev=46354f659a7f4f69af156d4bd634b8db
+
+   The SODIMM datasheet gives the base device as MT41K512M8, for which the datasheet is:
+     https://media-www.micron.com/-/media/client/global/documents/products/data-sheet/dram/ddr3/4gb_automotive_ddr3l.pdf?rev=e1dd3785b7794227a06d1e13ec024e5e
+
    The calculated module capacity is the 8GiB expected, and ECC is also reported.
+
+   Correlating the tRCD / tRP / tRC timing parameters reported by the SPD decode against the "examples" use in the JEDEC spec
+   the SODIMM speed grade is "DDR3-1600K downbin".
+
+   The SODIMM speed grade is "1G6" which the "Key Timing Parameters" table in the SODIMM datasheet supports a datarate of
+   1600 MT/s at CL=11 and with the tRCD / tRP / tRC reported by the SPD decode.
 g. The PMBus capability, revision, MFR_ID and MFR_MODEL reported for the LTM4676A match the expected values from the datasheet.
 h. The WRITE_PROTECT isn't enabled at power-up, so consider enabling WRITE_PROTECT by modifying the NVRAM to avoid
    unintended Changes via I2C.
