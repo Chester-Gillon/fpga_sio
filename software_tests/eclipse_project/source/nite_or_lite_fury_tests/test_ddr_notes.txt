@@ -442,3 +442,153 @@ $ ~/Downloads/kernel-chktaint
 Kernel not Tainted
 
 Comparing the DMA transfer rate with and without the IOMMU enabled shows no difference.
+
+
+7. Trying different FPGA images for NiteFury
+============================================
+
+For these tests the IOMMU and secure boot were enabled.
+
+7.1. Test with FPGA booting from flash as delivered
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_ddr 
+Opening device 0000:2f:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2f:00.0
+    control: I/O- Mem+ BusMaster+
+Testing NiteFury board version 0x2 with DDR size 0x40000000 for PCI device 0000:2f:00.0 IOMMU group 86
+Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Size of DMA descriptors used for c2h: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+host-to-card DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1325.808695 (Mbytes/sec)
+  Mean = 1325.821472 (Mbytes/sec)
+   Max = 1325.825231 (Mbytes/sec)
+card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1130.589983 (Mbytes/sec)
+  Mean = 1130.629860 (Mbytes/sec)
+   Max = 1130.652823 (Mbytes/sec)
+[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_general 
+Opening device 0000:2f:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2f:00.0
+Found NiteFury board version 0x2 for PCI device 0000:2f:00.0 IOMMU group 86
+Temp C=41.7
+VCCInt=1.03
+vccaux=1.78
+vbram=1.03
+
+
+7.2. Test FPGA programmed from JTAG on a re-build
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Just built https://github.com/RHSResearchLLC/NiteFury-and-LiteFury unsing Vivado 2022.1 under Windows 10.
+Then programmed the FPGA over JTAG from the locally built bitstream, and rebooted the PC to cause to re-enumerate.
+
+The tests still passed:
+[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_ddr
+Opening device 0000:2f:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2f:00.0
+    control: I/O- Mem+ BusMaster+
+Testing NiteFury board version 0x2 with DDR size 0x40000000 for PCI device 0000:2f:00.0 IOMMU group 86
+Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Size of DMA descriptors used for c2h: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+host-to-card DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1325.817668 (Mbytes/sec)
+  Mean = 1325.820795 (Mbytes/sec)
+   Max = 1325.824082 (Mbytes/sec)
+card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1130.502040 (Mbytes/sec)
+  Mean = 1130.526018 (Mbytes/sec)
+   Max = 1130.540038 (Mbytes/sec)
+[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_general
+Opening device 0000:2f:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2f:00.0
+Found NiteFury board version 0x2 for PCI device 0000:2f:00.0 IOMMU group 86
+Temp C=42.3
+VCCInt=1.03
+vccaux=1.78
+vbram=1.03
+
+
+7.3. FPGA reprogrammed with incorrect constraint processing causing PCIe to enumerate as only one lane
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+As part of moving the FPGA build to use a TCL project creation script, had changed how the constraint files are used,
+but had the side effect that the "early" property wasn't set on the early.xdc.
+
+That had the effect of changing the order of PCIe pins used such that the PCIe only enumerated using 1 lane, rather than 4:
+$ sudo lspci -nn -vvv -d 10ee:7011 | grep Width
+        LnkCap: Port #0, Speed 5GT/s, Width x4, ASPM L0s, Exit Latency L0s unlimited
+        LnkSta: Speed 5GT/s (ok), Width x1 (downgraded)
+
+Which resulted in test_ddr reporting a lower transfer speed, approx 0.34 of that with a 4 lane width:
+[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_ddr 
+Opening device 0000:2f:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2f:00.0
+    control: I/O- Mem+ BusMaster+
+Testing NiteFury board version 0x2 with DDR size 0x40000000 for PCI device 0000:2f:00.0 IOMMU group 86
+Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Size of DMA descriptors used for c2h: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+host-to-card DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 449.573667 (Mbytes/sec)
+  Mean = 449.656065 (Mbytes/sec)
+   Max = 449.721081 (Mbytes/sec)
+card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 450.774878 (Mbytes/sec)
+  Mean = 450.775340 (Mbytes/sec)
+   Max = 450.775652 (Mbytes/sec)
+[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_general 
+Opening device 0000:2f:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2f:00.0
+Found NiteFury board version 0x2 for PCI device 0000:2f:00.0 IOMMU group 86
+Temp C=44.0
+VCCInt=1.03
+vccaux=1.78
+vbram=1.03

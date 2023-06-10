@@ -421,8 +421,10 @@ c. The TCRIT and HIGH flags are set in the ambient temperature register, but tha
    temperature critical limit and temperature high limit registers being  being zero.
 d. The documentation for the v3 CPLD FAN control register says bit 7 is the fan enable bit, which the above code uses
    to report if the fan is enabled.
-   However, the v2 CPLD source code show FAN control register bit 0 is the fan enable bit. Based on that, the fan PWM is
-   actually disabled - which might cause the fan to then run at a default speed.
+   However, the v3 CPLD source code show FAN control register bit 0 is the fan enable bit:
+     F1PWM          <= fan1_pwm_out and fan_ctrl(0);
+
+   Since the FAN control registers reads as 0xff then the fan is enabled
 
    The default fan PWM speed is documented as 80%. 
 

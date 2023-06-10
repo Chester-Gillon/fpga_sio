@@ -27,8 +27,7 @@
  *          to perform the read.
  *
  *          The TEF1001 board used for the test is a revision 2 board which uses a revision 3 CPLD.
- *          The revision 3 CPLD source code isn't available, but the revision 2 CPLD source code is.
- *          Looking the revision 2 CPLD source code in the i2c_ram.vhd source file the ST_DATA_IN state only
+ *          Looking the revision 3 CPLD source code in the i2c_ram.vhd source file the ST_DATA_IN state only
  *          supports looking for i2c_stop, i.e. doesn't support a repeated START after a write of the register address.
  * @param[in/out] controller The controller for the GPIO bit-banged interface
  */
