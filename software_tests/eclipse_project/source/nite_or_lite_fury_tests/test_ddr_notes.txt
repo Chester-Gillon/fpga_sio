@@ -592,3 +592,106 @@ Temp C=44.0
 VCCInt=1.03
 vccaux=1.78
 vbram=1.03
+
+
+7.4. FPGA reprogrammed from JTAG following use of project creation script under Windows 10
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The FPGA was built using the create_project.tcl script added in
+https://github.com/Chester-Gillon/NiteFury-and-LiteFury/commit/348fdf999c453ccf485513ab7ee2b9a05043feac
+using Vivado 2022.1 under Windows 10.
+
+[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_ddr 
+Opening device 0000:2f:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2f:00.0
+    control: I/O- Mem+ BusMaster+
+Testing NiteFury board version 0x2 with DDR size 0x40000000 for PCI device 0000:2f:00.0 IOMMU group 86
+Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Size of DMA descriptors used for c2h: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+host-to-card DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1325.808155 (Mbytes/sec)
+  Mean = 1325.820799 (Mbytes/sec)
+   Max = 1325.823659 (Mbytes/sec)
+card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1130.516961 (Mbytes/sec)
+  Mean = 1130.530155 (Mbytes/sec)
+   Max = 1130.540228 (Mbytes/sec)
+[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_general 
+Opening device 0000:2f:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2f:00.0
+Found NiteFury board version 0x2 for PCI device 0000:2f:00.0 IOMMU group 86
+Temp C=45.8
+VCCInt=1.03
+vccaux=1.78
+vbram=1.03
+
+
+7.5. FPGA reprogrammed from JTAG following use of project creation script under Ubuntu 18.04
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The FPGA was built using the commit in
+https://github.com/Chester-Gillon/NiteFury-and-LiteFury/commit/ed20c02827ab61115a7aac8f42805a5329da417a
+using Vivado 2022.1 under Ubuntu 18.04. Which was a work-around to allow the correct PCIe pin placement when
+building under Linux.
+
+The results show the FPGA has enumerated at the expected speed and width, and the test_ddr throughput matches
+those from when Windows was used for the build:
+$ sudo lspci -nn -vvv -d 10ee:7011 | grep Width
+        LnkCap: Port #0, Speed 5GT/s, Width x4, ASPM L0s, Exit Latency L0s unlimited
+        LnkSta: Speed 5GT/s (ok), Width x4 (ok)
+
+[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_ddr 
+Opening device 0000:2f:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2f:00.0
+    control: I/O- Mem+ BusMaster+
+Testing NiteFury board version 0x2 with DDR size 0x40000000 for PCI device 0000:2f:00.0 IOMMU group 86
+Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Size of DMA descriptors used for c2h: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+Test pattern pass
+host-to-card DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1325.821016 (Mbytes/sec)
+  Mean = 1325.823761 (Mbytes/sec)
+   Max = 1325.824758 (Mbytes/sec)
+card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1130.584007 (Mbytes/sec)
+  Mean = 1130.599049 (Mbytes/sec)
+   Max = 1130.626712 (Mbytes/sec)
+[mr_halfword@skylake-alma release]$ nite_or_lite_fury_tests/test_general 
+Opening device 0000:2f:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2f:00.0
+Found NiteFury board version 0x2 for PCI device 0000:2f:00.0 IOMMU group 86
+Temp C=46.9
+VCCInt=1.03
+vccaux=1.78
+vbram=1.03

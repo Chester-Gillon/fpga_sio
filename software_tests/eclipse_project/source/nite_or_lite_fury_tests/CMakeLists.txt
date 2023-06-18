@@ -19,4 +19,7 @@ if (${HAVE_PCI_FILL_IOMMU_GROUP})
 
     add_executable (time_dma_blkram "time_dma_blkram.c")
     target_link_libraries (time_dma_blkram transfer_timing xilinx_dma_bridge_transfers vfio_access pci rt)
+
+    add_executable (flash_m2_led "flash_m2_led.c")
+    target_link_libraries (flash_m2_led fury_utils vfio_access pci rt)
 endif()
