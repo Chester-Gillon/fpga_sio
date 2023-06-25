@@ -7,6 +7,7 @@
 
 #include "fury_utils.h"
 #include "fpga_sio_pci_ids.h"
+#include "xilinx_xadc.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -96,13 +97,14 @@ fury_type_t identify_fury (vfio_device_t *const vfio_device, uint32_t *const boa
  *          which is:
  *          - Written in C rather than Python.
  *          - Uses the vfio_access library to use memory mapped BARs in a user space application, rather a Kernel driver.
+ *          - Extended to display more information.
  * @param[in/out] vfio_devices The VFIO devices to check for Fury devices
  */
 void display_fury_xadc_values (vfio_devices_t *const vfio_devices)
 {
     uint32_t board_version;
     fury_type_t fury_type;
-    uint32_t xadc_register_value;
+    xadc_sample_collection_t xadc_collection;
 
     for (uint32_t device_index = 0; device_index < vfio_devices->num_devices; device_index++)
     {
@@ -111,27 +113,13 @@ void display_fury_xadc_values (vfio_devices_t *const vfio_devices)
         fury_type = identify_fury (vfio_device, &board_version);
         if (fury_type != DEVICE_OTHER)
         {
+            uint8_t *const xadc_regs = &vfio_device->mapped_bars[FURY_AXI_PERIPHERALS_BAR][0x3000];
+
             printf ("Found %s board version 0x%x for PCI device %s IOMMU group %s\n",
                     fury_names[fury_type], board_version, vfio_device->device_name, vfio_device->iommu_group);
 
-            /* Read and convert XADC register values.
-             * The scaling is defined in
-             * https://www.xilinx.com/content/dam/xilinx/support/documents/user_guides/ug480_7Series_XADC.pdf
-             *
-             * The reported values were sanity checked against that shown by the XADC System Monitor values
-             * reported over JTAG by the Vivado Hardware Manager. */
-            map_vfio_device_bar_before_use (vfio_device, FURY_AXI_PERIPHERALS_BAR);
-            xadc_register_value = read_reg32 (vfio_device->mapped_bars[FURY_AXI_PERIPHERALS_BAR], 0x3200);
-            printf ("Temp C=%.1f\n", ((double) (xadc_register_value >> 4) * 503.975 / 4096.0) - 273.15);
-
-            xadc_register_value = read_reg32 (vfio_device->mapped_bars[FURY_AXI_PERIPHERALS_BAR], 0x3204);
-            printf ("VCCInt=%.2f\n", (double) (xadc_register_value >> 4) * 3.0 / 4096.0);
-
-            xadc_register_value = read_reg32 (vfio_device->mapped_bars[FURY_AXI_PERIPHERALS_BAR], 0x3208);
-            printf ("vccaux=%.2f\n", (double) (xadc_register_value >> 4) * 3.0 / 4096.0);
-
-            xadc_register_value = read_reg32 (vfio_device->mapped_bars[FURY_AXI_PERIPHERALS_BAR], 0x3218);
-            printf ("vbram=%.2f\n", (double) (xadc_register_value >> 4) * 3.0 / 4096.0);
+            read_xadc_samples (&xadc_collection, xadc_regs);
+            display_xadc_samples (&xadc_collection);
         }
     }
 }

@@ -1,0 +1,37 @@
+== XADC reading with factory programmed NiteFury-II FPGA image ==
+
+The following was after the PC had been on for ~12 hours, with the FPGA running the factory programmed FPFA image:
+[mr_halfword@skylake-alma coverage]$ nite_or_lite_fury_tests/test_general 
+Opening device 0000:2f:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2f:00.0
+Found NiteFury board version 0x2 for PCI device 0000:2f:00.0 IOMMU group 86
+XADC samples using Single channel mode (sequencer off)
+Current enabled channels in sequencer: Temp   
+ADC A calibration: unipolar offset=-7 (lsbs)  bipolar offset=-7 (lsbs)  gain correction factor=6.3 (%)
+ADC B calibration: unipolar offset=-11 (lsbs)  bipolar offset=-11 (lsbs)  gain correction factor=6.3 (%)
+  Channel  Measurement    Min          Max
+  Temp       47.371C     46.141C      49.217C
+  Vccint      1.030V           
+  Vccaux      1.784V           
+  Vbram       1.029V           
+
+
+== XADC reading with a new FPGA image attempting to read TMON_CORE on Vaux14 input ==
+
+[mr_halfword@skylake-alma coverage]$ nite_or_lite_fury_tests/test_general 
+Opening device 0000:2f:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2f:00.0
+Found NiteFury board version 0x4 for PCI device 0000:2f:00.0 IOMMU group 86
+XADC samples using Continuous sequence mode
+Current enabled channels in sequencer: Temp    Vccint  Vccaux  VrefP   VrefN   Vbram   Cal     Vaux14 
+ADC A calibration: unipolar offset=-7 (lsbs)  bipolar offset=-8 (lsbs)  gain correction factor=6.3 (%)
+ADC B calibration: unipolar offset=-11 (lsbs)  bipolar offset=-12 (lsbs)  gain correction factor=6.3 (%)
+  Channel  Measurement    Min          Max
+  Temp       47.986C     47.617C      48.356C
+  Vccint      1.028V      1.026V       1.028V
+  Vccaux      1.763V      1.761V       1.764V
+  VrefP       1.246V           
+  VrefN       0.001V           
+  Vbram       1.028V      1.027V       1.029V
+  Cal         0.000V           
+  Vaux14      0.045V           
