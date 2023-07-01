@@ -167,7 +167,7 @@ static void scale_xadc_sample (const xadc_sample_collection_t *const collection,
 
             const int32_t signed_raw_value = (int32_t) sign_extended_raw_value;
 
-            sample->scaled_value = (double) signed_raw_value * 0.5;
+            sample->scaled_value = (double) signed_raw_value * 1.0 / 4096.0;
         }
         else
         {
@@ -268,6 +268,9 @@ void read_xadc_samples (xadc_sample_collection_t *const collection, uint8_t *con
     /* Default to channels being unipolar */
     memset (collection->bipolar_channels, false, sizeof (collection->bipolar_channels));
 
+    /* Default to standard acquisition time */
+    memset (collection->channel_increased_acquisition_times, false, sizeof (collection->channel_increased_acquisition_times));
+
     /* Read the raw ADC calibration register values.
      * These are not used by the function, but are saved as diagnostics. */
     collection->raw_adc_a_supply_offset = read_reg32 (xadc_regs, XADC_SUPPLY_A_OFFSET_OFFSET);
@@ -316,14 +319,17 @@ void read_xadc_samples (xadc_sample_collection_t *const collection, uint8_t *con
 
         collection->enabled_channels[single_channel] = true;
         collection->bipolar_channels[single_channel] = (collection->configuration_register_0 & (1 << 10)) != 0;
+        collection->channel_increased_acquisition_times[single_channel] = (collection->configuration_register_0 & (1 << 8)) != 0;
     }
     else
     {
-        /* Determine which channels are enabled in the sequencer, and which are in bipolar mode */
+        /* Determine which channels are enabled in the sequencer, are in bipolar mode and have increased acquisition time */
         unpack_xadc_channel_bitmask (collection->enabled_channels, xadc_regs,
                 XADC_CHANNEL_SELECTION_LOWER_OFFSET, XADC_CHANNEL_SELECTION_UPPER_OFFSET);
         unpack_xadc_channel_bitmask (collection->bipolar_channels, xadc_regs,
                 XADC_CHANNEL_ANALOG_INPUT_MODE_LOWER_OFFSET, XADC_CHANNEL_ANALOG_INPUT_MODE_UPPER_OFFSET);
+        unpack_xadc_channel_bitmask (collection->channel_increased_acquisition_times, xadc_regs,
+                XADC_CHANNEL_ACQUISITION_TIME_LOWER_OFFSET, XADC_CHANNEL_ACQUISITION_TIME_UPPER_OFFSET);
     }
 
     /* Obtain values for the enabled ADC channels */
@@ -419,6 +425,10 @@ void display_xadc_samples (const xadc_sample_collection_t *const collection)
             {
                 printf (" (bipolar)");
             }
+            if (collection->channel_increased_acquisition_times[channel])
+            {
+                printf (" (acq time)");
+            }
         }
     }
     printf ("\n");
@@ -435,7 +445,7 @@ void display_xadc_samples (const xadc_sample_collection_t *const collection)
 
     /* Display all channels which have a defined sample. May include on-chip sensors which have an initial sample,
      * but not not in the current sequencer. */
-    printf ("  Channel  Measurement    Min          Max\n");
+    printf ("  Channel  Measurement     Min           Max\n");
     for (xadc_channels_t channel = 0; channel < XADC_CHANNEL_ARRAY_SIZE; channel++)
     {
         const char *const display_units = (channel == XADC_CHANNEL_TEMPERATURE) ? "C" : "V";
@@ -443,11 +453,11 @@ void display_xadc_samples (const xadc_sample_collection_t *const collection)
 
         if (sample->measurement.defined)
         {
-            printf ("  %s     %6.3f%s", xadc_channel_names[channel], sample->measurement.scaled_value, display_units);
+            printf ("  %s     %7.4f%s", xadc_channel_names[channel], sample->measurement.scaled_value, display_units);
 
             if (sample->min.defined)
             {
-                printf ("     %6.3f%s", sample->min.scaled_value, display_units);
+                printf ("     %7.4f%s", sample->min.scaled_value, display_units);
             }
             else
             {
@@ -456,7 +466,7 @@ void display_xadc_samples (const xadc_sample_collection_t *const collection)
 
             if (sample->max.defined)
             {
-                printf ("      %6.3f%s", sample->max.scaled_value, display_units);
+                printf ("      %7.4f%s", sample->max.scaled_value, display_units);
             }
             printf ("\n");
         }

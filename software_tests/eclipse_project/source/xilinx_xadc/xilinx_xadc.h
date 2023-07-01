@@ -117,6 +117,8 @@ typedef struct
     bool enabled_channels[XADC_CHANNEL_ARRAY_SIZE];
     /* Defines which XADC channels take bipolar measurements */
     bool bipolar_channels[XADC_CHANNEL_ARRAY_SIZE];
+    /* Defines which XADC channels have longer acquisition time */
+    bool channel_increased_acquisition_times[XADC_CHANNEL_ARRAY_SIZE];
 } xadc_sample_collection_t;
 
 

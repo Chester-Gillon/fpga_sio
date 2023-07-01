@@ -15,6 +15,17 @@ ADC B calibration: unipolar offset=-11 (lsbs)  bipolar offset=-11 (lsbs)  gain c
   Vccaux      1.784V           
   Vbram       1.029V           
 
+The XADC configuration from the create_project.tcl file:
+  # Create instance: xadc_wiz_0, and set properties
+  set xadc_wiz_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xadc_wiz:3.3 xadc_wiz_0 ]
+  set_property -dict [ list \
+   CONFIG.ADC_CONVERSION_RATE {1000} \
+   CONFIG.DCLK_FREQUENCY {125} \
+   CONFIG.ENABLE_RESET {false} \
+   CONFIG.ENABLE_TEMP_BUS {true} \
+   CONFIG.INTERFACE_SELECTION {Enable_AXI} \
+ ] $xadc_wiz_0
+
 
 == XADC reading with a new FPGA image attempting to read TMON_CORE on Vaux14 input ==
 
@@ -35,3 +46,112 @@ ADC B calibration: unipolar offset=-11 (lsbs)  bipolar offset=-12 (lsbs)  gain c
   Vbram       1.028V      1.027V       1.029V
   Cal         0.000V           
   Vaux14      0.045V           
+
+A further run which captured different values on VrefP and VrefN:
+[mr_halfword@skylake-alma coverage]$ nite_or_lite_fury_tests/test_general 
+Opening device 0000:2f:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2f:00.0
+Found NiteFury board version 0x4 for PCI device 0000:2f:00.0 IOMMU group 86
+XADC samples using Continuous sequence mode
+Current enabled channels in sequencer: Temp    Vccint  Vccaux  VrefP   VrefN   Vbram   Cal     Vaux14 
+ADC A calibration: unipolar offset=-7 (lsbs)  bipolar offset=-8 (lsbs)  gain correction factor=6.3 (%)
+ADC B calibration: unipolar offset=-11 (lsbs)  bipolar offset=-11 (lsbs)  gain correction factor=6.3 (%)
+  Channel  Measurement    Min          Max
+  Temp       47.986C     47.371C      48.232C
+  Vccint      1.028V      1.027V       1.028V
+  Vccaux      1.763V      1.761V       1.764V
+  VrefP       1.244V           
+  VrefN       2.999V           
+  Vbram       1.028V      1.027V       1.029V
+  Cal         0.000V           
+  Vaux14      0.045V           
+
+The XADC configuration from the create_project.tcl file:
+# Create instance: xadc_wiz_0, and set properties
+  set xadc_wiz_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xadc_wiz:3.3 xadc_wiz_0 ]
+  set_property -dict [ list \
+   CONFIG.ACQUISITION_TIME_VAUXP14_VAUXN14 {true} \
+   CONFIG.ACQUISITION_TIME_VP_VN {false} \
+   CONFIG.ADC_CONVERSION_RATE {1000} \
+   CONFIG.ADC_OFFSET_AND_GAIN_CALIBRATION {true} \
+   CONFIG.AVERAGE_ENABLE_TEMPERATURE {true} \
+   CONFIG.AVERAGE_ENABLE_VAUXP14_VAUXN14 {true} \
+   CONFIG.AVERAGE_ENABLE_VBRAM {true} \
+   CONFIG.AVERAGE_ENABLE_VCCAUX {true} \
+   CONFIG.AVERAGE_ENABLE_VCCINT {true} \
+   CONFIG.CHANNEL_AVERAGING {16} \
+   CONFIG.CHANNEL_ENABLE_CALIBRATION {true} \
+   CONFIG.CHANNEL_ENABLE_TEMPERATURE {true} \
+   CONFIG.CHANNEL_ENABLE_VAUXP14_VAUXN14 {true} \
+   CONFIG.CHANNEL_ENABLE_VBRAM {true} \
+   CONFIG.CHANNEL_ENABLE_VCCAUX {true} \
+   CONFIG.CHANNEL_ENABLE_VCCINT {true} \
+   CONFIG.CHANNEL_ENABLE_VP_VN {false} \
+   CONFIG.CHANNEL_ENABLE_VREFN {true} \
+   CONFIG.CHANNEL_ENABLE_VREFP {true} \
+   CONFIG.DCLK_FREQUENCY {125} \
+   CONFIG.ENABLE_RESET {false} \
+   CONFIG.ENABLE_TEMP_BUS {true} \
+   CONFIG.EXTERNAL_MUX_CHANNEL {VP_VN} \
+   CONFIG.INTERFACE_SELECTION {Enable_AXI} \
+   CONFIG.SEQUENCER_MODE {Continuous} \
+   CONFIG.SINGLE_CHANNEL_SELECTION {TEMPERATURE} \
+   CONFIG.XADC_STARUP_SELECTION {channel_sequencer} \
+ ] $xadc_wiz_0
+
+
+== XADC reading with a new FPGA image attempting to read TMON_CORE on Vaux14 input ==
+
+Changes to remove VrefN and VrefP and add Vp_Vn (as bipolar) to the sequencer.
+
+The Vuax14 input is still showing up as too low for TMON_CORE which would be a temperature of 18 Kelvin:
+$ bin/debug/nite_or_lite_fury_testst_general 
+Opening device 0000:2f:00.0 (10ee:7011) with IOMMU group 86
+Enabling bus master for 0000:2f:00.0
+Found NiteFury board version 0x4 for PCI device 0000:2f:00.0 IOMMU group 86
+XADC samples using Continuous sequence mode
+Current enabled channels in sequencer: Temp    Vccint  Vccaux  Vp_Vn   (bipolar) (acq time) Vbram   Cal     Vaux14  (acq time)
+ADC A calibration: unipolar offset=-7 (lsbs)  bipolar offset=-8 (lsbs)  gain correction factor=6.3 (%)
+ADC B calibration: unipolar offset=-11 (lsbs)  bipolar offset=-12 (lsbs)  gain correction factor=6.3 (%)
+  Channel  Measurement     Min           Max
+  Temp       45.6486C     44.7874C      47.7403C
+  Vccint      1.0291V      1.0239V       1.0312V
+  Vccaux      1.7651V      1.7585V       1.7688V
+  Vp_Vn      -0.0005V           
+  Vbram       1.0283V      1.0247V       1.0320V
+  Cal         0.0000V           
+  Vaux14      0.0454V           
+
+The XADC configuration from the create_project.tcl file:
+  # Create instance: xadc_wiz_0, and set properties
+  set xadc_wiz_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xadc_wiz:3.3 xadc_wiz_0 ]
+  set_property -dict [ list \
+   CONFIG.ACQUISITION_TIME_VAUXP14_VAUXN14 {true} \
+   CONFIG.ACQUISITION_TIME_VP_VN {true} \
+   CONFIG.ADC_CONVERSION_RATE {1000} \
+   CONFIG.ADC_OFFSET_AND_GAIN_CALIBRATION {true} \
+   CONFIG.AVERAGE_ENABLE_TEMPERATURE {false} \
+   CONFIG.AVERAGE_ENABLE_VAUXP14_VAUXN14 {false} \
+   CONFIG.AVERAGE_ENABLE_VBRAM {false} \
+   CONFIG.AVERAGE_ENABLE_VCCAUX {false} \
+   CONFIG.AVERAGE_ENABLE_VCCINT {false} \
+   CONFIG.BIPOLAR_VP_VN {true} \
+   CONFIG.CHANNEL_AVERAGING {None} \
+   CONFIG.CHANNEL_ENABLE_CALIBRATION {true} \
+   CONFIG.CHANNEL_ENABLE_TEMPERATURE {true} \
+   CONFIG.CHANNEL_ENABLE_VAUXP14_VAUXN14 {true} \
+   CONFIG.CHANNEL_ENABLE_VBRAM {true} \
+   CONFIG.CHANNEL_ENABLE_VCCAUX {true} \
+   CONFIG.CHANNEL_ENABLE_VCCINT {true} \
+   CONFIG.CHANNEL_ENABLE_VP_VN {true} \
+   CONFIG.CHANNEL_ENABLE_VREFN {false} \
+   CONFIG.CHANNEL_ENABLE_VREFP {false} \
+   CONFIG.DCLK_FREQUENCY {125} \
+   CONFIG.ENABLE_RESET {false} \
+   CONFIG.ENABLE_TEMP_BUS {true} \
+   CONFIG.EXTERNAL_MUX_CHANNEL {VP_VN} \
+   CONFIG.INTERFACE_SELECTION {Enable_AXI} \
+   CONFIG.SEQUENCER_MODE {Continuous} \
+   CONFIG.SINGLE_CHANNEL_SELECTION {TEMPERATURE} \
+   CONFIG.XADC_STARUP_SELECTION {channel_sequencer} \
+ ] $xadc_wiz_0
