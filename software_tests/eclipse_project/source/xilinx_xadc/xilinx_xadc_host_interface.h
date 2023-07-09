@@ -8,7 +8,7 @@
  *  Details taken from https://www.xilinx.com/support/documentation/ip_documentation/xadc_wiz/v3_3/pg091-xadc-wiz.pdf
  *
  *  Have not included the registers which are only available on Zynq-7000 devices since was written for use with
- *  Artix-7 ot Kintex-7 devices.
+ *  Artix-7 or Kintex-7 devices.
  */
 
 #ifndef XILINX_XADC_HOST_INTERFACE_H_

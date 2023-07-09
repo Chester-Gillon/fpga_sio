@@ -24,6 +24,13 @@ extern const size_t fury_ddr_sizes_bytes[];
 #define FURY_AXI_PERIPHERALS_BAR 0
 #define FURY_DMA_BRIDGE_BAR      2
 
+/* Offsets in FURY_AXI_PERIPHERALS_BAR */
+#define FURY_AXI_GPIO_0_BASE_OFFSET    0x0000
+#define FURY_AXI_GPIO_1_BASE_OFFSET    0x1000
+#define FURY_AXI_GPIO_2_BASE_OFFSET    0x2000
+#define FURY_AXI_XADC_WIZ_BASE_OFFSET  0x3000
+#define FURY_AXI_QUAD_SPI_BASE_OFFSET 0x10000
+
 extern const vfio_pci_device_filter_t fury_pci_device_filters[];
 extern const size_t fury_num_pci_device_filters;
 

@@ -51,16 +51,15 @@ int main (int argc, char *argv[])
         const uint32_t min_supported_board_version = 3;
 
         /* The M2 led signal is connected to bit 1 of the GPIO2 output register in the axi_gpio_2 AXI GPIO IP */
-        const uint32_t axi_gpio_2_base_offset = 0x2000;
-        const uint32_t gpio2_o_offset         =      8;
-        const uint32_t m2_led_mask            =      2;
+        const uint32_t gpio2_o_offset = 8;
+        const uint32_t m2_led_mask    = 2;
 
         fury_type = identify_fury (vfio_device, &board_version);
         if (fury_type != DEVICE_OTHER)
         {
             if (board_version >= min_supported_board_version)
             {
-                uint8_t *const axi_gpio_2_regs = &vfio_device->mapped_bars[FURY_AXI_PERIPHERALS_BAR][axi_gpio_2_base_offset];
+                uint8_t *const axi_gpio_2_regs = &vfio_device->mapped_bars[FURY_AXI_PERIPHERALS_BAR][FURY_AXI_GPIO_2_BASE_OFFSET];
 
                 printf ("Testing %s board version 0x%x for PCI device %s IOMMU group %s\n",
                         fury_names[fury_type], board_version, vfio_device->device_name, vfio_device->iommu_group);

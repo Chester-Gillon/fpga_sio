@@ -61,7 +61,7 @@ fury_type_t identify_fury (vfio_device_t *const vfio_device, uint32_t *const boa
         const uint8_t *const mapped_bar = vfio_device->mapped_bars[FURY_AXI_PERIPHERALS_BAR];
 
         /* pid string is a constant value fed to the GPIO input value */
-        const uint32_t pid_integer = read_reg32 (mapped_bar, 0x0);
+        const uint32_t pid_integer = read_reg32 (mapped_bar, FURY_AXI_GPIO_0_BASE_OFFSET + 0x0);
         const char *const pid_bytes = (const char *) &pid_integer;
         char pid_string[4];
 
@@ -83,7 +83,7 @@ fury_type_t identify_fury (vfio_device_t *const vfio_device, uint32_t *const boa
         if (fury_type != DEVICE_OTHER)
         {
             /* board_version is a constant value fed to the GPIO2 input value */
-            *board_version = read_reg32 (mapped_bar, 0x8);
+            *board_version = read_reg32 (mapped_bar, FURY_AXI_GPIO_0_BASE_OFFSET + 0x8);
         }
     }
 
@@ -113,7 +113,7 @@ void display_fury_xadc_values (vfio_devices_t *const vfio_devices)
         fury_type = identify_fury (vfio_device, &board_version);
         if (fury_type != DEVICE_OTHER)
         {
-            uint8_t *const xadc_regs = &vfio_device->mapped_bars[FURY_AXI_PERIPHERALS_BAR][0x3000];
+            uint8_t *const xadc_regs = &vfio_device->mapped_bars[FURY_AXI_PERIPHERALS_BAR][FURY_AXI_XADC_WIZ_BASE_OFFSET];
 
             printf ("Found %s board version 0x%x for PCI device %s IOMMU group %s\n",
                     fury_names[fury_type], board_version, vfio_device->device_name, vfio_device->iommu_group);
