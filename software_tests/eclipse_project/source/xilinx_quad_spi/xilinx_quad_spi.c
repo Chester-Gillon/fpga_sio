@@ -10,7 +10,7 @@
  *  c. With the Slave Device set to a single manufacturer.
  *
  *  Has been used with Quad SPI flash devices:
- *  a. S25FL128SAGBHI210 16 MB
+ *  a. S25FL256SAGBHI210 32 MB
  *     Data sheet: https://www.infineon.com/dgdl/Infineon-S25FL128SS25FL256S_128_Mb_(16_MB)256_Mb_(32_MB)_3.0V_SPI_Flash_Memory-DataSheet-v20_00-EN.pdf?fileId=8ac78c8c7d0d8da4017d0ecfb6a64a17
  *     Known as a "Spansion" device to the Quad SPI core.
  *
@@ -292,7 +292,7 @@ bool quad_spi_initialise_controller (quad_spi_controller_context_t *const contro
         (controller->memory_interface_type != initial_memory_interface_type) ||
         (controller->density != initial_density))
     {
-        printf ("Initial device identification incorrect - ignoring due to Qaud SPI core not outputting initial clock cycles\n");
+        printf ("Initial device identification incorrect - ignoring due to Quad SPI core not outputting initial clock cycles\n");
     }
 
     return true;

@@ -220,11 +220,11 @@ Number of responses for each I2C address:
 
 $ i2c_probe/i2c_dump_info 
 Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 25
-Using BAR 0 in device 0000:15:00.0 of size 0x2000
+Using BAR 0 in device 0000:15:00.0 of size 0x4000
 
 TEF1001 CPLD fan information:
   FAN Control register = 0xff (fan Enabled)
-  FAN1 RPM = 5190
+  FAN1 RPM = 5220
 
 DDR temperature sensor information:
   Capabilities = 0x006f
@@ -232,7 +232,7 @@ DDR temperature sensor information:
   Temperature high limit register = 0x0000 (0.0 C)
   Temperature low limit register = 0x0000 (0.0 C)
   Temperature critical limit register = 0x0000 (0.0 C)
-  Ambient temperature register = 0xc190 above TCRIT above HIGH (25.0 C)
+  Ambient temperature register = 0xc1bc above TCRIT above HIGH (27.8 C)
   Sensor manufacturer ID register = 0x104a (STMicroelectronics)
 
 DDR3 SPD decode:
@@ -298,20 +298,20 @@ LTM4676A at I2C address 0x40
   PMBus revision=0x22 : Part I revision 1.2  Part II revision 1.2
   MFR_ID=LTC  MFR_MODEL=LTM4676A
   WRITE_PROTECT=0x00 : Enable writes to all commands
-  MFR_COMMON=0xfc : WP pin INACTIVE
-  Measured input supply (SVin) voltage                                                  :  12.125 V
-  Calculated input supply current                                                       :   0.305 A
-  Control IC die temperature                                                            :  61.750 C
-  Maximum measured value of READ_VIN since last MFR_CLEAR_PEAKS                         :  12.141 V
-  Maximum measured value of control IC die temperature since last MFR_CLEAR_PEAKS       :  62.188 C
+  MFR_COMMON=0x7c : WP pin INACTIVE
+  Measured input supply (SVin) voltage                                                  :  12.109 V
+  Calculated input supply current                                                       :   0.301 A
+  Control IC die temperature                                                            :  64.500 C
+  Maximum measured value of READ_VIN since last MFR_CLEAR_PEAKS                         :  12.156 V
+  Maximum measured value of control IC die temperature since last MFR_CLEAR_PEAKS       :  67.750 C
   Measured output voltage                                                         page 0:   1.500 V
   Calculated input current per channel                                            page 0:   0.174 A
-  Measured output current                                                         page 0:   1.104 A
-  Power stage temperature sensor                                                  page 0:  44.062 C
-  Duty cycle of the top gate control signal                                       page 0:  13.000 %
-  Calculated output power                                                         page 0:   1.656 W
+  Measured output current                                                         page 0:   1.105 A
+  Power stage temperature sensor                                                  page 0:  46.688 C
+  Duty cycle of the top gate control signal                                       page 0:  12.969 %
+  Calculated output power                                                         page 0:   1.660 W
   Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 0:   1.501 V
-  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 0:  44.500 C
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 0:  49.938 C
   Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 0:   1.117 A
   Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 0:   1.613 V
   Output overvoltage fault limit                                                  page 0:   1.650 V
@@ -328,14 +328,14 @@ LTM4676A at I2C address 0x40
   Power stage overtemperature warning limit                                       page 0: 125.000 C
   Power stage undertemperature fault limit                                        page 0: -45.000 C
   Measured output voltage                                                         page 1:   4.000 V
-  Calculated input current per channel                                            page 1:   0.131 A
-  Measured output current                                                         page 1:   0.305 A
-  Power stage temperature sensor                                                  page 1:  45.500 C
+  Calculated input current per channel                                            page 1:   0.128 A
+  Measured output current                                                         page 1:   0.295 A
+  Power stage temperature sensor                                                  page 1:  48.312 C
   Duty cycle of the top gate control signal                                       page 1:  33.250 %
-  Calculated output power                                                         page 1:   1.219 W
+  Calculated output power                                                         page 1:   1.182 W
   Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 1:   4.001 V
-  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 1:  45.875 C
-  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 1:   0.338 A
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 1:  51.312 C
+  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 1:   0.333 A
   Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 1:   4.300 V
   Output overvoltage fault limit                                                  page 1:   4.400 V
   Output overvoltage warning limit                                                page 1:   4.300 V
@@ -356,21 +356,21 @@ LTM4676A at I2C address 0x4f
   PMBus revision=0x22 : Part I revision 1.2  Part II revision 1.2
   MFR_ID=LTC  MFR_MODEL=LTM4676A
   WRITE_PROTECT=0x00 : Enable writes to all commands
-  MFR_COMMON=0xfc : WP pin INACTIVE
+  MFR_COMMON=0x7c : WP pin INACTIVE
   Measured input supply (SVin) voltage                                                  :  12.156 V
-  Calculated input supply current                                                       :   0.089 A
-  Control IC die temperature                                                            :  55.125 C
+  Calculated input supply current                                                       :   0.090 A
+  Control IC die temperature                                                            :  57.875 C
   Maximum measured value of READ_VIN since last MFR_CLEAR_PEAKS                         :  12.188 V
-  Maximum measured value of control IC die temperature since last MFR_CLEAR_PEAKS       :  55.562 C
+  Maximum measured value of control IC die temperature since last MFR_CLEAR_PEAKS       :  61.062 C
   Measured output voltage                                                         page 0:   1.001 V
-  Calculated input current per channel                                            page 0:   0.052 A
-  Measured output current                                                         page 0:   0.267 A
-  Power stage temperature sensor                                                  page 0:  41.750 C
+  Calculated input current per channel                                            page 0:   0.053 A
+  Measured output current                                                         page 0:   0.279 A
+  Power stage temperature sensor                                                  page 0:  44.688 C
   Duty cycle of the top gate control signal                                       page 0:   8.578 %
-  Calculated output power                                                         page 0:   0.267 W
+  Calculated output power                                                         page 0:   0.279 W
   Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 0:   1.001 V
-  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 0:  42.188 C
-  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 0:   0.998 A
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 0:  47.688 C
+  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 0:   1.049 A
   Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 0:   1.076 V
   Output overvoltage fault limit                                                  page 0:   1.101 V
   Output overvoltage warning limit                                                page 0:   1.076 V
@@ -386,14 +386,14 @@ LTM4676A at I2C address 0x4f
   Power stage overtemperature warning limit                                       page 0: 125.000 C
   Power stage undertemperature fault limit                                        page 0: -45.000 C
   Measured output voltage                                                         page 1:   1.001 V
-  Calculated input current per channel                                            page 1:   0.037 A
-  Measured output current                                                         page 1:   0.078 A
-  Power stage temperature sensor                                                  page 1:  43.000 C
+  Calculated input current per channel                                            page 1:   0.036 A
+  Measured output current                                                         page 1:   0.073 A
+  Power stage temperature sensor                                                  page 1:  45.688 C
   Duty cycle of the top gate control signal                                       page 1:   8.547 %
-  Calculated output power                                                         page 1:   0.078 W
-  Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 1:   1.001 V
-  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 1:  43.125 C
-  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 1:   0.879 A
+  Calculated output power                                                         page 1:   0.073 W
+  Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 1:   1.002 V
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 1:  48.688 C
+  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 1:   0.881 A
   Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 1:   1.076 V
   Output overvoltage fault limit                                                  page 1:   1.101 V
   Output overvoltage warning limit                                                page 1:   1.076 V
@@ -413,6 +413,17 @@ Si5338 Clock Generator information:
   Device: Si5338A revision B
   NVM code=0
   Configured 7-bit I2C address=0x70
+
+XADC samples using Continuous sequence mode
+Current enabled channels in sequencer: Temp    Vccint  Vccaux  Vbram   Cal    
+ADC A calibration: unipolar offset=-4 (lsbs)  bipolar offset=-3 (lsbs)  gain correction factor=6.3 (%)
+ADC B calibration: unipolar offset=-5 (lsbs)  bipolar offset=-4 (lsbs)  gain correction factor=6.3 (%)
+  Channel  Measurement     Min           Max
+  Temp       36.9127C     34.2058C      38.8814C
+  Vccint      1.0005V      0.9946V       1.0078V
+  Vccaux      1.7834V      1.7769V       1.7944V
+  Vbram       0.9998V      0.9954V       1.0078V
+  Cal         0.0000V           
 
 Notes:
 a. The DDR temperature looks reasonable, based upon the ambient temperature.

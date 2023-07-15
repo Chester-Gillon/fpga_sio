@@ -8,7 +8,8 @@
 #ifndef SOURCE_FPGA_SIO_PCI_IDS_H_
 #define SOURCE_FPGA_SIO_PCI_IDS_H_
 
-#include <linux/pci.h>
+#include <pci/pci.h>   /* To avoid duplicate definitions when used with vfio_access.h */
+#include <linux/pci.h> /* For PCI_STD_NUM_BARS */
 
 /* Only added to user API pci_regs.h in Linux Kernel v5.5 */
 #ifndef PCI_STD_NUM_BARS

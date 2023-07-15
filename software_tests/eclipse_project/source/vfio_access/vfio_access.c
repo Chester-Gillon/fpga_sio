@@ -397,6 +397,12 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
         return;
     }
 
+    /* Save PCI device identification */
+    new_device->pci_vendor_id = pci_dev->vendor_id;
+    new_device->pci_device_id = pci_dev->device_id;
+    new_device->pci_subsystem_vendor_id = pci_read_word (pci_dev, PCI_SUBSYSTEM_VENDOR_ID);
+    new_device->pci_subsystem_device_id = pci_read_word (pci_dev, PCI_SUBSYSTEM_ID);
+
     /* For the first VFIO device open a VFIO container, which is also used for subsequent devices.
      * This is done before trying open the VFIO device to determine which type of IOMMU to use. */
     if (vfio_devices->container_fd == -1)
@@ -605,6 +611,21 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
 static bool pci_filter_id_match (const u16 pci_id, const int filter_id)
 {
     return (filter_id == VFIO_PCI_DEVICE_FILTER_ANY) || ((int) pci_id == filter_id);
+}
+
+
+/**
+ * @brief Match a VFIO device against a filter
+ * @param[in] vfio_device The VFIO device to match
+ * @param[in] filter The filter to match
+ * @return Returns true if the VFIO device matches the PCI device filter
+ */
+bool vfio_device_pci_filter_match (const vfio_device_t *const vfio_device, const vfio_pci_device_filter_t *const filter)
+{
+    return pci_filter_id_match (vfio_device->pci_vendor_id, filter->vendor_id) &&
+            pci_filter_id_match (vfio_device->pci_device_id, filter->device_id) &&
+            pci_filter_id_match (vfio_device->pci_subsystem_vendor_id, filter->subsystem_vendor_id) &&
+            pci_filter_id_match (vfio_device->pci_subsystem_device_id, filter->subsystem_device_id);
 }
 
 

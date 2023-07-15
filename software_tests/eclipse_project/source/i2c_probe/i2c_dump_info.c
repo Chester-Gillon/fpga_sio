@@ -14,6 +14,7 @@
 #include "ltm4676a_access.h"
 #include "vfio_access.h"
 #include "fpga_sio_pci_ids.h"
+#include "xilinx_xadc.h"
 
 
 /**
@@ -880,13 +881,21 @@ static void dump_tef1001_information (vfio_device_t *const vfio_device, struct p
     const uint8_t u3_ltm4676a_i2c_slave_address = 0x40; /* provides 4V and 1.5V */
     const uint8_t u4_ltm4676a_i2c_slave_address = 0x4f; /* provides 1V */
 
-    /* The FPGA has a single BAR, containing IIC and GPIO registers. This program only used the GPIO registers */
+    /* The FPGA has a single BAR containing:
+     * - IIC registers
+     * - GPIO registers
+     * - Optionally XADC registers
+     * - Optionally SPI registers
+     * This program only use the GPIO and XADC registers. */
     const uint32_t bar_index = 0;
     const uint32_t gpio_base_offset = 0x1000;
-    const uint32_t expected_bar_size = 0x2000;
+    /* SPI base offset is 0x2000 */
+    const uint32_t xadc_base_offset = 0x3000;
+    const uint32_t min_bar_size = 0x2000;
+    const uint32_t with_xadc_bar_size = 0x4000;
 
     map_vfio_device_bar_before_use (vfio_device, bar_index);
-    if ((vfio_device->mapped_bars[bar_index] != NULL) && (vfio_device->regions_info[bar_index].size >= expected_bar_size))
+    if ((vfio_device->mapped_bars[bar_index] != NULL) && (vfio_device->regions_info[bar_index].size >= min_bar_size))
     {
         uint8_t *const gpio_regs = &vfio_device->mapped_bars[bar_index][gpio_base_offset];
 
@@ -900,6 +909,17 @@ static void dump_tef1001_information (vfio_device_t *const vfio_device, struct p
         dump_ltm4676a_information (&controller, u3_ltm4676a_i2c_slave_address);
         dump_ltm4676a_information (&controller, u4_ltm4676a_i2c_slave_address);
         dump_si5338_information (&controller);
+
+        /* Display XADC values if included in the FPGA */
+        if (vfio_device->regions_info[bar_index].size >= with_xadc_bar_size)
+        {
+            uint8_t *const xadc_regs = &vfio_device->mapped_bars[bar_index][xadc_base_offset];
+            xadc_sample_collection_t xadc_collection;
+
+            read_xadc_samples (&xadc_collection, xadc_regs);
+            printf ("\n");
+            display_xadc_samples (&xadc_collection);
+        }
     }
 }
 
