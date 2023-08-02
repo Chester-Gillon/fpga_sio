@@ -294,6 +294,24 @@ static bool quad_spi_read_le_reg16 (quad_spi_controller_context_t *const control
 }
 
 
+/**
+ * @brief Issue a Quad SPI command which only consists of an opcode
+ * @param[in/out] controller The controller used for the command
+ * @param[in] opcode The opcode for the command
+ * @returns Returns true if the transaction completed without an error being reported by the Quad SPI core.
+ */
+static bool quad_spi_issue_command (quad_spi_controller_context_t *const controller, const uint8_t opcode)
+{
+    const quad_spi_iovec_t iov =
+    {
+        .iov_len = sizeof (opcode),
+        .write_iov = &opcode,
+        .read_iov = NULL
+    };
+
+    return quad_spi_perform_transaction (controller, 1, &iov);
+}
+
 
 /*
  * @brief Unpack a little-endian 16 bit value from an array of bytes
@@ -604,6 +622,12 @@ static bool quad_spi_identify_spansion_s25fl_a (quad_spi_controller_context_t *c
     }
     controller->read_opcode = XSPI_OPCODE_QUAD_IO_READ_4_BYTE_ADDRESS;
 
+    /* With Quad IO read mode enabled need to perform a mode bit reset after each read in case the flash device
+     * has entered continuous mode due to the Quad SPI core not providing a mechanism to drive the mode bits
+     * (nibble after the address) to a deterministic state.
+     * TBC is the Quad SPI core tristates IO[3-0] after has output the address. */
+    controller->perform_mode_bit_reset_after_read = true;
+
     /* The datasheet specifies 1 mode byte and 2 dummy bytes. Since quad_spi_perform_transaction() transmits the value 0xff
      * for dummy bytes the dummy byte value won't be considered as a mode bit pattern of Axh which indicates the following
      * command will also be a Quad I/O Read command. */
@@ -676,14 +700,16 @@ static bool quad_spi_identify_micron_n25q256a (quad_spi_controller_context_t *co
             controller->flash_size_bytes / controller->erase_block_regions[0].sector_size_bytes;
     controller->num_erase_block_regions = 1;
 
-    /* Use Quad IO read with the number of dummy bytes looked up from the SFDP.
-     * It is assumed that XIP mode is disabled in the volatile configuration and non-volatile configure registers,
-     * and so the mode bits are not used. */
+    /* Use Quad IO read with the number of dummy bytes looked up from the SFDP. */
     const uint32_t qaud_io_read_mode_clock_cycles = quad_spi_extract_sfdp_field (&controller->n25q256a_params.basic, 3, 3, 5);
     const uint32_t quad_io_read_dummy_cycles = quad_spi_extract_sfdp_field (&controller->n25q256a_params.basic, 3, 5, 0);
     const uint32_t num_quad_io_cycles_per_byte = 2;
     controller->read_num_dummy_bytes = (qaud_io_read_mode_clock_cycles + quad_io_read_dummy_cycles) / num_quad_io_cycles_per_byte;
     controller->read_opcode = XSPI_OPCODE_QUAD_IO_READ_4_BYTE_ADDRESS;
+
+    /* It is assumed that XIP mode is disabled in the volatile configuration and non-volatile configure registers,
+     * and so the mode bits are not sampled by the flash. */
+    controller->perform_mode_bit_reset_after_read = false;
 
     /* The SFDP Basic Parameter table revision in the N25Q256A doesn't contain word 11 with the Page Size,
      * so use the value from the datasheet. */
@@ -891,6 +917,7 @@ static void quad_spi_set_address_bytes (const quad_spi_controller_context_t *con
 bool quad_spi_read_flash (quad_spi_controller_context_t *const controller, const uint32_t start_address,
                           const size_t num_data_bytes, uint8_t data[const num_data_bytes])
 {
+    bool success;
     uint8_t address_bytes[sizeof (uint32_t)];
     uint32_t iovcnt = 0;
     quad_spi_iovec_t iov[4];
@@ -932,5 +959,12 @@ bool quad_spi_read_flash (quad_spi_controller_context_t *const controller, const
     iov[iovcnt].read_iov = data;
     iovcnt++;
 
-    return quad_spi_perform_transaction (controller, iovcnt, iov);
+    success = quad_spi_perform_transaction (controller, iovcnt, iov);
+
+    if (success && controller->perform_mode_bit_reset_after_read)
+    {
+        success = quad_spi_issue_command (controller, XSPI_OPCODE_SPANSION_MODE_BIT_RESET);
+    }
+
+    return success;
 }

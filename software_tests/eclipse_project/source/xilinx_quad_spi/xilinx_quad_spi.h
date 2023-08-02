@@ -120,6 +120,9 @@ typedef struct
     uint8_t read_opcode;
     /* The number of dummy (latency) bytes after the address and before the start of the read data */
     uint32_t read_num_dummy_bytes;
+    /* When true need to issue a mode bit reset after read_opcode, in case the flash device has falsely sample mode bits
+     * as requesting to stay in continuous read mode. */
+    bool perform_mode_bit_reset_after_read;
     /* Defines the regions for erasing sectors.
      * erase_block_regions[] is arranged in increasing address order. */
     uint32_t num_erase_block_regions;

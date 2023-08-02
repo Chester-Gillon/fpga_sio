@@ -45,3 +45,45 @@ where the Spansion flash sampled the mode bits as Axh and the flash stayed in co
 
 Investigate the work-around of issuing a Mode Bit Reset (FFh) command.
 Not sure how the Quad SPI core handles the Mode Bits and then tri-states the IO[3-0] after has output the address.
+
+
+2. Spansion S25FL_A byte reads return consisent data with Mode Bit Reset following 4-BYTE QUAD INPUT/OUTPUT FAST READ
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Applied a work-around of issuing a Mode Bit Reset after each read transaction following a 4-BYTE QUAD INPUT/OUTPUT FAST READ
+when using the Spansion device. That caused the byte reads to return the same data as the bulk reads. 
+
+The mean flash read speed using byte reads has shown a drop is speed as a result of issuing the additional opcode:
+[mr_halfword@skylake-alma release]$ xilinx_quad_spi/quad_spi_flasher 
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 87
+Enabling bus master for 0000:2e:00.0
+
+Displaying information for SPI flash in PCI device 0000:15:00.0 IOMMU group 41
+FIFO depth=256
+Flash device : Micron N25Q256A
+Manufacturer ID=0x20  Memory Interface Type=0xbb  Density=0x19
+Flash Size Bytes=33554432  Page Size Bytes=256  Num Address Bytes=4
+read flash one transaction using opcode=0xEC address_bytes=4 dummy_bytes=5 timing for 1 transfers of 2097152 bytes:
+  Mean = 0.583797 (Mbytes/sec)
+read flash bytes backwards using opcode=0xEC address_bytes=4 dummy_bytes=5 timing for 1 transfers of 2097152 bytes:
+  Mean = 0.044289 (Mbytes/sec)
+read flash bytes forwards using opcode=0xEC address_bytes=4 dummy_bytes=5 timing for 1 transfers of 2097152 bytes:
+  Mean = 0.044285 (Mbytes/sec)
+Compare 2097152 bytes of one transaction .vs. bytes backwards PASS
+Compare 2097152 bytes of one transaction .vs. bytes forwards PASS
+
+Displaying information for SPI flash in PCI device 0000:2e:00.0 IOMMU group 87
+FIFO depth=256
+Flash device : Spansion S25FL_A
+Manufacturer ID=0x01  Memory Interface Type=0x02  Density=0x19
+Flash Size Bytes=33554432  Page Size Bytes=256  Num Address Bytes=4
+read flash one transaction using opcode=0xEC address_bytes=4 dummy_bytes=3 timing for 1 transfers of 2097152 bytes:
+  Mean = 0.592360 (Mbytes/sec)
+read flash bytes backwards using opcode=0xEC address_bytes=4 dummy_bytes=3 timing for 1 transfers of 2097152 bytes:
+  Mean = 0.041362 (Mbytes/sec)
+read flash bytes forwards using opcode=0xEC address_bytes=4 dummy_bytes=3 timing for 1 transfers of 2097152 bytes:
+  Mean = 0.041513 (Mbytes/sec)
+Compare 2097152 bytes of one transaction .vs. bytes backwards PASS
+Compare 2097152 bytes of one transaction .vs. bytes forwards PASS
+

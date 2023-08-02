@@ -295,5 +295,6 @@ Note:   When FIFOs do not exist, this bit is set High when the receive register 
 #define XSPI_OPCODE_MICRON_READ_NONVOLATILE_CONFIGURATION_REGISTER 0xB5
 #define XSPI_OPCODE_SECTOR_ERASE_4_BYTE_ADDRESS                    0xDC
 #define XSPI_OPCODE_QUAD_IO_READ_4_BYTE_ADDRESS                    0xEC
+#define XSPI_OPCODE_SPANSION_MODE_BIT_RESET                        0xFF
 
 #endif /* XILINX_QUAD_SPI_HOST_INTERFACE_H_ */
