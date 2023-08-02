@@ -11,11 +11,7 @@
  *
  *  Has been used with Quad SPI flash devices:
  *  a. S25FL256SAGBHI210 32 MB
- *     Data sheet: https://www.infineon.com/dgdl/Infineon-S25FL128SS25FL256S_128_Mb_(16_MB)256_Mb_(32_MB)_3.0V_SPI_Flash_Memory-DataSheet-v20_00-EN.pdf?fileId=8ac78c8c7d0d8da4017d0ecfb6a64a17
- *     Known as a "Spansion" device to the Quad SPI core.
- *
  *  b. N25Q256A11ESF40G 32 MB
- *     Data sheet: https://media-www.micron.com/-/media/client/global/documents/products/data-sheet/nor-flash/serial-nor/n25q/n25q_256mb_1_8v.pdf
  */
 
 #include "xilinx_quad_spi.h"
@@ -24,6 +20,19 @@
 
 #include <string.h>
 #include <stdio.h>
+
+
+/* JEDEC assigned manufacturer identities */
+#define MANUFACTURER_ID_SPANSION 0x01
+#define MANUFACTURER_ID_MICRON   0x20
+
+
+/* Contains names for quad_spi_flash_t */
+const char *const quad_spi_flash_names[] =
+{
+    [QUAD_SPI_FLASH_SPANSION_S25FL_A] = "Spansion S25FL_A",
+    [QUAD_SPI_FLASH_MICRON_N25Q256A]  = "Micron N25Q256A"
+};
 
 
 /* Defines one element in a Quad SPI transaction which allows dummy write and/or read bytes to not be ignored
@@ -185,9 +194,9 @@ static bool quad_spi_perform_transaction (quad_spi_controller_context_t *const c
  *                     Manufacturer specific encoding. On the devices supported in the log2 number of address bits.
  * @returns Returns true if the transaction completed without an error being reported by the Quad SPI core.
  */
-bool quad_spi_read_identification (quad_spi_controller_context_t *const controller,
-                                   uint8_t *const manufacturer_id,
-                                   uint8_t *const memory_interface_type, uint8_t *const density)
+static bool quad_spi_read_identification (quad_spi_controller_context_t *const controller,
+                                          uint8_t *const manufacturer_id,
+                                          uint8_t *const memory_interface_type, uint8_t *const density)
 {
     const uint8_t opcode = XSPI_OPCODE_READ_IDENTIFICATION_ID;
     const quad_spi_iovec_t iov[] =
@@ -216,6 +225,544 @@ bool quad_spi_read_identification (quad_spi_controller_context_t *const controll
     const uint32_t iovcnt = sizeof (iov) / sizeof (iov[0]);
 
     return quad_spi_perform_transaction (controller, iovcnt, iov);
+}
+
+
+/**
+ * @brief Read a 8-bit register from a Quad SPI flash device
+ * @param[in/out] controller The controller used for the read
+ * @param[in] reg_read_opcode Opcode used to read the register
+ * @param[out] reg_value The register value read
+ * @returns Returns true if the transaction completed without an error being reported by the Quad SPI core.
+ */
+static bool quad_spi_read_reg8 (quad_spi_controller_context_t *const controller,
+                                const uint8_t reg_read_opcode, uint8_t *const reg_value)
+{
+    const quad_spi_iovec_t iov[] =
+    {
+        {
+            .iov_len = sizeof (reg_read_opcode),
+            .write_iov = &reg_read_opcode,
+            .read_iov = NULL
+        },
+        {
+            .iov_len = sizeof (*reg_value),
+            .write_iov = NULL,
+            .read_iov = reg_value
+        }
+    };
+    const uint32_t iovcnt = sizeof (iov) / sizeof (iov[0]);
+
+    return quad_spi_perform_transaction (controller, iovcnt, iov);
+}
+
+
+/**
+ * @brief Read a 16-bit little endian register from a Quad SPI flash device
+ * @param[in/out] controller The controller used for the read
+ * @param[in] reg_read_opcode Opcode used to read the register
+ * @param[out] reg_value The register value read
+ * @returns Returns true if the transaction completed without an error being reported by the Quad SPI core.
+ */
+static bool quad_spi_read_le_reg16 (quad_spi_controller_context_t *const controller,
+                                    const uint8_t reg_read_opcode, uint16_t *const reg_value)
+{
+    bool success;
+    uint8_t reg_value_bytes[sizeof (*reg_value)];
+    const quad_spi_iovec_t iov[] =
+    {
+        {
+            .iov_len = sizeof (reg_read_opcode),
+            .write_iov = &reg_read_opcode,
+            .read_iov = NULL,
+        },
+        {
+            .iov_len = sizeof (*reg_value),
+            .write_iov = NULL,
+            .read_iov = reg_value_bytes
+        }
+    };
+    const uint32_t iovcnt = sizeof (iov) / sizeof (iov[0]);
+
+    success = quad_spi_perform_transaction (controller, iovcnt, iov);
+    if (success)
+    {
+        *reg_value = (uint16_t) (((uint16_t) reg_value_bytes[1] << 8) | reg_value_bytes[0]);
+    }
+
+    return success;
+}
+
+
+
+/*
+ * @brief Unpack a little-endian 16 bit value from an array of bytes
+ * @param[in] bytes The bytes to unpack from
+ * @return The unpacked value
+ */
+static uint32_t unpack_little_endian_u16 (const uint8_t bytes[const 2])
+{
+    return (uint32_t) bytes[0] | ((uint32_t) bytes[1] << 8);
+}
+
+
+/**
+ * @brief Read the Serial Flash Discoverable Parameters (SFDP) from a Quad SPI flash
+ * @param[in/out] controller The controller being initialised.
+ * @param[in] sfdp_len The number of bytes of SFDP to read.
+ * @param[out] sfdp The SFDP which have been read.
+ * @return Returns true if the CFI parameters have been read.
+ */
+static bool quad_spi_read_serial_flash_discoverable_parameters (quad_spi_controller_context_t *const controller,
+                                                                const size_t sfdp_len, uint8_t sfdp[const sfdp_len])
+{
+    const uint8_t opcode = XSPI_OPCODE_READ_SERIAL_FLASH_DISCOVERABLE_PARAMETERS;
+    const uint8_t starting_address[3] = {0};
+    const quad_spi_iovec_t iov[] =
+    {
+        {
+            .iov_len = sizeof (opcode),
+            .write_iov = &opcode,
+            .read_iov = NULL
+        },
+        {
+            /* Address is always 3 bytes */
+            .iov_len = sizeof (starting_address),
+            .write_iov = starting_address,
+            .read_iov = NULL
+        },
+        {
+            /* Dummy clock cycles */
+            .iov_len = 1,
+            .write_iov = NULL,
+            .read_iov = NULL
+        },
+        {
+            .iov_len = sfdp_len,
+            .write_iov = NULL,
+            .read_iov = sfdp
+        }
+    };
+    const uint32_t iovcnt = sizeof (iov) / sizeof (iov[0]);
+
+    return quad_spi_perform_transaction (controller, iovcnt, iov);
+}
+
+
+/**
+ * @brief Find a parameter table in the Serial Flash Discoverable Parameters read from a Quad SPI flash
+ * @param[out] params Where to store the parameter table.
+ *                    params->table points into sfdp which means the sfdp array must remain in scope
+ *                    as long as params does.
+ * @param[in] sfdp_len The number of bytes of Serial Flash Discoverable Parameters
+ * @param[in] sfdp The Serial Flash Discoverable Parameters to find the parameter table in
+ * @param[in] requested_parameter_id The identity of the parameter table to find
+ * @return Returns true if requested_parameter_id was found, or false otherwise.
+ */
+static bool quad_spi_find_sfdp_parameter_table (sfdp_parameter_table_t *const params,
+                                                const size_t sfdp_len, const uint8_t sfdp[const sfdp_len],
+                                                const uint32_t requested_parameter_id)
+{
+    bool table_found = false;
+
+    /* Check for expected string to validate the SFDP. */
+    if (strncmp ((const char *) &sfdp[0], "SFDP", 4) != 0)
+    {
+        printf ("Failed to find SFDP string\n");
+        return false;
+    }
+
+    /* JESD216F.02 says vendors may include multiple revisions of the Basic Parameter Table, provided the tables,
+     * headers are in order starting with the oldest version. Therefore, if there are multiple matches against the
+     * requested_parameter_id return the final match. */
+    const uint32_t num_parameter_headers = sfdp[6] + 1u; /* Zero based count */
+    for (uint32_t header_index = 0; header_index < num_parameter_headers; header_index++)
+    {
+        const uint32_t parameter_header_size = 8u;
+        const uint32_t parameter_header_start_offset = 8 + (header_index * parameter_header_size);
+
+        if ((parameter_header_start_offset + parameter_header_size) > sfdp_len)
+        {
+            printf ("Attempt to read header off end of SFDP data\n");
+            return false;
+        }
+
+        const uint32_t parameter_id =
+                (((uint32_t) sfdp[parameter_header_start_offset + 7]) << 8) | sfdp[parameter_header_start_offset];
+        const uint32_t parameter_length_words = sfdp[parameter_header_start_offset + 3];
+        const uint32_t parameter_length_bytes = parameter_length_words * 4;
+        const uint32_t major_revision = sfdp[parameter_header_start_offset + 2];
+        const uint32_t minor_revision = sfdp[parameter_header_start_offset + 1];
+        const uint32_t parameter_table_offset =
+                (((uint32_t) sfdp[parameter_header_start_offset + 6]) << 16) |
+                (((uint32_t) sfdp[parameter_header_start_offset + 5]) <<  8) |
+                             sfdp[parameter_header_start_offset + 4];
+        if (parameter_id == requested_parameter_id)
+        {
+            if ((parameter_table_offset + parameter_length_bytes) <= sfdp_len)
+            {
+                params->parameter_id = parameter_id;
+                params->parameter_table_length = parameter_length_words;
+                params->major_revision = major_revision;
+                params->minor_revision = minor_revision;
+                params->table = (const uint32_t *) &sfdp[parameter_table_offset];
+                table_found = true;
+            }
+            else
+            {
+                printf ("Attempt to read table off end of SFDP data\n");
+            }
+        }
+    }
+
+    return table_found;
+}
+
+
+/**
+ * @brief Extract one field from a SFDP table
+ * @param[in] params The SFDP table to extract the field from
+ * @param[in] word_index The word index containing the field. One-based to match JESD216F.02
+ * @param[in] field_width_bits The width of the field in bits
+ * @param[in] field_lsb The least significant bit of the field
+ * @return The extracted field value
+ */
+static uint32_t quad_spi_extract_sfdp_field (const sfdp_parameter_table_t *const params, const uint32_t word_index,
+                                             const uint32_t field_width_bits, const uint32_t field_lsb)
+{
+    if ((word_index == 0) || (word_index > params->parameter_table_length))
+    {
+        printf ("SFDP word_index %u out of range\n", word_index);
+        return 0;
+    }
+
+    const uint32_t sfdp_word = params->table[word_index - 1];
+    const uint32_t field_mask = (1u << field_width_bits) - 1u;
+
+    return (sfdp_word >> field_lsb) & field_mask;
+}
+
+
+/**
+ * @brief Read the Common Flash Interface (CFI) parameters from a Quad SPI flash
+ * @param[in/out] controller The controller being initialised.
+ * @param[in] cfi_parameters_len The number of bytes of CFI parameters to read
+ * @param[out] cfi_parameters The CFI parameters which have been read
+ * @return Returns true if the CFI parameters have been read.
+ */
+static bool quad_spi_read_cfi_parameters (quad_spi_controller_context_t *const controller,
+                                          const size_t cfi_parameters_len, uint8_t cfi_parameters[const cfi_parameters_len])
+{
+    const uint8_t opcode = XSPI_OPCODE_READ_IDENTIFICATION_ID;
+    const quad_spi_iovec_t iov[] =
+    {
+        {
+            .iov_len = sizeof (opcode),
+            .write_iov = &opcode,
+            .read_iov = NULL
+        },
+        {
+            .iov_len = cfi_parameters_len,
+            .write_iov = NULL,
+            .read_iov = cfi_parameters
+        }
+    };
+    const uint32_t iovcnt = sizeof (iov) / sizeof (iov[0]);
+
+    return quad_spi_perform_transaction (controller, iovcnt, iov);
+}
+
+
+/**
+ * @brief Identify the information to use a Spansion S25FL-S Quad SPI flash.
+ * @details Used the datasheet:
+ *          https://www.infineon.com/dgdl/Infineon-S25FL128SS25FL256S_128_Mb_(16_MB)256_Mb_(32_MB)_3.0V_SPI_Flash_Memory-DataSheet-v20_00-EN.pdf?fileId=8ac78c8c7d0d8da4017d0ecfb6a64a17
+ *
+ *          Uses Spansion as the manufacturer name rather than Infineon to match the name in the documentation for the
+ *          Quad SPI core.
+ * @param[in/out] controller The controller being initialised.
+ * @return Returns true if have identified a supported Quad SPI flash or false otherwise.
+ */
+static bool quad_spi_identify_spansion_s25fl_a (quad_spi_controller_context_t *const controller)
+{
+
+    if (!quad_spi_read_cfi_parameters (controller, sizeof (controller->s25fl_a_params.cfi_parameters),
+            controller->s25fl_a_params.cfi_parameters))
+    {
+        return false;
+    }
+    if (!quad_spi_read_reg8 (controller, XSPI_OPCODE_SPANSION_READ_CONFIGURATION_REGISTER,
+            &controller->s25fl_a_params.configuration_register))
+    {
+        return false;
+    }
+
+    /* Check for expected strings to validate the CFI parameters */
+    if (strncmp ((const char *) &controller->s25fl_a_params.cfi_parameters[0x10], "QRY", 3) != 0)
+    {
+        printf ("Failed to find QRY string in CFI parameters\n");
+        return false;
+    }
+    if (strncmp ((const char *) &controller->s25fl_a_params.cfi_parameters[0x17], "SF", 2) != 0)
+    {
+        printf ("Failed to find Alternate OEM Command Set in CFI parameters\n");
+        return false;
+    }
+
+    /* Determine the flash size from the CFI Geometry information */
+    const uint32_t device_size_log2 = controller->s25fl_a_params.cfi_parameters[0x27];
+    controller->flash_size_bytes = 1u << device_size_log2;
+
+    /* Always use 32 address bits even if the flash size is 16 MB and only needs 24 address bits, as allows fixed opcodes
+     * to be used. */
+    controller->num_address_bytes = 4;
+
+    /* Determine the page size for programming */
+    const uint32_t page_size_log2 = unpack_little_endian_u16 (&controller->s25fl_a_params.cfi_parameters[0x2A]);
+    controller->page_size_bytes = 1u << page_size_log2;
+
+    /* Determine the erase block regions */
+    const uint32_t erase_block_regions_start_offset = 0x2D;
+    const uint32_t num_bytes_per_erase_block_region = 4;
+    const uint32_t parameter_sector_size = 4096;
+    controller->num_erase_block_regions = controller->s25fl_a_params.cfi_parameters[0x2C];
+    if ((controller->num_erase_block_regions == 0) || (controller->num_erase_block_regions > QUAD_SPI_MAX_ERASE_BLOCK_REGIONS))
+    {
+        printf ("Out of range num_erase_block_regions value of %u\n", controller->num_erase_block_regions);
+        return false;
+    }
+
+    for (uint32_t region_index = 0; region_index < controller->num_erase_block_regions; region_index++)
+    {
+        const uint32_t region_start_offset = erase_block_regions_start_offset + (region_index * num_bytes_per_erase_block_region);
+
+        /* The number of sectors is encoded as one less than the actual number */
+        const uint32_t num_sectors =
+                unpack_little_endian_u16 (&controller->s25fl_a_params.cfi_parameters[region_start_offset + 0]) + 1;
+
+        /* The sector size is specified in multiples of 256 bytes */
+        const uint32_t sector_size_bytes =
+                unpack_little_endian_u16 (&controller->s25fl_a_params.cfi_parameters[region_start_offset + 2]) * 256;
+
+        controller->erase_block_regions[region_index].num_sectors = num_sectors;
+        controller->erase_block_regions[region_index].sector_size_bytes = sector_size_bytes;
+        controller->erase_block_regions[region_index].erase_opcode = (sector_size_bytes == parameter_sector_size) ?
+                XSPI_OPCODE_SUBSECTOR_ERASE_4_BYTE_ADDRESS : XSPI_OPCODE_SECTOR_ERASE_4_BYTE_ADDRESS;
+    }
+
+    /* As of Xilinx AXI Quad SPI v3.2 the subsector erase commands are not supported for Spansion devices.
+     * Therefore, if the first flash erase block region has 4 KB parameter sectors (aka subsectors) change the
+     * region definition to a smaller number of the assumed next larger sector size.
+     *
+     * Since are not using the parameter sector size, no need to use the TBPARM bit in the Configuration Register
+     * to determine if the parameter sectors are located in the bottom or top of the address map. */
+    if ((controller->erase_block_regions[0].erase_opcode == XSPI_OPCODE_SUBSECTOR_ERASE_4_BYTE_ADDRESS) &&
+        (controller->num_erase_block_regions > 1))
+    {
+        controller->erase_block_regions[0].num_sectors /=
+                controller->erase_block_regions[1].sector_size_bytes / controller->erase_block_regions[0].sector_size_bytes;
+        controller->erase_block_regions[0].sector_size_bytes = controller->erase_block_regions[1].sector_size_bytes;
+        controller->erase_block_regions[0].erase_opcode = controller->erase_block_regions[1].erase_opcode;
+    }
+
+    /* Locate the "CFI alternate vendor-specific extended query parameter" tables, which was done while manually comparing
+     * the latency parameter tables against the datasheet. The contents of these parameters are not yet used by the code. */
+    controller->s25fl_a_params.num_vendor_specific = 0;
+    if (strncmp ((const char *) &controller->s25fl_a_params.cfi_parameters[0x51], "ALT20", 5) == 0)
+    {
+        uint32_t parameter_start_offset = 0x56;
+        const uint32_t parameters_header_size = 2;
+
+        while ((controller->s25fl_a_params.num_vendor_specific < MAX_CFI_ALTERNATIVE_VENDOR_SPECIFIC_PARMETERS) &&
+               (parameter_start_offset + parameters_header_size) < sizeof (controller->s25fl_a_params.cfi_parameters))
+        {
+            cfi_alternative_vendor_specific_parmeters_t *const vendor_specific =
+                    &controller->s25fl_a_params.vendor_specific[controller->s25fl_a_params.num_vendor_specific];
+
+            vendor_specific->parameter_id = controller->s25fl_a_params.cfi_parameters[parameter_start_offset];
+            vendor_specific->parameter_length = controller->s25fl_a_params.cfi_parameters[parameter_start_offset + 1];
+            vendor_specific->parameters =
+                    &controller->s25fl_a_params.cfi_parameters[parameter_start_offset + parameters_header_size];
+
+            parameter_start_offset += parameters_header_size + vendor_specific->parameter_length;
+            if (parameter_start_offset <= sizeof (controller->s25fl_a_params.cfi_parameters))
+            {
+                controller->s25fl_a_params.num_vendor_specific++;
+            }
+        }
+    }
+
+    /* For simplicity select a fixed Quad I/O Read opcode and matching latency assuming the non-volatile Configuration Register
+     * bits have enabled Quad Mode with a latency code of 00h.
+     *
+     * Reports a failure if the Configuration Register doesn't have the expected settings. */
+    const bool quad_mode_enabled = (controller->s25fl_a_params.configuration_register & 0x02) != 0;
+    const uint32_t latency_code = (controller->s25fl_a_params.configuration_register & 0xC0) >> 6;
+    if (!quad_mode_enabled || (latency_code != 0))
+    {
+        return false;
+    }
+    controller->read_opcode = XSPI_OPCODE_QUAD_IO_READ_4_BYTE_ADDRESS;
+
+    /* The datasheet specifies 1 mode byte and 2 dummy bytes. Since quad_spi_perform_transaction() transmits the value 0xff
+     * for dummy bytes the dummy byte value won't be considered as a mode bit pattern of Axh which indicates the following
+     * command will also be a Quad I/O Read command. */
+    controller->read_num_dummy_bytes = 3;
+
+    return true;
+}
+
+
+/**
+ * @brief Identify the information to use a Micron N25Q256A Quad SPI flash.
+ * @details Used the datasheet:
+ *          https://media-www.micron.com/-/media/client/global/documents/products/data-sheet/nor-flash/serial-nor/n25q/n25q_256mb_1_8v.pdf
+ *
+ *          The assumption is that the device is in "Extended SPI protocol" mode with the command entered on DQ0 only.
+ *          If the device has been placed in "Dual SPI protocol" or "Quad SPI protocol" modes then wouldn't be able to identify
+ *          the device as the Quad SPI core always issues commands on DQ0 only.
+ * @param[in/out] controller The controller being initialised.
+ * @return Returns true if have identified a supported Quad SPI flash or false otherwise.
+ */
+static bool quad_spi_identify_micron_n25q256a (quad_spi_controller_context_t *const controller)
+{
+    if (!quad_spi_read_serial_flash_discoverable_parameters (controller,
+            sizeof (controller->n25q256a_params.sfdp), controller->n25q256a_params.sfdp))
+    {
+        return false;
+    }
+    if (!quad_spi_read_reg8 (controller, XSPI_OPCODE_READ_VOLATILE_CONFIGURATION_REGISTER,
+            &controller->n25q256a_params.volatile_configuration_register))
+    {
+        return false;
+    }
+    if (!quad_spi_read_le_reg16 (controller, XSPI_OPCODE_MICRON_READ_NONVOLATILE_CONFIGURATION_REGISTER,
+            &controller->n25q256a_params.nonvolatile_configuration_register))
+    {
+        return false;
+    }
+
+    /* The N25Q256A only implemented version 1.0 of the SFDP Basic Parameter table with 9 words,
+     * unlike the most recent version 1.8 in JESD216F.02 which has 23 words. */
+    const uint32_t min_basic_parameter_table_length = 9;
+    if (!quad_spi_find_sfdp_parameter_table (&controller->n25q256a_params.basic,
+            sizeof (controller->n25q256a_params.sfdp), controller->n25q256a_params.sfdp, SFDP_JEDEC_BASIC_PARAMETER_ID))
+    {
+        return false;
+    }
+    else if (controller->n25q256a_params.basic.parameter_table_length < min_basic_parameter_table_length)
+    {
+        printf ("SFDP basic parameter length only %u\n", controller->n25q256a_params.basic.parameter_table_length);
+        return false;
+    }
+
+    /* Always use 32 address bits, as allows fixed opcodes to be used. */
+    controller->num_address_bytes = 4;
+
+    /* Determine flash size */
+    const uint32_t flash_memory_density = quad_spi_extract_sfdp_field (&controller->n25q256a_params.basic, 2, 31, 0);
+    const uint32_t density_msb = quad_spi_extract_sfdp_field (&controller->n25q256a_params.basic, 2, 1, 31);
+    const uint64_t flash_size_bits = density_msb ?
+            1ULL << flash_memory_density : /* Density specified as log2 bits */
+            flash_memory_density + 1; /* Density specified as one less than the number of bits */
+    controller->flash_size_bytes = (uint32_t) (flash_size_bits / 8);
+
+    /* Determine erase sectors */
+    const uint32_t erase_size_log2 = quad_spi_extract_sfdp_field (&controller->n25q256a_params.basic, 8, 8, 0);
+    controller->erase_block_regions[0].sector_size_bytes = 1u << erase_size_log2;
+    controller->erase_block_regions[0].erase_opcode = (controller->erase_block_regions[0].sector_size_bytes == 4096) ?
+            XSPI_OPCODE_SUBSECTOR_ERASE_4_BYTE_ADDRESS : XSPI_OPCODE_SECTOR_ERASE_4_BYTE_ADDRESS;
+    controller->erase_block_regions[0].num_sectors =
+            controller->flash_size_bytes / controller->erase_block_regions[0].sector_size_bytes;
+    controller->num_erase_block_regions = 1;
+
+    /* Use Quad IO read with the number of dummy bytes looked up from the SFDP.
+     * It is assumed that XIP mode is disabled in the volatile configuration and non-volatile configure registers,
+     * and so the mode bits are not used. */
+    const uint32_t qaud_io_read_mode_clock_cycles = quad_spi_extract_sfdp_field (&controller->n25q256a_params.basic, 3, 3, 5);
+    const uint32_t quad_io_read_dummy_cycles = quad_spi_extract_sfdp_field (&controller->n25q256a_params.basic, 3, 5, 0);
+    const uint32_t num_quad_io_cycles_per_byte = 2;
+    controller->read_num_dummy_bytes = (qaud_io_read_mode_clock_cycles + quad_io_read_dummy_cycles) / num_quad_io_cycles_per_byte;
+    controller->read_opcode = XSPI_OPCODE_QUAD_IO_READ_4_BYTE_ADDRESS;
+
+    /* The SFDP Basic Parameter table revision in the N25Q256A doesn't contain word 11 with the Page Size,
+     * so use the value from the datasheet. */
+    controller->page_size_bytes = 256;
+
+    return true;
+}
+
+
+/**
+ * @brief Check for consistency between the flash size in bytes and the erase block regions
+ * @param[in] controller The controller being initialised.
+ * @return Returns true if the flash size is consistent.
+ */
+static bool quad_spi_check_flash_size_consistency (const quad_spi_controller_context_t *const controller)
+{
+    uint32_t total_erase_block_bytes = 0;
+
+    for (uint32_t region_index = 0; region_index < controller->num_erase_block_regions; region_index++)
+    {
+        total_erase_block_bytes +=
+                controller->erase_block_regions[region_index].num_sectors *
+                controller->erase_block_regions[region_index].sector_size_bytes;
+    }
+
+    if (total_erase_block_bytes != controller->flash_size_bytes)
+    {
+        printf ("Flash size inconsistency : total_erase_block_bytes=%u  flash_size_bytes=%u\n",
+                total_erase_block_bytes, controller->flash_size_bytes);
+        return false;
+    }
+
+    return true;
+}
+
+
+/**
+ * @brief Identify if the Quad SPI flash is a supported device, based upon the XSPI_OPCODE_READ_IDENTIFICATION_ID result
+ * @details Since the flash devices used to test differed in query commands (common flash interface .vs. serial flash
+ *          discoverable parameters) has been written to only support specific devices based upon looking at the
+ *          datasheets.
+ *          Sets controller parameters to allow operation with the supported devices.
+ * @param[in/out] controller The controller being initialised.
+ * @return Returns true if have identified a supported Quad SPI flash or false otherwise.
+ */
+static bool quad_spi_identify_supported_flash (quad_spi_controller_context_t *const controller)
+{
+    bool supported = false;
+
+    switch (controller->manufacturer_id)
+    {
+    case MANUFACTURER_ID_SPANSION:
+        if (((controller->memory_interface_type == 0x20) && (controller->density == 0x18)) ||
+            ((controller->memory_interface_type == 0x02) && (controller->density == 0x19))   )
+        {
+            controller->flash_type = QUAD_SPI_FLASH_SPANSION_S25FL_A;
+            supported = quad_spi_identify_spansion_s25fl_a (controller);
+        }
+        break;
+
+    case MANUFACTURER_ID_MICRON:
+        if ((controller->memory_interface_type == 0xbb) && (controller->density == 0x19))
+        {
+            controller->flash_type = QUAD_SPI_FLASH_MICRON_N25Q256A;
+            supported = quad_spi_identify_micron_n25q256a (controller);
+        }
+        break;
+
+    default:
+        break;
+    }
+
+    if (!supported)
+    {
+        printf ("Unsupported flash manufacturer_id 0x%02x (memory_interface_type 0x%02x density 0x%02x)\n",
+                controller->manufacturer_id, controller->memory_interface_type, controller->density);
+    }
+
+    return supported;
 }
 
 
@@ -295,5 +842,95 @@ bool quad_spi_initialise_controller (quad_spi_controller_context_t *const contro
         printf ("Initial device identification incorrect - ignoring due to Quad SPI core not outputting initial clock cycles\n");
     }
 
-    return true;
+    return quad_spi_identify_supported_flash (controller) && quad_spi_check_flash_size_consistency (controller);
+}
+
+
+/**
+ * @brief Set the address bytes for a Quad SPI flash command, in big-endian format
+ * @param[in] controller The controller, used to determine the address size used by the flash
+ * @param[in] address The address to set
+ * @param[out] address_bytes Buffer used to populate the address bytes
+ * @param[out] iovec Populated element for the SPI transfer for the address bytes
+ */
+static void quad_spi_set_address_bytes (const quad_spi_controller_context_t *const controller, const uint32_t address,
+                                        uint8_t address_bytes[const sizeof (uint8_t)], quad_spi_iovec_t *const iovec)
+
+{
+    iovec->iov_len = controller->num_address_bytes;
+    iovec->read_iov = NULL;
+    iovec->write_iov = address_bytes;
+
+    if (controller->num_address_bytes == 4)
+    {
+        /* Generate a 4 byte address */
+        address_bytes[0] = (uint8_t) ((address & 0xff000000) >> 24);
+        address_bytes[1] = (uint8_t) ((address & 0x00ff0000) >> 16);
+        address_bytes[2] = (uint8_t) ((address & 0x0000ff00) >>  8);
+        address_bytes[3] = (uint8_t)  (address & 0x000000ff);
+    }
+    else
+    {
+        /* Generate a 3 byte address */
+        address_bytes[0] = (uint8_t) ((address & 0x00ff0000) >> 16);
+        address_bytes[1] = (uint8_t) ((address & 0x0000ff00) >>  8);
+        address_bytes[2] = (uint8_t)  (address & 0x000000ff);
+    }
+}
+
+
+/**
+ * @brief Read data bytes from a Quad SPI flash
+ * @param[on/out] controller The controller to use for the read
+ * @param[in] start_address Start address to read from the flash
+ * @param[in] num_data_bytes The number of bytes to read from the flash
+ * @param[out] data The bytes read from the flash
+ * @returns Returns true if the read was successful.
+ *          Returns false if parameter validation failed or an error was reported by the Quad SPI core.
+ */
+bool quad_spi_read_flash (quad_spi_controller_context_t *const controller, const uint32_t start_address,
+                          const size_t num_data_bytes, uint8_t data[const num_data_bytes])
+{
+    uint8_t address_bytes[sizeof (uint32_t)];
+    uint32_t iovcnt = 0;
+    quad_spi_iovec_t iov[4];
+
+    /* Validate requested length */
+    if (num_data_bytes == 0)
+    {
+        printf ("Invalid read length of zero\n");
+        return false;
+    }
+    if ((start_address + num_data_bytes) > controller->flash_size_bytes)
+    {
+        printf ("Attempt to read off the end of the flash device\n");
+        return false;
+    }
+
+    /* Read opcode */
+    iov[iovcnt].iov_len = sizeof (controller->read_opcode);
+    iov[iovcnt].write_iov = &controller->read_opcode;
+    iov[iovcnt].read_iov = NULL;
+    iovcnt++;
+
+    /* Address bytes */
+    quad_spi_set_address_bytes (controller, start_address, address_bytes, &iov[iovcnt]);
+    iovcnt++;
+
+    /* Dummy bytes if required */
+    if (controller->read_num_dummy_bytes > 0)
+    {
+        iov[iovcnt].iov_len = controller->read_num_dummy_bytes;
+        iov[iovcnt].write_iov = NULL;
+        iov[iovcnt].read_iov = NULL;
+        iovcnt++;
+    }
+
+    /* Data bytes read from flash */
+    iov[iovcnt].iov_len = num_data_bytes;
+    iov[iovcnt].write_iov = NULL;
+    iov[iovcnt].read_iov = data;
+    iovcnt++;
+
+    return quad_spi_perform_transaction (controller, iovcnt, iov);
 }

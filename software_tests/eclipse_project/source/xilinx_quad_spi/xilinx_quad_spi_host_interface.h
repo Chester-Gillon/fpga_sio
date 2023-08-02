@@ -284,8 +284,16 @@ Note:   When FIFOs do not exist, this bit is set High when the receive register 
 /* Haven't defined the XIP registers as only intended to access FPGA configuration flash */
 
 
-/* The subset of Quad SPI memory opcodes which are supported by the Quad SPI core and the used Quad SPI flash devices */
-#define XSPI_OPCODE_READ_STATUS_REGISTER   0x05
-#define XSPI_OPCODE_READ_IDENTIFICATION_ID 0x9F
+/* The subset of Quad SPI memory opcodes which are supported by the Quad SPI core and the used Quad SPI flash devices.
+ * Qualification with a manufacturer name means the opcode can vary between manufacturers. */
+#define XSPI_OPCODE_READ_STATUS_REGISTER                           0x05
+#define XSPI_OPCODE_SUBSECTOR_ERASE_4_BYTE_ADDRESS                 0x21
+#define XSPI_OPCODE_SPANSION_READ_CONFIGURATION_REGISTER           0x35
+#define XSPI_OPCODE_READ_SERIAL_FLASH_DISCOVERABLE_PARAMETERS      0x5A
+#define XSPI_OPCODE_READ_VOLATILE_CONFIGURATION_REGISTER           0x85
+#define XSPI_OPCODE_READ_IDENTIFICATION_ID                         0x9F
+#define XSPI_OPCODE_MICRON_READ_NONVOLATILE_CONFIGURATION_REGISTER 0xB5
+#define XSPI_OPCODE_SECTOR_ERASE_4_BYTE_ADDRESS                    0xDC
+#define XSPI_OPCODE_QUAD_IO_READ_4_BYTE_ADDRESS                    0xEC
 
 #endif /* XILINX_QUAD_SPI_HOST_INTERFACE_H_ */

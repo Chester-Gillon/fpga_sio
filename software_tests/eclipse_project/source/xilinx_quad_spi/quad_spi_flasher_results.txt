@@ -1,0 +1,47 @@
+1. Spansion S25FL_A issue with byte reads and 4-BYTE QUAD INPUT/OUTPUT FAST READ
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+[mr_halfword@skylake-alma release]$ xilinx_quad_spi/quad_spi_flasher 
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 87
+Enabling bus master for 0000:2e:00.0
+
+Displaying information for SPI flash in PCI device 0000:15:00.0 IOMMU group 41
+FIFO depth=256
+Flash device : Micron N25Q256A
+Manufacturer ID=0x20  Memory Interface Type=0xbb  Density=0x19
+Flash Size Bytes=33554432  Page Size Bytes=256  Num Address Bytes=4
+read flash one transaction using opcode=0xEC address_bytes=4 dummy_bytes=5 timing for 1 transfers of 2097152 bytes:
+  Mean = 0.581743 (Mbytes/sec)
+read flash bytes backwards using opcode=0xEC address_bytes=4 dummy_bytes=5 timing for 1 transfers of 2097152 bytes:
+  Mean = 0.044310 (Mbytes/sec)
+read flash bytes forwards using opcode=0xEC address_bytes=4 dummy_bytes=5 timing for 1 transfers of 2097152 bytes:
+  Mean = 0.044309 (Mbytes/sec)
+Compare 2097152 bytes of one transaction .vs. bytes backwards PASS
+Compare 2097152 bytes of one transaction .vs. bytes forwards PASS
+
+Displaying information for SPI flash in PCI device 0000:2e:00.0 IOMMU group 87
+FIFO depth=256
+Flash device : Spansion S25FL_A
+Manufacturer ID=0x01  Memory Interface Type=0x02  Density=0x19
+Flash Size Bytes=33554432  Page Size Bytes=256  Num Address Bytes=4
+read flash one transaction using opcode=0xEC address_bytes=4 dummy_bytes=3 timing for 1 transfers of 2097152 bytes:
+  Mean = 0.589701 (Mbytes/sec)
+read flash bytes backwards using opcode=0xEC address_bytes=4 dummy_bytes=3 timing for 1 transfers of 2097152 bytes:
+  Mean = 0.053059 (Mbytes/sec)
+read flash bytes forwards using opcode=0xEC address_bytes=4 dummy_bytes=3 timing for 1 transfers of 2097152 bytes:
+  Mean = 0.053090 (Mbytes/sec)
+Compare 2097152 bytes of one transaction .vs. bytes backwards FAIL:
+  128856 Bytes different for least significant address nibble 0x9
+Compare 2097152 bytes of one transaction .vs. bytes forwards FAIL:
+  128534 Bytes different for least significant address nibble 0xB
+
+
+Where with the Spansion S25FL_A a byte read can return different data when the *previous* address nibble is 0xA.
+
+Looks like hit the condition in
+https://community.infineon.com/t5/Knowledge-Base-Articles/QSPI-NOR-flash-Special-considerations-for-mode-bits-usage-KBA235169/ta-p/349775
+where the Spansion flash sampled the mode bits as Axh and the flash stayed in continuous read mode.
+
+Investigate the work-around of issuing a Mode Bit Reset (FFh) command.
+Not sure how the Quad SPI core handles the Mode Bits and then tri-states the IO[3-0] after has output the address.

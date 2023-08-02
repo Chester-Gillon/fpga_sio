@@ -3,4 +3,4 @@
 add_library (xilinx_quad_spi "xilinx_quad_spi.c")
 
 add_executable (quad_spi_flasher "quad_spi_flasher.c")
-target_link_libraries (quad_spi_flasher xilinx_quad_spi fury_utils xilinx_xadc vfio_access pci rt)
+target_link_libraries (quad_spi_flasher xilinx_quad_spi fury_utils xilinx_xadc vfio_access transfer_timing pci rt)
