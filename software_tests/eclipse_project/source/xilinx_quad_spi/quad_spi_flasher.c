@@ -210,6 +210,7 @@ static void display_spi_flash_information (const vfio_device_t *const vfio_devic
             controller.manufacturer_id, controller.memory_interface_type, controller.density);
     printf ("Flash Size Bytes=%u  Page Size Bytes=%u  Num Address Bytes=%u\n",
             controller.flash_size_bytes, controller.page_size_bytes, controller.num_address_bytes);
+    quad_spi_dump_raw_parameters (&controller);
 
     test_spi_flash_read_modes (&controller);
 }

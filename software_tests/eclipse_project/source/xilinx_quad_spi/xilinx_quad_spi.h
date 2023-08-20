@@ -17,7 +17,8 @@
 typedef enum
 {
     QUAD_SPI_FLASH_SPANSION_S25FL_A,
-    QUAD_SPI_FLASH_MICRON_N25Q256A
+    QUAD_SPI_FLASH_MICRON_N25Q256A,
+    QUAD_SPI_FLASH_MACRONIX_MX25L128
 } quad_spi_flash_t;
 
 extern const char *const quad_spi_flash_names[];
@@ -63,6 +64,8 @@ typedef struct
     uint8_t configuration_register;
     /* The Common Flash Interface (CFI) parameters read from the flash */
     uint8_t cfi_parameters[512];
+    /* The populated length of cfi_parameters, for the primary query, in bytes */
+    uint32_t cfi_populated_len;
     /* Vendor specific parameters, which point into the cfi_parameters[] data */
     uint32_t num_vendor_specific;
     cfi_alternative_vendor_specific_parmeters_t vendor_specific[MAX_CFI_ALTERNATIVE_VENDOR_SPECIFIC_PARMETERS];
@@ -74,6 +77,8 @@ typedef struct
 {
     /* The Serial Flash Discovery Parameters */
     uint8_t sfdp[2048];
+    /* The populated length of sfdp in bytes */
+    uint32_t sfdp_populated_len;
     /* The basic parameters obtained from SFDP */
     sfdp_parameter_table_t basic;
     /* The value of the non-volatile configuration register in the flash */
@@ -81,6 +86,18 @@ typedef struct
     /* The value of the volatile configuration register in the flash */
     uint8_t volatile_configuration_register;
 } micron_n25q256a_parameters_t;
+
+
+/* Parameters for a QUAD_SPI_FLASH_MACRONIX_MX25L128 */
+typedef struct
+{
+    /* The Serial Flash Discovery Parameters */
+    uint8_t sfdp[2048];
+    /* The populated length of sfdp in bytes */
+    uint32_t sfdp_populated_len;
+    /* The basic parameters obtained from SFDP */
+    sfdp_parameter_table_t basic;
+} macronix_mx25l128_parameters_t;
 
 
 /* Defines one erase block region for a Quad SPI flash, in terms of a number of contiguous sectors of the same size.
@@ -134,6 +151,8 @@ typedef struct
         spansion_s25fl_a_parameters_t s25fl_a_params;
         /* For QUAD_SPI_FLASH_MICRON_N25Q256A */
         micron_n25q256a_parameters_t n25q256a_params;
+        /* For QUAD_SPI_FLASH_MACRONIX_MX25L128 */
+        macronix_mx25l128_parameters_t mx25l128_params;
     };
 } quad_spi_controller_context_t;
 
@@ -141,5 +160,6 @@ typedef struct
 bool quad_spi_initialise_controller (quad_spi_controller_context_t *const controller, uint8_t *const quad_spi_regs);
 bool quad_spi_read_flash (quad_spi_controller_context_t *const controller, const uint32_t start_address,
                           const size_t num_data_bytes, uint8_t data[const num_data_bytes]);
+void quad_spi_dump_raw_parameters (quad_spi_controller_context_t *const controller);
 
 #endif /* XILINX_QUAD_SPI_H_ */
