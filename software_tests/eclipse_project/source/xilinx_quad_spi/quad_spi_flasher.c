@@ -6,6 +6,7 @@
 
 #include "fpga_sio_pci_ids.h"
 #include "xilinx_quad_spi.h"
+#include "xilinx_7_series_bitstream.h"
 #include "fury_utils.h"
 #include "transfer_timing.h"
 
@@ -210,9 +211,17 @@ static void display_spi_flash_information (const vfio_device_t *const vfio_devic
             controller.manufacturer_id, controller.memory_interface_type, controller.density);
     printf ("Flash Size Bytes=%u  Page Size Bytes=%u  Num Address Bytes=%u\n",
             controller.flash_size_bytes, controller.page_size_bytes, controller.num_address_bytes);
-    quad_spi_dump_raw_parameters (&controller);
 
-    test_spi_flash_read_modes (&controller);
+    //@todo make these command line options
+    if (false)
+    {
+        quad_spi_dump_raw_parameters (&controller);
+        test_spi_flash_read_modes (&controller);
+    }
+
+    x7_bitstream_context_t bitstream_context;
+    x7_bitstream_read_from_spi_flash (&bitstream_context, &controller, 0);
+    x7_bitstream_summarise (&bitstream_context);
 }
 
 
