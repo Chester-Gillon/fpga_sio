@@ -40,7 +40,7 @@ typedef enum
 } smbus_transfer_status_t;
 
 
-const char *const smbus_transfer_status_descriptions[SMBUS_TRANSFER_ARRAY_SIZE];
+extern const char *const smbus_transfer_status_descriptions[SMBUS_TRANSFER_ARRAY_SIZE];
 
 
 /* The context for a GPIO bit-banged I2C controller */

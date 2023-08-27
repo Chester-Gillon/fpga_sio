@@ -5,7 +5,13 @@
 SCRIPT=$(readlink -f $0)
 SCRIPT_PATH=`dirname ${SCRIPT}`
 
-GCC_PATH=/opt/GNAT/2020/bin
+# Prefer GNAT Community edition 2021, but since that can't be run on CentOS 6 due to glibc dependencies fall back
+# to 2020 if the later version isn't installed.
+GCC_PATH=/opt/GNAT/2021/bin
+if [ ! -d ${GCC_PATH} ]
+then
+    GCC_PATH=/opt/GNAT/2020/bin
+fi
 
 # Create the native platforms
 platforms="debug release coverage"
