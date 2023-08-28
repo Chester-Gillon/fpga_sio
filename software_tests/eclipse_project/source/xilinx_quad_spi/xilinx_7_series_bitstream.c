@@ -34,116 +34,151 @@ static const uint8_t x7_bit_file_fixed_header[] =
 };
 
 
+/* One entry in an array to provide a look-up from enumeration value to name.
+ * A NULL enum_name indicates the end of the array. */
+#define X7_ENUM_UNKNOWN_STRING_LEN 64
+typedef struct
+{
+    uint32_t value;
+    const char *name;
+} x7_enum_lut_entry_t;
+
+
 /* Lookup table giving names for x7_packet_opcode_t */
-static const char *const x7_packet_opcode_names[] =
+static const x7_enum_lut_entry_t x7_packet_opcode_names[] =
 {
-    [X7_PACKET_OPCODE_NOP     ] = "NOP",
-    [X7_PACKET_OPCODE_READ    ] = "read",
-    [X7_PACKET_OPCODE_WRITE   ] = "write",
-    [X7_PACKET_OPCODE_RESERVED] = "reserved"
+    {.value = X7_PACKET_OPCODE_NOP     , .name = "NOP"},
+    {.value = X7_PACKET_OPCODE_READ    , .name = "read"},
+    {.value = X7_PACKET_OPCODE_WRITE   , .name = "write"},
+    {.value = X7_PACKET_OPCODE_RESERVED, .name = "reserved"},
+    {                                    .name = NULL}
 };
 
-/* Lookup table giving names for x7_packet_type_1_register_t.
- * As there are gaps in the enumerations, the undefined enumerations have NULL for the name */
-static const char *const x7_packet_type_1_register_names[] =
+/* Lookup table giving names for x7_packet_type_1_register_t */
+static const x7_enum_lut_entry_t x7_packet_type_1_register_names[] =
 {
-    [X7_PACKET_TYPE_1_REG_CRC     ] = "CRC",
-    [X7_PACKET_TYPE_1_REG_FAR     ] = "FAR",
-    [X7_PACKET_TYPE_1_REG_FDRI    ] = "FDRI",
-    [X7_PACKET_TYPE_1_REG_FDRO    ] = "FDRO",
-    [X7_PACKET_TYPE_1_REG_CMD     ] = "CMD",
-    [X7_PACKET_TYPE_1_REG_CTL0    ] = "CTL0",
-    [X7_PACKET_TYPE_1_REG_MASK    ] = "MASK",
-    [X7_PACKET_TYPE_1_REG_STAT    ] = "STAT",
-    [X7_PACKET_TYPE_1_REG_LOUT    ] = "LOUT",
-    [X7_PACKET_TYPE_1_REG_COR0    ] = "COR0",
-    [X7_PACKET_TYPE_1_REG_MFWR    ] = "MFWR",
-    [X7_PACKET_TYPE_1_REG_CBC     ] = "CBC",
-    [X7_PACKET_TYPE_1_REG_IDCODE  ] = "IDCODE",
-    [X7_PACKET_TYPE_1_REG_AXSS    ] = "AXSS",
-    [X7_PACKET_TYPE_1_REG_COR1    ] = "COR1",
-    [X7_PACKET_TYPE_1_REG_WBSTAR  ] = "WBSTAR",
-    [X7_PACKET_TYPE_1_REG_TIMER   ] = "TIMER",
-    [X7_PACKET_TYPE_1_REG_RBCRC_SW] = "RBCRC_SW",
-    [X7_PACKET_TYPE_1_REG_BOOTSTS ] = "BOOTSTS",
-    [X7_PACKET_TYPE_1_REG_CTL1    ] = "CTL1",
-    [X7_PACKET_TYPE_1_REG_BSPI    ] = "BSPI"
+    {.value = X7_PACKET_TYPE_1_REG_CRC     , .name = "CRC"},
+    {.value = X7_PACKET_TYPE_1_REG_FAR     , .name = "FAR"},
+    {.value = X7_PACKET_TYPE_1_REG_FDRI    , .name = "FDRI"},
+    {.value = X7_PACKET_TYPE_1_REG_FDRO    , .name = "FDRO"},
+    {.value = X7_PACKET_TYPE_1_REG_CMD     , .name = "CMD"},
+    {.value = X7_PACKET_TYPE_1_REG_CTL0    , .name = "CTL0"},
+    {.value = X7_PACKET_TYPE_1_REG_MASK    , .name = "MASK"},
+    {.value = X7_PACKET_TYPE_1_REG_STAT    , .name = "STAT"},
+    {.value = X7_PACKET_TYPE_1_REG_LOUT    , .name = "LOUT"},
+    {.value = X7_PACKET_TYPE_1_REG_COR0    , .name = "COR0"},
+    {.value = X7_PACKET_TYPE_1_REG_MFWR    , .name = "MFWR"},
+    {.value = X7_PACKET_TYPE_1_REG_CBC     , .name = "CBC"},
+    {.value = X7_PACKET_TYPE_1_REG_IDCODE  , .name = "IDCODE"},
+    {.value = X7_PACKET_TYPE_1_REG_AXSS    , .name = "AXSS"},
+    {.value = X7_PACKET_TYPE_1_REG_COR1    , .name = "COR1"},
+    {.value = X7_PACKET_TYPE_1_REG_WBSTAR  , .name = "WBSTAR"},
+    {.value = X7_PACKET_TYPE_1_REG_TIMER   , .name = "TIMER"},
+    {.value = X7_PACKET_TYPE_1_REG_RBCRC_SW, .name = "RBCRC_SW"},
+    {.value = X7_PACKET_TYPE_1_REG_BOOTSTS , .name = "BOOTSTS"},
+    {.value = X7_PACKET_TYPE_1_REG_CTL1    , .name = "CTL1"},
+    {.value = X7_PACKET_TYPE_1_REG_BSPI    , .name = "BSPI"},
+    {                                        .name = NULL}
 };
 
-/* Lookup table giving names for x7_command_register_code_t
- * As there are gaps in the enumerations, the undefined enumerations have NULL for the name */
-static const char *const x7_command_register_code_names[] =
+/* Lookup table giving names for x7_command_register_code_t */
+static const x7_enum_lut_entry_t x7_command_register_code_names[] =
 {
-    [X7_COMMAND_NULL       ] = "NULL",
-    [X7_COMMAND_WCFG       ] = "WCFG",
-    [X7_COMMAND_MFW        ] = "MFW",
-    [X7_COMMAND_DGHIGH_LFRM] = "DGHIGH_LFRM",
-    [X7_COMMAND_RCFG       ] = "RCFG",
-    [X7_COMMAND_START      ] = "START",
-    [X7_COMMAND_RCAP       ] = "RCAP",
-    [X7_COMMAND_RCRC       ] = "RCRC",
-    [X7_COMMAND_AGHIGH     ] = "AGHIGH",
-    [X7_COMMAND_SWITCH     ] = "SWITCH",
-    [X7_COMMAND_GRESTORE   ] = "GRESTORE",
-    [X7_COMMAND_SHUTDOWN   ] = "SHUTDOWN",
-    [X7_COMMAND_GCAPTURE   ] = "GCAPTURE",
-    [X7_COMMAND_DESYNC     ] = "DESYNC",
-    [X7_COMMAND_RESERVED   ] = "RESERVED",
-    [X7_COMMAND_IPROG      ] = "IPROG",
-    [X7_COMMAND_CRCC       ] = "CRCC",
-    [X7_COMMAND_LTIMER     ] = "LTIMER",
-    [X7_COMMAND_BSPI_READ  ] = "BSPI_READ",
-    [X7_COMMAND_FALL_EDGE  ] = "FALL_EDGE"
+    {.value = X7_COMMAND_NULL       , .name = "NULL"},
+    {.value = X7_COMMAND_WCFG       , .name = "WCFG"},
+    {.value = X7_COMMAND_MFW        , .name = "MFW"},
+    {.value = X7_COMMAND_DGHIGH_LFRM, .name = "DGHIGH_LFRM"},
+    {.value = X7_COMMAND_RCFG       , .name = "RCFG"},
+    {.value = X7_COMMAND_START      , .name = "START"},
+    {.value = X7_COMMAND_RCAP       , .name = "RCAP"},
+    {.value = X7_COMMAND_RCRC       , .name = "RCRC"},
+    {.value = X7_COMMAND_AGHIGH     , .name = "AGHIGH"},
+    {.value = X7_COMMAND_SWITCH     , .name = "SWITCH"},
+    {.value = X7_COMMAND_GRESTORE   , .name = "GRESTORE"},
+    {.value = X7_COMMAND_SHUTDOWN   , .name = "SHUTDOWN"},
+    {.value = X7_COMMAND_GCAPTURE   , .name = "GCAPTURE"},
+    {.value = X7_COMMAND_DESYNC     , .name = "DESYNC"},
+    {.value = X7_COMMAND_RESERVED   , .name = "RESERVED"},
+    {.value = X7_COMMAND_IPROG      , .name = "IPROG"},
+    {.value = X7_COMMAND_CRCC       , .name = "CRCC"},
+    {.value = X7_COMMAND_LTIMER     , .name = "LTIMER"},
+    {.value = X7_COMMAND_BSPI_READ  , .name = "BSPI_READ"},
+    {.value = X7_COMMAND_FALL_EDGE  , .name = "FALL_EDGE"},
+    {                                 .name = NULL}
+};
+
+
+/* Lookup table giving names for the X7_PACKET_TYPE_1_REG_IDCODE values.
+ * The don't care bits are left as zeros, and there are no mask bits defined for the don't care bits,
+ * on the assumption that:
+ * a. The don't care bits are the device revision.
+ * b. The bitstreams are written with the bits for the device revision left at zeros. */
+static const x7_enum_lut_entry_t x7_idcode_names[] =
+{
+    /* Spartan-7 Family */
+    {.value = 0X3622093, .name = "7S6"},
+    {.value = 0X3620093, .name = "7S15"},
+    {.value = 0X37C4093, .name = "7S25"},
+    {.value = 0X362F093, .name = "7S50"},
+    {.value = 0X37C8093, .name = "7S75"},
+    {.value = 0X37C7093, .name = "7S100"},
+    /* Artix-7 Family */
+    {.value = 0X37C3093, .name = "7A12T"},
+    {.value = 0X362E093, .name = "7A15T"},
+    {.value = 0X37C2093, .name = "7A25T"},
+    {.value = 0X362D093, .name = "7A35T"},
+    {.value = 0X362C093, .name = "7A50T"},
+    {.value = 0X3632093, .name = "7A75T"},
+    {.value = 0X3631093, .name = "7A100T"},
+    {.value = 0X3636093, .name = "7A200T"},
+    /* Kintex-7 Family */
+    {.value = 0X3647093, .name = "7K70T"},
+    {.value = 0X364C093, .name = "7K160T"},
+    {.value = 0X3651093, .name = "7K325T"},
+    {.value = 0X3747093, .name = "7K355T"},
+    {.value = 0X3656093, .name = "7K410T"},
+    {.value = 0X3752093, .name = "7K420T"},
+    {.value = 0X3751093, .name = "7K480T"},
+    /* Virtex-7 Family */
+    {.value = 0X3671093, .name = "7V585T"},
+    {.value = 0X36B3093, .name = "7V2000T"},
+    {.value = 0X3667093, .name = "7VX330T"},
+    {.value = 0X3682093, .name = "7VX415T"},
+    {.value = 0X3687093, .name = "7VX485T"},
+    {.value = 0X3692093, .name = "7VX550T"},
+    {.value = 0X3691093, .name = "7VX690T"},
+    {.value = 0X3696093, .name = "7VX980T"},
+    {.value = 0X36D5093, .name = "7VX1140T"},
+    {.value = 0X36D9093, .name = "7VH580T"},
+    {.value = 0X36DB093, .name = "7VH870T"},
+    {                    .name = NULL}
 };
 
 
 /**
- * @brief Get a type 1 packet register name, handling unknown registers
- * @param[in] register_address The register to get the name for
- * @return The name of the register.
- *         If an unknown register returns a pointer to a static buffer valid until the next call to this function,
+ * @brief Lookup the name for enumeration
+ * @param[in] lut The lookup table
+ * @param[in] value The enumeration value to get the name for
+ * @param[out] unknown A caller supplied buffer to format a string if the enumeration value isn't found in lut
+ * @return The name for the enumeration.
  */
-static const char *x7_bitstream_get_register_name (const x7_packet_type_1_register_t register_address)
+static const char *x7_bitstream_lookup_enum (const x7_enum_lut_entry_t *const lut, const uint32_t value,
+                                             char unknown[const X7_ENUM_UNKNOWN_STRING_LEN])
 {
-    const size_t registers_array_len = sizeof (x7_packet_type_1_register_names) / sizeof (x7_packet_type_1_register_names[0]);
-    static char unknown[64];
+    const x7_enum_lut_entry_t *lut_entry;
 
-    if ((register_address >= 0) && (register_address < registers_array_len) &&
-        (x7_packet_type_1_register_names[register_address] != NULL))
+    lut_entry = lut;
+    while (lut_entry->name != NULL)
     {
-        return x7_packet_type_1_register_names[register_address];
+        if (value == lut_entry->value)
+        {
+            return lut_entry->name;
+        }
+        lut_entry++;
     }
-    else
-    {
-        snprintf (unknown, sizeof (unknown), "unknown (0x%0x)", register_address);
 
-        return unknown;
-    }
-}
-
-
-/**
- * @brief Get a command name for a X7_PACKET_TYPE_1_REG_CMD, handling unknown commands
- * @param[in] command_code The command to get the name for
- * @return The name of the command code.
- *         If an unknown command returns a pointer to a static buffer valid until the next call to this function.
- */
-static const char *x7_bitstream_get_command_name (const x7_command_register_code_t command_code)
-{
-    const size_t commands_array_len = sizeof (x7_command_register_code_names) / sizeof (x7_command_register_code_names[0]);
-    static char unknown[64];
-
-    if ((command_code >= 0) && (command_code < commands_array_len) &&
-        (x7_command_register_code_names[command_code] != NULL))
-    {
-        return x7_command_register_code_names[command_code];
-    }
-    else
-    {
-        snprintf (unknown, sizeof (unknown), "unknown (0x%x)", command_code);
-
-        return unknown;
-    }
+    snprintf (unknown, X7_ENUM_UNKNOWN_STRING_LEN, "unknown (0x%x)", value);
+    return unknown;
 }
 
 
@@ -695,6 +730,11 @@ void x7_bitstream_free (x7_bitstream_context_t *const context)
 
 void x7_bitstream_summarise (const x7_bitstream_context_t *const context)
 {
+    char unknown_opcode[X7_ENUM_UNKNOWN_STRING_LEN];
+    char unknown_register[X7_ENUM_UNKNOWN_STRING_LEN];
+    char unknown_command[X7_ENUM_UNKNOWN_STRING_LEN];
+    char unknown_idcode[X7_ENUM_UNKNOWN_STRING_LEN];
+
     if (context->end_of_configuration_seen)
     {
         printf ("Successfully parsed bitstream of length %u bytes with %u configuration packets\n",
@@ -747,17 +787,26 @@ void x7_bitstream_summarise (const x7_bitstream_context_t *const context)
         switch (packet->header_type)
         {
         case X7_TYPE_1_PACKET:
-            printf ("  Type 1 packet opcode %s", x7_packet_opcode_names[packet->opcode]);
+            printf ("  Type 1 packet opcode %s",
+                    x7_bitstream_lookup_enum (x7_packet_opcode_names, packet->opcode, unknown_opcode));
             if (packet->opcode != X7_PACKET_OPCODE_NOP)
             {
                 printf (" register %s",
-                        x7_bitstream_get_register_name (packet->register_address));
+                        x7_bitstream_lookup_enum (x7_packet_type_1_register_names, packet->register_address, unknown_register));
                 if ((packet->opcode == X7_PACKET_OPCODE_WRITE) && (packet->register_address == X7_PACKET_TYPE_1_REG_CMD) &&
                     (packet->word_count == 1))
                 {
                     /* Decode the name of the command written */
                     printf (" command %s\n",
-                            x7_bitstream_get_command_name (x7_bitstream_unpack_word (context, packet->data_words_offset)));
+                            x7_bitstream_lookup_enum (x7_command_register_code_names,
+                                    x7_bitstream_unpack_word (context, packet->data_words_offset), unknown_command));
+                }
+                else if ((packet->opcode == X7_PACKET_OPCODE_WRITE) && (packet->register_address == X7_PACKET_TYPE_1_REG_IDCODE) &&
+                    (packet->word_count == 1))
+                {
+                    /* Display the name of the device */
+                    printf (" %s\n", x7_bitstream_lookup_enum (x7_idcode_names,
+                            x7_bitstream_unpack_word (context, packet->data_words_offset), unknown_idcode));
                 }
                 else
                 {
@@ -777,7 +826,8 @@ void x7_bitstream_summarise (const x7_bitstream_context_t *const context)
             break;
 
         case X7_TYPE_2_PACKET:
-            printf ("  Type 2 packet opcode %s word_count %u\n", x7_packet_opcode_names[packet->opcode], packet->word_count);
+            printf ("  Type 2 packet opcode %s word_count %u\n",
+                    x7_bitstream_lookup_enum (x7_packet_opcode_names, packet->opcode, unknown_opcode), packet->word_count);
             break;
         }
 
