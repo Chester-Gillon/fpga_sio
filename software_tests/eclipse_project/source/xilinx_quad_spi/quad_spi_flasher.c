@@ -222,6 +222,7 @@ static void display_spi_flash_information (const vfio_device_t *const vfio_devic
     x7_bitstream_context_t bitstream_context;
     x7_bitstream_read_from_spi_flash (&bitstream_context, &controller, 0);
     x7_bitstream_summarise (&bitstream_context);
+    x7_bitstream_free (&bitstream_context);
 }
 
 

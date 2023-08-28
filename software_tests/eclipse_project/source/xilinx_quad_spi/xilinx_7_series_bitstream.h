@@ -10,6 +10,8 @@
 
 #include "xilinx_quad_spi.h"
 
+#include <limits.h>
+
 
 /* Values for the header type field in the FPGA bitstream */
 typedef enum
@@ -101,15 +103,37 @@ typedef struct
 } x7_packet_record_t;
 
 
+/* Defines the context specific for reading a bitstream from a file */
+typedef struct
+{
+    /* The pathname of the bitstream file */
+    char pathname[PATH_MAX];
+    /* The contents of the raw bitstream file, possibly containing a .bit header */
+    uint8_t *raw_contents;
+    /* The number of bytes in raw_contents */
+    uint32_t raw_length;
+    /* When true raw_contents has a .bit format header.
+     * When false assumed to a .bin format file. */
+    bool bit_format_file;
+    /* When bit_format_file is true the strings from the .bit file header */
+    const char *design_name;
+    const char *part_name;
+    const char *date;
+    const char *time;
+} x7_bitstream_file_context_t;
+
+
 /* Contains the context for reading a bitstream for a Xilinx 7-series device */
 typedef struct
 {
-    /* Used to describe any error parsing the bitstream */
-    char error[1024];
+    /* Used to describe any error parsing the bitstream. Length allows for a pathname. */
+    char error[PATH_MAX * 2];
     /* When non-NULL the Quad SPI controller to read the bitstream from flash */
     quad_spi_controller_context_t *controller;
     /* When reading the bitstream from flash, the start address in flash */
     uint32_t flash_start_address;
+    /* When controller is NULL, the context for reading the bitstream from a file */
+    x7_bitstream_file_context_t file;
     /* Buffer used to parse the bitstream from.
      * When reading from a SPI flash the buffer length is increased as search for the end of bitstream.
      * When reading from a file the entire file is read. */
@@ -143,6 +167,8 @@ typedef struct
 void x7_bitstream_read_from_spi_flash (x7_bitstream_context_t *const context, quad_spi_controller_context_t *const controller,
                                        const uint32_t flash_start_address);
 uint32_t x7_bitstream_unpack_word (const x7_bitstream_context_t *const context, const uint32_t word_index);
+void x7_bitstream_read_from_file (x7_bitstream_context_t *const context, const char *const bitstream_pathname);
+void x7_bitstream_free (x7_bitstream_context_t *const context);
 void x7_bitstream_summarise (const x7_bitstream_context_t *const context);
 
 #endif /* XILINX_7_SERIES_BITSTREAM_H_ */

@@ -8,7 +8,6 @@
  *
  * The following was used as a guide for the bitstream layout:
  *    https://docs.xilinx.com/r/en-US/ug470_7Series_Config
- * @todo This initial version only looks at a SPI flash.
  */
 
 #include "xilinx_7_series_bitstream.h"
@@ -16,10 +15,23 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <errno.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 
 /* The Sync Word which marks the start of the configuration frames in Xilinx 7-series devices */
 #define X7_BITSTREAM_SYNC_WORD 0xAA995566
+
+
+/* The fixed header at the start of a Xilinx .bit file.
+ * Couldn't find an official documentation, taken from a hex dump. */
+static const uint8_t x7_bit_file_fixed_header[] =
+{
+    0x00, 0x09, 0x0f, 0xf0, 0x0f, 0xf0, 0x0f, 0xf0, 0x0f, 0xf0, 0x00, 0x00, 0x01
+};
 
 
 /* Lookup table giving names for x7_packet_opcode_t */
@@ -417,6 +429,270 @@ void x7_bitstream_read_from_spi_flash (x7_bitstream_context_t *const context, qu
 }
 
 
+/**
+ * @brief Get some bytes from the header of a .bit format file, checking don't try and read off the end of the file
+ * @param[in/out] context Contains the header of the .bit format file
+ * @param[in/out] raw_file_offset Offset in the file to advance through the header
+ * @param[in] num_bytes The number of bytes to get
+ * @return The pointer to the bytes from the header, or NULL if attempt to read off the end of the file
+ */
+static const void *x7_bitstream_get_bit_header_bytes (x7_bitstream_context_t *const context,
+                                                      uint32_t *const raw_file_offset,
+                                                      const uint32_t num_bytes)
+{
+    if (((*raw_file_offset) + num_bytes) > context->file.raw_length)
+    {
+        snprintf (context->error, sizeof (context->error), "Attempt to read bit header off end of file %s",
+                context->file.pathname);
+        return NULL;
+    }
+
+    const void *const header_bytes = &context->file.raw_contents[*raw_file_offset];
+    (*raw_file_offset) += num_bytes;
+
+    return header_bytes;
+}
+
+
+/**
+ * @brief Read one field ID from the .bit format file, checking the expected field
+ * @param[in/out] context Contains the header of the .bit format file
+ * @param[in/out] raw_file_offset Offset in the file to advance through the header
+ * @param[in] expected_field_id The expected field identifier character
+ * @return Returns true if read expected_field_id, or false if an error.
+ */
+static bool x7_bitstream_bit_header_field_id (x7_bitstream_context_t *const context,
+                                              uint32_t *const raw_file_offset,
+                                              const char expected_field_id)
+{
+    /* Read the character which defines the field identity */
+    const char *const actual_field_id = x7_bitstream_get_bit_header_bytes (context, raw_file_offset, 1);
+    if (actual_field_id == NULL)
+    {
+        return false;
+    }
+    if (*actual_field_id != expected_field_id)
+    {
+        snprintf (context->error, sizeof (context->error),
+                "Read 0x%0x rather than expected field id %c from bit header in %s",
+                *actual_field_id, expected_field_id, context->file.pathname);
+        return false;
+    }
+
+    return true;
+}
+
+
+/**
+ * @brief Extract one variable length string field from the header of a .bit format file.
+ * @param[in/out] context Contains the header of the .bit format file
+ * @param[in/out] raw_file_offset Offset in the file to advance through the header
+ * @param[in] expected_field_id The expected field identifier character
+ * @param[out] header_string Set to point at the string in the file header
+ * @return Returns true if read the string, or false if an error.
+ */
+static bool x7_bitstream_extract_bit_header_string (x7_bitstream_context_t *const context,
+                                                    uint32_t *const raw_file_offset,
+                                                    const char expected_field_id,
+                                                    const char **const header_string)
+{
+    if (!x7_bitstream_bit_header_field_id (context, raw_file_offset, expected_field_id))
+    {
+        return false;
+    }
+
+    /* Read the big-endian 16-bit string length */
+    const uint8_t *const string_len_bytes = x7_bitstream_get_bit_header_bytes (context, raw_file_offset, sizeof (uint16_t));
+    if (string_len_bytes == NULL)
+    {
+        return false;
+    }
+    const uint32_t string_len = ((uint32_t) string_len_bytes[0] << 8) | string_len_bytes[1];
+
+    /* Read the header string which should be null terminated */
+    if (string_len == 0)
+    {
+        snprintf (context->error, sizeof (context->error), "Empty string for field_id %c in bit header in %s",
+                expected_field_id, context->file.pathname);
+        return false;
+    }
+    *header_string = x7_bitstream_get_bit_header_bytes (context, raw_file_offset, string_len);
+    if ((*header_string)[string_len - 1] != '\0')
+    {
+        snprintf (context->error, sizeof (context->error),
+                "String for field_id %c in bit header is not null-terminated in %s",
+                expected_field_id, context->file.pathname);
+        return false;
+    }
+
+    return true;
+}
+
+
+/**
+ * @brief Parse the header information from a .bit format file, and if successful setup the data_buffer to parse the bitstream.
+ * @details Having been unable to locate Xilinx documentation for the header format in a .bit file,
+ *          used http://www.fpga-faq.com/FAQ_Pages/0026_Tell_me_about_bit_files.htm as a guide.
+ *
+ *          The assumption is that the fields are always present, rather than being optional and having to scan the
+ *          available field IDs.
+ * @param[in/out] context Contains the header of the .bit format file
+ * @return Returns true parsed the header, or false if an error.
+ */
+static bool x7_bitstream_parse_bit_file_header (x7_bitstream_context_t *const context)
+{
+    bool header_valid;
+    uint32_t raw_file_offset;
+
+    /* Caller has already verified the fixed header, so skip it */
+    raw_file_offset = sizeof (x7_bit_file_fixed_header);
+
+    /* Read the strings from the file header */
+    header_valid =
+            x7_bitstream_extract_bit_header_string (context, &raw_file_offset, 'a', &context->file.design_name) &&
+            x7_bitstream_extract_bit_header_string (context, &raw_file_offset, 'b', &context->file.part_name) &&
+            x7_bitstream_extract_bit_header_string (context, &raw_file_offset, 'c', &context->file.date) &&
+            x7_bitstream_extract_bit_header_string (context, &raw_file_offset, 'd', &context->file.time);
+
+    header_valid = header_valid && x7_bitstream_bit_header_field_id (context, &raw_file_offset, 'e');
+    if (header_valid)
+    {
+        const uint8_t *const bitstream_length_bytes =
+                x7_bitstream_get_bit_header_bytes (context, &raw_file_offset, sizeof (uint32_t));
+        header_valid = bitstream_length_bytes != NULL;
+
+        if (header_valid)
+        {
+            const uint32_t bitstream_length_from_file_size = context->file.raw_length - raw_file_offset;
+            const uint32_t bitstream_length_from_header =
+                    (((uint32_t) bitstream_length_bytes[0]) << 24) |
+                    (((uint32_t) bitstream_length_bytes[1]) << 16) |
+                    (((uint32_t) bitstream_length_bytes[2]) <<  8) |
+                    ( (uint32_t) bitstream_length_bytes[3]       );
+            header_valid = bitstream_length_from_file_size == bitstream_length_from_header;
+            if (header_valid)
+            {
+                /* The bitstream follows the bit header in the file */
+                context->data_buffer = &context->file.raw_contents[raw_file_offset];
+                context->data_buffer_length = bitstream_length_from_header;
+            }
+            else
+            {
+                snprintf (context->error, sizeof (context->error),
+                        "Bitstream length in bit header is %u bytes, but expected %u bytes of file size for %s",
+                        bitstream_length_from_header, bitstream_length_from_file_size, context->file.pathname);
+            }
+        }
+    }
+
+    return header_valid;
+}
+
+
+/**
+ * @brief Read a bitstream from a local file on the host
+ * @details Handles .bit or .bin format files created by the Xilinx Vivado tools
+ * @param[out] context The context which contains the bitstream, including flags which indicate if successfully read the bitstream.
+ * @param[in] bitstream_pathname The bitstream file to read.
+ */
+void x7_bitstream_read_from_file (x7_bitstream_context_t *const context, const char *const bitstream_pathname)
+{
+    struct stat statbuf;
+    int rc;
+    FILE *bitstream_file;
+
+    memset (context, 0, sizeof (*context));
+    snprintf (context->file.pathname, sizeof (context->file.pathname), "%s", bitstream_pathname);
+    context->controller = NULL;
+
+    /* Read the entire contents of the bitstream file into memory.
+     * Reject a file which is >= 4GB as too large for a bitstream as for a SPI flash can only support 32-bit addressing. */
+    rc = stat (context->file.pathname, &statbuf);
+    if (rc != 0)
+    {
+        snprintf (context->error, sizeof (context->error), "Unable to stat() %s : %s",
+                context->file.pathname, strerror (errno));
+        return;
+    }
+
+    if (statbuf.st_size >= 0x100000000)
+    {
+        snprintf (context->error, sizeof (context->error), "File size exceeds 32 bit addressing");
+        return;
+    }
+    context->file.raw_length = (uint32_t) statbuf.st_size;
+
+    context->file.raw_contents = malloc (context->file.raw_length);
+    if (context->file.raw_contents == NULL)
+    {
+        snprintf (context->error, sizeof (context->error),
+                "Failed to allocate bitstream_file_contents of %u bytes", context->file.raw_length);
+        return;
+    }
+
+    bitstream_file = fopen (context->file.pathname, "r");
+    if (bitstream_file == NULL)
+    {
+        snprintf (context->error, sizeof (context->error), "Unable to open %s : %s",
+                context->file.pathname, strerror (errno));
+        return;
+    }
+
+    const size_t bytes_read = fread (context->file.raw_contents, 1, context->file.raw_length, bitstream_file);
+    if (bytes_read != context->file.raw_length)
+    {
+        snprintf (context->error, sizeof (context->error), "Only read %zu out of %u bytes from %s : %s",
+                bytes_read, context->file.raw_length, context->file.pathname, strerror (errno));
+        return;
+    }
+    (void) fclose (bitstream_file);
+
+    /* Perform simple auto-detect of file format */
+    context->file.bit_format_file = (context->file.raw_length > sizeof (x7_bit_file_fixed_header)) &&
+            (memcmp (context->file.raw_contents, x7_bit_file_fixed_header, sizeof (x7_bit_file_fixed_header)) == 0);
+    if (context->file.bit_format_file)
+    {
+        if (x7_bitstream_parse_bit_file_header (context))
+        {
+            x7_bitstream_parse (context);
+        }
+    }
+    else
+    {
+        /* Assume the file is in .bin format containing the binary contents of the bitstream */
+        context->data_buffer = context->file.raw_contents;
+        context->data_buffer_length = context->file.raw_length;
+        x7_bitstream_parse (context);
+    }
+}
+
+
+/**
+ * @brief Free the dynamic memory allocated for a bitstream
+ * @param[in/out] context The context for free memory for
+ */
+void x7_bitstream_free (x7_bitstream_context_t *const context)
+{
+    if (context->controller != NULL)
+    {
+        free (context->data_buffer);
+        context->data_buffer = NULL;
+    }
+    else
+    {
+        free (context->file.raw_contents);
+        context->file.raw_contents = NULL;
+        context->file.design_name = NULL;
+        context->file.part_name = NULL;
+        context->file.date = NULL;
+        context->file.time = NULL;
+    }
+
+    free (context->packets);
+    context->packets = NULL;
+}
+
+
 void x7_bitstream_summarise (const x7_bitstream_context_t *const context)
 {
     if (context->end_of_configuration_seen)
@@ -432,6 +708,18 @@ void x7_bitstream_summarise (const x7_bitstream_context_t *const context)
     if (context->controller != NULL)
     {
         printf ("Read %u bytes from SPI flash starting at address %u\n", context->data_buffer_length, context->flash_start_address);
+    }
+    else
+    {
+        printf ("Read bitsteam from file %s\n", context->file.pathname);
+        if (context->file.bit_format_file)
+        {
+            printf (".bit format header:\n");
+            printf ("  design_name=%s\n", context->file.design_name);
+            printf ("  part_name=%s\n", context->file.part_name);
+            printf ("  date=%s\n", context->file.date);
+            printf ("  time=%s\n", context->file.time);
+        }
     }
 
     if (context->sync_word_found)
