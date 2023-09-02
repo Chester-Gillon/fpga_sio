@@ -13,6 +13,10 @@
 #include <limits.h>
 
 
+/* Defines the string length, including trailing null, to hold a formatted timestamp of the form MM/DD/YYYY hh:mm:ss */
+#define USER_ACCESS_TIMESTAMP_LEN 20
+
+
 /* Values for the header type field in the FPGA bitstream */
 typedef enum
 {
@@ -167,6 +171,16 @@ typedef struct
 void x7_bitstream_read_from_spi_flash (x7_bitstream_context_t *const context, quad_spi_controller_context_t *const controller,
                                        const uint32_t flash_start_address);
 uint32_t x7_bitstream_unpack_word (const x7_bitstream_context_t *const context, const uint32_t word_index);
+bool x7_packet_is_nop (const x7_packet_record_t *const packet);
+bool x7_packet_is_register_write (const x7_packet_record_t *const packet, const x7_packet_type_1_register_t register_address);
+bool x7_packet_is_word_register_write (const x7_bitstream_context_t *const context,
+                                       const x7_packet_record_t *const packet,
+                                       const x7_packet_type_1_register_t register_address, uint32_t *const register_value);
+bool x7_packet_is_command (const x7_bitstream_context_t *const context,
+                           const x7_packet_record_t *const packet,
+                           const x7_command_register_code_t expected_command);
+void x7_bitstream_format_user_access_timestamp (const uint32_t user_access,
+                                                char formatted_timestamp[const USER_ACCESS_TIMESTAMP_LEN]);
 void x7_bitstream_read_from_file (x7_bitstream_context_t *const context, const char *const bitstream_pathname);
 void x7_bitstream_free (x7_bitstream_context_t *const context);
 void x7_bitstream_summarise (const x7_bitstream_context_t *const context);

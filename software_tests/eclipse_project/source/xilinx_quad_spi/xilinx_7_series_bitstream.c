@@ -198,6 +198,95 @@ uint32_t x7_bitstream_unpack_word (const x7_bitstream_context_t *const context, 
 
 
 /**
+ * @brief Determine if a packet from a bitstream is a NOP
+ * @param[in] packet The packet to compare
+ * @return Returns true if the packet is a NOP
+ */
+bool x7_packet_is_nop (const x7_packet_record_t *const packet)
+{
+    return (packet->header_type == X7_TYPE_1_PACKET) && (packet->opcode == X7_PACKET_OPCODE_NOP);
+}
+
+
+/**
+ * @brief Determine if a packet from a bitstream is a write to a specific register
+ * @param[in] packet The packet to compare
+ * @param[in] register_address The specific register to compare against
+ * @return Returns true if the packet is a write to register_address
+ */
+bool x7_packet_is_register_write (const x7_packet_record_t *const packet, const x7_packet_type_1_register_t register_address)
+{
+    return (packet->header_type == X7_TYPE_1_PACKET) && (packet->opcode == X7_PACKET_OPCODE_WRITE) &&
+            (packet->register_address == register_address);
+}
+
+
+/**
+ * @brief Determine if a packet from a bitstream is writing one word to a specific register
+ * @param[in] context Used to obtain the register value
+ * @param[in] packet The packet to compare
+ * @param[in] register_address The specific register to compare against
+ * @param[out] register_value The value which has been written to the register
+ * @return Returns true if the packet is a write of a single word to the register_address
+ */
+bool x7_packet_is_word_register_write (const x7_bitstream_context_t *const context,
+                                       const x7_packet_record_t *const packet,
+                                       const x7_packet_type_1_register_t register_address, uint32_t *const register_value)
+{
+    if (x7_packet_is_register_write (packet, register_address) && (packet->word_count == 1))
+    {
+        *register_value = x7_bitstream_unpack_word (context, packet->data_words_offset);
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+
+/**
+ * @brief Determine if a packet from a bitstream is writing a specific command
+ * @param[in] context Used to obtain the register value
+ * @param[in] packet The packet to compare
+ * @param[in] expected_command The command to compare against
+ * @return Returns true if the packet is a write of expected_command
+ */
+bool x7_packet_is_command (const x7_bitstream_context_t *const context,
+                           const x7_packet_record_t *const packet,
+                           const x7_command_register_code_t expected_command)
+{
+    uint32_t command_value;
+
+    return x7_packet_is_word_register_write (context, packet, X7_PACKET_TYPE_1_REG_CMD, &command_value) &&
+            (command_value == expected_command);
+}
+
+
+/**
+ * @brief Format a string containing the timestamp embedded in the the user access (AXSS register) in the bitstream
+ * @param[in] user_access The value of the user access to format
+ * @param[out] formatted_timestamp The formatted timestamp string
+ */
+void x7_bitstream_format_user_access_timestamp (const uint32_t user_access,
+                                                char formatted_timestamp[const USER_ACCESS_TIMESTAMP_LEN])
+{
+    /* Extract the individual bit fields of the timestamp */
+    const uint32_t day    = (user_access & 0xf8000000) >> 27;
+    const uint32_t month  = (user_access & 0x07800000) >> 23;
+    const uint32_t year   = (user_access & 0x007e0000) >> 17;
+    const uint32_t hour   = (user_access & 0x0001f000) >> 12;
+    const uint32_t minute = (user_access & 0x00000fc0) >>  6;
+    const uint32_t second = (user_access & 0x0000003f);
+
+    const uint32_t epoch_year = 2000;
+
+    snprintf (formatted_timestamp, USER_ACCESS_TIMESTAMP_LEN, "%02u/%02u/%04u %02u:%02u:%02u",
+            day, month, year + epoch_year, hour, minute, second);
+}
+
+
+/**
  * @brief Get the next bitstream configuration word
  * @param[in/out] context The context used for reading the bitstream
  * @param[out] word The configuration word which has been read
@@ -728,13 +817,152 @@ void x7_bitstream_free (x7_bitstream_context_t *const context)
 }
 
 
+/**
+ * @brief Summarise the section of packets from a bitstream which perform configuration data writes
+ * @details
+ *  This starts with a write to the FAR register, and contains any:
+ *  - NOP commands
+ *  - Further writes to to the FAR register
+ *  - WCFG or MFW commands
+ *  - Writes to the FDRI or MFWR registers which contain configuration data
+ *  - Type 2 packets which contain configuration data
+ *
+ *  Returns once have read anything not in the above list, which is normally a write to the CRC register.
+ *
+ *  When bitstream compression isn't used, all the configuration data will be written in a single type 2 packet.
+ *
+ *  When bitstream compression is used, the configuration data is written in a mixture of FDRI or MFWR register writes
+ *  and type 2 packets.
+ *
+ *  This function was written to reduce the amount of output for summarising the bitstream, by inspecting a sample of
+ *  bitstreams. As the contents of the configuration data isn't documented no need to try and decode the configurarion
+ *  data contents.
+ * @param[in] context The bitstream being parsed
+ * @param[in/out] packet_index Used to advance through the packets in the bitstream.
+ *                On entry the first packet of configuration data to summarise
+ *                On exit the packet after the end of the configuration data
+ */
+static void x7_bitstream_summarise_configuration_data_writes (const x7_bitstream_context_t *const context,
+                                                              uint32_t *const packet_index)
+{
+    bool parsing_configuration_data_writes = true;
+    uint32_t num_nops = 0;
+    uint32_t num_far_writes = 0;
+    uint32_t num_wcfg_commands = 0;
+    uint32_t num_fdri_writes = 0;
+    uint32_t total_fdri_words = 0;
+    uint32_t num_mfw_commands = 0;
+    uint32_t num_mfwr_writes = 0;
+    uint32_t total_mfwr_words = 0;
+    uint32_t num_type_2_packets = 0;
+    uint32_t total_type_2_packet_words = 0;
+    uint32_t total_packets_consumed = 0;
+
+    /* Count the packets which form the bitstream section which contains the configuration data writes */
+    while ((*packet_index < context->num_packets) && parsing_configuration_data_writes)
+    {
+        const x7_packet_record_t *const packet = &context->packets[*packet_index];
+
+        parsing_configuration_data_writes = true;
+        if (x7_packet_is_nop (packet))
+        {
+            num_nops++;
+        }
+        else if (x7_packet_is_register_write (packet, X7_PACKET_TYPE_1_REG_FAR))
+        {
+            num_far_writes++;
+        }
+        else if (x7_packet_is_command (context, packet, X7_COMMAND_WCFG))
+        {
+            num_wcfg_commands++;
+        }
+        else if (x7_packet_is_register_write (packet, X7_PACKET_TYPE_1_REG_FDRI))
+        {
+            num_fdri_writes++;
+            total_fdri_words += packet->word_count;
+        }
+        else if (x7_packet_is_command (context, packet, X7_COMMAND_MFW))
+        {
+            num_mfw_commands++;
+        }
+        else if (x7_packet_is_register_write (packet, X7_PACKET_TYPE_1_REG_MFWR))
+        {
+            num_mfwr_writes++;
+            total_mfwr_words += packet->word_count;
+        }
+        else if (packet->header_type == X7_TYPE_2_PACKET)
+        {
+            num_type_2_packets++;
+            total_type_2_packet_words += packet->word_count;
+        }
+        else
+        {
+            parsing_configuration_data_writes = false;
+        }
+
+        if (parsing_configuration_data_writes)
+        {
+            (*packet_index)++;
+            total_packets_consumed++;
+        }
+    }
+
+    if ((total_packets_consumed == 1) && (num_far_writes == 1))
+    {
+        /* If only a single FAR write found then this is actual after the configuration writes ,
+         * so let the caller display the actual FAR write */
+        (*packet_index)--;
+    }
+    else
+    {
+        /* Summarise the packets counted above */
+        printf ("  Configuration data writes consisting of:\n");
+        if (num_nops > 0)
+        {
+            printf ("    %u NOPs\n", num_nops);
+        }
+        if (num_far_writes > 0)
+        {
+            printf ("    %u FAR writes\n", num_far_writes);
+        }
+        if (num_wcfg_commands > 0)
+        {
+            printf ("    %u WCFG commands\n", num_wcfg_commands);
+        }
+        if (num_fdri_writes > 0)
+        {
+            printf ("    %u FDRI writes with a total of %u words\n", num_fdri_writes, total_fdri_words);
+        }
+        if (num_mfw_commands > 0)
+        {
+            printf ("    %u MFW commands\n", num_mfw_commands);
+        }
+        if (num_mfwr_writes > 0)
+        {
+            printf ("    %u MFWR writes with a total of %u words\n", num_mfwr_writes, total_mfwr_words);
+        }
+        if (num_type_2_packets > 0)
+        {
+            printf ("    %u Type 2 packets with a total of %u words\n", num_type_2_packets, total_type_2_packet_words);
+        }
+    }
+}
+
+
+/**
+ * @brief Summarise the contents of a bitstream to the console, for manually analysis
+ * @param[in] context Contains the bitstream to summarise
+ */
 void x7_bitstream_summarise (const x7_bitstream_context_t *const context)
 {
     char unknown_opcode[X7_ENUM_UNKNOWN_STRING_LEN];
     char unknown_register[X7_ENUM_UNKNOWN_STRING_LEN];
     char unknown_command[X7_ENUM_UNKNOWN_STRING_LEN];
     char unknown_idcode[X7_ENUM_UNKNOWN_STRING_LEN];
+    uint32_t register_value;
 
+    /* Indicate if the bitstream was parsed successfully and therefore if appears valid.
+     * Even if not consider valid displays the information which was parsed. */
     if (context->end_of_configuration_seen)
     {
         printf ("Successfully parsed bitstream of length %u bytes with %u configuration packets\n",
@@ -745,6 +973,7 @@ void x7_bitstream_summarise (const x7_bitstream_context_t *const context)
         printf ("Error parsing bitstream: %s\n", context->error);
     }
 
+    /* Display information specific to the source of the parsed bitstream */
     if (context->controller != NULL)
     {
         printf ("Read %u bytes from SPI flash starting at address %u\n", context->data_buffer_length, context->flash_start_address);
@@ -762,51 +991,70 @@ void x7_bitstream_summarise (const x7_bitstream_context_t *const context)
         }
     }
 
+    /* Display the byte index of the sync word, which indicates how much padding before the start of the bitstream */
     if (context->sync_word_found)
     {
         printf ("Sync word at byte index 0x%X\n", context->sync_word_byte_index);
     }
 
+    /* Summarise the configuration packets */
     uint32_t packet_index = 0;
-    uint32_t num_consecutive_nops = 0;
     while (packet_index < context->num_packets)
     {
-        /* Count consecutive NOPs */
-        /*
-        while ((packet_index < context->num_packets) &&
-               (context->packets[packet_index].header_type == X7_TYPE_1_PACKET) &&
-               (context->packets[packet_index].opcode == X7_PACKET_OPCODE_NOP))
+        /* Produce a summary of configuration data packets */
+        if (x7_packet_is_register_write (&context->packets[packet_index], X7_PACKET_TYPE_1_REG_FAR))
         {
-            num_consecutive_nops++;
-            packet_index++;
-        }*/
+            x7_bitstream_summarise_configuration_data_writes (context, &packet_index);
+        }
 
-        /* @todo just report raw values, rather than a compressed summary */
+        /* Display individual configuration packets which are not part of the configuration data */
         const x7_packet_record_t *const packet = &context->packets[packet_index];
-
         switch (packet->header_type)
         {
         case X7_TYPE_1_PACKET:
             printf ("  Type 1 packet opcode %s",
                     x7_bitstream_lookup_enum (x7_packet_opcode_names, packet->opcode, unknown_opcode));
-            if (packet->opcode != X7_PACKET_OPCODE_NOP)
+            if (x7_packet_is_nop (packet))
+            {
+                /* For NOPs just display the number of consecutive NOPs as no meaningful contents */
+                uint32_t num_consecutive_nops = 1;
+                while ((packet_index < context->num_packets) && (x7_packet_is_nop (&context->packets[packet_index + 1])))
+                {
+                    num_consecutive_nops++;
+                    packet_index++;
+                }
+
+                if (num_consecutive_nops > 1)
+                {
+                    printf (" (%u consecutive)\n", num_consecutive_nops);
+                }
+                else
+                {
+                    printf ("\n");
+                }
+            }
+            else
             {
                 printf (" register %s",
                         x7_bitstream_lookup_enum (x7_packet_type_1_register_names, packet->register_address, unknown_register));
-                if ((packet->opcode == X7_PACKET_OPCODE_WRITE) && (packet->register_address == X7_PACKET_TYPE_1_REG_CMD) &&
-                    (packet->word_count == 1))
+                if (x7_packet_is_word_register_write (context, packet, X7_PACKET_TYPE_1_REG_CMD, &register_value))
                 {
                     /* Decode the name of the command written */
                     printf (" command %s\n",
-                            x7_bitstream_lookup_enum (x7_command_register_code_names,
-                                    x7_bitstream_unpack_word (context, packet->data_words_offset), unknown_command));
+                            x7_bitstream_lookup_enum (x7_command_register_code_names, register_value, unknown_command));
                 }
-                else if ((packet->opcode == X7_PACKET_OPCODE_WRITE) && (packet->register_address == X7_PACKET_TYPE_1_REG_IDCODE) &&
-                    (packet->word_count == 1))
+                else if (x7_packet_is_word_register_write (context, packet, X7_PACKET_TYPE_1_REG_IDCODE, &register_value))
                 {
                     /* Display the name of the device */
-                    printf (" %s\n", x7_bitstream_lookup_enum (x7_idcode_names,
-                            x7_bitstream_unpack_word (context, packet->data_words_offset), unknown_idcode));
+                    printf (" %s\n", x7_bitstream_lookup_enum (x7_idcode_names, register_value, unknown_idcode));
+                }
+                else if (x7_packet_is_word_register_write (context, packet, X7_PACKET_TYPE_1_REG_AXSS, &register_value))
+                {
+                    /* Display the user access register as both the decode build timestamp and raw value */
+                    char formatted_timestamp[USER_ACCESS_TIMESTAMP_LEN];
+
+                    x7_bitstream_format_user_access_timestamp (register_value, formatted_timestamp);
+                    printf (" %08X - %s\n", register_value, formatted_timestamp);
                 }
                 else
                 {
@@ -819,10 +1067,6 @@ void x7_bitstream_summarise (const x7_bitstream_context_t *const context)
                     printf ("\n");
                 }
             }
-            else
-            {
-                printf ("\n");
-            }
             break;
 
         case X7_TYPE_2_PACKET:
@@ -832,10 +1076,5 @@ void x7_bitstream_summarise (const x7_bitstream_context_t *const context)
         }
 
         packet_index++;
-    }
-
-    if (num_consecutive_nops > 0)
-    {
-        printf ("  %u trailing NOPs\n", num_consecutive_nops);
     }
 }
