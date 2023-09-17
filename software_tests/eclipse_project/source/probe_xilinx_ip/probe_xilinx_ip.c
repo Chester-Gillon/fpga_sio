@@ -30,7 +30,7 @@
  *          https://github.com/RHSResearchLLC/NiteFury-and-LiteFury/tree/master/Sample-Projects/Project-0/FPGA project
  *
  *          This is done by checking the fixed value used in a GPIO input register, which is set to a constant input
- *          inside the FGPA.
+ *          inside the FPGA.
  * @param[in] mapped_bar Start of the memory mapped BAR to prove
  * @param[in] bar_size Size of the memory mapped BAR in bytes to probe
  * @return Returns true when the mapped BAR matches the search
@@ -63,7 +63,7 @@ static bool probe_nite_fury_or_lite_fury (const uint8_t *const mapped_bar, const
              *       a. None of the Xilinx IP (AXI-GPIO, AXI Quad SPI, XADC Wizard) used in the BAR has any identity registers.
              *       b. Since not all address bits seem to be decoded the pid_string can be found at multiple aliases addresses.
              *       c. Attempting to read from an unimplemented offset can cause the PC to hang.
-             *          Re-loading the FGPA didn't help to cause the PC to resume; had to hard power cycle.
+             *          Re-loading the FPGA didn't help to cause the PC to resume; had to hard power cycle.
              *          Not sure why the PCIe read doesn't fail with a completion timeout.
              */
             return true;

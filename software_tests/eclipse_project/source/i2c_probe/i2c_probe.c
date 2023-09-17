@@ -505,7 +505,7 @@ int main (int argc, char *argv[])
 {
     vfio_devices_t vfio_devices;
 
-    /* Filters for the FGPA devices tested */
+    /* Filters for the FPGA devices tested */
     const vfio_pci_device_filter_t filters[] =
     {
         {

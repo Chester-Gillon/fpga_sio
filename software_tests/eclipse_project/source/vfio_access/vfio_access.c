@@ -278,6 +278,33 @@ void map_vfio_device_bar_before_use (vfio_device_t *const vfio_device, const uin
 
 
 /**
+ * @brief Return a mapping for a block of registers
+ * @param[in/out] vfio_device The VFIO device to map the registers for.
+ * @param[in] bar_index Which BAR on the vfio_device contains the block of registers.
+ * @param[in] base_offset The base offset in bytes into the BAR for the block of registers.
+ * @param[in] frame_size The decoded frame size of the block of registers, used to check the BAR is large enough
+ * @return When non-NULL the local process mapping for the start of the block of registers.
+ *         Returns NULL if the BAR doesn't contains the requested block of registers.
+ */
+uint8_t *map_vfio_registers_block (vfio_device_t *const vfio_device, const uint32_t bar_index,
+                                   const size_t base_offset, const size_t frame_size)
+{
+    uint8_t *mapped_registers = NULL;
+
+    map_vfio_device_bar_before_use (vfio_device, bar_index);
+    if (vfio_device->mapped_bars[bar_index] != NULL)
+    {
+        if (vfio_device->regions_info[bar_index].size >= (base_offset + frame_size))
+        {
+            mapped_registers = &vfio_device->mapped_bars[bar_index][base_offset];
+        }
+    }
+
+    return mapped_registers;
+}
+
+
+/**
  * @brief Reset a VFIO device
  * @details With the Xilinx "DMA/Bridge Subsystem for PCI Express" PG195 the configuration registers are shown to be
  *          reset to zero when probe_xilinx_ip runs even when this function isn't called.

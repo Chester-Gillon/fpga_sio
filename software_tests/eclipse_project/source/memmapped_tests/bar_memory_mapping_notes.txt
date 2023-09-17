@@ -9,7 +9,7 @@ Using a HP Z4 G4 PC, with AlmaLinux 8.7 and Kernel 4.18.0-425.3.1.el8.x86_64
 1. memmapped_persistence_vfio with prefetchable BARs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Using the memmapped_blkram FGPA which uses 64-bit BARs which the Xilinx IP sets as pre-fetchable:
+Using the memmapped_blkram FPGA which uses 64-bit BARs which the Xilinx IP sets as pre-fetchable:
 $ bin/debug/dump_info/dump_info_pciutils 
 Access method : linux-sysfs
 domain=0000 bus=15 dev=00 func=00
@@ -108,7 +108,7 @@ access operation.
 2. memmapped_persistence_libpciaccess with non-pefetchable BARs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Using the memmapped_blkram_32bit_bars FGPA which uses 32-bit BARs which the Xilinx IP sets as non-prefetchable:
+Using the memmapped_blkram_32bit_bars FPGA which uses 32-bit BARs which the Xilinx IP sets as non-prefetchable:
 [mr_halfword@skylake-alma eclipse_project]$ bin/release/dump_info/dump_info_pciutils 
 Access method : linux-sysfs
 domain=0000 bus=15 dev=00 func=00
@@ -147,7 +147,7 @@ The above shows using PCI_DEV_MAP_FLAG_WRITE_COMBINE with a non-prefetchable BAR
 3. memmapped_persistence_libpciaccess with pefetchable BARs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Using the memmapped_blkram FGPA which uses 64-bit BARs which the Xilinx IP sets as pre-fetchable:
+Using the memmapped_blkram FPGA which uses 64-bit BARs which the Xilinx IP sets as pre-fetchable:
 [mr_halfword@skylake-alma eclipse_project]$ bin/release/dump_info/dump_info_pciutils 
 Access method : linux-sysfs
 domain=0000 bus=15 dev=00 func=00

@@ -1,12 +1,16 @@
 /*
- * @file test_ddr.c
+ * @file test_dma_accessible_memory.c
  * @date 29 Jan 2023
  * @author Chester Gillon
- * @brief Perform tests of NiteFury or LiteFury DMA using VFIO
+ * @brief Perform tests of memory which is accessible via the Xilinx "DMA/Bridge Subsystem for PCI Express"
+ * @details
+ *   Tests involve:
+ *   a. Writing and then reading back a pattern to the memory
+ *   b. Reporting transfer speeds for the DMA transfer rate
+ *   c. Allowing the DMA channels used to be specified (for when the DMA/Bridge has more than one channel configured)
  */
 
-#include "vfio_access.h"
-#include "fury_utils.h"
+#include "identify_pcie_fpga_design.h"
 #include "xilinx_dma_bridge_transfers.h"
 #include "transfer_timing.h"
 
@@ -24,12 +28,18 @@ static vfio_buffer_allocation_type_t arg_buffer_allocation = VFIO_BUFFER_ALLOCAT
 
 /* Command line argument which specifies the minimum alignment size for DMA transfers.
  * Can be used to determine if has any effect on the transfer speed for the h2c_data_mapping used
- * to write to the entire DDR memory which requires multiple chained descriptors due to DMA_DESCRIPTOR_MAX_LEN */
+ * to write to the entire memory which requires multiple chained descriptors due to DMA_DESCRIPTOR_MAX_LEN */
 static uint32_t arg_min_size_alignment = 0;
 
 
 /* Command line argument which when try causes the card-to-host transfers to be one page at a time */
 static bool arg_c2h_per_page;
+
+
+/* Command line argument which set the DMA channels used. The command line argument passing doesn't verify the
+ * channels IDs are supported by the DMA engine, the check is done by initialise_x2x_transfer_context() */
+static uint32_t arg_h2c_channel_id;
+static uint32_t arg_c2h_channel_id;
 
 
 /**
@@ -38,7 +48,7 @@ static bool arg_c2h_per_page;
  */
 static void parse_command_line_arguments (int argc, char *argv[])
 {
-    const char *const optstring = "a:b:l?";
+    const char *const optstring = "a:b:c:h:l?";
     int option;
     char junk;
 
@@ -75,13 +85,29 @@ static void parse_command_line_arguments (int argc, char *argv[])
             }
             break;
 
+        case 'c':
+            if (sscanf (optarg, "%u%c", &arg_h2c_channel_id, &junk) != 1)
+            {
+                fprintf (stderr, "Invalid h2c_channel_id %s\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            break;
+
+        case 'h':
+            if (sscanf (optarg, "%u%c", &arg_c2h_channel_id, &junk) != 1)
+            {
+                fprintf (stderr, "Invalid c2h_channel_id %s\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            break;
+
         case 'l':
             arg_c2h_per_page = true;
             break;
 
         case '?':
         default:
-            printf ("Usage %s [-a <min_size_alignment] [-b heap|shared_memory|huge_pages] [-l]\n", argv[0]);
+            printf ("Usage %s [-a <min_size_alignment] [-b heap|shared_memory|huge_pages] [-c c2h_channel_id] [-h h2c_channel_id] [-l]\n", argv[0]);
             printf ("  -l limits the card-to-host transfer to one page at a time, reducing memory\n");
             printf ("     requirements but increasing transfer overheads.\n");
             exit (EXIT_FAILURE);
@@ -95,9 +121,7 @@ static void parse_command_line_arguments (int argc, char *argv[])
 int main (int argc, char *argv[])
 {
     const size_t page_size = (size_t) getpagesize ();
-    vfio_devices_t vfio_devices;
-    uint32_t board_version;
-    fury_type_t fury_type;
+    fpga_designs_t designs;
     vfio_dma_mapping_t descriptors_mapping;
     vfio_dma_mapping_t h2c_data_mapping;
     vfio_dma_mapping_t c2h_data_mapping;
@@ -107,52 +131,51 @@ int main (int argc, char *argv[])
     transfer_timing_t c2h_timing;
     bool success;
 
-    /* The DMA/Bridge Subsystem is in configured to have one H2C and one C2H channel */
-    const uint32_t h2c_channel_id = 0;
-    const uint32_t c2h_channel_id = 0;
-
     parse_command_line_arguments (argc, argv);
 
-    /* Open the FPGA devices which have an IOMMU group assigned */
-    open_vfio_devices_matching_filter (&vfio_devices, fury_num_pci_device_filters, fury_pci_device_filters);
+    /* Open the FPGA designs which have an IOMMU group assigned */
+    identify_pcie_fpga_designs (&designs);
 
-    /* Process any NiteFury or LiteFury devices found */
-    for (uint32_t device_index = 0; device_index < vfio_devices.num_devices; device_index++)
+    /* Process any FPGA designs which have DMA accessible memory */
+    for (uint32_t design_index = 0; design_index < designs.num_identified_designs; design_index++)
     {
-        vfio_device_t *const vfio_device = &vfio_devices.devices[device_index];
+        fpga_design_t *const design = &designs.designs[design_index];
 
-        fury_type = identify_fury (vfio_device, &board_version);
-        if (fury_type != DEVICE_OTHER)
+        if (design->dma_bridge_present && (design->dma_bridge_memory_size_bytes > 0))
         {
-            const size_t ddr_size_bytes = fury_ddr_sizes_bytes[fury_type];
-
-            vfio_display_pci_command (vfio_device);
-            printf ("Testing %s board version 0x%x with DDR size 0x%zx for PCI device %s IOMMU group %s\n",
-                    fury_names[fury_type], board_version, ddr_size_bytes, vfio_device->device_name, vfio_device->iommu_group);
+            printf ("Testing %s design", fpga_design_names[design->design_id]);
+            if ((design->design_id == FPGA_DESIGN_LITEFURY_PROJECT0) || (design->design_id == FPGA_DESIGN_NITEFURY_PROJECT0))
+            {
+                printf (" version 0x%x", design->board_version);
+            }
+            printf (" with memory size 0x%zx\n", design->dma_bridge_memory_size_bytes);
+            printf ("PCI device %s IOMMU group %s\n", design->vfio_device->device_name, design->vfio_device->iommu_group);
 
             /* Create read/write mapping of a single page for DMA descriptors */
-            allocate_vfio_dma_mapping (&vfio_devices, &descriptors_mapping, page_size,
+            allocate_vfio_dma_mapping (&designs.vfio_devices, &descriptors_mapping, page_size,
                     VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
 
-            /* Read mapping used by device to transfer a region of host memory to the entire DDR contents */
-            allocate_vfio_dma_mapping (&vfio_devices, &h2c_data_mapping, ddr_size_bytes, VFIO_DMA_MAP_FLAG_READ, arg_buffer_allocation);
+            /* Read mapping used by device to transfer a region of host memory to the entire memory contents */
+            allocate_vfio_dma_mapping (&designs.vfio_devices, &h2c_data_mapping, design->dma_bridge_memory_size_bytes,
+                    VFIO_DMA_MAP_FLAG_READ, arg_buffer_allocation);
 
             /* Write mapping used by device. Command line argument specified if transfers either a single page or the entire
-             * DDR contents. */
-            allocate_vfio_dma_mapping (&vfio_devices, &c2h_data_mapping, arg_c2h_per_page ? page_size : ddr_size_bytes,
+             * memory contents. */
+            allocate_vfio_dma_mapping (&designs.vfio_devices, &c2h_data_mapping,
+                    arg_c2h_per_page ? page_size : design->dma_bridge_memory_size_bytes,
                     VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
 
             if ((descriptors_mapping.buffer.vaddr != NULL) &&
                 (h2c_data_mapping.buffer.vaddr    != NULL) &&
                 (c2h_data_mapping.buffer.vaddr    != NULL) &&
-                 initialise_x2x_transfer_context (&h2c_context, vfio_device, FURY_DMA_BRIDGE_BAR,
-                        DMA_SUBMODULE_H2C_CHANNELS, h2c_channel_id, arg_min_size_alignment, &descriptors_mapping, &h2c_data_mapping) &&
-                 initialise_x2x_transfer_context (&c2h_context, vfio_device, FURY_DMA_BRIDGE_BAR,
-                        DMA_SUBMODULE_C2H_CHANNELS, c2h_channel_id, arg_min_size_alignment, &descriptors_mapping, &c2h_data_mapping))
+                 initialise_x2x_transfer_context (&h2c_context, design->vfio_device, design->dma_bridge_bar,
+                        DMA_SUBMODULE_H2C_CHANNELS, arg_h2c_channel_id, arg_min_size_alignment, &descriptors_mapping, &h2c_data_mapping) &&
+                 initialise_x2x_transfer_context (&c2h_context, design->vfio_device, design->dma_bridge_bar,
+                        DMA_SUBMODULE_C2H_CHANNELS, arg_c2h_channel_id, arg_min_size_alignment, &descriptors_mapping, &c2h_data_mapping))
             {
                 uint32_t *host_words = h2c_data_mapping.buffer.vaddr;
                 uint32_t *card_words = c2h_data_mapping.buffer.vaddr;
-                const size_t ddr_size_words = ddr_size_bytes / sizeof (uint32_t);
+                const size_t ddr_size_words = design->dma_bridge_memory_size_bytes / sizeof (uint32_t);
                 const size_t num_words_per_c2h_xfer = c2h_data_mapping.buffer.size / sizeof (uint32_t);
                 uint32_t host_test_pattern = 0;
                 uint32_t card_test_pattern = 0;
@@ -177,7 +200,7 @@ int main (int argc, char *argv[])
                 /* Perform test iterations to exercise all values of 32-bit test words */
                 for (size_t total_words = 0; total_words < 0x100000000UL; total_words += ddr_size_words)
                 {
-                    /* Fill the host buffer with a test pattern to write to the DDR contents */
+                    /* Fill the host buffer with a test pattern to write to the memory contents */
                     card_test_pattern = host_test_pattern;
                     for (size_t word_index = 0; word_index < ddr_size_words; word_index++)
                     {
@@ -185,7 +208,7 @@ int main (int argc, char *argv[])
                         linear_congruential_generator (&host_test_pattern);
                     }
 
-                    /* DMA the test pattern to the entire DDR contents */
+                    /* DMA the test pattern to the entire memory contents */
                     transfer_time_start (&h2c_timing);
                     x2x_transfer_set_card_start_address (&h2c_context, 0);
                     success = x2x_start_transfer (&h2c_context);
@@ -197,7 +220,7 @@ int main (int argc, char *argv[])
                         transfer_time_stop (&h2c_timing);
                     }
 
-                    /* DMA the contents of the DDR, using the size specified by the command line arguments,
+                    /* DMA the contents of the memory, using the size specified by the command line arguments,
                      * and verify the contents */
                     for (size_t ddr_word_index = 0;
                             success && (ddr_word_index < ddr_size_words);
@@ -226,23 +249,24 @@ int main (int argc, char *argv[])
                             }
                         }
                     }
-                    if (success)
-                    {
-                        printf ("Test pattern pass\n");
-                    }
+                }
+
+                if (success)
+                {
+                    printf ("Test pattern pass\n");
                 }
 
                 display_transfer_timing_statistics (&h2c_timing);
                 display_transfer_timing_statistics (&c2h_timing);
             }
 
-            free_vfio_dma_mapping (&vfio_devices, &c2h_data_mapping);
-            free_vfio_dma_mapping (&vfio_devices, &h2c_data_mapping);
-            free_vfio_dma_mapping (&vfio_devices, &descriptors_mapping);
+            free_vfio_dma_mapping (&designs.vfio_devices, &c2h_data_mapping);
+            free_vfio_dma_mapping (&designs.vfio_devices, &h2c_data_mapping);
+            free_vfio_dma_mapping (&designs.vfio_devices, &descriptors_mapping);
         }
     }
 
-    close_vfio_devices (&vfio_devices);
+    close_pcie_fpga_designs (&designs);
 
     return EXIT_SUCCESS;
 }

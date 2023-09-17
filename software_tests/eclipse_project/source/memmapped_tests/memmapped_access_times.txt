@@ -347,7 +347,7 @@ domain=0000 bus=15 dev=00 func=00
   bar[1] base_addr=96900000 size=20000 is_IO=0 is_prefetchable=0 is_64=0
   bar[2] base_addr=96920000 size=10000 is_IO=0 is_prefetchable=0 is_64=0
 
-Following the change in FGPA re-ran the set_pci_resource_user_permission.sh script:
+Following the change in FPGA re-ran the set_pci_resource_user_permission.sh script:
 [mr_halfword@skylake-alma eclipse_project]$ ./set_pci_resource_user_permission.sh 10ee
 Giving user permission to PCI resources for 0000:15:00.0 10ee:7024 [0002:0001]
 [sudo] password for mr_halfword: 

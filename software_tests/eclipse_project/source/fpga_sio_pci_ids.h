@@ -32,6 +32,12 @@
 #define FPGA_SIO_SUBDEVICE_ID_I2C_PROBE 0x0002
 
 /* The FPGA which uses the DMA/Bridge Subsystem to access block RAM */
-#define FGPA_SIO_SUBDEVICE_ID_DMA_BLKRAM 0x0003
+#define FPGA_SIO_SUBDEVICE_ID_DMA_BLKRAM 0x0003
+
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Access 1GB of DDR3 memory.
+ * b. Access a Quad SPI connected to the FPGA configuration flash.
+ * c. Access the XADC (internal sensors only) */
+#define FPGA_SIO_SUBDEVICE_ID_TOSING_160T_DMA_DDR3 0x0004
 
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

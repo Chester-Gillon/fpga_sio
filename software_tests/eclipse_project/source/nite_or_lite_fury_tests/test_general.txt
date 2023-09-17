@@ -105,7 +105,7 @@ The XADC configuration from the create_project.tcl file:
 Changes to remove VrefN and VrefP and add Vp_Vn (as bipolar) to the sequencer.
 
 The Vuax14 input is still showing up as too low for TMON_CORE which would be a temperature of 18 Kelvin:
-$ bin/debug/nite_or_lite_fury_testst_general 
+$ bin/debug/nite_or_lite_fury_test/test_general 
 Opening device 0000:2f:00.0 (10ee:7011) with IOMMU group 86
 Enabling bus master for 0000:2f:00.0
 Found NiteFury board version 0x4 for PCI device 0000:2f:00.0 IOMMU group 86
@@ -155,3 +155,37 @@ The XADC configuration from the create_project.tcl file:
    CONFIG.SINGLE_CHANNEL_SELECTION {TEMPERATURE} \
    CONFIG.XADC_STARUP_SELECTION {channel_sequencer} \
  ] $xadc_wiz_0
+
+
+The test_general program has been removed, and replaced with display_xadc_values which can operate on more FPGA designs.
+With the same FPGA design, Vaux14 is still reading too low as 0.0452V which still equates to 18 Kelvin:
+$ bin/release/xilinx_xadc/display_xadc_values 
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 25
+Opening device 0000:2e:00.0 (10ee:7011) with IOMMU group 87
+Enabling bus master for 0000:2e:00.0
+Displaying XADC values for design i2c_probe (TEF1001) or TOSING_160T_quad_spi in PCI device 0000:15:00.0 IOMMU group 25:
+XADC samples using Continuous sequence mode
+Current enabled channels in sequencer: Temp    Vccint  Vccaux  Vbram   Cal    
+ADC A calibration: unipolar offset=-4 (lsbs)  bipolar offset=-3 (lsbs)  gain correction factor=6.3 (%)
+ADC B calibration: unipolar offset=-5 (lsbs)  bipolar offset=-4 (lsbs)  gain correction factor=6.3 (%)
+  Channel  Measurement     Min           Max
+  Temp       38.5123C     36.7897C      40.9731C
+  Vccint      0.9983V      0.9954V       1.0071V
+  Vccaux      1.7864V      1.7776V       1.7944V
+  Vbram       1.0012V      0.9954V       1.0071V
+  Cal         0.0000V           
+
+Displaying XADC values for design Nitefury Project-0 in PCI device 0000:2e:00.0 IOMMU group 87:
+XADC samples using Continuous sequence mode
+Current enabled channels in sequencer: Temp    Vccint  Vccaux  Vp_Vn   (bipolar) (acq time) Vbram   Cal     Vaux14  (acq time)
+ADC A calibration: unipolar offset=-7 (lsbs)  bipolar offset=-8 (lsbs)  gain correction factor=6.3 (%)
+ADC B calibration: unipolar offset=-11 (lsbs)  bipolar offset=-12 (lsbs)  gain correction factor=6.3 (%)
+  Channel  Measurement     Min           Max
+  Temp       48.4786C     46.8790C      49.8320C
+  Vccint      1.0269V      1.0247V       1.0320V
+  Vccaux      1.7629V      1.7578V       1.7681V
+  Vp_Vn      -0.0002V           
+  Vbram       1.0276V      1.0247V       1.0327V
+  Cal         0.0000V           
+  Vaux14      0.0452V           
+

@@ -198,6 +198,8 @@ void create_vfio_buffer (vfio_buffer_t *const buffer,
 void free_vfio_buffer (vfio_buffer_t *const buffer);
 void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev, const bool enable_bus_master);
 void map_vfio_device_bar_before_use (vfio_device_t *const vfio_device, const uint32_t bar_index);
+uint8_t *map_vfio_registers_block (vfio_device_t *const vfio_device, const uint32_t bar_index,
+                                   const size_t base_offset, const size_t frame_size);
 void reset_vfio_device (vfio_device_t *const vfio_device);
 bool vfio_device_pci_filter_match (const vfio_device_t *const vfio_device, const vfio_pci_device_filter_t *const filter);
 void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
