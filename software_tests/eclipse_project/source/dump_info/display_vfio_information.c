@@ -239,6 +239,19 @@ static void read_pci_config_bytes (const int device_fd, const uint32_t offset, c
 
 
 /**
+ * @brief Read a byte from the PCI config space of a device, using vfio-pci
+ */
+static uint8_t read_pci_config_byte (const int device_fd, const uint32_t offset)
+{
+    uint8_t config_byte;
+
+    read_pci_config_bytes (device_fd, offset, sizeof (config_byte), &config_byte);
+
+    return config_byte;
+}
+
+
+/**
  * @brief Read a word from the PCI config space of a device, using vfio-pci
  */
 static uint16_t read_pci_config_word (const int device_fd, const uint32_t offset)
@@ -261,6 +274,195 @@ static uint32_t read_pci_config_long (const int device_fd, const uint32_t offset
     read_pci_config_bytes (device_fd, offset, sizeof (config_long), &config_long);
 
     return config_long;
+}
+
+
+/**
+ * @brief Display PCI express capabilities, decoding the link capabilities and status.
+ * @param[in] device_fd Device to read from
+ * @param[in] capability_pointer Offset for the start of the capabilities to decode.
+ */
+static void display_pci_express_capabilities (const int device_fd, const uint8_t capability_pointer)
+{
+    const uint32_t flags = read_pci_config_word (device_fd, capability_pointer + PCI_EXP_FLAGS);
+    const uint32_t capability_version = flags & PCI_EXP_FLAGS_VERS;
+    const uint32_t device_port_type = (flags & PCI_EXP_FLAGS_TYPE) >> 4;
+    const uint32_t interrupt_message_number = (flags & PCI_EXP_FLAGS_IRQ) >> 9;
+
+    const uint32_t link_capabilities = read_pci_config_long (device_fd, capability_pointer + PCI_EXP_LNKCAP);
+    const uint32_t max_link_speed = link_capabilities & PCI_EXP_LNKCAP_SPEED;
+    const uint32_t max_link_width = (link_capabilities & PCI_EXP_LNKCAP_WIDTH) >> 4;
+
+    const uint32_t link_status = read_pci_config_word (device_fd, capability_pointer + PCI_EXP_LNKSTA);
+    const uint32_t negotiated_link_speed = link_status & PCI_EXP_LNKSTA_SPEED;
+    const uint32_t negotiated_link_width = (link_status & PCI_EXP_LNKSTA_WIDTH) >> 4;
+
+    const uint32_t link_capabilities2 = read_pci_config_long (device_fd, capability_pointer + PCI_EXP_LNKCAP2);
+    const uint32_t supported_link_speeds = PCI_EXP_LNKCAP2_SPEED (link_capabilities2);
+
+    const char *const device_port_type_names[] =
+    {
+        [PCI_EXP_TYPE_ENDPOINT   ] = "Express Endpoint",
+        [PCI_EXP_TYPE_LEG_END    ] = "Legacy Endpoint",
+        [PCI_EXP_TYPE_ROOT_PORT  ] = "Root Port",
+        [PCI_EXP_TYPE_UPSTREAM   ] = "Upstream Port",
+        [PCI_EXP_TYPE_DOWNSTREAM ] = "Downstream Port",
+        [PCI_EXP_TYPE_PCI_BRIDGE ] = "PCIe to PCI/PCI-X Bridge",
+        [PCI_EXP_TYPE_PCIE_BRIDGE] = "PCI/PCI-X to PCIe Bridge",
+        [PCI_EXP_TYPE_ROOT_INT_EP] = "Root Complex Integrated Endpoint",
+        [PCI_EXP_TYPE_ROOT_EC    ] = "Root Complex Event Collector"
+    };
+    const size_t device_port_type_names_array_size = sizeof (device_port_type_names) / sizeof (device_port_type_names[0]);
+
+    const char *const link_speed_names[] =
+    {
+        [1] = "2.5 GT/s",
+        [2] = "5.0 GT/s",
+        [3] = "8.0 GT/s",
+        [4] = "16.0 GT/s"
+    };
+    const size_t link_speed_names_array_size = sizeof (link_speed_names) / sizeof (link_speed_names[0]);
+
+    /* Continuation of the capability identification line from the caller */
+    printf (" v%u", capability_version);
+    if ((device_port_type < device_port_type_names_array_size) && (device_port_type_names[device_port_type] != NULL))
+    {
+        printf (" %s", device_port_type_names[device_port_type]);
+    }
+    else
+    {
+        printf (" device port type 0x%x", device_port_type);
+    }
+    printf (", MSI %u\n", interrupt_message_number);
+
+    /* Display link capabilities */
+    printf ("    Link capabilities: Max speed ");
+    if ((max_link_speed < link_speed_names_array_size) && (link_speed_names[max_link_speed] != NULL))
+    {
+        printf ("%s", link_speed_names[max_link_speed]);
+    }
+    else
+    {
+        printf (" Unknown encoding 0x%x", max_link_speed);
+    }
+    printf (" Max width x%u\n", max_link_width);
+
+    /* Display negotiated link status */
+    printf ("    Negotiated link status: Current speed ");
+    if ((max_link_speed < link_speed_names_array_size) && (link_speed_names[negotiated_link_speed] != NULL))
+    {
+        printf ("%s", link_speed_names[negotiated_link_speed]);
+    }
+    else
+    {
+        printf (" Unknown encoding 0x%x", negotiated_link_speed);
+    }
+    printf (" Width x%u\n", negotiated_link_width);
+
+    /* Display supported link speeds */
+    printf ("    Link capabilities2: ");
+    if (link_capabilities2 != 0)
+    {
+        printf ("Supported link speeds");
+        if ((supported_link_speeds & 0x1) != 0)
+        {
+            printf (" 2.5 GT/s");
+        }
+        if ((supported_link_speeds & 0x2) != 0)
+        {
+            printf (" 5.0 GT/s");
+        }
+        if ((supported_link_speeds & 0x4) != 0)
+        {
+            printf (" 8.0 GT/s");
+        }
+        if ((supported_link_speeds & 0x8) != 0)
+        {
+            printf (" 16.0 GT/s");
+        }
+    }
+    else
+    {
+        printf ("Not implemented");
+    }
+    printf ("\n");
+}
+
+
+/**
+ * @brief Perform a partial display of PCI capabilities
+ * @details Used https://astralvx.com/storage/2020/11/PCI_Express_Base_4.0_Rev0.3_February19-2014.pdf as a reference
+ * @param[in] device_fd Device to read from
+ */
+static void display_pci_capabilities (const int device_fd)
+{
+    const char *const capability_id_names[] =
+    {
+        [PCI_CAP_ID_NULL   ] = "Null Capability",
+        [PCI_CAP_ID_PM     ] = "Power Management",
+        [PCI_CAP_ID_AGP    ] = "Accelerated Graphics Port",
+        [PCI_CAP_ID_VPD    ] = "Vital Product Data",
+        [PCI_CAP_ID_SLOTID ] = "Slot Identification",
+        [PCI_CAP_ID_MSI    ] = "Message Signaled Interrupts",
+        [PCI_CAP_ID_CHSWP  ] = "CompactPCI HotSwap",
+        [PCI_CAP_ID_PCIX   ] = "PCI-X",
+        [PCI_CAP_ID_HT     ] = "HyperTransport",
+        [PCI_CAP_ID_VNDR   ] = "Vendor specific",
+        [PCI_CAP_ID_DBG    ] = "Debug port",
+        [PCI_CAP_ID_CCRC   ] = "CompactPCI Central Resource Control",
+        [PCI_CAP_ID_HOTPLUG] = "PCI hot-plug",
+        [PCI_CAP_ID_SSVID  ] = "Bridge subsystem vendor/device ID",
+        [PCI_CAP_ID_AGP3   ] = "AGP 8x",
+        [PCI_CAP_ID_SECURE ] = "Secure device (?)",
+        [PCI_CAP_ID_EXP    ] = "PCI Express",
+        [PCI_CAP_ID_MSIX   ] = "MSI-X",
+        [PCI_CAP_ID_SATA   ] = "Serial-ATA HBA",
+        [PCI_CAP_ID_AF     ] = "Advanced features of PCI devices integrated in PCIe root cplx",
+        [PCI_CAP_ID_EA     ] = "Enhanced Allocation"
+    };
+    const size_t capability_id_names_array_size = sizeof (capability_id_names) / sizeof (capability_id_names[0]);
+
+    bool been_hear[256] = {false};
+    const uint16_t status_register = read_pci_config_word (device_fd, PCI_STATUS);
+    uint8_t capability_pointer;
+
+    /* Check for presence of PCI capabilities */
+    if ((status_register & PCI_STATUS_CAP_LIST) != 0)
+    {
+        /* Iterate over all capabilities. been_hear[] used as protection against infinite loops due to malformed capability lists */
+        capability_pointer = read_pci_config_byte (device_fd, PCI_CAPABILITY_LIST);
+        while ((capability_pointer != 0) && (!been_hear[capability_pointer]))
+        {
+            const uint8_t capability_id = read_pci_config_byte (device_fd, capability_pointer + PCI_CAP_LIST_ID);
+
+            /* Display the capability identity */
+            printf ("  Capabilities: [%x] ", capability_pointer);
+            if ((capability_id < capability_id_names_array_size) && (capability_id_names[capability_id] != NULL))
+            {
+                printf ("%s", capability_id_names[capability_id]);
+            }
+            else
+            {
+                printf ("Capability ID 0x%x", capability_id);
+            }
+
+            /* Perform identify specific decode */
+            switch (capability_id)
+            {
+            case PCI_CAP_ID_EXP:
+                display_pci_express_capabilities (device_fd, capability_pointer);
+                break;
+
+            default:
+                printf ("\n");
+                break;
+            }
+
+            /* Advance to next capability */
+            been_hear[capability_pointer] = true;
+            capability_pointer = read_pci_config_byte (device_fd, capability_pointer + PCI_CAP_LIST_NEXT);
+        }
+    }
 }
 
 
@@ -516,6 +718,8 @@ static void display_device_information (const int group_fd, const char *const de
                 (command & PCI_COMMAND_IO) ? "+" : "-",
                 (command & PCI_COMMAND_MEMORY) ? "+" : "-",
                 (command & PCI_COMMAND_MASTER) ? "+" : "-");
+
+        display_pci_capabilities (device_fd);
     }
     else
     {
