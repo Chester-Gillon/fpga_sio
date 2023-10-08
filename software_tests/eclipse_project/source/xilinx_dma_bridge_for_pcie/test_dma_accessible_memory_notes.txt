@@ -325,3 +325,92 @@ card-to-host DMA timing for 16 transfers of 1073741824 bytes:
    Min = 1130.579775 (Mbytes/sec)
   Mean = 1130.596196 (Mbytes/sec)
    Max = 1130.610757 (Mbytes/sec)
+
+
+4. Test using Nitefury Project-0 and TEF1001_dma_ddr3 designs with IOMMU enabled; with simple work-around to IOVA allocation
+============================================================================================================================
+
+The test_dma_accessible_memory program was modified to set the IOVA to start at 4G, as a simple way to avoid
+the reserved IOVA addresses in the lower 4G addresses (may not work on a different computer).
+
+With no arguments, so attempt to allocate all 16G of host memory for card-to-host and host-to-card transfers
+for the TEF1001_dma_ddr3 design the desktop session became unresponsive and after a number of minutes the
+program was terminated by the OOM killer, which is not unexpected given the program is trying to lock
+all physical memory for VFIO DMA:
+[mr_halfword@skylake-alma release]$ xilinx_dma_bridge_for_pcie/test_dma_accessible_memory 
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 25
+Enabling bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7011) with IOMMU group 89
+Enabling bus master for 0000:30:00.0
+Testing TEF1001_dma_ddr3 design with memory size 0x200000000
+PCI device 0000:15:00.0 IOMMU group 25
+Killed
+
+
+Using -l to set c2h_transfer_size as 4G while leaving the h2c_transfer_size as 8G still got killed.
+
+
+The combinations of 1G for one direction and the full 8G for the other direction allowed the test to pass:
+[mr_halfword@skylake-alma release]$ xilinx_dma_bridge_for_pcie/test_dma_accessible_memory -l 1073741824
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Enabling bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7011) with IOMMU group 89
+Enabling bus master for 0000:30:00.0
+Testing TEF1001_dma_ddr3 design with memory size 0x200000000
+PCI device 0000:15:00.0 IOMMU group 41
+Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0xfffffff [5]=0xfffffff [6]=0xfffffff [7]=0xfffffff [8]=0xfffffff [9]=0xfffffff [10]=0xfffffff [11]=0xfffffff [12]=0xfffffff [13]=0xfffffff [14]=0xfffffff [15]=0xfffffff [16]=0xfffffff [17]=0xfffffff [18]=0xfffffff [19]=0xfffffff [20]=0xfffffff [21]=0xfffffff [22]=0xfffffff [23]=0xfffffff [24]=0xfffffff [25]=0xfffffff [26]=0xfffffff [27]=0xfffffff [28]=0xfffffff [29]=0xfffffff [30]=0xfffffff [31]=0xfffffff [32]=0x20
+Size of DMA descriptors used for c2h: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Test pattern pass
+host-to-card DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 1771.280438 (Mbytes/sec)
+  Mean = 1771.360846 (Mbytes/sec)
+   Max = 1771.441261 (Mbytes/sec)
+card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1291.492831 (Mbytes/sec)
+  Mean = 1291.497032 (Mbytes/sec)
+   Max = 1291.505779 (Mbytes/sec)
+Testing Nitefury Project-0 design version 0x2 with memory size 0x40000000
+PCI device 0000:30:00.0 IOMMU group 89
+Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Size of DMA descriptors used for c2h: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Test pattern pass
+host-to-card DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1325.803807 (Mbytes/sec)
+  Mean = 1325.811377 (Mbytes/sec)
+   Max = 1325.812963 (Mbytes/sec)
+card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1130.449948 (Mbytes/sec)
+  Mean = 1130.591393 (Mbytes/sec)
+   Max = 1130.624666 (Mbytes/sec)
+
+[mr_halfword@skylake-alma release]$ xilinx_dma_bridge_for_pcie/test_dma_accessible_memory -m 1073741824
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Enabling bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7011) with IOMMU group 89
+Enabling bus master for 0000:30:00.0
+Testing TEF1001_dma_ddr3 design with memory size 0x200000000
+PCI device 0000:15:00.0 IOMMU group 41
+Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Size of DMA descriptors used for c2h: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0xfffffff [5]=0xfffffff [6]=0xfffffff [7]=0xfffffff [8]=0xfffffff [9]=0xfffffff [10]=0xfffffff [11]=0xfffffff [12]=0xfffffff [13]=0xfffffff [14]=0xfffffff [15]=0xfffffff [16]=0xfffffff [17]=0xfffffff [18]=0xfffffff [19]=0xfffffff [20]=0xfffffff [21]=0xfffffff [22]=0xfffffff [23]=0xfffffff [24]=0xfffffff [25]=0xfffffff [26]=0xfffffff [27]=0xfffffff [28]=0xfffffff [29]=0xfffffff [30]=0xfffffff [31]=0xfffffff [32]=0x20
+Test pattern pass
+host-to-card DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1771.268541 (Mbytes/sec)
+  Mean = 1771.476983 (Mbytes/sec)
+   Max = 1771.701331 (Mbytes/sec)
+card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 1291.513784 (Mbytes/sec)
+  Mean = 1291.513912 (Mbytes/sec)
+   Max = 1291.514039 (Mbytes/sec)
+Testing Nitefury Project-0 design version 0x2 with memory size 0x40000000
+PCI device 0000:30:00.0 IOMMU group 89
+Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Size of DMA descriptors used for c2h: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Test pattern pass
+host-to-card DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1325.819395 (Mbytes/sec)
+  Mean = 1325.824069 (Mbytes/sec)
+   Max = 1325.825873 (Mbytes/sec)
+card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1130.521574 (Mbytes/sec)
+  Mean = 1130.583159 (Mbytes/sec)
+   Max = 1130.599609 (Mbytes/sec)

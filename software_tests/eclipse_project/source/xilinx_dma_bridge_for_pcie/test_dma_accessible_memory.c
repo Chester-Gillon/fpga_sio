@@ -154,6 +154,17 @@ int main (int argc, char *argv[])
     /* Open the FPGA designs which have an IOMMU group assigned */
     identify_pcie_fpga_designs (&designs);
 
+    /* @todo Force IOVA to start at 4G boundary, as a simple way to avoid allocating reserved regions which are indicated
+     *       by VFIO_IOMMU_TYPE1_INFO_CAP_IOVA_RANGE.
+     *       Attempts to use a reserved region causes VFIO_IOMMU_MAP_DMA to fail with EPERM.
+     *       This simple method assumes:
+     *       a. The DMA uses 64 bit-addresses
+     *       b. Reserved regions are in the first 4GB or at very high addresses.
+     *
+     *       An improvement to the vfio_access library would be to take note of VFIO_IOMMU_TYPE1_INFO_CAP_IOVA_RANGE
+     */
+    designs.vfio_devices.next_iova = 0x100000000UL;
+
     /* Process any FPGA designs which have DMA accessible memory */
     for (uint32_t design_index = 0; design_index < designs.num_identified_designs; design_index++)
     {
