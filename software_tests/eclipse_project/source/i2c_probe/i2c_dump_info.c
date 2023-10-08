@@ -13,8 +13,8 @@
 #include "pmbus_access.h"
 #include "ltm4676a_access.h"
 #include "vfio_access.h"
-#include "fpga_sio_pci_ids.h"
 #include "xilinx_xadc.h"
+#include "identify_pcie_fpga_design.h"
 
 
 /**
@@ -870,10 +870,10 @@ static void dump_si5338_information (bit_banged_i2c_controller_context_t *const 
 
 /**
  * @brief Dump information from I2C devices TEF1001-02-B2IX4-A
- * @param[in/out] vfio_device The VFIO device containing the Xilinx FPGA to use for the probe
+ * @param[in/out] design The FPGA design containing the peripherals to use for the probe
  * @param[in] pacc Used to lookup vendor IDs.
  */
-static void dump_tef1001_information (vfio_device_t *const vfio_device, struct pci_access *const pacc)
+static void dump_tef1001_information (fpga_design_t *const design, struct pci_access *const pacc)
 {
     bit_banged_i2c_controller_context_t controller = {0};
 
@@ -881,78 +881,45 @@ static void dump_tef1001_information (vfio_device_t *const vfio_device, struct p
     const uint8_t u3_ltm4676a_i2c_slave_address = 0x40; /* provides 4V and 1.5V */
     const uint8_t u4_ltm4676a_i2c_slave_address = 0x4f; /* provides 1V */
 
-    /* The FPGA has a single BAR containing:
-     * - IIC registers
-     * - GPIO registers
-     * - Optionally XADC registers
-     * - Optionally SPI registers
-     * This program only use the GPIO and XADC registers. */
-    const uint32_t bar_index = 0;
-    const uint32_t gpio_base_offset = 0x1000;
-    /* SPI base offset is 0x2000 */
-    const uint32_t xadc_base_offset = 0x3000;
-    const uint32_t min_bar_size = 0x2000;
-    const uint32_t with_xadc_bar_size = 0x4000;
+    printf ("Using design %s in device %s\n", fpga_design_names[design->design_id], design->vfio_device->device_name);
+    select_i2c_controller (true, design->bit_banged_i2c_gpio_regs, &controller);
 
-    map_vfio_device_bar_before_use (vfio_device, bar_index);
-    if ((vfio_device->mapped_bars[bar_index] != NULL) && (vfio_device->regions_info[bar_index].size >= min_bar_size))
+    dump_tef1001_fan_info (&controller);
+    dump_ddr_temperature_information (&controller, pacc);
+    dump_ddr3_spd_information (&controller);
+    dump_ltm4676a_information (&controller, u3_ltm4676a_i2c_slave_address);
+    dump_ltm4676a_information (&controller, u4_ltm4676a_i2c_slave_address);
+    dump_si5338_information (&controller);
+
+    /* Display XADC values if included in the FPGA */
+    if (design->xadc_regs != NULL)
     {
-        uint8_t *const gpio_regs = &vfio_device->mapped_bars[bar_index][gpio_base_offset];
+        xadc_sample_collection_t xadc_collection;
 
-        printf ("Using BAR %d in device %s of size 0x%llx\n",
-                bar_index, vfio_device->device_name, vfio_device->regions_info[bar_index].size);
-        select_i2c_controller (true, gpio_regs, &controller);
-
-        dump_tef1001_fan_info (&controller);
-        dump_ddr_temperature_information (&controller, pacc);
-        dump_ddr3_spd_information (&controller);
-        dump_ltm4676a_information (&controller, u3_ltm4676a_i2c_slave_address);
-        dump_ltm4676a_information (&controller, u4_ltm4676a_i2c_slave_address);
-        dump_si5338_information (&controller);
-
-        /* Display XADC values if included in the FPGA */
-        if (vfio_device->regions_info[bar_index].size >= with_xadc_bar_size)
-        {
-            uint8_t *const xadc_regs = &vfio_device->mapped_bars[bar_index][xadc_base_offset];
-            xadc_sample_collection_t xadc_collection;
-
-            read_xadc_samples (&xadc_collection, xadc_regs);
-            printf ("\n");
-            display_xadc_samples (&xadc_collection);
-        }
+        read_xadc_samples (&xadc_collection, design->xadc_regs);
+        printf ("\n");
+        display_xadc_samples (&xadc_collection);
     }
 }
 
 
 int main (int argc, char *argv[])
 {
-    vfio_devices_t vfio_devices;
+    fpga_designs_t designs;
 
-    /* Filters for the FPGA devices tested */
-    const vfio_pci_device_filter_t filters[] =
+    /* Open the FPGA designs which have an IOMMU group assigned */
+    identify_pcie_fpga_designs (&designs);
+
+    /* Perform tests on the FPGA designs which have the required I2C peripherals */
+    for (uint32_t design_index = 0; design_index < designs.num_identified_designs; design_index++)
     {
+        fpga_design_t *const design = &designs.designs[design_index];
+
+        if ((design->iic_regs != NULL) && (design->bit_banged_i2c_gpio_regs != NULL))
         {
-            .vendor_id = FPGA_SIO_VENDOR_ID,
-            .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
-            .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
-            .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_I2C_PROBE,
-            .enable_bus_master = false
+            dump_tef1001_information (design, designs.vfio_devices.pacc);
         }
-    };
-    const size_t num_filters = sizeof (filters) / sizeof (filters[0]);
-
-    /* Open PCI devices supported by the test */
-    open_vfio_devices_matching_filter (&vfio_devices, num_filters, filters);
-
-    /* Display information using the FPGA devices */
-    for (uint32_t device_index = 0; device_index < vfio_devices.num_devices; device_index++)
-    {
-        vfio_device_t *const vfio_device = &vfio_devices.devices[device_index];
-
-        dump_tef1001_information (vfio_device, vfio_devices.pacc);
     }
-
-    close_vfio_devices (&vfio_devices);
 
     return EXIT_SUCCESS;
 }

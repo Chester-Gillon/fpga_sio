@@ -32,8 +32,12 @@ static vfio_buffer_allocation_type_t arg_buffer_allocation = VFIO_BUFFER_ALLOCAT
 static uint32_t arg_min_size_alignment = 0;
 
 
-/* Command line argument which when try causes the card-to-host transfers to be one page at a time */
-static bool arg_c2h_per_page;
+/* Optional command line arguments which can specify the transfer sizes used in each direction to be less than the total memory size.
+ * This is to reduce the memory size required for the host buffers. */
+static bool arg_h2c_transfer_size_set;
+static size_t arg_h2c_transfer_size;
+static bool arg_c2h_transfer_size_set;
+static size_t arg_c2h_transfer_size;
 
 
 /* Command line argument which set the DMA channels used. The command line argument passing doesn't verify the
@@ -48,7 +52,7 @@ static uint32_t arg_c2h_channel_id;
  */
 static void parse_command_line_arguments (int argc, char *argv[])
 {
-    const char *const optstring = "a:b:c:h:l?";
+    const char *const optstring = "a:b:c:h:l:m:?";
     int option;
     char junk;
 
@@ -102,12 +106,26 @@ static void parse_command_line_arguments (int argc, char *argv[])
             break;
 
         case 'l':
-            arg_c2h_per_page = true;
+            if (sscanf (optarg, "%zu%c", &arg_c2h_transfer_size, &junk) != 1)
+            {
+                fprintf (stderr, "Invalid c2h_transfer_size %s\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            arg_c2h_transfer_size_set = true;
+            break;
+
+        case 'm':
+            if (sscanf (optarg, "%zu%c", &arg_h2c_transfer_size, &junk) != 1)
+            {
+                fprintf (stderr, "Invalid arg_h2c_transfer_size %s\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            arg_h2c_transfer_size_set = true;
             break;
 
         case '?':
         default:
-            printf ("Usage %s [-a <min_size_alignment] [-b heap|shared_memory|huge_pages] [-c c2h_channel_id] [-h h2c_channel_id] [-l]\n", argv[0]);
+            printf ("Usage %s [-a <min_size_alignment>] [-b heap|shared_memory|huge_pages] [-c c2h_channel_id] [-h h2c_channel_id] [-l <c2h_transfer_size>] [-m <h2c_transfer_size>]\n", argv[0]);
             printf ("  -l limits the card-to-host transfer to one page at a time, reducing memory\n");
             printf ("     requirements but increasing transfer overheads.\n");
             exit (EXIT_FAILURE);
@@ -151,18 +169,38 @@ int main (int argc, char *argv[])
             printf (" with memory size 0x%zx\n", design->dma_bridge_memory_size_bytes);
             printf ("PCI device %s IOMMU group %s\n", design->vfio_device->device_name, design->vfio_device->iommu_group);
 
+            /* Compute sizes of the individual transfers.
+             * Since the xilinx_dma_bridge_transfers API doesn't currently support changing the transfer size,
+             * skip the test if the transfer size set from the command line arguments isn't a multiple of the memory size. */
+            const size_t num_bytes_per_h2c_xfer =
+                    (arg_h2c_transfer_size_set && (arg_h2c_transfer_size < design->dma_bridge_memory_size_bytes)) ?
+                            arg_h2c_transfer_size : design->dma_bridge_memory_size_bytes;
+            const size_t num_bytes_per_c2h_xfer =
+                    (arg_c2h_transfer_size_set && (arg_c2h_transfer_size < design->dma_bridge_memory_size_bytes)) ?
+                            arg_c2h_transfer_size : design->dma_bridge_memory_size_bytes;
+            if ((design->dma_bridge_memory_size_bytes % num_bytes_per_h2c_xfer) != 0)
+            {
+                printf ("Skipping test as num_bytes_per_h2c_xfer 0x%zx is not a multiple of the memory size =0x%zx\n",
+                        num_bytes_per_h2c_xfer, design->dma_bridge_memory_size_bytes);
+                continue;
+            }
+            else if ((design->dma_bridge_memory_size_bytes % num_bytes_per_c2h_xfer) != 0)
+            {
+                printf ("Skipping test as num_bytes_per_c2h_xfer 0x%zx is not a multiple of the memory size =0x%zx\n",
+                        num_bytes_per_c2h_xfer, design->dma_bridge_memory_size_bytes);
+                continue;
+            }
+
             /* Create read/write mapping of a single page for DMA descriptors */
             allocate_vfio_dma_mapping (&designs.vfio_devices, &descriptors_mapping, page_size,
                     VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
 
-            /* Read mapping used by device to transfer a region of host memory to the entire memory contents */
-            allocate_vfio_dma_mapping (&designs.vfio_devices, &h2c_data_mapping, design->dma_bridge_memory_size_bytes,
+            /* Read mapping used by device, with each transfer limited to the maximum of the memory and command line argument */
+            allocate_vfio_dma_mapping (&designs.vfio_devices, &h2c_data_mapping, num_bytes_per_h2c_xfer,
                     VFIO_DMA_MAP_FLAG_READ, arg_buffer_allocation);
 
-            /* Write mapping used by device. Command line argument specified if transfers either a single page or the entire
-             * memory contents. */
-            allocate_vfio_dma_mapping (&designs.vfio_devices, &c2h_data_mapping,
-                    arg_c2h_per_page ? page_size : design->dma_bridge_memory_size_bytes,
+            /* Write mapping used by device, with each transfer limited to the maximum of the memory and command line argument */
+            allocate_vfio_dma_mapping (&designs.vfio_devices, &c2h_data_mapping, num_bytes_per_c2h_xfer,
                     VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
 
             if ((descriptors_mapping.buffer.vaddr != NULL) &&
@@ -176,6 +214,7 @@ int main (int argc, char *argv[])
                 uint32_t *host_words = h2c_data_mapping.buffer.vaddr;
                 uint32_t *card_words = c2h_data_mapping.buffer.vaddr;
                 const size_t ddr_size_words = design->dma_bridge_memory_size_bytes / sizeof (uint32_t);
+                const size_t num_words_per_h2c_xfer = h2c_data_mapping.buffer.size / sizeof (uint32_t);
                 const size_t num_words_per_c2h_xfer = c2h_data_mapping.buffer.size / sizeof (uint32_t);
                 uint32_t host_test_pattern = 0;
                 uint32_t card_test_pattern = 0;
@@ -198,30 +237,36 @@ int main (int argc, char *argv[])
                 printf ("\n");
 
                 /* Perform test iterations to exercise all values of 32-bit test words */
+                success = true;
                 for (size_t total_words = 0; total_words < 0x100000000UL; total_words += ddr_size_words)
                 {
-                    /* Fill the host buffer with a test pattern to write to the memory contents */
+                    /* Write a test pattern, and DMA to the card */
                     card_test_pattern = host_test_pattern;
-                    for (size_t word_index = 0; word_index < ddr_size_words; word_index++)
+                    for (size_t ddr_word_index = 0;
+                            success && (ddr_word_index < ddr_size_words);
+                            ddr_word_index += num_words_per_h2c_xfer)
                     {
-                        host_words[word_index] = host_test_pattern;
-                        linear_congruential_generator (&host_test_pattern);
-                    }
+                        const size_t ddr_byte_index = ddr_word_index * sizeof (uint32_t);
 
-                    /* DMA the test pattern to the entire memory contents */
-                    transfer_time_start (&h2c_timing);
-                    x2x_transfer_set_card_start_address (&h2c_context, 0);
-                    success = x2x_start_transfer (&h2c_context);
-                    if (success)
-                    {
-                        while (!x2x_poll_transfer_completion (&h2c_context))
+                        for (size_t word_index = 0; word_index < num_words_per_h2c_xfer; word_index++)
                         {
+                            host_words[word_index] = host_test_pattern;
+                            linear_congruential_generator (&host_test_pattern);
                         }
-                        transfer_time_stop (&h2c_timing);
+
+                        transfer_time_start (&h2c_timing);
+                        x2x_transfer_set_card_start_address (&h2c_context, ddr_byte_index);
+                        success = x2x_start_transfer (&h2c_context);
+                        if (success)
+                        {
+                            while (!x2x_poll_transfer_completion (&h2c_context))
+                            {
+                            }
+                            transfer_time_stop (&h2c_timing);
+                        }
                     }
 
-                    /* DMA the contents of the memory, using the size specified by the command line arguments,
-                     * and verify the contents */
+                    /* DMA the contents of the memory to the host, and verify the contents */
                     for (size_t ddr_word_index = 0;
                             success && (ddr_word_index < ddr_size_words);
                             ddr_word_index += num_words_per_c2h_xfer)

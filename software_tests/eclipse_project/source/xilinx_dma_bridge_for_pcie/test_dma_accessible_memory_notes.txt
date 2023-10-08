@@ -227,3 +227,101 @@ Memory Driver closed
 Therefore, didn't commit the change to the DDR3 MIG configuration in the TOSING_160T_dma_ddr3 design.
 
 However, this did show the use of the test pattern in test_dma_accessible_memory detecting errors.
+
+As for the achieved DMA bandwidth with TOSING_160T_dma_ddr3 being lower than Nitefury Project-0,
+the different FPGA images were tested in different PC and so the PCIe Root Bridge / memory in the
+two PCs might be impacting the achieved bandwidth.
+
+
+4. Test using Nitefury Project-0 and TEF1001_dma_ddr3 designs with IOMMU enabled; issues with host memory sizes
+===============================================================================================================
+
+The Nitefury Project-0 and TEF1001_dma_ddr3 designs were used in a W-2123 system with the IOMMU and secure boot enabled. 
+
+This did show some issues with host memory sizes.
+
+The TEF1001_dma_ddr3 has 8G of DDR3 memory, and the PC only has 16G of memory.
+Therefore, with default command line arguments in which a host buffer of the entire DDR3 memory is attempted
+to be allocated for both host-to-card and card-to-host transfers expected the test for TEF1001_dma_ddr3
+to fail to allocate memory, although both 8G allocations failed:
+[mr_halfword@skylake-alma release]$ xilinx_dma_bridge_for_pcie/test_dma_accessible_memory
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 25
+Enabling bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7011) with IOMMU group 89
+Enabling bus master for 0000:30:00.0
+Testing TEF1001_dma_ddr3 design with memory size 0x200000000
+PCI device 0000:15:00.0 IOMMU group 25
+VFIO_IOMMU_MAP_DMA of size 8589934592 failed : Operation not permitted
+VFIO_IOMMU_MAP_DMA of size 8589934592 failed : Operation not permitted
+Testing Nitefury Project-0 design version 0x2 with memory size 0x40000000
+PCI device 0000:30:00.0 IOMMU group 89
+Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Size of DMA descriptors used for c2h: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Test pattern pass
+host-to-card DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1325.814544 (Mbytes/sec)
+  Mean = 1325.823781 (Mbytes/sec)
+   Max = 1325.825198 (Mbytes/sec)
+card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1130.581147 (Mbytes/sec)
+  Mean = 1130.601240 (Mbytes/sec)
+   Max = 1130.625491 (Mbytes/sec)
+
+
+In use a 1G size for host-to-card and card-to-host transfers the TEF1001_dma_ddr3 test passes,
+but the Nitefury Project-0 then fails during VFIO_IOMMU_MAP_DMA on attempting to allocate the 2nd host buffer:
+[mr_halfword@skylake-alma release]$ xilinx_dma_bridge_for_pcie/test_dma_accessible_memory -l 1073741824 -m 1073741824
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 25
+Enabling bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7011) with IOMMU group 89
+Enabling bus master for 0000:30:00.0
+Testing TEF1001_dma_ddr3 design with memory size 0x200000000
+PCI device 0000:15:00.0 IOMMU group 25
+Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Size of DMA descriptors used for c2h: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Test pattern pass
+host-to-card DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1771.180385 (Mbytes/sec)
+  Mean = 1771.198526 (Mbytes/sec)
+   Max = 1771.204185 (Mbytes/sec)
+card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1291.505285 (Mbytes/sec)
+  Mean = 1291.506313 (Mbytes/sec)
+   Max = 1291.507205 (Mbytes/sec)
+Testing Nitefury Project-0 design version 0x2 with memory size 0x40000000
+PCI device 0000:30:00.0 IOMMU group 89
+VFIO_IOMMU_MAP_DMA of size 1073741824 failed : Operation not permitted
+
+
+With a 512M size for host-to-card transfers and a 1G size for card-to-host transfers the tests on both FPGAs pass:
+[mr_halfword@skylake-alma release]$ xilinx_dma_bridge_for_pcie/test_dma_accessible_memory -l 1073741824 -m 536870912
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 25
+Enabling bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7011) with IOMMU group 89
+Enabling bus master for 0000:30:00.0
+Testing TEF1001_dma_ddr3 design with memory size 0x200000000
+PCI device 0000:15:00.0 IOMMU group 25
+Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0x2
+Size of DMA descriptors used for c2h: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Test pattern pass
+host-to-card DMA timing for 32 transfers of 536870912 bytes:
+   Min = 1771.146331 (Mbytes/sec)
+  Mean = 1771.212862 (Mbytes/sec)
+   Max = 1771.252126 (Mbytes/sec)
+card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1291.505793 (Mbytes/sec)
+  Mean = 1291.507043 (Mbytes/sec)
+   Max = 1291.507871 (Mbytes/sec)
+Testing Nitefury Project-0 design version 0x2 with memory size 0x40000000
+PCI device 0000:30:00.0 IOMMU group 89
+Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0x2
+Size of DMA descriptors used for c2h: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Test pattern pass
+host-to-card DMA timing for 32 transfers of 536870912 bytes:
+   Min = 1325.773629 (Mbytes/sec)
+  Mean = 1325.811476 (Mbytes/sec)
+   Max = 1325.816964 (Mbytes/sec)
+card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1130.579775 (Mbytes/sec)
+  Mean = 1130.596196 (Mbytes/sec)
+   Max = 1130.610757 (Mbytes/sec)

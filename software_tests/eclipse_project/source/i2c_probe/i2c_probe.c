@@ -17,9 +17,9 @@
 
 #include "xilinx_axi_iic_transfers.h"
 #include "vfio_access.h"
-#include "fpga_sio_pci_ids.h"
 #include "xilinx_axi_iic_host_interface.h"
 #include "i2c_bit_banged.h"
+#include "identify_pcie_fpga_design.h"
 
 #ifdef HAVE_XILINX_EMBEDDEDSW
 #include "xiic_l.h"
@@ -349,9 +349,9 @@ static bool i2c_standard_byte_read (uint8_t *const iic_regs, const uint8_t i2c_s
 /**
  * @brief Probe the range valid I2C 7-bit addresses to see which addresses respond
  * @details For debugging displays the value of the byte read in any response
- * @param[in/out] vfio_device The VFIO device containing the Xilinx IIC to use for the probe
- */
-static void probe_i2c_addresses (vfio_device_t *const vfio_device)
+  * @param[in/out] design The FPGA design containing the peripherals to use for the probe
+*/
+static void probe_i2c_addresses (fpga_design_t *const design)
 {
     uint32_t iic_sr;
     uint8_t data[MAX_BYTES_READ];
@@ -366,136 +366,122 @@ static void probe_i2c_addresses (vfio_device_t *const vfio_device)
     unsigned num_bytes_received;
 #endif
 
-    /* The FPGA has a single BAR, containing IIC and GPIO registers */
-    const uint32_t bar_index = 0;
-    const uint32_t iic_base_offset = 0;
-    const uint32_t gpio_base_offset = 0x1000;
-    const uint32_t expected_bar_size = 0x2000;
+    printf ("Using design %s in device %s\n", fpga_design_names[design->design_id], design->vfio_device->device_name);
 
-    map_vfio_device_bar_before_use (vfio_device, bar_index);
-    if ((vfio_device->mapped_bars[bar_index] != NULL) && (vfio_device->regions_info[bar_index].size >= expected_bar_size))
+    /* Perform access mode specific initialisation */
+    select_i2c_controller (arg_iic_access_mode == IIC_ACCESS_MODE_BIT_BANGED, design->bit_banged_i2c_gpio_regs, &bit_banged_controller);
+    switch (arg_iic_access_mode)
     {
-        uint8_t *const iic_regs = &vfio_device->mapped_bars[bar_index][iic_base_offset];
-        uint8_t *const gpio_regs = &vfio_device->mapped_bars[bar_index][gpio_base_offset];
-
-        printf ("Using BAR %d in device %s of size 0x%llx\n",
-                bar_index, vfio_device->device_name, vfio_device->regions_info[bar_index].size);
-
-        /* Perform access mode specific initialisation */
-        select_i2c_controller (arg_iic_access_mode == IIC_ACCESS_MODE_BIT_BANGED, gpio_regs, &bit_banged_controller);
-        switch (arg_iic_access_mode)
+    case IIC_ACCESS_MODE_STANDARD:
+    case IIC_ACCESS_MODE_DYNAMIC:
+        /* The IIC in the FPGA should be the only master, so an error if bus is busy before starting the probe.
+         * Attempt one soft-reset of the IIC in case a 'glitch' from a previous run left the IIC in control of the I2C bus. */
+        iic_sr = read_reg32 (design->iic_regs, IIC_STATUS_REGISTER_OFFSET);
+        if ((iic_sr & IIC_SR_BB_MASK) != 0)
         {
-        case IIC_ACCESS_MODE_STANDARD:
-        case IIC_ACCESS_MODE_DYNAMIC:
-            /* The IIC in the FPGA should be the only master, so an error if bus is busy before starting the probe.
-             * Attempt one soft-reset of the IIC in case a 'glitch' from a previous run left the IIC in control of the I2C bus. */
-            iic_sr = read_reg32 (iic_regs, IIC_STATUS_REGISTER_OFFSET);
-            if ((iic_sr & IIC_SR_BB_MASK) != 0)
+            write_reg32 (design->iic_regs, IIC_SOFT_RESET_REGISTER_OFFSET, IIC_SOFT_RESET_KEY);
+            iic_sr = read_reg32 (design->iic_regs, IIC_STATUS_REGISTER_OFFSET);
+            if ((iic_sr & IIC_SR_BB_MASK) == 0)
             {
-                write_reg32 (iic_regs, IIC_SOFT_RESET_REGISTER_OFFSET, IIC_SOFT_RESET_KEY);
-                iic_sr = read_reg32 (iic_regs, IIC_STATUS_REGISTER_OFFSET);
-                if ((iic_sr & IIC_SR_BB_MASK) == 0)
-                {
-                    printf ("Performed soft-reset of IIC to clear I2C bus busy\n");
-                }
-                else
-                {
-                    printf ("I2C bus is busy, not probing\n");
-                    return;
-                }
+                printf ("Performed soft-reset of IIC to clear I2C bus busy\n");
             }
-            break;
-
-        case IIC_ACCESS_MODE_IIC_LIB:
-            transfer_status = iic_initialise_controller (&iic_controller, iic_regs);
-            if (transfer_status != IIC_TRANSFER_STATUS_SUCCESS)
+            else
             {
-                printf ("iic_initialise_controller() failed\n");
+                printf ("I2C bus is busy, not probing\n");
                 return;
             }
-            break;
+        }
+        break;
+
+    case IIC_ACCESS_MODE_IIC_LIB:
+        transfer_status = iic_initialise_controller (&iic_controller, design->iic_regs);
+        if (transfer_status != IIC_TRANSFER_STATUS_SUCCESS)
+        {
+            printf ("iic_initialise_controller() failed\n");
+            return;
+        }
+        break;
 
 #ifdef HAVE_XILINX_EMBEDDEDSW
-        case IIC_ACCESS_MODE_XIIC_LIB_STANDARD:
-            /* No initialise function in the Xilinx embeddedsw library for standard mode */
-            break;
+    case IIC_ACCESS_MODE_XIIC_LIB_STANDARD:
+        /* No initialise function in the Xilinx embeddedsw library for standard mode */
+        break;
 
-        case IIC_ACCESS_MODE_XIIC_LIB_DYNAMIC:
-            xiic_status = XIic_DynInit ((UINTPTR) iic_regs);
-            if (xiic_status != XST_SUCCESS)
-            {
-                printf ("XIic_DynInit() failed\n");
-                return;
-            }
-            break;
+    case IIC_ACCESS_MODE_XIIC_LIB_DYNAMIC:
+        xiic_status = XIic_DynInit ((UINTPTR) design->iic_regs);
+        if (xiic_status != XST_SUCCESS)
+        {
+            printf ("XIic_DynInit() failed\n");
+            return;
+        }
+        break;
 #endif
 
-        case IIC_ACCESS_MODE_BIT_BANGED:
-            /* Handled by select_i2c_controller() call above */
-            break;
-        }
+    case IIC_ACCESS_MODE_BIT_BANGED:
+        /* Handled by select_i2c_controller() call above */
+        break;
+    }
 
-        for (uint32_t iteration = 1; iteration <= arg_num_iterations; iteration++)
+    for (uint32_t iteration = 1; iteration <= arg_num_iterations; iteration++)
+    {
+        printf ("Iteration %u of %u using IIC %s\n",
+                iteration, arg_num_iterations, iic_access_mode_names[arg_iic_access_mode]);
+        for (i2c_slave_address = arg_min_i2c_addr; i2c_slave_address <= arg_max_i2c_addr; i2c_slave_address++)
         {
-            printf ("Iteration %u of %u using IIC %s\n",
-                    iteration, arg_num_iterations, iic_access_mode_names[arg_iic_access_mode]);
-            for (i2c_slave_address = arg_min_i2c_addr; i2c_slave_address <= arg_max_i2c_addr; i2c_slave_address++)
+            switch (arg_iic_access_mode)
             {
-                switch (arg_iic_access_mode)
-                {
-                case IIC_ACCESS_MODE_STANDARD:
-                    slave_responded = i2c_standard_byte_read (iic_regs, i2c_slave_address, data);
-                    break;
+            case IIC_ACCESS_MODE_STANDARD:
+                slave_responded = i2c_standard_byte_read (design->iic_regs, i2c_slave_address, data);
+                break;
 
-                case IIC_ACCESS_MODE_DYNAMIC:
-                    slave_responded = i2c_dynamic_byte_read (iic_regs, i2c_slave_address, data);
-                    break;
+            case IIC_ACCESS_MODE_DYNAMIC:
+                slave_responded = i2c_dynamic_byte_read (design->iic_regs, i2c_slave_address, data);
+                break;
 
-                case IIC_ACCESS_MODE_IIC_LIB:
-                    transfer_status = iic_read (&iic_controller, i2c_slave_address, arg_num_bytes_read, data, IIC_TRANSFER_OPTION_STOP);
-                    slave_responded = transfer_status == IIC_TRANSFER_STATUS_SUCCESS;
-                    break;
+            case IIC_ACCESS_MODE_IIC_LIB:
+                transfer_status = iic_read (&iic_controller, i2c_slave_address, arg_num_bytes_read, data, IIC_TRANSFER_OPTION_STOP);
+                slave_responded = transfer_status == IIC_TRANSFER_STATUS_SUCCESS;
+                break;
 
-                case IIC_ACCESS_MODE_BIT_BANGED:
-                    slave_responded = bit_banged_i2c_read (&bit_banged_controller, i2c_slave_address, arg_num_bytes_read, data, true);
-                    break;
+            case IIC_ACCESS_MODE_BIT_BANGED:
+                slave_responded = bit_banged_i2c_read (&bit_banged_controller, i2c_slave_address, arg_num_bytes_read, data, true);
+                break;
 
 #ifdef HAVE_XILINX_EMBEDDEDSW
-                case IIC_ACCESS_MODE_XIIC_LIB_STANDARD:
-                    num_bytes_received = XIic_Recv ((UINTPTR) iic_regs, i2c_slave_address, data, arg_num_bytes_read, XIIC_STOP);
-                    slave_responded = num_bytes_received == arg_num_bytes_read;
-                    break;
+            case IIC_ACCESS_MODE_XIIC_LIB_STANDARD:
+                num_bytes_received = XIic_Recv ((UINTPTR) design->iic_regs, i2c_slave_address, data, arg_num_bytes_read, XIIC_STOP);
+                slave_responded = num_bytes_received == arg_num_bytes_read;
+                break;
 
-                case IIC_ACCESS_MODE_XIIC_LIB_DYNAMIC:
-                    num_bytes_received = XIic_DynRecv ((UINTPTR) iic_regs, i2c_slave_address, data, (u8) arg_num_bytes_read);
-                    slave_responded = num_bytes_received == arg_num_bytes_read;
-                    break;
+            case IIC_ACCESS_MODE_XIIC_LIB_DYNAMIC:
+                num_bytes_received = XIic_DynRecv ((UINTPTR) design->iic_regs, i2c_slave_address, data, (u8) arg_num_bytes_read);
+                slave_responded = num_bytes_received == arg_num_bytes_read;
+                break;
 #endif
-                }
+            }
 
-                if (slave_responded)
+            if (slave_responded)
+            {
+                total_responses_per_address[i2c_slave_address]++;
+                printf ("Slave 0x%02x replied with data", i2c_slave_address);
+                for (uint32_t byte_index = 0; byte_index < arg_num_bytes_read; byte_index++)
                 {
-                    total_responses_per_address[i2c_slave_address]++;
-                    printf ("Slave 0x%02x replied with data", i2c_slave_address);
-                    for (uint32_t byte_index = 0; byte_index < arg_num_bytes_read; byte_index++)
-                    {
-                        printf (" 0x%02x", data[byte_index]);
-                    }
-                    printf ("\n");
+                    printf (" 0x%02x", data[byte_index]);
                 }
+                printf ("\n");
             }
         }
+    }
 
-        if (arg_num_iterations > 1)
+    if (arg_num_iterations > 1)
+    {
+        /* Display the total number of responses to all addresses, as a summary */
+        printf ("\nNumber of responses for each I2C address:\n");
+        for (i2c_slave_address = arg_min_i2c_addr; i2c_slave_address <= arg_max_i2c_addr; i2c_slave_address++)
         {
-            /* Display the total number of responses to all addresses, as a summary */
-            printf ("\nNumber of responses for each I2C address:\n");
-            for (i2c_slave_address = arg_min_i2c_addr; i2c_slave_address <= arg_max_i2c_addr; i2c_slave_address++)
+            if (total_responses_per_address[i2c_slave_address] > 0)
             {
-                if (total_responses_per_address[i2c_slave_address] > 0)
-                {
-                    printf ("0x%02x : %u\n", i2c_slave_address, total_responses_per_address[i2c_slave_address]);
-                }
+                printf ("0x%02x : %u\n", i2c_slave_address, total_responses_per_address[i2c_slave_address]);
             }
         }
     }
@@ -503,35 +489,25 @@ static void probe_i2c_addresses (vfio_device_t *const vfio_device)
 
 int main (int argc, char *argv[])
 {
-    vfio_devices_t vfio_devices;
-
-    /* Filters for the FPGA devices tested */
-    const vfio_pci_device_filter_t filters[] =
-    {
-        {
-            .vendor_id = FPGA_SIO_VENDOR_ID,
-            .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
-            .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
-            .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_I2C_PROBE,
-            .enable_bus_master = false
-        }
-    };
-    const size_t num_filters = sizeof (filters) / sizeof (filters[0]);
+    fpga_designs_t designs;
 
     parse_command_line_arguments (argc, argv);
 
-    /* Open PCI devices supported by the test */
-    open_vfio_devices_matching_filter (&vfio_devices, num_filters, filters);
+    /* Open the FPGA designs which have an IOMMU group assigned */
+    identify_pcie_fpga_designs (&designs);
 
-    /* Perform tests on the FPGA devices */
-    for (uint32_t device_index = 0; device_index < vfio_devices.num_devices; device_index++)
+    /* Perform tests on the FPGA designs which have the required I2C peripherals */
+    for (uint32_t design_index = 0; design_index < designs.num_identified_designs; design_index++)
     {
-        vfio_device_t *const vfio_device = &vfio_devices.devices[device_index];
+        fpga_design_t *const design = &designs.designs[design_index];
 
-        probe_i2c_addresses (vfio_device);
+        if ((design->iic_regs != NULL) && (design->bit_banged_i2c_gpio_regs != NULL))
+        {
+            probe_i2c_addresses (design);
+        }
     }
 
-    close_vfio_devices (&vfio_devices);
+    close_pcie_fpga_designs (&designs);
 
     return EXIT_SUCCESS;
 }

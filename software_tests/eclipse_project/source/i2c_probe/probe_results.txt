@@ -216,7 +216,7 @@ Number of responses for each I2C address:
 0x74 : 10000
 
 
-== i2c_dump_info results ==
+== i2c_dump_info results when the i2c_probe image was used ==
 
 $ i2c_probe/i2c_dump_info 
 Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 25
@@ -473,3 +473,221 @@ j. The decoded LTM4676A values look reasonable. Not sure if the LTM4676A NVM has
    The TEF1001 does have J10 installed which is a header connected to the I2C bus for the LTM4676A's
 k. The Si5338 reports the expected identity information.
 
+
+== i2c_dump_info results when the TEF1001_dma_ddr3 image was used ==
+
+A further run, which uses the different TEF1001_dma_ddr3 image; which has added DDR3 DMA compared to the previous run
+which used the i2c_probe image.
+
+TEF1001_dma_ddr3 looks to generate a higher power consumption; albeit the DDR3 memory wasn't been tested at the point
+this test was run.
+
+$ bin/debug/i2c_probe/i2c_dump_info 
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 25
+Enabling bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7011) with IOMMU group 89
+Enabling bus master for 0000:30:00.0
+Using design TEF1001_dma_ddr3 in device 0000:15:00.0
+
+TEF1001 CPLD fan information:
+  FAN Control register = 0xff (fan Enabled)
+  FAN1 RPM = 5250
+
+DDR temperature sensor information:
+  Capabilities = 0x006f
+  Configuration register = 0x0000
+  Temperature high limit register = 0x0000 (0.0 C)
+  Temperature low limit register = 0x0000 (0.0 C)
+  Temperature critical limit register = 0x0000 (0.0 C)
+  Ambient temperature register = 0xc22c above TCRIT above HIGH (34.8 C)
+  Sensor manufacturer ID register = 0x104a (STMicroelectronics)
+
+DDR3 SPD decode:
+  RAW bytes:
+      0- 15: 92 13 0b 08 04 21 02 09 0b 11 01 08 0a 00 fe 00
+     16- 31: 69 78 69 30 69 11 18 81 20 08 3c 3c 00 f0 83 05
+     32- 47: 80 00 00 00 00 00 00 00 00 88 00 00 00 00 00 00
+     48- 63: 00 00 00 00 00 00 00 00 00 00 00 00 0f 11 23 00
+     64- 79: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+     80- 95: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+     96-111: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    112-127: 00 00 00 00 00 80 2c 0f 16 17 12 6a fb a9 bd a1
+    128-143: 31 38 4b 53 46 31 47 37 32 48 5a 2d 31 47 36 50
+    144-159: 31 20 50 31 80 2c 44 50 41 47 39 46 41 30 30 31
+    160-175: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    176-191: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+    192-207: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+    208-223: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+    224-239: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+    240-255: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+  CRC coverage bytes=117  SPD bytes total=256  SPD bytes used=176
+  Actual CRC=0xa1bd  Expected CRC=0xa1bd : CRC PASS
+  SPD revision 1.3
+  Module type : 72b-SO-UDIMM
+  Bank Address Bits=3  Total SDRAM Capacity (Mibibits)=4096
+  Row Address Bits=16  Column Addess Bits=10
+  Module Nominal Voltage : NOT 1.25 V operable  1.35 V operable  1.5 V operable
+  Number of Ranks=2  SDRAM Device Width (bits)=8
+  Bus width extension (bits)=8  Primary bus width (bits)=64
+  Module capacity (MiB)=8192
+  Module Part Number "18KSF1G72HZ-1G6P1 "
+  72b-SO-UDIMM Rank 1 Mapping : standard
+  Supported CAS latencies: 5 6 7 8 9 10 11
+  Fine Timebase Dividend=1 Divisor=1 FTB=0.001 ns
+  Medium Timebase Dividend=1 Divisor=8 MTB=0.125 ns
+  SDRAM Minimum Cycle Time (tCKmin)=1.250 ns
+  Minimum CAS Latency Time (tAAmin)=13.125 ns
+  Minimum Write Recovery Time (tWRmin)=15.000 ns
+  Minimum RAS# to CAS# Delay Time (tRCDmin)=13.125 ns
+  Minimum Row Active to Row Active Delay Time (tRRDmin)=6.000 ns
+  Minimum Row Precharge Delay Time (tRPmin)=13.125 ns
+  Minimum Active to Precharge Delay Time (tRASmin)=35.000 ns
+  Minimum Active to Active/Refresh Delay Time (tRCmin)=48.125 ns
+  Minimum Refresh Recovery Delay Time (tRFCmin)=260.000 ns
+  Minimum Internal Write to Read Command Delay Time (tWTRmin)=7.500 ns
+  Minimum Internal Read to Precharge Command Delay Time (tRTPmin)=7.500 ns
+  Minimum Four Activate Window Delay Time (tFAWmin)=30.000 ns
+  SDRAM Optional Features : DLL-Off Mode Support Supported  RZQ/7 Supported  RZQ/6 Supported
+  SDRAM Thermal and Refresh Options:
+    Partial Array Self Refresh (PASR) : Not Supported
+    On-die Thermal Sensor (ODTS) Readout : On-die thermal sensor readout is not supported
+    Auto Self Refresh (ASR) : ASR is supported and the SDRAM will determine the proper refresh rate for any supported temperature
+    Extended Temperature Refresh Rate : Use in extended operating temperature range from 85-95 C requires 2X refresh rate
+    Extended Temperature Range : Normal and extended operating temperature range 0-95 C supported
+  Thermal Sensor : Thermal sensor incorporated onto this assembly
+  SDRAM Device Type : Standard Monolithic DRAM Device
+  Die Count : Not Specified
+  Signal Loading : Not specified
+  Maximum Activate : Vendor Specific=2  Maximum Activate Window (tMAW)=8192 * tREFI  Maximum Activate Count (MAC)=Unrestricted MAC
+
+LTM4676A at I2C address 0x40
+  PMBus capability=0xb0 : PEC supported  Max bus speed=400 kHz  SMBALERT# supported
+  PMBus revision=0x22 : Part I revision 1.2  Part II revision 1.2
+  MFR_ID=LTC  MFR_MODEL=LTM4676A
+  WRITE_PROTECT=0x00 : Enable writes to all commands
+  MFR_COMMON=0xfc : WP pin INACTIVE
+  Measured input supply (SVin) voltage                                                  :  12.109 V
+  Calculated input supply current                                                       :   0.507 A
+  Control IC die temperature                                                            :  70.000 C
+  Maximum measured value of READ_VIN since last MFR_CLEAR_PEAKS                         :  12.141 V
+  Maximum measured value of control IC die temperature since last MFR_CLEAR_PEAKS       :  70.500 C
+  Measured output voltage                                                         page 0:   1.500 V
+  Calculated input current per channel                                            page 0:   0.272 A
+  Measured output current                                                         page 0:   1.852 A
+  Power stage temperature sensor                                                  page 0:  52.125 C
+  Duty cycle of the top gate control signal                                       page 0:  13.031 %
+  Calculated output power                                                         page 0:   2.777 W
+  Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 0:   1.501 V
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 0:  52.625 C
+  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 0:   2.391 A
+  Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 0:   1.613 V
+  Output overvoltage fault limit                                                  page 0:   1.650 V
+  Output overvoltage warning limit                                                page 0:   1.613 V
+  Margin high output voltage set point                                            page 0:   1.575 V
+  Nominal output voltage set point                                                page 0:   1.500 V
+  Margin low output voltage set point                                             page 0:   1.425 V
+  Output undervoltage warning limit                                               page 0:   1.403 V
+  Output undervoltage fault limit                                                 page 0:   1.395 V
+  Maximum allowed output voltage including VOUT_OV_FAULT_LIMIT                    page 0:   2.750 V
+  Output overcurrent fault limit                                                  page 0:  22.844 A
+  Output overcurrent warning limit                                                page 0:  15.594 A
+  Power stage overtemperature fault limit                                         page 0: 128.000 C
+  Power stage overtemperature warning limit                                       page 0: 125.000 C
+  Power stage undertemperature fault limit                                        page 0: -45.000 C
+  Measured output voltage                                                         page 1:   4.000 V
+  Calculated input current per channel                                            page 1:   0.235 A
+  Measured output current                                                         page 1:   0.613 A
+  Power stage temperature sensor                                                  page 1:  53.125 C
+  Duty cycle of the top gate control signal                                       page 1:  33.312 %
+  Calculated output power                                                         page 1:   2.453 W
+  Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 1:   4.001 V
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 1:  53.750 C
+  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 1:   0.673 A
+  Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 1:   4.300 V
+  Output overvoltage fault limit                                                  page 1:   4.400 V
+  Output overvoltage warning limit                                                page 1:   4.300 V
+  Margin high output voltage set point                                            page 1:   4.200 V
+  Nominal output voltage set point                                                page 1:   4.000 V
+  Margin low output voltage set point                                             page 1:   3.800 V
+  Output undervoltage warning limit                                               page 1:   3.740 V
+  Output undervoltage fault limit                                                 page 1:   3.720 V
+  Maximum allowed output voltage including VOUT_OV_FAULT_LIMIT                    page 1:   5.700 V
+  Output overcurrent fault limit                                                  page 1:  22.844 A
+  Output overcurrent warning limit                                                page 1:  15.594 A
+  Power stage overtemperature fault limit                                         page 1: 128.000 C
+  Power stage overtemperature warning limit                                       page 1: 125.000 C
+  Power stage undertemperature fault limit                                        page 1: -45.000 C
+
+LTM4676A at I2C address 0x4f
+  PMBus capability=0xb0 : PEC supported  Max bus speed=400 kHz  SMBALERT# supported
+  PMBus revision=0x22 : Part I revision 1.2  Part II revision 1.2
+  MFR_ID=LTC  MFR_MODEL=LTM4676A
+  WRITE_PROTECT=0x00 : Enable writes to all commands
+  MFR_COMMON=0xfc : WP pin INACTIVE
+  Measured input supply (SVin) voltage                                                  :  12.141 V
+  Calculated input supply current                                                       :   0.140 A
+  Control IC die temperature                                                            :  62.875 C
+  Maximum measured value of READ_VIN since last MFR_CLEAR_PEAKS                         :  12.188 V
+  Maximum measured value of control IC die temperature since last MFR_CLEAR_PEAKS       :  63.375 C
+  Measured output voltage                                                         page 0:   1.001 V
+  Calculated input current per channel                                            page 0:   0.078 A
+  Measured output current                                                         page 0:   0.556 A
+  Power stage temperature sensor                                                  page 0:  49.312 C
+  Duty cycle of the top gate control signal                                       page 0:   8.625 %
+  Calculated output power                                                         page 0:   0.556 W
+  Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 0:   1.001 V
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 0:  49.812 C
+  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 0:   1.107 A
+  Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 0:   1.076 V
+  Output overvoltage fault limit                                                  page 0:   1.101 V
+  Output overvoltage warning limit                                                page 0:   1.076 V
+  Margin high output voltage set point                                            page 0:   1.051 V
+  Nominal output voltage set point                                                page 0:   1.001 V
+  Margin low output voltage set point                                             page 0:   0.951 V
+  Output undervoltage warning limit                                               page 0:   0.936 V
+  Output undervoltage fault limit                                                 page 0:   0.931 V
+  Maximum allowed output voltage including VOUT_OV_FAULT_LIMIT                    page 0:   2.750 V
+  Output overcurrent fault limit                                                  page 0:  22.844 A
+  Output overcurrent warning limit                                                page 0:  15.594 A
+  Power stage overtemperature fault limit                                         page 0: 128.000 C
+  Power stage overtemperature warning limit                                       page 0: 125.000 C
+  Power stage undertemperature fault limit                                        page 0: -45.000 C
+  Measured output voltage                                                         page 1:   1.001 V
+  Calculated input current per channel                                            page 1:   0.062 A
+  Measured output current                                                         page 1:   0.363 A
+  Power stage temperature sensor                                                  page 1:  50.375 C
+  Duty cycle of the top gate control signal                                       page 1:   8.562 %
+  Calculated output power                                                         page 1:   0.363 W
+  Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 1:   1.002 V
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 1:  50.938 C
+  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 1:   0.953 A
+  Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 1:   1.076 V
+  Output overvoltage fault limit                                                  page 1:   1.101 V
+  Output overvoltage warning limit                                                page 1:   1.076 V
+  Margin high output voltage set point                                            page 1:   1.051 V
+  Nominal output voltage set point                                                page 1:   1.001 V
+  Margin low output voltage set point                                             page 1:   0.951 V
+  Output undervoltage warning limit                                               page 1:   0.936 V
+  Output undervoltage fault limit                                                 page 1:   0.931 V
+  Maximum allowed output voltage including VOUT_OV_FAULT_LIMIT                    page 1:   2.750 V
+  Output overcurrent fault limit                                                  page 1:  22.844 A
+  Output overcurrent warning limit                                                page 1:  15.594 A
+  Power stage overtemperature fault limit                                         page 1: 128.000 C
+  Power stage overtemperature warning limit                                       page 1: 125.000 C
+  Power stage undertemperature fault limit                                        page 1: -45.000 C
+
+Si5338 Clock Generator information:
+  Device: Si5338A revision B
+  NVM code=0
+  Configured 7-bit I2C address=0x70
+
+XADC samples using Continuous sequence mode
+Current enabled channels in sequencer: Temp    Vccint  Vccaux  Vbram   Cal    
+ADC A calibration: unipolar offset=-4 (lsbs)  bipolar offset=-3 (lsbs)  gain correction factor=6.3 (%)
+ADC B calibration: unipolar offset=-5 (lsbs)  bipolar offset=-4 (lsbs)  gain correction factor=6.3 (%)
+  Channel  Measurement     Min           Max
+  Temp       43.8030C     41.9574C      45.4026C
+  Vccint      0.9968V      0.9939V       1.0049V
+  Vccaux      1.7805V      1.7717V       1.7878V
+  Vbram       0.9998V      0.9939V       1.0049V
+  Cal         0.0000V           

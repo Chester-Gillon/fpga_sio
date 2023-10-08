@@ -27,7 +27,8 @@ const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE] =
     [FPGA_DESIGN_I2C_PROBE] = "i2c_probe (TEF1001) or TOSING_160T_quad_spi",
     [FPGA_DESIGN_TOSING_160T_DMA_DDR3] = "TOSING_160T_dma_ddr3",
     [FPGA_DESIGN_LITEFURY_PROJECT0] = "Litefury Project-0",
-    [FPGA_DESIGN_NITEFURY_PROJECT0] = "Nitefury Project-0"
+    [FPGA_DESIGN_NITEFURY_PROJECT0] = "Nitefury Project-0",
+    [FPGA_DESIGN_TEF1001_DMA_DDR3] = "TEF1001_dma_ddr3"
 };
 
 
@@ -65,6 +66,14 @@ static const vfio_pci_device_filter_t fpga_design_pci_filters[FPGA_DESIGN_ARRAY_
         .device_id = 0x7011,
         .subsystem_vendor_id = 0,
         .subsystem_device_id = 0,
+        .enable_bus_master = true
+    },
+    [FPGA_DESIGN_TEF1001_DMA_DDR3] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_TEF1001_DMA_DDR3,
         .enable_bus_master = true
     }
 };
@@ -105,13 +114,13 @@ static bool identify_fury_project0 (vfio_device_t *const vfio_device, fpga_desig
         if (strncmp (pid_string, "LITE", 4) == 0)
         {
             *candidate_design_id = FPGA_DESIGN_LITEFURY_PROJECT0;
-            candidate_design->dma_bridge_memory_size_bytes = 512 * 1024 * 1024;
+            candidate_design->dma_bridge_memory_size_bytes = 512UL * 1024 * 1024;
             design_identified = true;
         }
         else if (strncmp (pid_string, "NITE", 4) == 0)
         {
             *candidate_design_id = FPGA_DESIGN_NITEFURY_PROJECT0;
-            candidate_design->dma_bridge_memory_size_bytes = 1024 * 1024 * 1024;
+            candidate_design->dma_bridge_memory_size_bytes = 1024UL * 1024 * 1024;
             design_identified = true;
         }
 
@@ -180,11 +189,19 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                 case FPGA_DESIGN_I2C_PROBE:
                     {
                         const uint32_t bar_index = 0;
+                        const size_t iic_base_offset      = 0x0000;
+                        const size_t iic_frame_size       = 0x1000;
+                        const size_t gpio_base_offset     = 0x1000;
+                        const size_t gpio_frame_size      = 0x1000;
                         const size_t quad_spi_base_offset = 0x2000;
                         const size_t quad_spi_frame_size  = 0x1000;
                         const size_t xadc_base_offset     = 0x3000;
                         const size_t xadc_frame_size      = 0x1000;
 
+                        candidate_design->iic_regs =
+                                map_vfio_registers_block (vfio_device, bar_index, iic_base_offset, iic_frame_size);
+                        candidate_design->bit_banged_i2c_gpio_regs =
+                                map_vfio_registers_block (vfio_device, bar_index, gpio_base_offset, gpio_frame_size);
                         candidate_design->quad_spi_regs =
                                 map_vfio_registers_block (vfio_device, bar_index, quad_spi_base_offset, quad_spi_frame_size);
                         candidate_design->xadc_regs =
@@ -204,7 +221,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
 
                         candidate_design->dma_bridge_present = true;
                         candidate_design->dma_bridge_bar = dma_bridge_bar_index;
-                        candidate_design->dma_bridge_memory_size_bytes = 1024 * 1024 * 1024;
+                        candidate_design->dma_bridge_memory_size_bytes = 1024UL * 1024 * 1024;
                         candidate_design->quad_spi_regs =
                                 map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                         quad_spi_base_offset, quad_spi_frame_size);
@@ -217,6 +234,35 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                 case FPGA_DESIGN_LITEFURY_PROJECT0:
                 case FPGA_DESIGN_NITEFURY_PROJECT0:
                     design_identified = identify_fury_project0 (vfio_device, &candidate_design_id, candidate_design);
+                    break;
+
+                case FPGA_DESIGN_TEF1001_DMA_DDR3:
+                    {
+                        const uint32_t peripherals_bar_index = 0;
+                        const uint32_t dma_bridge_bar_index = 2;
+                        const size_t iic_base_offset      = 0x0000;
+                        const size_t iic_frame_size       = 0x1000;
+                        const size_t gpio_base_offset     = 0x1000;
+                        const size_t gpio_frame_size      = 0x1000;
+                        const size_t quad_spi_base_offset = 0x2000;
+                        const size_t quad_spi_frame_size  = 0x1000;
+                        const size_t xadc_base_offset     = 0x3000;
+                        const size_t xadc_frame_size      = 0x1000;
+
+                        candidate_design->dma_bridge_present = true;
+                        candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                        candidate_design->dma_bridge_memory_size_bytes = 8192UL * 1024 * 1024;
+
+                        candidate_design->iic_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index, iic_base_offset, iic_frame_size);
+                        candidate_design->bit_banged_i2c_gpio_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index, gpio_base_offset, gpio_frame_size);
+                        candidate_design->quad_spi_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index, quad_spi_base_offset, quad_spi_frame_size);
+                        candidate_design->xadc_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index, xadc_base_offset, xadc_frame_size);
+                        design_identified = true;
+                    }
                     break;
 
                 case FPGA_DESIGN_ARRAY_SIZE:

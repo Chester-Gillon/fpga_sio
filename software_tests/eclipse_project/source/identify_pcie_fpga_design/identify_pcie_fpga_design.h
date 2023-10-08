@@ -35,7 +35,6 @@ typedef enum
     FPGA_DESIGN_DMA_BLKRAM,
     /* fpga_tests/i2c_probe/ which contains:
      * a. I2C controller, both the Xilinx "AXI IIC Bus Interface" IP and a GPIO based bit-banged interface.
-     *    This is not identified by the library, as so far only used in that single design.
      * b. Quad SPI connected to the configuration flash.
      * c. XADC
      */
@@ -54,6 +53,12 @@ typedef enum
      */
     FPGA_DESIGN_LITEFURY_PROJECT0,
     FPGA_DESIGN_NITEFURY_PROJECT0,
+    /* fpga_tests/TEF1001_dma_ddr3 which contains:
+     * a. DMA/Bridge Subsystem to access 1GB of DDR3
+     * b. Quad SPI connected to the configuration flash.
+     * c. XADC
+     * d. I2C controller, both the Xilinx "AXI IIC Bus Interface" IP and a GPIO based bit-banged interface. */
+    FPGA_DESIGN_TEF1001_DMA_DDR3,
 
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
@@ -80,6 +85,12 @@ typedef struct
     uint8_t *quad_spi_regs;
     /* When non-NULL the base of the mapped registers for the XADC IP present in the design */
     uint8_t *xadc_regs;
+    /* When non-NULL the base of the mapped registers for the Xilinx AXI IIC IP present in the design */
+    uint8_t *iic_regs;
+    /* When non-NULL the base of the mapped GIO registers which are used to:
+     * a. bit-bang an I2C interface on the TEF1001
+     * b. Mux the I2C output pins between either the bit-banged GPIOs or Xilinx AXI IIC */
+    uint8_t *bit_banged_i2c_gpio_regs;
     /* For FPGA_DESIGN_LITEFURY_PROJECT0 or FPGA_DESIGN_NITEFURY_PROJECT0 gives the version of the board design */
     uint32_t board_version;
 } fpga_design_t;
