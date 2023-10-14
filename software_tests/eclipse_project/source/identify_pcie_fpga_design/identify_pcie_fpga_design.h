@@ -60,6 +60,12 @@ typedef enum
      * d. I2C controller, both the Xilinx "AXI IIC Bus Interface" IP and a GPIO based bit-banged interface. */
     FPGA_DESIGN_TEF1001_DMA_DDR3,
 
+    /* fpga_tests/NiteFury_dma_ddr3 which contains:
+     * a. Access 1GB of DDR3 memory.
+     * b. Access a Quad SPI connected to the FPGA configuration flash.
+     * c. Access the XADC - internal sensors and one external input. */
+    FPGA_DESIGN_NITEFURY_DMA_DDR3,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 

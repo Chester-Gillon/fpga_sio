@@ -327,7 +327,7 @@ card-to-host DMA timing for 16 transfers of 1073741824 bytes:
    Max = 1130.610757 (Mbytes/sec)
 
 
-4. Test using Nitefury Project-0 and TEF1001_dma_ddr3 designs with IOMMU enabled; with simple work-around to IOVA allocation
+5. Test using Nitefury Project-0 and TEF1001_dma_ddr3 designs with IOMMU enabled; with simple work-around to IOVA allocation
 ============================================================================================================================
 
 The test_dma_accessible_memory program was modified to set the IOVA to start at 4G, as a simple way to avoid
@@ -414,3 +414,79 @@ card-to-host DMA timing for 16 transfers of 1073741824 bytes:
    Min = 1130.521574 (Mbytes/sec)
   Mean = 1130.583159 (Mbytes/sec)
    Max = 1130.599609 (Mbytes/sec)
+
+
+6. Test using NiteFury_dma_ddr3 and Nitefury Project-0 and dma_blkram designs with IOMMU enabled
+================================================================================================
+
+The NiteFury_dma_ddr3 and dma_blkram designs were used in a W-2123 system with the IOMMU and secure boot enabled. 
+
+Using default arguments, which for the NiteFury_dma_ddr3 design results in transfers which are not word aligned:
+[mr_halfword@skylake-alma release]$ xilinx_dma_bridge_for_pcie/test_dma_accessible_memory 
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Enabling bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Enabling bus master for 0000:30:00.0
+Testing dma_blkram (TEF1001) design with memory size 0x120000
+PCI device 0000:15:00.0 IOMMU group 41
+Size of DMA descriptors used for h2c: [0]=0x120000
+Size of DMA descriptors used for c2h: [0]=0x120000
+Test pattern pass
+host-to-card DMA timing for 14564 transfers of 1179648 bytes:
+   Min = 1691.084323 (Mbytes/sec)
+  Mean = 1754.170372 (Mbytes/sec)
+   Max = 1756.746131 (Mbytes/sec)
+card-to-host DMA timing for 14564 transfers of 1179648 bytes:
+   Min = 1376.127332 (Mbytes/sec)
+  Mean = 1405.894362 (Mbytes/sec)
+   Max = 1406.117243 (Mbytes/sec)
+Testing NiteFury_dma_ddr3 design with memory size 0x40000000
+PCI device 0000:30:00.0 IOMMU group 89
+Size of DMA descriptors used for h2c: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Size of DMA descriptors used for c2h: [0]=0xfffffff [1]=0xfffffff [2]=0xfffffff [3]=0xfffffff [4]=0x4
+Test pattern pass
+host-to-card DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1332.395773 (Mbytes/sec)
+  Mean = 1332.618110 (Mbytes/sec)
+   Max = 1332.857297 (Mbytes/sec)
+card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1150.290232 (Mbytes/sec)
+  Mean = 1150.305574 (Mbytes/sec)
+   Max = 1150.319972 (Mbytes/sec)
+
+
+With page size alignment for transfers, which has no effect on the transfer rate:
+[mr_halfword@skylake-alma release]$ xilinx_dma_bridge_for_pcie/test_dma_accessible_memory -a 4096
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Enabling bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Enabling bus master for 0000:30:00.0
+Testing dma_blkram (TEF1001) design with memory size 0x120000
+PCI device 0000:15:00.0 IOMMU group 41
+Size of DMA descriptors used for h2c: [0]=0x120000
+Size of DMA descriptors used for c2h: [0]=0x120000
+Test pattern pass
+host-to-card DMA timing for 14564 transfers of 1179648 bytes:
+   Min = 1692.506130 (Mbytes/sec)
+  Mean = 1754.368640 (Mbytes/sec)
+   Max = 1757.596797 (Mbytes/sec)
+card-to-host DMA timing for 14564 transfers of 1179648 bytes:
+   Min = 1376.596249 (Mbytes/sec)
+  Mean = 1405.872580 (Mbytes/sec)
+   Max = 1406.122271 (Mbytes/sec)
+Testing NiteFury_dma_ddr3 design with memory size 0x40000000
+PCI device 0000:30:00.0 IOMMU group 89
+Size of DMA descriptors used for h2c: [0]=0xffff000 [1]=0xffff000 [2]=0xffff000 [3]=0xffff000 [4]=0x4000
+Size of DMA descriptors used for c2h: [0]=0xffff000 [1]=0xffff000 [2]=0xffff000 [3]=0xffff000 [4]=0x4000
+Test pattern pass
+host-to-card DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1332.364157 (Mbytes/sec)
+  Mean = 1332.535455 (Mbytes/sec)
+   Max = 1332.767980 (Mbytes/sec)
+card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 1150.297237 (Mbytes/sec)
+  Mean = 1150.305676 (Mbytes/sec)
+   Max = 1150.316809 (Mbytes/sec)
+
+Also, the achieved bandwidth with the NiteFury_dma_ddr3 design (created from scratch) is the same as the
+pre-flashed Nitefury Project-0 examp;le design from the manufacturer.

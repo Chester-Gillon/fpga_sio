@@ -48,4 +48,10 @@
  *    in the same way as the i2c_probe (FPGA_SIO_SUBDEVICE_ID_I2C_PROBE) design. */
 #define FPGA_SIO_SUBDEVICE_ID_TEF1001_DMA_DDR3 0x0005
 
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Access 1GB of DDR3 memory.
+ * b. Access a Quad SPI connected to the FPGA configuration flash.
+ * c. Access the XADC - internal sensors and one external input. */
+#define FPGA_SIO_SUBDEVICE_ID_NITEFURY_DMA_DDR3 0x0006
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */
