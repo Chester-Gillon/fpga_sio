@@ -6,8 +6,17 @@
  * @details
  * This provides a mechanism for sanity checking the bitstreams, either in SPI flash or in a file.
  *
- * The following was used as a guide for the bitstream layout:
+ * This file was originally written just for Xilinx 7-series devices, using following as a guide for the bitstream layout:
  *    https://docs.xilinx.com/r/en-US/ug470_7Series_Config
+ *
+ * For the 7-series devices checked bitstreams for 7A200T and 7K160T
+ *
+ * Subsequently added additional support for Xilinx UltraScale devices, using the following:
+ *    https://docs.xilinx.com/v/u/en-US/ug570-ultrascale-configuration
+ *
+ * For the UltraScale devices checked a bitstream for a KU060.
+ * @todo The KU060 bitstream had a command code of 0x15, between GRESTORE and DGHIGH_LFRM commands.
+ *       ug570 doesn't describe what command code 0x15 is.
  */
 
 #include "xilinx_7_series_bitstream.h"
@@ -151,6 +160,54 @@ static const x7_enum_lut_entry_t x7_idcode_names[] =
     {.value = 0X36D5093, .name = "7VX1140T"},
     {.value = 0X36D9093, .name = "7VH580T"},
     {.value = 0X36DB093, .name = "7VH870T"},
+    /* Kintex UltraScale FPGAs */
+    {.value = 0X3824093, .name = "KU025"},
+    {.value = 0X3823093, .name = "KU035"},
+    {.value = 0X3822093, .name = "KU040"},
+    {.value = 0X3919093, .name = "KU060"},
+    {.value = 0X380F093, .name = "KU085"},
+    {.value = 0X3844093, .name = "KU095"},
+    {.value = 0X390D093, .name = "KU115"},
+    /* Virtex UltraScale FPGAs */
+    {.value = 0X3939093, .name = "VU065"},
+    {.value = 0X3843093, .name = "VU080"},
+    {.value = 0X3842093, .name = "VU095"},
+    {.value = 0X392D093, .name = "VU125"},
+    {.value = 0X3933093, .name = "VU160"},
+    {.value = 0X3931093, .name = "VU190"},
+    {.value = 0X396D093, .name = "VU440"},
+    /* Artix UltraScale+ FPGAs */
+    {.value = 0X4AF6093, .name = "AU7P"},
+    {.value = 0X4AC4093, .name = "AU10P"},
+    {.value = 0X4AC2093, .name = "AU15P"},
+    {.value = 0X4A65093, .name = "AU20P"},
+    {.value = 0X4A64093, .name = "AU25P"},
+    /* Kintex UltraScale+ FPGAs */
+    {.value = 0X4A63093, .name = "KU3P"},
+    {.value = 0X4A62093, .name = "KU5P"},
+    {.value = 0X484A093, .name = "KU9P"},
+    {.value = 0X4A4E093, .name = "KU11P"},
+    {.value = 0X4A52093, .name = "KU13P"},
+    {.value = 0X4A56093, .name = "KU15P"},
+    {.value = 0X4ACF093, .name = "KU19P"},
+    /* Virtex UltraScale+ FPGAs */
+    {.value = 0X4B39093, .name = "VU3P"},
+    {.value = 0X4B2B093, .name = "VU5P"},
+    {.value = 0X4B29093, .name = "VU7P"},
+    {.value = 0X4B31093, .name = "VU9P"},
+    {.value = 0X4B49093, .name = "VU11P"},
+    {.value = 0X4B51093, .name = "VU13P"},
+    {.value = 0X4BA1093, .name = "VU19P"},
+    {.value = 0X4ACE093, .name = "VU23P"},
+    {.value = 0X4B43093, .name = "VU27P"},
+    {.value = 0X4B41093, .name = "VU29P"},
+    {.value = 0X4B6B093, .name = "VU31P"},
+    {.value = 0X4B69093, .name = "VU33P"},
+    {.value = 0X4B71093, .name = "VU35P"},
+    {.value = 0X4B79093, .name = "VU37P"},
+    {.value = 0X4B73093, .name = "VU45P"},
+    {.value = 0X4B7B093, .name = "VU47P"},
+    {.value = 0X4B61093, .name = "VU57P"},
     {                    .name = NULL}
 };
 
@@ -852,6 +909,7 @@ static void x7_bitstream_summarise_configuration_data_writes (const x7_bitstream
     uint32_t num_fdri_writes = 0;
     uint32_t total_fdri_words = 0;
     uint32_t num_mfw_commands = 0;
+    uint32_t num_null_commands = 0;
     uint32_t num_mfwr_writes = 0;
     uint32_t total_mfwr_words = 0;
     uint32_t num_type_2_packets = 0;
@@ -884,6 +942,12 @@ static void x7_bitstream_summarise_configuration_data_writes (const x7_bitstream
         else if (x7_packet_is_command (context, packet, X7_COMMAND_MFW))
         {
             num_mfw_commands++;
+        }
+        else if (x7_packet_is_command (context, packet, X7_COMMAND_NULL))
+        {
+            /* Seen in a KU060 compressed bitsteam.
+             * Not sure if the NULL command is a placeholder for something else. */
+            num_null_commands++;
         }
         else if (x7_packet_is_register_write (packet, X7_PACKET_TYPE_1_REG_MFWR))
         {
@@ -936,6 +1000,10 @@ static void x7_bitstream_summarise_configuration_data_writes (const x7_bitstream
         if (num_mfw_commands > 0)
         {
             printf ("    %u MFW commands\n", num_mfw_commands);
+        }
+        if (num_null_commands > 0)
+        {
+            printf ("    %u NULL commands\n", num_null_commands);
         }
         if (num_mfwr_writes > 0)
         {
