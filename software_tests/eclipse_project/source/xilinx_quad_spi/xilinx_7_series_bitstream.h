@@ -107,18 +107,41 @@ typedef struct
 } x7_packet_record_t;
 
 
+/* Defines the format of bitstream files which can be read */
+typedef enum
+{
+    X7_BITSTREAM_FILE_FORMAT_BIT,
+    X7_BITSTREAM_FILE_FORMAT_INTEL_HEX,
+    X7_BITSTREAM_FILE_FORMAT_BIN
+} x7_bitstream_file_format_t;
+
+
+/* The maximum number of bytes in one line of an Intel hex file */
+#define X7_INTEL_HEX_MAX_BYTES_PER_LINE \
+    1   + /* Byte count */ \
+    2   + /* Address */ \
+    1   + /* Record type */ \
+    255 + /* Data */ \
+    1     /* Checksum */
+
+
 /* Defines the context specific for reading a bitstream from a file */
 typedef struct
 {
     /* The pathname of the bitstream file */
     char pathname[PATH_MAX];
-    /* The contents of the raw bitstream file, possibly containing a .bit header */
+    /* The contents of the raw bitstream file */
     uint8_t *raw_contents;
     /* The number of bytes in raw_contents */
     uint32_t raw_length;
-    /* When true raw_contents has a .bit format header.
-     * When false assumed to a .bin format file. */
-    bool bit_format_file;
+    /* The file format, which is automatically detected */
+    x7_bitstream_file_format_t file_format;
+    /* Contains one line of an Intel hex file, converted from HEX ASCII into the binary bytes */
+    uint8_t intel_hex_line_bytes[X7_INTEL_HEX_MAX_BYTES_PER_LINE];
+    /* The number of bytes in intel_hex_line_bytes[] */
+    uint32_t intel_hex_line_len;
+    /* The start offset into raw_contents for the current line being read from an Intel hex file */
+    uint32_t intel_hex_line_start_offset;
     /* When bit_format_file is true the strings from the .bit file header */
     const char *design_name;
     const char *part_name;
@@ -143,9 +166,11 @@ typedef struct
      * When reading from a file the entire file is read. */
     uint8_t *data_buffer;
     /* The current length of the data_buffer in bytes:
-     * - When reading the bitstream from a file this is based upon the file length.
+     * - When reading the bitstream from a .bit or .bin file this is based upon the file length.
+     * - When reading the bitstream from an Intel HEX file this grows in chunks as expanded by the address information
+     *   in the file, which may end up more than bitstream_length_bytes.
      * - When reading the bitstream from flash this grows in chunks read from the flash,
-     *   which may end up more than bitstream_length_bytes */
+     *   which may end up more than bitstream_length_bytes. */
     uint32_t data_buffer_length;
     /* The length of the bitstream in data_buffer, which ends at the last NOP seen after the end of the configuration */
     uint32_t bitstream_length_bytes;

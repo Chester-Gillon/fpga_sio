@@ -16,13 +16,14 @@
  *
  * For the UltraScale devices checked a bitstream for a KU060.
  * @todo The KU060 bitstream had a command code of 0x15, between GRESTORE and DGHIGH_LFRM commands.
- *       ug570 doesn't describe what command code 0x15 is.
+ *       UG570 doesn't describe what command code 0x15 is.
  */
 
 #include "xilinx_7_series_bitstream.h"
 
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <errno.h>
 
@@ -771,8 +772,228 @@ static bool x7_bitstream_parse_bit_file_header (x7_bitstream_context_t *const co
 
 
 /**
+ * @brief Read one line from an Intel HEX file, storing the contents as an array of bytes
+ * @param[in/out] context Contains the Intel HEX file being read
+ * @return Returns true if have read a valid line of ASCII hex bytes, in terms of length and checksum
+ */
+static bool x7_bitstream_read_intel_hex_line (x7_bitstream_context_t *const context)
+{
+    bool line_valid;
+
+    /* Check for the Start Code for a line of Intel HEX. Since the file might be a bit or bin format,
+     * don't discard other contents looking for a Start Code. The Xilinx tools which create .mcs file
+     * don't include related information in the Intel HEX file. */
+    line_valid = (context->file.intel_hex_line_start_offset < context->file.raw_length) &&
+        (context->file.raw_contents[context->file.intel_hex_line_start_offset] == ':');
+
+    if (line_valid)
+    {
+        /* Convert the line of ASCII hex bytes to binary */
+        context->file.intel_hex_line_start_offset++;
+        context->file.intel_hex_line_len = 0;
+        while ((context->file.intel_hex_line_start_offset < context->file.raw_length) &&
+                (context->file.intel_hex_line_len < X7_INTEL_HEX_MAX_BYTES_PER_LINE) &&
+                (isxdigit (context->file.raw_contents[context->file.intel_hex_line_start_offset])) &&
+                (isxdigit (context->file.raw_contents[context->file.intel_hex_line_start_offset + 1])))
+        {
+            const int hex_msdigit = tolower (context->file.raw_contents[context->file.intel_hex_line_start_offset]);
+            const int hex_lsdigit = tolower (context->file.raw_contents[context->file.intel_hex_line_start_offset + 1]);
+            uint8_t *const byte_value = &context->file.intel_hex_line_bytes[context->file.intel_hex_line_len];
+
+            if (hex_msdigit >= 'a')
+            {
+                *byte_value = (uint8_t) (((hex_msdigit - 'a') + 0xa) << 4);
+            }
+            else
+            {
+                *byte_value = (uint8_t) ((hex_msdigit - '0') << 4);
+            }
+            if (hex_lsdigit >= 'a')
+            {
+                *byte_value |= (uint8_t) ((hex_lsdigit - 'a') + 0xa);
+            }
+            else
+            {
+                *byte_value |= (uint8_t) (hex_lsdigit - '0');
+            }
+
+            context->file.intel_hex_line_start_offset += 2;
+            context->file.intel_hex_line_len++;
+        }
+
+        /* Skip any new line or carriage return characters following the ASCII hex */
+        while ((context->file.intel_hex_line_start_offset < context->file.raw_length               ) &&
+                ((context->file.raw_contents[context->file.intel_hex_line_start_offset] == '\n') ||
+                 (context->file.raw_contents[context->file.intel_hex_line_start_offset] == '\r')   ))
+        {
+            context->file.intel_hex_line_start_offset++;
+        }
+
+        /* Verify the length of the line of Intel HEX in terms of:
+         * a. Minimum valid length.
+         * b. The Byte Count in the 1st byte is consistent with the number of bytes read from the line. */
+        const uint32_t min_valid_line_len = 1 /* Byte count */ + 2 /* Address */ + 1 /* Record Type */ + 1 /* Checksum */;
+        line_valid = (context->file.intel_hex_line_len >= min_valid_line_len) &&
+                ((context->file.intel_hex_line_bytes[0] + min_valid_line_len) == context->file.intel_hex_line_len);
+
+        if (line_valid)
+        {
+            /* Verify the checksum for the bytes in the line of Intel HEX */
+            uint32_t byte_sum = 0;
+
+            for (uint32_t byte_index = 0; byte_index < context->file.intel_hex_line_len; byte_index++)
+            {
+                byte_sum += context->file.intel_hex_line_bytes[byte_index];
+            }
+
+            line_valid = (byte_sum & 0xff) == 0;
+        }
+    }
+
+    return line_valid;
+}
+
+
+/**
+ * @brief Attempt to read a bitstream file as Intel HEX format
+ * @details
+ *  This parses the Intel HEX file in context->file.raw_contents, storing the binary contents in context->data_buffer.
+ *  The assumptions are:
+ *  a. The starting address in the Intel HEX file is zero. If that is not the case, then the start of
+ *     context->data_buffer will be padded with 0xFF's which increase the size.
+ *  b. There is only one bitstream in the Intel HEX file.
+ *     If the Intel HEX file is readback from an actual SPI flash which uses Fallback Configuration then this
+ *     assumption won't be true and this program will only report the bitstream of the lowest address.
+ * @param[in/out] context Contains the bitstream file being read
+ * @return Returns true if has successfully parsed the input file in Intel HEX format until the end of file record.
+ */
+static bool x7_bitstream_read_intel_hex_file (x7_bitstream_context_t *const context)
+{
+    bool valid_intel_hex_file;
+    uint32_t extended_start_address_offset;
+    bool seen_end_of_file_type;
+
+    /* The sub-set of Intel HEX record types used to extract the bitstream contents */
+    enum
+    {
+        INTEL_HEX_RECORD_TYPE_DATA = 0x00,
+        INTEL_HEX_RECORD_TYPE_END_OF_FILE = 0x01,
+        INTEL_HEX_RECORD_TYPE_EXTENDED_SEGMENT_ADDRESS = 0x02,
+        INTEL_HEX_RECORD_TYPE_EXTENDED_LINEAR_ADDRESS = 0x04
+    };
+
+    context->data_buffer = NULL;
+    context->data_buffer_length = 0;
+    context->file.intel_hex_line_start_offset = 0;
+
+    valid_intel_hex_file = x7_bitstream_read_intel_hex_line (context);
+    if (valid_intel_hex_file)
+    {
+        /* Have read an initial valid Intel HEX line from the start of the file.
+         * Attempt to parse as an Intel HEX file, storing the binary contents in context->data_buffer */
+        extended_start_address_offset = 0;
+        seen_end_of_file_type = false;
+        while (!seen_end_of_file_type && valid_intel_hex_file)
+        {
+            /* Split the line into the record field.
+             * Checksum not used here, as validated by x7_bitstream_read_intel_hex_line() */
+            const uint8_t record_byte_count = context->file.intel_hex_line_bytes[0];
+            const uint32_t record_address = (((uint32_t) context->file.intel_hex_line_bytes[1]) << 8) |
+                    ((uint32_t) context->file.intel_hex_line_bytes[2]);
+            const uint8_t record_type = context->file.intel_hex_line_bytes[3];
+            const uint8_t *const record_data = &context->file.intel_hex_line_bytes[4];
+
+            switch (record_type)
+            {
+            case INTEL_HEX_RECORD_TYPE_DATA:
+                {
+                    const uint32_t data_start_offset = extended_start_address_offset + record_address;
+                    const uint32_t min_data_buffer_len = data_start_offset + record_byte_count;
+                    const uint32_t grow_size_multiple = 32768;
+                    const uint32_t new_data_buffer_length =
+                            ((min_data_buffer_len + grow_size_multiple - 1) / grow_size_multiple) * grow_size_multiple;
+
+                    /* Grow the length of the data buffer to contain space for the record data */
+                    if (new_data_buffer_length > context->data_buffer_length)
+                    {
+                        context->data_buffer = realloc (context->data_buffer, new_data_buffer_length);
+                        if (context->data_buffer != NULL)
+                        {
+                            /* Fill the expanded data_buffer with 0xFF, in case the file skips blank parts of the address space */
+                            memset (&context->data_buffer[context->data_buffer_length], 0xFF,
+                                    new_data_buffer_length - context->data_buffer_length);
+                            context->data_buffer_length = new_data_buffer_length;
+                        }
+                        else
+                        {
+                            snprintf (context->error, sizeof (context->error), "Failed to allocate data_buffer of %u bytes",
+                                    new_data_buffer_length);
+                            valid_intel_hex_file = false;
+                        }
+                    }
+
+                    if (valid_intel_hex_file)
+                    {
+                        /* Store the data bytes from the record in the Intel HEX file */
+                        memcpy (&context->data_buffer[data_start_offset], record_data, record_byte_count);
+                    }
+                }
+                break;
+
+            case INTEL_HEX_RECORD_TYPE_END_OF_FILE:
+                valid_intel_hex_file = record_byte_count == 0;
+                if (valid_intel_hex_file)
+                {
+                    seen_end_of_file_type = true;
+                }
+                break;
+
+            case INTEL_HEX_RECORD_TYPE_EXTENDED_SEGMENT_ADDRESS:
+                valid_intel_hex_file = record_byte_count == 2;
+                if (valid_intel_hex_file)
+                {
+                    extended_start_address_offset = (((uint32_t) record_data[0]) << 16) | (((uint32_t) record_data[1]) << 8);
+                }
+                break;
+
+            case INTEL_HEX_RECORD_TYPE_EXTENDED_LINEAR_ADDRESS:
+                valid_intel_hex_file = record_byte_count == 2;
+                if (valid_intel_hex_file)
+                {
+                    extended_start_address_offset = (((uint32_t) record_data[0]) << 24) | (((uint32_t) record_data[1]) << 16);
+                }
+                break;
+
+            default:
+                /* Ignore this record type, as doesn't affect the bitstream contents */
+                break;
+            }
+
+            if (!seen_end_of_file_type && valid_intel_hex_file)
+            {
+                valid_intel_hex_file = x7_bitstream_read_intel_hex_line (context);
+            }
+        }
+
+        if (!seen_end_of_file_type)
+        {
+            /* While the file started with a valid Intel HEX file did't find the end of file record.
+             * The caller will try a different file type, but warn might have encountered a truncated Intel HEX file */
+            printf ("Warning: Didn't find end of file record in %s, possible truncated Intel HEX file\n", context->file.pathname);
+            valid_intel_hex_file = false;
+            free (context->data_buffer);
+            context->data_buffer = NULL;
+            context->data_buffer_length = 0;
+        }
+    }
+
+    return valid_intel_hex_file;
+}
+
+
+/**
  * @brief Read a bitstream from a local file on the host
- * @details Handles .bit or .bin format files created by the Xilinx Vivado tools
+ * @details Handles .bit, .mcs or .bin format files created by the Xilinx Vivado tools
  * @param[out] context The context which contains the bitstream, including flags which indicate if successfully read the bitstream.
  * @param[in] bitstream_pathname The bitstream file to read.
  */
@@ -787,7 +1008,9 @@ void x7_bitstream_read_from_file (x7_bitstream_context_t *const context, const c
     context->controller = NULL;
 
     /* Read the entire contents of the bitstream file into memory.
-     * Reject a file which is >= 4GB as too large for a bitstream as for a SPI flash can only support 32-bit addressing. */
+     * Reject a file which is >= 4GiB as too large for a bitstream as for a SPI flash can only support 32-bit addressing.
+     * For an Intel Hex file this limits the maximum bitstream size to less than 2GiB.
+     * From UG570 max bitstream size for rhe UltraScale Architecture-based FPGAs is 1Gb so this check is still valid. */
     rc = stat (context->file.pathname, &statbuf);
     if (rc != 0)
     {
@@ -829,10 +1052,15 @@ void x7_bitstream_read_from_file (x7_bitstream_context_t *const context, const c
     (void) fclose (bitstream_file);
 
     /* Perform simple auto-detect of file format */
-    context->file.bit_format_file = (context->file.raw_length > sizeof (x7_bit_file_fixed_header)) &&
-            (memcmp (context->file.raw_contents, x7_bit_file_fixed_header, sizeof (x7_bit_file_fixed_header)) == 0);
-    if (context->file.bit_format_file)
+    if (x7_bitstream_read_intel_hex_file (context))
     {
+        context->file.file_format = X7_BITSTREAM_FILE_FORMAT_INTEL_HEX;
+        x7_bitstream_parse (context);
+    }
+    else if ((context->file.raw_length > sizeof (x7_bit_file_fixed_header)) &&
+            (memcmp (context->file.raw_contents, x7_bit_file_fixed_header, sizeof (x7_bit_file_fixed_header)) == 0))
+    {
+        context->file.file_format = X7_BITSTREAM_FILE_FORMAT_BIT;
         if (x7_bitstream_parse_bit_file_header (context))
         {
             x7_bitstream_parse (context);
@@ -841,6 +1069,7 @@ void x7_bitstream_read_from_file (x7_bitstream_context_t *const context, const c
     else
     {
         /* Assume the file is in .bin format containing the binary contents of the bitstream */
+        context->file.file_format = X7_BITSTREAM_FILE_FORMAT_BIN;
         context->data_buffer = context->file.raw_contents;
         context->data_buffer_length = context->file.raw_length;
         x7_bitstream_parse (context);
@@ -867,6 +1096,11 @@ void x7_bitstream_free (x7_bitstream_context_t *const context)
         context->file.part_name = NULL;
         context->file.date = NULL;
         context->file.time = NULL;
+        if (context->file.file_format == X7_BITSTREAM_FILE_FORMAT_INTEL_HEX)
+        {
+            free (context->data_buffer);
+            context->data_buffer = NULL;
+        }
     }
 
     free (context->packets);
@@ -1049,7 +1283,7 @@ void x7_bitstream_summarise (const x7_bitstream_context_t *const context)
     else
     {
         printf ("Read bitsteam from file %s\n", context->file.pathname);
-        if (context->file.bit_format_file)
+        if (context->file.file_format == X7_BITSTREAM_FILE_FORMAT_BIT)
         {
             printf (".bit format header:\n");
             printf ("  design_name=%s\n", context->file.design_name);
