@@ -802,6 +802,93 @@ void close_vfio_devices (vfio_devices_t *const vfio_devices)
 
 
 /**
+ * @brief Display the possible VFIO devices in the PC which can opened by a group of filters
+ * @details This is for utilities to report supported PCI identities for a group of filters in a program, without
+ *          needing to actually open the VFIO devices (to avoid errors if the VFIO device is already open by a process).
+ *
+ *          Warns if a matching device doesn't have an IOMMU group assigned, since won't be able to opened using VFIO.
+ *          This may happen when an IOMMU isn't present, and the noiommu mode hasn't been used for the device.
+ * @param[in] num_filters The number of PCI device filters
+ * @param[in] filters The filters for PCI devices to use to search for PCI devices.
+ * @param[in] design_names When non-NULL a descriptive name for each PCI device filter.
+ */
+void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_device_filter_t filters[const num_filters],
+                                    const char *const design_names[const num_filters])
+{
+    struct pci_access *pacc;
+    struct pci_dev *dev;
+    int known_fields;
+    u16 subsystem_vendor_id;
+    u16 subsystem_device_id;
+    bool pci_device_matches_filter;
+    char *iommu_group;
+
+    /* Initialise PCI access using the defaults */
+    pacc = pci_alloc ();
+    if (pacc == NULL)
+    {
+        fprintf (stderr, "pci_alloc() failed\n");
+        exit (EXIT_FAILURE);
+    }
+    pci_init (pacc);
+
+    /* Scan the entire bus */
+    pci_scan_bus (pacc);
+
+    /* Display PCI devices which match the filters */
+    const int required_fields = PCI_FILL_IDENT | PCI_FILL_IOMMU_GROUP;
+    printf ("Scanning bus for %lu PCI device filters\n", num_filters);
+    for (dev = pacc->devices; dev != NULL; dev = dev->next)
+    {
+        known_fields = pci_fill_info (dev, required_fields);
+        if ((known_fields & PCI_FILL_IDENT) != 0)
+        {
+            pci_device_matches_filter = false;
+            for (size_t filter_index = 0; (!pci_device_matches_filter) && (filter_index < num_filters); filter_index++)
+            {
+                const vfio_pci_device_filter_t *const filter = &filters[filter_index];
+
+                pci_device_matches_filter = pci_filter_id_match (dev->vendor_id, filter->vendor_id) &&
+                        pci_filter_id_match (dev->device_id , filter->device_id);
+                if (pci_device_matches_filter)
+                {
+                    subsystem_vendor_id = pci_read_word (dev, PCI_SUBSYSTEM_VENDOR_ID);
+                    subsystem_device_id = pci_read_word (dev, PCI_SUBSYSTEM_ID);
+                    pci_device_matches_filter = pci_filter_id_match (subsystem_vendor_id, filter->subsystem_vendor_id) &&
+                            pci_filter_id_match (subsystem_device_id, filter->subsystem_device_id);
+                    if (pci_device_matches_filter)
+                    {
+                        printf ("PCI device %04x:%02x:%02x.%x", dev->domain, dev->bus, dev->dev, dev->func);
+                        if ((design_names != NULL) && (design_names[filter_index] != NULL))
+                        {
+                            printf ("  Design name %s", design_names[filter_index]);
+                        }
+
+                        iommu_group = NULL;
+                        if ((known_fields & PCI_FILL_IOMMU_GROUP) != 0)
+                        {
+                            iommu_group = pci_get_string_property (dev, PCI_FILL_IOMMU_GROUP);
+                        }
+                        if (iommu_group != NULL)
+                        {
+                            printf ("  IOMMU group %s", iommu_group);
+                        }
+                        else
+                        {
+                            printf ("  No IOMMU group set, won't be able to open device using VFIO");
+                        }
+                        printf ("\n");
+                    }
+                }
+            }
+        }
+    }
+
+    pci_cleanup (pacc);
+}
+
+
+/**
  * @brief Allocate a buffer, and create a DMA mapping for the allocated memory.
  * @param[in/out] vfio_devices The VFIO devices context used to create the DMA mapping using the IOMMU container.
  *                             Used to allocate the iova address used for the mapping.

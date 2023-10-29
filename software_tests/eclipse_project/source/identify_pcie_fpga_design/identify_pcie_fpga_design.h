@@ -116,6 +116,7 @@ typedef struct
 
 void identify_pcie_fpga_designs (fpga_designs_t *const designs);
 void close_pcie_fpga_designs (fpga_designs_t *const designs);
+void display_possible_fpga_designs (void);
 
 
 #endif /* IDENTIFY_PCIE_FPGA_DESIGN_H_ */

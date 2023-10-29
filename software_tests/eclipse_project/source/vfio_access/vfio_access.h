@@ -205,6 +205,8 @@ bool vfio_device_pci_filter_match (const vfio_device_t *const vfio_device, const
 void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
                                         const size_t num_filters, const vfio_pci_device_filter_t filters[const num_filters]);
 void close_vfio_devices (vfio_devices_t *const vfio_devices);
+void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_device_filter_t filters[const num_filters],
+                                    const char *const design_names[const num_filters]);
 void allocate_vfio_dma_mapping (vfio_devices_t *const vfio_devices,
                                 vfio_dma_mapping_t *const mapping,
                                 const size_t size, const uint32_t permission,

@@ -325,3 +325,13 @@ void close_pcie_fpga_designs (fpga_designs_t *const designs)
 {
     close_vfio_devices (&designs->vfio_devices);
 }
+
+
+/**
+ * @brief Display the possible FPGA designs in the PC which can be opened by identify_pcie_fpga_designs()
+ * @details This only needs to scan the PCI bus, and doesn't attempt to open supported PCI devices using VFIO
+ */
+void display_possible_fpga_designs (void)
+{
+    display_possible_vfio_devices (FPGA_DESIGN_ARRAY_SIZE, fpga_design_pci_filters, fpga_design_names);
+}
