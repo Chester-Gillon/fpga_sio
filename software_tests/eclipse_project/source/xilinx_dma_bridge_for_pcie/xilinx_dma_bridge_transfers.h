@@ -48,7 +48,25 @@ typedef struct
     dma_descriptor_t *descriptors;
     /* Host memory where the completed descriptor count is written to, to poll for completion */
     completed_descriptor_count_writeback_t *completed_descriptor_count;
+    /* When true a timeout is enabled waiting for the transfer to complete */
+    bool timeout_enabled;
+    /* The absolute CLOCK_MONOTONIC time at which the transfer is timed out */
+    int64_t abs_timeout;
 } x2x_transfer_context_t;
+
+
+/* The status for polling for completion of a DMA transfer */
+typedef enum
+{
+    /* The transfer is still in progress */
+    X2X_TRANSFER_STATUS_IN_PROGRESS,
+    /* The transfer has completed */
+    X2X_TRANSFER_STATUS_COMPLETE,
+    /* The transfer has timed out */
+    X2X_TRANSFER_STATUS_TIMEOUT,
+    /* An error was indicated in the Completed Descriptor Count Writeback */
+    X2X_TRANSFER_STATUS_ERROR
+} x2x_transfer_status_t;
 
 
 bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
@@ -58,7 +76,7 @@ bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
                                       vfio_dma_mapping_t *const descriptors_mapping,
                                       const vfio_dma_mapping_t *const data_mapping);
 void x2x_transfer_set_card_start_address (x2x_transfer_context_t *const context, const uint64_t card_start_address);
-bool x2x_start_transfer (x2x_transfer_context_t *const context);
-bool x2x_poll_transfer_completion (x2x_transfer_context_t *const context);
+bool x2x_start_transfer (x2x_transfer_context_t *const context, const int64_t timeout_seconds);
+x2x_transfer_status_t x2x_poll_transfer_completion (x2x_transfer_context_t *const context);
 
 #endif /* XILINX_DMA_BRIDGE_TRANSFERS_H_ */

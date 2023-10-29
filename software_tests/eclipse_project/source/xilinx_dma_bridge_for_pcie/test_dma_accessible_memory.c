@@ -148,6 +148,10 @@ int main (int argc, char *argv[])
     transfer_timing_t h2c_timing;
     transfer_timing_t c2h_timing;
     bool success;
+    x2x_transfer_status_t transfer_status;
+
+    /* Use a single fixed transfer timeout, to stop the test from hanging */
+    const int64_t transfer_timeout_secs = 10;
 
     parse_command_line_arguments (argc, argv);
 
@@ -249,7 +253,7 @@ int main (int argc, char *argv[])
 
                 /* Perform test iterations to exercise all values of 32-bit test words */
                 success = true;
-                for (size_t total_words = 0; total_words < 0x100000000UL; total_words += ddr_size_words)
+                for (size_t total_words = 0; success && (total_words < 0x100000000UL); total_words += ddr_size_words)
                 {
                     /* Write a test pattern, and DMA to the card */
                     card_test_pattern = host_test_pattern;
@@ -267,13 +271,23 @@ int main (int argc, char *argv[])
 
                         transfer_time_start (&h2c_timing);
                         x2x_transfer_set_card_start_address (&h2c_context, ddr_byte_index);
-                        success = x2x_start_transfer (&h2c_context);
+                        success = x2x_start_transfer (&h2c_context, transfer_timeout_secs);
                         if (success)
                         {
-                            while (!x2x_poll_transfer_completion (&h2c_context))
+                            do
                             {
+                                transfer_status = x2x_poll_transfer_completion (&h2c_context);
+                            } while (transfer_status == X2X_TRANSFER_STATUS_IN_PROGRESS);
+
+                            if (transfer_status == X2X_TRANSFER_STATUS_COMPLETE)
+                            {
+                                transfer_time_stop (&h2c_timing);
                             }
-                            transfer_time_stop (&h2c_timing);
+                            else
+                            {
+                                success = false;
+                                printf ("H2C transfer failed starting at %zu words\n", total_words + ddr_word_index);
+                            }
                         }
                     }
 
@@ -285,13 +299,23 @@ int main (int argc, char *argv[])
                         const size_t ddr_byte_index = ddr_word_index * sizeof (uint32_t);
                         x2x_transfer_set_card_start_address (&c2h_context, ddr_byte_index);
                         transfer_time_start (&c2h_timing);
-                        success = x2x_start_transfer (&c2h_context);
+                        success = x2x_start_transfer (&c2h_context, transfer_timeout_secs);
                         if (success)
                         {
-                            while (!x2x_poll_transfer_completion (&c2h_context))
+                            do
                             {
+                                transfer_status = x2x_poll_transfer_completion (&c2h_context);
+                            } while (transfer_status == X2X_TRANSFER_STATUS_IN_PROGRESS);
+
+                            if (transfer_status == X2X_TRANSFER_STATUS_COMPLETE)
+                            {
+                                transfer_time_stop (&c2h_timing);
                             }
-                            transfer_time_stop (&c2h_timing);
+                            else
+                            {
+                                success = false;
+                                printf ("C2H transfer failed starting at %zu words\n", total_words + ddr_word_index);
+                            }
 
                             for (size_t word_offset = 0; success && (word_offset < num_words_per_c2h_xfer); word_offset++)
                             {

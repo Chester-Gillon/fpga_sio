@@ -32,6 +32,7 @@ typedef struct
 } transfer_timing_t;
 
 
+int64_t get_monotonic_time (void);
 void initialise_transfer_timing (transfer_timing_t *const timing,
                                  const char *const transfer_type_name, const size_t transfer_size_bytes);
 void transfer_time_start (transfer_timing_t *const timing);

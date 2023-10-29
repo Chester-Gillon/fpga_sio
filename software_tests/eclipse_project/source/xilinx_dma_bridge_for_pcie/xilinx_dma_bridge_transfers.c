@@ -17,6 +17,7 @@
  */
 
 #include "xilinx_dma_bridge_transfers.h"
+#include "transfer_timing.h"
 
 #include <string.h>
 #include <inttypes.h>
@@ -121,6 +122,10 @@ bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
     context->channels_submodule = channels_submodule;
     context->channel_id = channel_id;
     context->data_mapping = *data_mapping;
+
+    /* Timeout can be changed for each transfer started */
+    context->timeout_enabled = false;
+    context->abs_timeout = 0;
 
     /* Set the mapped base of the DMA control registers used for the channel */
     uint8_t *const mapped_registers_base = vfio_device->mapped_bars[bar_index];
@@ -279,9 +284,10 @@ void x2x_transfer_set_card_start_address (x2x_transfer_context_t *const context,
 /**
  * @brief Start a DMA transfer for a previously initialised context
  * @param[in/out] context The context to start the DMA transfer for
+ * @param[in] timeout_seconds Optional timeout for the DMA transfers. Negative value disables the timeout.
  * @return Returns true if the transfer was started, or false if an error
  */
-bool x2x_start_transfer (x2x_transfer_context_t *const context)
+bool x2x_start_transfer (x2x_transfer_context_t *const context, const int64_t timeout_seconds)
 {
     const uint32_t channel_status = read_reg32 (context->x2x_channel_regs, X2X_CHANNEL_STATUS_RW1C_OFFSET);
 
@@ -289,6 +295,15 @@ bool x2x_start_transfer (x2x_transfer_context_t *const context)
     {
         printf ("Error: Attempting to start transfer when DMA channel busy\n");
         return false;
+    }
+
+    /* Set a timeout if requested */
+    context->timeout_enabled = timeout_seconds >= 0;
+    if (context->timeout_enabled)
+    {
+        const int64_t nsecs_per_sec = 1000000000;
+
+        context->abs_timeout = get_monotonic_time() + (timeout_seconds * nsecs_per_sec);
     }
 
     /* Clear any previous completed descriptor count */
@@ -303,33 +318,49 @@ bool x2x_start_transfer (x2x_transfer_context_t *const context)
 
 /**
  * @brief Poll for completion of a DMA transfer started by a previous call to x2x_start_transfer()
- * @todo Attempts to detect when the transfers stopped due to an error, but based upon putting some deliberate
- *       errors in the descriptors didn't cause an error to be indicated in the writeback data.
- *       Consider trying setting DMA_DESCRIPTOR_CONTROL_COMPLETED on all descriptors, or polling the
- *       channel status register if DMA doesn't complete after a timeout.
  * @param[in] context The context to poll for completion of
- * @return Returns true when the transfer has completed
+ * @return Returns the status of the transfer, possibly indicating an error
  */
-bool x2x_poll_transfer_completion (x2x_transfer_context_t *const context)
+x2x_transfer_status_t x2x_poll_transfer_completion (x2x_transfer_context_t *const context)
 {
     const uint32_t sts_err_compl_descriptor_count =
             __atomic_load_n (&context->completed_descriptor_count->sts_err_compl_descriptor_count, __ATOMIC_ACQUIRE);
 
     if ((sts_err_compl_descriptor_count & COMPLETED_DESCRIPTOR_STS_ERR) != 0)
     {
-        printf ("Transfer completed with error. channel_status=%" PRIu32 "\n",
-                read_reg32 (context->x2x_channel_regs, X2X_CHANNEL_STATUS_RW1C_OFFSET));
-        return true;
+        /* @todo This Attempts to detect when the transfers stopped due to an error, but based upon putting some deliberate
+         *       errors in the descriptors didn't cause an error to be indicated in the writeback data. */
+        printf ("Transfer completed with error. channel_status=0x%" PRIx32 " with %" PRIu32 " out of %" PRIu32 " descriptors completed\n",
+                read_reg32 (context->x2x_channel_regs, X2X_CHANNEL_STATUS_RW1C_OFFSET),
+                (sts_err_compl_descriptor_count & COMPLETED_DESCRIPTOR_COUNT_WRITEBACK_MASK), context->num_descriptors);
+        return X2X_TRANSFER_STATUS_ERROR;
     }
     else if ((sts_err_compl_descriptor_count & COMPLETED_DESCRIPTOR_COUNT_WRITEBACK_MASK) == context->num_descriptors)
     {
         /* Transfer completed. Need to clear the Run bit to stop the DMA engine to allow a further transfer to be started */
         write_reg32 (context->x2x_channel_regs, X2X_CHANNEL_CONTROL_W1C_OFFSET, X2X_CHANNEL_CONTROL_RUN);
-        return true;
+        return X2X_TRANSFER_STATUS_COMPLETE;
+    }
+    else if (context->timeout_enabled)
+    {
+        /* Check for a timeout */
+        const int64_t now = get_monotonic_time ();
+
+        if (now > context->abs_timeout)
+        {
+            printf ("Transfer timed out. channel_status=0x%" PRIx32 " with %" PRIu32 " out of %" PRIu32 " descriptors completed\n",
+                    read_reg32 (context->x2x_channel_regs, X2X_CHANNEL_STATUS_RW1C_OFFSET),
+                    (sts_err_compl_descriptor_count & COMPLETED_DESCRIPTOR_COUNT_WRITEBACK_MASK), context->num_descriptors);
+            return X2X_TRANSFER_STATUS_TIMEOUT;
+        }
+        else
+        {
+            return X2X_TRANSFER_STATUS_IN_PROGRESS;
+        }
     }
     else
     {
         /* Transfer still in progress */
-        return false;
+        return X2X_TRANSFER_STATUS_IN_PROGRESS;
     }
 }
