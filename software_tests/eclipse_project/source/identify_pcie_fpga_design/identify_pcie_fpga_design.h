@@ -11,6 +11,10 @@
 #include "vfio_access.h"
 
 
+/* Defines the string length, including trailing null, to hold a formatted timestamp of the form MM/DD/YYYY hh:mm:ss */
+#define USER_ACCESS_TIMESTAMP_LEN 20
+
+
 /* For FPGA_DESIGN_LITEFURY_PROJECT0 and FPGA_DESIGN_NITEFURY_PROJECT0.
  * Defined in the include file since some of the GPIO ports are for use by external programs.
  * This library only uses GPIOs to identify the design type and revision. */
@@ -93,6 +97,9 @@ typedef struct
     uint8_t *xadc_regs;
     /* When non-NULL the base of the mapped registers for the Xilinx AXI IIC IP present in the design */
     uint8_t *iic_regs;
+    /* When non-NULL the base of the mapped register which contains the user access (AXSS register) which
+     * contains timestamp embedded during the FPGA bitstream generation. */
+    uint8_t *user_access;
     /* When non-NULL the base of the mapped GIO registers which are used to:
      * a. bit-bang an I2C interface on the TEF1001
      * b. Mux the I2C output pins between either the bit-banged GPIOs or Xilinx AXI IIC */
@@ -117,6 +124,8 @@ typedef struct
 void identify_pcie_fpga_designs (fpga_designs_t *const designs);
 void close_pcie_fpga_designs (fpga_designs_t *const designs);
 void display_possible_fpga_designs (void);
+void format_user_access_timestamp (const uint32_t user_access,
+                                   char formatted_timestamp[const USER_ACCESS_TIMESTAMP_LEN]);
 
 
 #endif /* IDENTIFY_PCIE_FPGA_DESIGN_H_ */

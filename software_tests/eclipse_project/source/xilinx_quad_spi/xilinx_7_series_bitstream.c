@@ -20,6 +20,7 @@
  */
 
 #include "xilinx_7_series_bitstream.h"
+#include "identify_pcie_fpga_design.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -318,29 +319,6 @@ bool x7_packet_is_command (const x7_bitstream_context_t *const context,
 
     return x7_packet_is_word_register_write (context, packet, X7_PACKET_TYPE_1_REG_CMD, &command_value) &&
             (command_value == expected_command);
-}
-
-
-/**
- * @brief Format a string containing the timestamp embedded in the the user access (AXSS register) in the bitstream
- * @param[in] user_access The value of the user access to format
- * @param[out] formatted_timestamp The formatted timestamp string
- */
-void x7_bitstream_format_user_access_timestamp (const uint32_t user_access,
-                                                char formatted_timestamp[const USER_ACCESS_TIMESTAMP_LEN])
-{
-    /* Extract the individual bit fields of the timestamp */
-    const uint32_t day    = (user_access & 0xf8000000) >> 27;
-    const uint32_t month  = (user_access & 0x07800000) >> 23;
-    const uint32_t year   = (user_access & 0x007e0000) >> 17;
-    const uint32_t hour   = (user_access & 0x0001f000) >> 12;
-    const uint32_t minute = (user_access & 0x00000fc0) >>  6;
-    const uint32_t second = (user_access & 0x0000003f);
-
-    const uint32_t epoch_year = 2000;
-
-    snprintf (formatted_timestamp, USER_ACCESS_TIMESTAMP_LEN, "%02u/%02u/%04u %02u:%02u:%02u",
-            day, month, year + epoch_year, hour, minute, second);
 }
 
 
@@ -1355,7 +1333,7 @@ void x7_bitstream_summarise (const x7_bitstream_context_t *const context)
                     /* Display the user access register as both the decode build timestamp and raw value */
                     char formatted_timestamp[USER_ACCESS_TIMESTAMP_LEN];
 
-                    x7_bitstream_format_user_access_timestamp (register_value, formatted_timestamp);
+                    format_user_access_timestamp (register_value, formatted_timestamp);
                     printf (" %08X - %s\n", register_value, formatted_timestamp);
                 }
                 else

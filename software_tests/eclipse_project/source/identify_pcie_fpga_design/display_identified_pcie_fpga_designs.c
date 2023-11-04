@@ -87,6 +87,14 @@ int main (int argc, char *argv[])
         {
             printf ("  DMA bridge bar %u memory size 0x%zx\n", design->dma_bridge_bar, design->dma_bridge_memory_size_bytes);
         }
+        if (design->user_access != NULL)
+        {
+            const uint32_t user_access = read_reg32 (design->user_access, 0);
+            char formatted_timestamp[USER_ACCESS_TIMESTAMP_LEN];
+
+            format_user_access_timestamp (user_access, formatted_timestamp);
+            printf ("  User access build timestamp : %08X - %s\n", user_access, formatted_timestamp);
+        }
 
         display_design_present_peripheral (design, "Quad SPI", design->quad_spi_regs);
         display_design_present_peripheral (design, "XADC", design->xadc_regs);

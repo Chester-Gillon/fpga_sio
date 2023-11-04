@@ -18,6 +18,7 @@
 #include "fpga_sio_pci_ids.h"
 
 #include <string.h>
+#include <stdio.h>
 
 
 /* Lookup table to give the name for each FPGA design, with the name of the board in brackets if not part of the design name. */
@@ -223,10 +224,12 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     {
                         const uint32_t peripherals_bar_index = 0;
                         const uint32_t dma_bridge_bar_index = 2;
-                        const size_t quad_spi_base_offset = 0x0000;
-                        const size_t quad_spi_frame_size  = 0x1000;
-                        const size_t xadc_base_offset     = 0x1000;
-                        const size_t xadc_frame_size      = 0x1000;
+                        const size_t quad_spi_base_offset    = 0x0000;
+                        const size_t quad_spi_frame_size     = 0x1000;
+                        const size_t xadc_base_offset        = 0x1000;
+                        const size_t xadc_frame_size         = 0x1000;
+                        const size_t user_access_base_offset = 0x2000;
+                        const size_t user_access_frame_size  = 0x1000;
 
                         candidate_design->dma_bridge_present = true;
                         candidate_design->dma_bridge_bar = dma_bridge_bar_index;
@@ -236,6 +239,9 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                                         quad_spi_base_offset, quad_spi_frame_size);
                         candidate_design->xadc_regs =
                                 map_vfio_registers_block (vfio_device, peripherals_bar_index, xadc_base_offset, xadc_frame_size);
+                        candidate_design->user_access =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                        user_access_base_offset, user_access_frame_size);
                         design_identified = true;
                     }
                     break;
@@ -334,4 +340,27 @@ void close_pcie_fpga_designs (fpga_designs_t *const designs)
 void display_possible_fpga_designs (void)
 {
     display_possible_vfio_devices (FPGA_DESIGN_ARRAY_SIZE, fpga_design_pci_filters, fpga_design_names);
+}
+
+
+/**
+ * @brief Format a string containing the timestamp embedded in the the user access (AXSS register) in the bitstream
+ * @param[in] user_access The value of the user access to format
+ * @param[out] formatted_timestamp The formatted timestamp string
+ */
+void format_user_access_timestamp (const uint32_t user_access,
+                                   char formatted_timestamp[const USER_ACCESS_TIMESTAMP_LEN])
+{
+    /* Extract the individual bit fields of the timestamp */
+    const uint32_t day    = (user_access & 0xf8000000) >> 27;
+    const uint32_t month  = (user_access & 0x07800000) >> 23;
+    const uint32_t year   = (user_access & 0x007e0000) >> 17;
+    const uint32_t hour   = (user_access & 0x0001f000) >> 12;
+    const uint32_t minute = (user_access & 0x00000fc0) >>  6;
+    const uint32_t second = (user_access & 0x0000003f);
+
+    const uint32_t epoch_year = 2000;
+
+    snprintf (formatted_timestamp, USER_ACCESS_TIMESTAMP_LEN, "%02u/%02u/%04u %02u:%02u:%02u",
+            day, month, year + epoch_year, hour, minute, second);
 }

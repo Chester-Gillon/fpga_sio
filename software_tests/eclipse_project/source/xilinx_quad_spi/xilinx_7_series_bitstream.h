@@ -13,10 +13,6 @@
 #include <limits.h>
 
 
-/* Defines the string length, including trailing null, to hold a formatted timestamp of the form MM/DD/YYYY hh:mm:ss */
-#define USER_ACCESS_TIMESTAMP_LEN 20
-
-
 /* Values for the header type field in the FPGA bitstream */
 typedef enum
 {
@@ -204,8 +200,6 @@ bool x7_packet_is_word_register_write (const x7_bitstream_context_t *const conte
 bool x7_packet_is_command (const x7_bitstream_context_t *const context,
                            const x7_packet_record_t *const packet,
                            const x7_command_register_code_t expected_command);
-void x7_bitstream_format_user_access_timestamp (const uint32_t user_access,
-                                                char formatted_timestamp[const USER_ACCESS_TIMESTAMP_LEN]);
 void x7_bitstream_read_from_file (x7_bitstream_context_t *const context, const char *const bitstream_pathname);
 void x7_bitstream_free (x7_bitstream_context_t *const context);
 void x7_bitstream_summarise (const x7_bitstream_context_t *const context);
