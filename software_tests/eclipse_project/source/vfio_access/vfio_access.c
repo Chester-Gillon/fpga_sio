@@ -806,6 +806,8 @@ void close_vfio_devices (vfio_devices_t *const vfio_devices)
  * @details This is for utilities to report supported PCI identities for a group of filters in a program, without
  *          needing to actually open the VFIO devices (to avoid errors if the VFIO device is already open by a process).
  *
+ *          The physical slot is displayed in case the there are multiple instances of the same design.
+ *
  *          Warns if a matching device doesn't have an IOMMU group assigned, since won't be able to opened using VFIO.
  *          This may happen when an IOMMU isn't present, and the noiommu mode hasn't been used for the device.
  * @param[in] num_filters The number of PCI device filters
@@ -836,11 +838,11 @@ void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_dev
     pci_scan_bus (pacc);
 
     /* Display PCI devices which match the filters */
-    const int required_fields = PCI_FILL_IDENT | PCI_FILL_IOMMU_GROUP;
+    const int requested_fields = PCI_FILL_IDENT | PCI_FILL_IOMMU_GROUP | PCI_FILL_PHYS_SLOT;
     printf ("Scanning bus for %lu PCI device filters\n", num_filters);
     for (dev = pacc->devices; dev != NULL; dev = dev->next)
     {
-        known_fields = pci_fill_info (dev, required_fields);
+        known_fields = pci_fill_info (dev, requested_fields);
         if ((known_fields & PCI_FILL_IDENT) != 0)
         {
             pci_device_matches_filter = false;
@@ -859,6 +861,10 @@ void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_dev
                     if (pci_device_matches_filter)
                     {
                         printf ("PCI device %04x:%02x:%02x.%x", dev->domain, dev->bus, dev->dev, dev->func);
+                        if (((known_fields & PCI_FILL_PHYS_SLOT) != 0) && (dev->phy_slot != NULL))
+                        {
+                            printf ("  physical slot %s", dev->phy_slot);
+                        }
                         if ((design_names != NULL) && (design_names[filter_index] != NULL))
                         {
                             printf ("  Design name %s", design_names[filter_index]);
