@@ -11,6 +11,8 @@ set_property IOSTANDARD LVCMOS33 [get_ports spi_rtl_io1_io]
 set_property IOSTANDARD LVCMOS33 [get_ports spi_rtl_io2_io]
 set_property IOSTANDARD LVCMOS33 [get_ports spi_rtl_io3_io]
 
+set_property BITSTREAM.GENERAL.COMPRESS TRUE [current_design]
+set_property BITSTREAM.CONFIG.SPI_BUSWIDTH 4 [current_design]
 set_property BITSTREAM.CONFIG.USR_ACCESS TIMESTAMP [current_design]
 
 set_property BITSTREAM.CONFIG.USERID 0xFEEDABBA [current_design]
