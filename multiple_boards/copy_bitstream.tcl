@@ -4,7 +4,7 @@
 #
 # This is run as a tcl.post rule on bitsream generation.
 # Can't seem to find a way to locate the enclosing project path,
-# so has a hard coded assumption the generate bitstream is 3 directories below
+# so has a hard coded assumption the generated bitstream is 3 directories below
 # the root directory.
 set bitstream [glob *.bit]
 file copy -force $bitstream "../../.."
