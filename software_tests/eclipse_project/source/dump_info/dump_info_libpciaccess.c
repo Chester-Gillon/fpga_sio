@@ -45,6 +45,7 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
     uint32_t link_capabilities;
     uint16_t link_status;
     uint32_t link_capabilities2;
+    uint32_t slot_capabilities;
 
     rc = pci_device_cfg_read_u16 (device, &flags, capability_pointer + PCI_EXP_FLAGS);
     if (rc == 0)
@@ -59,12 +60,17 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
     {
         rc = pci_device_cfg_read_u32 (device, &link_capabilities2, capability_pointer + PCI_EXP_LNKCAP2);
     }
+    if (rc == 0)
+    {
+        rc = pci_device_cfg_read_u32 (device, &slot_capabilities, capability_pointer + PCI_EXP_SLTCAP);
+    }
 
     if (rc == 0)
     {
         const uint32_t capability_version = flags & PCI_EXP_FLAGS_VERS;
         const uint32_t device_port_type = (flags & PCI_EXP_FLAGS_TYPE) >> 4;
         const uint32_t interrupt_message_number = (flags & PCI_EXP_FLAGS_IRQ) >> 9;
+        const bool slot_implemented = (flags & PCI_EXP_FLAGS_SLOT) != 0;
 
         const uint32_t max_link_speed = link_capabilities & PCI_EXP_LNKCAP_SPEED;
         const uint32_t max_link_width = (link_capabilities & PCI_EXP_LNKCAP_WIDTH) >> 4;
@@ -73,6 +79,10 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
         const uint32_t negotiated_link_width = (link_status & PCI_EXP_LNKSTA_WIDTH) >> 4;
 
         const uint32_t supported_link_speeds = PCI_EXP_LNKCAP2_SPEED (link_capabilities2);
+
+        const uint32_t slot_power_limit_value = (slot_capabilities & PCI_EXP_SLTCAP_SPLV) >> 7;
+        const uint32_t slot_power_limit_scale = (slot_capabilities & PCI_EXP_SLTCAP_SPLS) >> 15;
+        const uint32_t physical_slot_number = (slot_capabilities & PCI_EXP_SLTCAP_PSN) >> 19;
 
         const char *const device_port_type_names[] =
         {
@@ -96,6 +106,14 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
             [4] = "16.0 GT/s"
         };
         const size_t link_speed_names_array_size = sizeof (link_speed_names) / sizeof (link_speed_names[0]);
+
+        const double slot_power_limit_scales[] =
+        {
+            1.0,
+            0.1,
+            0.01,
+            0.001
+        };
 
         /* Continuation of the capability identification line from the caller */
         printf (" v%u", capability_version);
@@ -163,6 +181,73 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
             printf ("Not implemented");
         }
         printf ("\n");
+
+        /* Display slot capabilities */
+        if (slot_implemented)
+        {
+            double slot_power_limit = (double) slot_power_limit_value * slot_power_limit_scales[slot_power_limit_scale];
+
+            if ((slot_power_limit_scale == 0) && (slot_power_limit_value > 0xef))
+            {
+                /* Handle special case of large slot power limit values which exceed the standard encoding */
+                switch (slot_power_limit_value)
+                {
+                case 0xF0:
+                    slot_power_limit = 250;
+                    break;
+
+                case 0xF1:
+                    slot_power_limit = 275;
+                    break;
+
+                default:
+                    slot_power_limit = 300;
+                    break;
+                }
+            }
+
+            display_indent (indent_level);
+            printf ("    Slot capabilities:");
+            if ((slot_capabilities & PCI_EXP_SLTCAP_ABP) != 0)
+            {
+                printf ( "  Attention Button Present");
+            }
+            if ((slot_capabilities & PCI_EXP_SLTCAP_PCP) != 0)
+            {
+                printf ("  Power Controller Present");
+            }
+            if ((slot_capabilities & PCI_EXP_SLTCAP_MRLSP) != 0)
+            {
+                printf ("  MRL Sensor Present");
+            }
+            if ((slot_capabilities & PCI_EXP_SLTCAP_AIP) != 0)
+            {
+                printf ("  Attention Indicator Present");
+            }
+            if ((slot_capabilities & PCI_EXP_SLTCAP_PIP) != 0)
+            {
+                printf ("  Power Indicator Present");
+            }
+            if ((slot_capabilities & PCI_EXP_SLTCAP_HPS) != 0)
+            {
+                printf ("  Hot-Plug Surprise");
+            }
+            if ((slot_capabilities & PCI_EXP_SLTCAP_HPC) != 0)
+            {
+                printf ("  Hot-Plug Capable");
+            }
+            if ((slot_capabilities & PCI_EXP_SLTCAP_EIP) != 0)
+            {
+                printf ("  Electromechanical Interlock Present");
+            }
+            if ((slot_capabilities & PCI_EXP_SLTCAP_NCCS) != 0)
+            {
+                printf ("  No Command Completed Support");
+            }
+            printf ("  Physical slot number %u", physical_slot_number);
+            printf ("  Slot power limit %g W", slot_power_limit);
+            printf ("\n");
+        }
     }
 
     return rc;
