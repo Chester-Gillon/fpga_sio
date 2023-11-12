@@ -11,11 +11,44 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include <unistd.h>
+
+
+/**
+ * @brief Parse the command line arguments
+ * @param[in] argc, argv Arguments passed to main
+ */
+static void parse_command_line_arguments (int argc, char *argv[])
+{
+    const char *const optstring = "d:";
+    int option;
+
+    option = getopt (argc, argv, optstring);
+    while (option != -1)
+    {
+        switch (option)
+        {
+        case 'd':
+            vfio_add_pci_device_location_filter (optarg);
+            break;
+
+        case '?':
+        default:
+            printf ("Usage %s -d <pci_device_location>\n", argv[0]);
+            exit (EXIT_FAILURE);
+            break;
+        }
+        option = getopt (argc, argv, optstring);
+    }
+}
+
 
 int main (int argc, char *argv[])
 {
     fpga_designs_t designs;
     xadc_sample_collection_t collection;
+
+    parse_command_line_arguments (argc, argv);
 
     identify_pcie_fpga_designs (&designs);
 

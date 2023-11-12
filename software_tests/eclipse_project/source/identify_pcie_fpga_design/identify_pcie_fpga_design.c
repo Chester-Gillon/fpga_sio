@@ -35,7 +35,7 @@ const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE] =
 
 
 /* The PCI filters used for each design */
-static const vfio_pci_device_filter_t fpga_design_pci_filters[FPGA_DESIGN_ARRAY_SIZE] =
+static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESIGN_ARRAY_SIZE] =
 {
     [FPGA_DESIGN_DMA_BLKRAM] =
     {

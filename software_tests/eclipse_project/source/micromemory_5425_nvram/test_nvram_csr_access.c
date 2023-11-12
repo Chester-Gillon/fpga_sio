@@ -79,7 +79,7 @@ int main (int argc, char *argv[])
     const bool prompt = argc >= 2;
     vfio_devices_t vfio_devices;
 
-    const vfio_pci_device_filter_t filter =
+    const vfio_pci_device_identity_filter_t filter =
     {
         .vendor_id = NVRAM_VENDOR_ID,
         .device_id = NVRAM_DEVICE_ID,

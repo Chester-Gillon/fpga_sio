@@ -361,7 +361,7 @@ int main (int argc, char *argv[])
     vfio_devices_t vfio_devices;
 
     /* Select to filter by vendor only */
-    const vfio_pci_device_filter_t filter =
+    const vfio_pci_device_identity_filter_t filter =
     {
         .vendor_id = FPGA_SIO_VENDOR_ID,
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,

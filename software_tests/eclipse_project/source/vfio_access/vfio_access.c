@@ -15,6 +15,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
+#include <inttypes.h>
 #include <errno.h>
 
 #include <fcntl.h>
@@ -31,6 +32,51 @@
  */
 #define VFIO_ROOT_PATH "/dev/vfio/"
 #define VFIO_CONTAINER_PATH VFIO_ROOT_PATH "vfio"
+
+
+/* Used to define a filter to only open a specific PCI device by location */
+typedef struct
+{
+    int domain;
+    u8 bus;
+    u8 dev;
+    u8 func;
+} vfio_pci_device_location_filter_t;
+
+
+/* Optional filters which may be set to only open by VFIO specific PCI device(s) by location.
+ * This can be used to limit which VFIO devices one process may open. */
+static vfio_pci_device_location_filter_t vfio_pci_device_location_filters[MAX_VFIO_DEVICES];
+static uint32_t num_pci_device_location_filters;
+
+
+/**
+ * @brief Add an optional PCI device location filter
+ * @detail This may be called before open_vfio_devices_matching_filter() to only open using VFIO specific PCI devices
+ *         in the event that there is one than one PCI device which matches the identity filters.
+ * @param[in] device_name The PCI device location, as <domain>:<bus>:<dev>.<func> hex values
+ */
+void vfio_add_pci_device_location_filter (const char *const device_name)
+{
+    char junk;
+
+    if (num_pci_device_location_filters < MAX_VFIO_DEVICES)
+    {
+        vfio_pci_device_location_filter_t *const filter = &vfio_pci_device_location_filters[num_pci_device_location_filters];
+        const int num_values = sscanf (device_name, "%d:%" SCNx8 ":%" SCNx8 ".%" SCNx8 "%c",
+                &filter->domain, &filter->bus, &filter->dev, &filter->func, &junk);
+
+        if (num_values == 4)
+        {
+            num_pci_device_location_filters++;
+        }
+        else
+        {
+            printf ("Error: Invalid PCI device location filter %s\n", device_name);
+            exit (EXIT_FAILURE);
+        }
+    }
+}
 
 
 /**
@@ -647,7 +693,7 @@ static bool pci_filter_id_match (const u16 pci_id, const int filter_id)
  * @param[in] filter The filter to match
  * @return Returns true if the VFIO device matches the PCI device filter
  */
-bool vfio_device_pci_filter_match (const vfio_device_t *const vfio_device, const vfio_pci_device_filter_t *const filter)
+bool vfio_device_pci_filter_match (const vfio_device_t *const vfio_device, const vfio_pci_device_identity_filter_t *const filter)
 {
     return pci_filter_id_match (vfio_device->pci_vendor_id, filter->vendor_id) &&
             pci_filter_id_match (vfio_device->pci_device_id, filter->device_id) &&
@@ -661,18 +707,24 @@ bool vfio_device_pci_filter_match (const vfio_device_t *const vfio_device, const
  * @details If an error occurs attempting to open the VFIO device then a message is output to the console and the
  *          offending device isn't returned in vfio_devices.
  *          The memory BARs of the VFIO devices are not mapped.
+ *
+ *          Where the filter is:
+ *          a. The identity filters passed to this function.
+ *          b. Any optional location filters set by proceeding calls to vfio_add_pci_device_location_filter()
  * @param[out] vfio_devices The list of opened VFIO devices
- * @param[in] num_filters The number of PCI device filters
- * @param[in] filters The filters for PCI devices to open
+ * @param[in] num_id_filters The number of PCI device identity filters
+ * @param[in] id_filters The identity filters for PCI devices to open
  */
 void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
-                                        const size_t num_filters, const vfio_pci_device_filter_t filters[const num_filters])
+                                        const size_t num_id_filters,
+                                        const vfio_pci_device_identity_filter_t id_filters[const num_id_filters])
 {
     struct pci_dev *dev;
     int known_fields;
     u16 subsystem_vendor_id;
     u16 subsystem_device_id;
-    bool pci_device_matches_filter;
+    bool pci_device_matches_identity_filter;
+    bool pci_device_matches_location_filter;
     bool enable_bus_master;
 
     memset (vfio_devices, 0, sizeof (*vfio_devices));
@@ -698,28 +750,50 @@ void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
         known_fields = pci_fill_info (dev, required_fields);
         if ((known_fields & required_fields) == required_fields)
         {
-            pci_device_matches_filter = false;
+            /* Always apply the caller supplied identity filter */
+            pci_device_matches_identity_filter = false;
             enable_bus_master = false;
-            for (size_t filter_index = 0; (!pci_device_matches_filter) && (filter_index < num_filters); filter_index++)
+            for (size_t filter_index = 0; (!pci_device_matches_identity_filter) && (filter_index < num_id_filters); filter_index++)
             {
-                const vfio_pci_device_filter_t *const filter = &filters[filter_index];
+                const vfio_pci_device_identity_filter_t *const filter = &id_filters[filter_index];
 
-                pci_device_matches_filter = pci_filter_id_match (dev->vendor_id, filter->vendor_id) &&
+                pci_device_matches_identity_filter = pci_filter_id_match (dev->vendor_id, filter->vendor_id) &&
                         pci_filter_id_match (dev->device_id , filter->device_id);
-                if (pci_device_matches_filter)
+                if (pci_device_matches_identity_filter)
                 {
                     subsystem_vendor_id = pci_read_word (dev, PCI_SUBSYSTEM_VENDOR_ID);
                     subsystem_device_id = pci_read_word (dev, PCI_SUBSYSTEM_ID);
-                    pci_device_matches_filter = pci_filter_id_match (subsystem_vendor_id, filter->subsystem_vendor_id) &&
+                    pci_device_matches_identity_filter = pci_filter_id_match (subsystem_vendor_id, filter->subsystem_vendor_id) &&
                             pci_filter_id_match (subsystem_device_id, filter->subsystem_device_id);
-                    if (pci_device_matches_filter)
+                    if (pci_device_matches_identity_filter)
                     {
                         enable_bus_master = filter->enable_bus_master;
                     }
                 }
             }
 
-            if (pci_device_matches_filter)
+            if (num_pci_device_location_filters > 0)
+            {
+                /* Apply location filter */
+                pci_device_matches_location_filter = false;
+                for (uint32_t filter_index = 0;
+                        (!pci_device_matches_location_filter) && (filter_index < num_pci_device_location_filters);
+                        filter_index++)
+                {
+                    const vfio_pci_device_location_filter_t *const filter = &vfio_pci_device_location_filters[filter_index];
+
+                    pci_device_matches_location_filter =
+                            (dev->domain == filter->domain) && (dev->bus == filter->bus) &&
+                            (dev->dev == filter->dev) && (dev->func == filter->func);
+                }
+            }
+            else
+            {
+                /* No location filter to apply */
+                pci_device_matches_location_filter = true;
+            }
+
+            if (pci_device_matches_identity_filter && pci_device_matches_location_filter)
             {
                 open_vfio_device (vfio_devices, dev, enable_bus_master);
             }
@@ -807,6 +881,7 @@ void close_vfio_devices (vfio_devices_t *const vfio_devices)
  *          needing to actually open the VFIO devices (to avoid errors if the VFIO device is already open by a process).
  *
  *          The physical slot is displayed in case the there are multiple instances of the same design.
+ *          It is machine specific about if a physical slot is reported.
  *
  *          Warns if a matching device doesn't have an IOMMU group assigned, since won't be able to opened using VFIO.
  *          This may happen when an IOMMU isn't present, and the noiommu mode hasn't been used for the device.
@@ -814,7 +889,7 @@ void close_vfio_devices (vfio_devices_t *const vfio_devices)
  * @param[in] filters The filters for PCI devices to use to search for PCI devices.
  * @param[in] design_names When non-NULL a descriptive name for each PCI device filter.
  */
-void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_device_filter_t filters[const num_filters],
+void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_device_identity_filter_t filters[const num_filters],
                                     const char *const design_names[const num_filters])
 {
     struct pci_access *pacc;
@@ -848,7 +923,7 @@ void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_dev
             pci_device_matches_filter = false;
             for (size_t filter_index = 0; (!pci_device_matches_filter) && (filter_index < num_filters); filter_index++)
             {
-                const vfio_pci_device_filter_t *const filter = &filters[filter_index];
+                const vfio_pci_device_identity_filter_t *const filter = &filters[filter_index];
 
                 pci_device_matches_filter = pci_filter_id_match (dev->vendor_id, filter->vendor_id) &&
                         pci_filter_id_match (dev->device_id , filter->device_id);

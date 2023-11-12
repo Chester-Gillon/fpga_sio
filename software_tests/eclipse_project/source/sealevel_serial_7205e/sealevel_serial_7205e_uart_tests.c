@@ -1518,7 +1518,7 @@ int main (int argc, char *argv[])
     /* The device ID for a SIO4 board, which is what the identity of the Sealevel COMM+2.LPCIe board (7205e)
      * has been changed to as described in
      * https://github.com/Chester-Gillon/plx_poll_mode_driver/blob/master/plx_poll_mode_driver/sealevel_pex8311_addressing.txt */
-    const vfio_pci_device_filter_t filter =
+    const vfio_pci_device_identity_filter_t filter =
     {
         .vendor_id = 0x10b5,
         .device_id = 0x9056,

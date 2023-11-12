@@ -52,7 +52,7 @@ static uint32_t arg_c2h_channel_id;
  */
 static void parse_command_line_arguments (int argc, char *argv[])
 {
-    const char *const optstring = "a:b:c:h:l:m:?";
+    const char *const optstring = "a:b:c:h:l:m:d:?";
     int option;
     char junk;
 
@@ -123,9 +123,13 @@ static void parse_command_line_arguments (int argc, char *argv[])
             arg_h2c_transfer_size_set = true;
             break;
 
+        case 'd':
+            vfio_add_pci_device_location_filter (optarg);
+            break;
+
         case '?':
         default:
-            printf ("Usage %s [-a <min_size_alignment>] [-b heap|shared_memory|huge_pages] [-c c2h_channel_id] [-h h2c_channel_id] [-l <c2h_transfer_size>] [-m <h2c_transfer_size>]\n", argv[0]);
+            printf ("Usage %s [-a <min_size_alignment>] [-b heap|shared_memory|huge_pages] [-c c2h_channel_id] [-h h2c_channel_id] [-l <c2h_transfer_size>] [-m <h2c_transfer_size>] [-d <pci_device_location>]\n", argv[0]);
             printf ("  -l limits the card-to-host transfer to one page at a time, reducing memory\n");
             printf ("     requirements but increasing transfer overheads.\n");
             exit (EXIT_FAILURE);

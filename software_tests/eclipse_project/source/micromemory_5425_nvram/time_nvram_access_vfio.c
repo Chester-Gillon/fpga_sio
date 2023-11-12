@@ -197,7 +197,7 @@ int main (int argc, char *argv[])
     nvram_transfer_context_t h2c_context;
     nvram_transfer_context_t c2h_context;
 
-    const vfio_pci_device_filter_t filter =
+    const vfio_pci_device_identity_filter_t filter =
     {
         .vendor_id = NVRAM_VENDOR_ID,
         .device_id = NVRAM_DEVICE_ID,

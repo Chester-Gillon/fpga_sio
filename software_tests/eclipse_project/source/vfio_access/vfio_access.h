@@ -162,7 +162,7 @@ typedef struct
     int subsystem_vendor_id;
     int subsystem_device_id;
     bool enable_bus_master;
-} vfio_pci_device_filter_t;
+} vfio_pci_device_identity_filter_t;
 
 
 /* Defines one mapping which has been allocated for DMA using the IOMMU */
@@ -192,6 +192,7 @@ typedef struct
 } vfio_secondary_process_t;
 
 
+void vfio_add_pci_device_location_filter (const char *const device_name);
 void create_vfio_buffer (vfio_buffer_t *const buffer,
                          const size_t size, const vfio_buffer_allocation_type_t buffer_allocation,
                          const char *const name_suffix);
@@ -201,11 +202,12 @@ void map_vfio_device_bar_before_use (vfio_device_t *const vfio_device, const uin
 uint8_t *map_vfio_registers_block (vfio_device_t *const vfio_device, const uint32_t bar_index,
                                    const size_t base_offset, const size_t frame_size);
 void reset_vfio_device (vfio_device_t *const vfio_device);
-bool vfio_device_pci_filter_match (const vfio_device_t *const vfio_device, const vfio_pci_device_filter_t *const filter);
+bool vfio_device_pci_filter_match (const vfio_device_t *const vfio_device, const vfio_pci_device_identity_filter_t *const filter);
 void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
-                                        const size_t num_filters, const vfio_pci_device_filter_t filters[const num_filters]);
+                                        const size_t num_id_filters,
+                                        const vfio_pci_device_identity_filter_t id_filters[const num_id_filters]);
 void close_vfio_devices (vfio_devices_t *const vfio_devices);
-void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_device_filter_t filters[const num_filters],
+void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_device_identity_filter_t filters[const num_filters],
                                     const char *const design_names[const num_filters]);
 void allocate_vfio_dma_mapping (vfio_devices_t *const vfio_devices,
                                 vfio_dma_mapping_t *const mapping,
