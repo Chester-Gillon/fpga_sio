@@ -14,6 +14,32 @@ project (software_tests C CXX)
 # files.
 cmake_minimum_required (VERSION 2.8.12)
 
+# Create a file which contains all executables which link a specific target library.
+# This is to allow an external script to process the executables
+function(report_all_targets library_target)
+    set (report_filename "${CMAKE_BINARY_DIR}/${library_target}_usage.txt")
+    file (REMOVE ${report_filename})
+    get_all_targets_recursive(${library_target} ${CMAKE_CURRENT_SOURCE_DIR} ${report_filename})
+    message ("Created ${report_filename}")
+endfunction()
+
+macro(get_all_targets_recursive library_target dir report_filename)
+    get_property(subdirectories DIRECTORY ${dir} PROPERTY SUBDIRECTORIES)
+    foreach(subdir ${subdirectories})
+        get_all_targets_recursive(${library_target} ${subdir} ${report_filename})
+    endforeach()
+
+    STRING(REGEX REPLACE "^${PROJECT_SOURCE_DIR}/" "" relative_dir ${dir})
+    get_property(current_targets DIRECTORY ${relative_dir} PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(target ${current_targets})
+        get_target_property(target_libraries ${target} LINK_LIBRARIES)
+        list (FIND target_libraries ${library_target} library_index)
+        if (${library_index} GREATER -1)
+            file (APPEND ${report_filename} "${relative_dir}/${target}\n")
+        endif()
+    endforeach()
+endmacro()
+
 # Set platform build flags
 if ("${PLATFORM_TYPE}" STREQUAL "debug")
    set (PLATFORM_CFLAGS "-g")
@@ -103,3 +129,6 @@ add_subdirectory ("${PROJECT_SOURCE_DIR}/probe_xilinx_ip")
 add_subdirectory ("${PROJECT_SOURCE_DIR}/nite_or_lite_fury_tests")
 add_subdirectory ("${PROJECT_SOURCE_DIR}/sealevel_serial_7205e")
 add_subdirectory ("${PROJECT_SOURCE_DIR}/micromemory_5425_nvram")
+
+# Create a file listing all executables linking the vfio_access library, for use by set_exe_vfio_capabilities.sh
+report_all_targets("vfio_access")
