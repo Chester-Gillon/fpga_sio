@@ -897,6 +897,7 @@ void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_dev
     int known_fields;
     u16 subsystem_vendor_id;
     u16 subsystem_device_id;
+    uint32_t num_matches;
     bool pci_device_matches_filter;
     char *iommu_group;
 
@@ -920,8 +921,10 @@ void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_dev
         known_fields = pci_fill_info (dev, requested_fields);
         if ((known_fields & PCI_FILL_IDENT) != 0)
         {
-            pci_device_matches_filter = false;
-            for (size_t filter_index = 0; (!pci_device_matches_filter) && (filter_index < num_filters); filter_index++)
+            /* Since only looks at the PCI identities it is possible that multiple designs match.
+             * Therefore, report the names of all designs which match the identity. */
+            num_matches = 0;
+            for (size_t filter_index = 0; filter_index < num_filters; filter_index++)
             {
                 const vfio_pci_device_identity_filter_t *const filter = &filters[filter_index];
 
@@ -935,32 +938,39 @@ void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_dev
                             pci_filter_id_match (subsystem_device_id, filter->subsystem_device_id);
                     if (pci_device_matches_filter)
                     {
-                        printf ("PCI device %04x:%02x:%02x.%x", dev->domain, dev->bus, dev->dev, dev->func);
-                        if (((known_fields & PCI_FILL_PHYS_SLOT) != 0) && (dev->phy_slot != NULL))
+                        if (num_matches == 0)
                         {
-                            printf ("  physical slot %s", dev->phy_slot);
+                            printf ("PCI device %04x:%02x:%02x.%x", dev->domain, dev->bus, dev->dev, dev->func);
+                            if (((known_fields & PCI_FILL_PHYS_SLOT) != 0) && (dev->phy_slot != NULL))
+                            {
+                                printf ("  physical slot %s", dev->phy_slot);
+                            }
                         }
                         if ((design_names != NULL) && (design_names[filter_index] != NULL))
                         {
-                            printf ("  Design name %s", design_names[filter_index]);
+                            printf ("%s %s", (num_matches == 0) ? "  Design name" : " or", design_names[filter_index]);
                         }
-
-                        iommu_group = NULL;
-                        if ((known_fields & PCI_FILL_IOMMU_GROUP) != 0)
-                        {
-                            iommu_group = pci_get_string_property (dev, PCI_FILL_IOMMU_GROUP);
-                        }
-                        if (iommu_group != NULL)
-                        {
-                            printf ("  IOMMU group %s", iommu_group);
-                        }
-                        else
-                        {
-                            printf ("  No IOMMU group set, won't be able to open device using VFIO");
-                        }
-                        printf ("\n");
+                        num_matches++;
                     }
                 }
+            }
+
+            if (num_matches > 0)
+            {
+                iommu_group = NULL;
+                if ((known_fields & PCI_FILL_IOMMU_GROUP) != 0)
+                {
+                    iommu_group = pci_get_string_property (dev, PCI_FILL_IOMMU_GROUP);
+                }
+                if (iommu_group != NULL)
+                {
+                    printf ("  IOMMU group %s", iommu_group);
+                }
+                else
+                {
+                    printf ("  No IOMMU group set, won't be able to open device using VFIO");
+                }
+                printf ("\n");
             }
         }
     }
