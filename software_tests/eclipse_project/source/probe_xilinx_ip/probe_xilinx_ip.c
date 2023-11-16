@@ -22,7 +22,38 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <unistd.h>
+
 #include "fpga_sio_pci_ids.h"
+
+
+/**
+ * @brief Parse the command line arguments
+ * @param[in] argc, argv Arguments passed to main
+ */
+static void parse_command_line_arguments (int argc, char *argv[])
+{
+    const char *const optstring = "d:";
+    int option;
+
+    option = getopt (argc, argv, optstring);
+    while (option != -1)
+    {
+        switch (option)
+        {
+        case 'd':
+            vfio_add_pci_device_location_filter (optarg);
+            break;
+
+        case '?':
+        default:
+            printf ("Usage %s -d <pci_device_location>\n", argv[0]);
+            exit (EXIT_FAILURE);
+            break;
+        }
+        option = getopt (argc, argv, optstring);
+    }
+}
 
 
 /**
@@ -359,6 +390,8 @@ static void probe_vfio_device_for_xilinx_ip (vfio_device_t *const vfio_device)
 int main (int argc, char *argv[])
 {
     vfio_devices_t vfio_devices;
+
+    parse_command_line_arguments (argc, argv);
 
     /* Select to filter by vendor only */
     const vfio_pci_device_identity_filter_t filter =
