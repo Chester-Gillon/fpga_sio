@@ -21,10 +21,23 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
 
 #include <unistd.h>
 
 #include "fpga_sio_pci_ids.h"
+
+
+/* Optional command line argument to probe only a specific BAR. Default to all BARs */
+static uint32_t arg_bar_to_probe;
+static bool arg_bar_to_probe_specified;
+
+/* Optional command line argument to specify the start offset for probing a BAR. Defaults to zero */
+static uint64_t arg_bar_start_offset;
+
+/* Optional command line argument to specify the end offset for probing a BAR. Defaults to the BAR size */
+static uint64_t arg_bar_end_offset;
+static bool arg_bar_end_offset_specified;
 
 
 /**
@@ -33,8 +46,9 @@
  */
 static void parse_command_line_arguments (int argc, char *argv[])
 {
-    const char *const optstring = "d:";
+    const char *const optstring = "d:b:s:e:";
     int option;
+    char junk;
 
     option = getopt (argc, argv, optstring);
     while (option != -1)
@@ -45,9 +59,35 @@ static void parse_command_line_arguments (int argc, char *argv[])
             vfio_add_pci_device_location_filter (optarg);
             break;
 
+        case 'b':
+            if ((sscanf (optarg, "%" SCNu32 "%c", &arg_bar_to_probe, &junk) != 1) || (arg_bar_to_probe >= PCI_STD_NUM_BARS))
+            {
+                printf ("Invalid BAR %s\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            arg_bar_to_probe_specified = true;
+            break;
+
+        case 's':
+            if (sscanf (optarg, "%" SCNi64 "%c", &arg_bar_start_offset, &junk) != 1)
+            {
+                printf ("Invalid BAR start offset %s\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            break;
+
+        case 'e':
+            if (sscanf (optarg, "%" SCNi64 "%c", &arg_bar_end_offset, &junk) != 1)
+            {
+                printf ("Invalid BAR end offset %s\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            arg_bar_end_offset_specified = true;
+            break;
+
         case '?':
         default:
-            printf ("Usage %s -d <pci_device_location>\n", argv[0]);
+            printf ("Usage %s [-d <pci_device_location>] [-b <bar_to_probe>] [-s <bar_start_offset>] [-e <bar_end_offset>]\n", argv[0]);
             exit (EXIT_FAILURE);
             break;
         }
@@ -63,14 +103,16 @@ static void parse_command_line_arguments (int argc, char *argv[])
  *          This is done by checking the fixed value used in a GPIO input register, which is set to a constant input
  *          inside the FPGA.
  * @param[in] mapped_bar Start of the memory mapped BAR to prove
- * @param[in] bar_size Size of the memory mapped BAR in bytes to probe
+ * @param[in] bar_end_offset Exclusive end offset the memory mapped BAR in bytes to probe
  * @return Returns true when the mapped BAR matches the search
  */
-static bool probe_nite_fury_or_lite_fury (const uint8_t *const mapped_bar, const uint64_t bar_size)
+static bool probe_nite_fury_or_lite_fury (const uint8_t *const mapped_bar, const uint64_t bar_end_offset)
 {
     const uint64_t register_frame_size = 1 << 9;
 
-    for (uint64_t bar_offset = 0; (bar_offset + register_frame_size) <= bar_size; bar_offset += register_frame_size)
+    for (uint64_t bar_offset = arg_bar_start_offset;
+            (bar_offset + register_frame_size) <= bar_end_offset;
+            bar_offset += register_frame_size)
     {
         /* pid string is a constant value fed to the GPIO input value */
         const uint32_t pid_integer = read_reg32 (mapped_bar, bar_offset + 0x0);
@@ -248,9 +290,9 @@ static void test_reg64_pattern (uint8_t *const mapped_bar, const uint64_t reg_of
  * @details The identification registers checked for are from https://docs.xilinx.com/r/en-US/pg195-pcie-dma/Register-Space.
  *          Also performs write/read tests on some registers.
  * @param[in/out] mapped_bar Start of the memory mapped BAR to probe. out as performs a read/write for known registers
- * @param[in] bar_size Size of the memory mapped BAR in bytes to probe
+ * @param[in] bar_end_offset Exclusive end offset the memory mapped BAR in bytes to probe
  */
-static void probe_xilinx_dma_bridge (uint8_t *const mapped_bar, const uint64_t bar_size)
+static void probe_xilinx_dma_bridge (uint8_t *const mapped_bar, const uint64_t bar_end_offset)
 {
     const uint64_t register_frame_size = 1 << 8;
     const uint64_t dma_subsystem_identity = 0x1fc;
@@ -268,7 +310,9 @@ static void probe_xilinx_dma_bridge (uint8_t *const mapped_bar, const uint64_t b
         target_msi_x = 8 /* Can't be reported as the MSI-X block doesn't have a channel_identification register */
     };
 
-    for (uint64_t bar_offset = 0; (bar_offset + register_frame_size) <= bar_size; bar_offset += register_frame_size)
+    for (uint64_t bar_offset = arg_bar_start_offset;
+            (bar_offset + register_frame_size) <= bar_end_offset;
+            bar_offset += register_frame_size)
     {
         const uint32_t channel_identification = read_reg32 (mapped_bar, bar_offset + 0);
         const uint32_t subsystem_identifier = (channel_identification & 0xFFF00000) >> 20;
@@ -366,21 +410,34 @@ static void probe_vfio_device_for_xilinx_ip (vfio_device_t *const vfio_device)
     bool match;
     for (uint32_t bar_index = 0; bar_index < PCI_STD_NUM_BARS; bar_index++)
     {
-        map_vfio_device_bar_before_use (vfio_device, bar_index);
-
-        uint8_t *const mapped_bar = vfio_device->mapped_bars[bar_index];
-        const uint64_t bar_size = vfio_device->regions_info[bar_index].size;
-
-        if (mapped_bar != NULL)
+        if ((!arg_bar_to_probe_specified) || (bar_index == arg_bar_to_probe))
         {
-            printf ("Probing BAR %d in device %s of size 0x%" PRIx64 "\n", bar_index, vfio_device->device_name, bar_size);
+            map_vfio_device_bar_before_use (vfio_device, bar_index);
 
-            /* Since the "PCIe to AXI Lite Master" in the Nite Fury or Lite Fury can hang the PC when try and
-             * read an unimplemented address, only try and probe the next type if not a Nite Fury or Lite Fury. */
-            match = probe_nite_fury_or_lite_fury (mapped_bar, bar_size);
-            if (!match)
+            uint8_t *const mapped_bar = vfio_device->mapped_bars[bar_index];
+            const uint64_t bar_size = vfio_device->regions_info[bar_index].size;
+            const bool limit_bar_end_offset = arg_bar_end_offset_specified && (arg_bar_end_offset < bar_size);
+            const uint64_t bar_end_offset = limit_bar_end_offset ? arg_bar_end_offset : bar_size;
+
+            if (mapped_bar != NULL)
             {
-                probe_xilinx_dma_bridge (mapped_bar, bar_size);
+                if ((arg_bar_start_offset != 0) || (bar_end_offset != bar_size))
+                {
+                    printf ("Probing part of BAR %d in device %s over range 0x%" PRIx64 "..0x%" PRIx64 "\n",
+                            bar_index, vfio_device->device_name, arg_bar_start_offset, bar_end_offset);
+                }
+                else
+                {
+                    printf ("Probing BAR %d in device %s of size 0x%" PRIx64 "\n", bar_index, vfio_device->device_name, bar_size);
+                }
+
+                /* Since the "PCIe to AXI Lite Master" in the Nite Fury or Lite Fury can hang the PC when try and
+                 * read an unimplemented address, only try and probe the next type if not a Nite Fury or Lite Fury. */
+                match = probe_nite_fury_or_lite_fury (mapped_bar, bar_end_offset);
+                if (!match)
+                {
+                    probe_xilinx_dma_bridge (mapped_bar, bar_end_offset);
+                }
             }
         }
     }
