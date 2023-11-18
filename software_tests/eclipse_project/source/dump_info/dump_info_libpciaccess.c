@@ -17,6 +17,11 @@
 #include "fpga_sio_pci_ids.h"
 
 
+/* Display one PCIe flag (a single bit) in a similar format to lspci */
+#define DISPLAY_FLAG(field_name,register_value,field_mask) \
+    printf (" " field_name "%s", (((register_value) & (field_mask)) != 0) ? "+" : "-")
+
+
 /**
  * @brief Display indentation at the start of a line of output, used to indicate a tree of PCI bridges.
  * @param[in] indent_level Amount of indentation at the start of each line of output
@@ -42,12 +47,22 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
 {
     int rc;
     uint16_t flags;
+    uint16_t device_control;
+    uint16_t device_status;
     uint32_t link_capabilities;
     uint16_t link_status;
     uint32_t link_capabilities2;
     uint32_t slot_capabilities;
 
     rc = pci_device_cfg_read_u16 (device, &flags, capability_pointer + PCI_EXP_FLAGS);
+    if (rc == 0)
+    {
+        rc = pci_device_cfg_read_u16 (device, &device_control, capability_pointer + PCI_EXP_DEVCTL);
+    }
+    if (rc == 0)
+    {
+        rc = pci_device_cfg_read_u16 (device, &device_status, capability_pointer + PCI_EXP_DEVSTA);
+    }
     if (rc == 0)
     {
         rc = pci_device_cfg_read_u32 (device, &link_capabilities, capability_pointer + PCI_EXP_LNKCAP);
@@ -182,6 +197,34 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
         }
         printf ("\n");
 
+        /* Display device control */
+        display_indent (indent_level);
+        printf ("    DevCtl:");
+        DISPLAY_FLAG ("CorrErr", device_control, PCI_EXP_DEVCTL_CERE);
+        DISPLAY_FLAG ("NonFatalErr", device_control, PCI_EXP_DEVCTL_NFERE);
+        DISPLAY_FLAG ("FatalErr", device_control, PCI_EXP_DEVCTL_FERE);
+        DISPLAY_FLAG ("UnsupReq", device_control, PCI_EXP_DEVCTL_URRE);
+        printf ("\n");
+        display_indent (indent_level);
+        printf ("           ");
+        DISPLAY_FLAG ("RlxdOrd", device_control, PCI_EXP_DEVCTL_RELAX_EN);
+        DISPLAY_FLAG ("ExtTag", device_control, PCI_EXP_DEVCTL_EXT_TAG);
+        DISPLAY_FLAG ("PhantFunc", device_control, PCI_EXP_DEVCTL_PHANTOM);
+        DISPLAY_FLAG ("AuxPwr", device_control, PCI_EXP_DEVCTL_AUX_PME);
+        DISPLAY_FLAG ("NoSnoop", device_control, PCI_EXP_DEVCTL_NOSNOOP_EN);
+        printf ("\n");
+
+        /* Display device status */
+        display_indent (indent_level);
+        printf ("    DevSta:");
+        DISPLAY_FLAG ("CorrErr", device_status, PCI_EXP_DEVSTA_CED);
+        DISPLAY_FLAG ("NonFatalErr", device_status, PCI_EXP_DEVSTA_NFED);
+        DISPLAY_FLAG ("FatalErr", device_status, PCI_EXP_DEVSTA_FED);
+        DISPLAY_FLAG ("UnsupReq", device_status, PCI_EXP_DEVSTA_URD);
+        DISPLAY_FLAG ("AuxPwr", device_status, PCI_EXP_DEVSTA_AUXPD);
+        DISPLAY_FLAG ("TransPend", device_status, PCI_EXP_DEVSTA_TRPND);
+        printf ("\n");
+
         /* Display slot capabilities */
         if (slot_implemented)
         {
@@ -207,45 +250,21 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
             }
 
             display_indent (indent_level);
-            printf ("    Slot capabilities:");
-            if ((slot_capabilities & PCI_EXP_SLTCAP_ABP) != 0)
-            {
-                printf ( "  Attention Button Present");
-            }
-            if ((slot_capabilities & PCI_EXP_SLTCAP_PCP) != 0)
-            {
-                printf ("  Power Controller Present");
-            }
-            if ((slot_capabilities & PCI_EXP_SLTCAP_MRLSP) != 0)
-            {
-                printf ("  MRL Sensor Present");
-            }
-            if ((slot_capabilities & PCI_EXP_SLTCAP_AIP) != 0)
-            {
-                printf ("  Attention Indicator Present");
-            }
-            if ((slot_capabilities & PCI_EXP_SLTCAP_PIP) != 0)
-            {
-                printf ("  Power Indicator Present");
-            }
-            if ((slot_capabilities & PCI_EXP_SLTCAP_HPS) != 0)
-            {
-                printf ("  Hot-Plug Surprise");
-            }
-            if ((slot_capabilities & PCI_EXP_SLTCAP_HPC) != 0)
-            {
-                printf ("  Hot-Plug Capable");
-            }
-            if ((slot_capabilities & PCI_EXP_SLTCAP_EIP) != 0)
-            {
-                printf ("  Electromechanical Interlock Present");
-            }
-            if ((slot_capabilities & PCI_EXP_SLTCAP_NCCS) != 0)
-            {
-                printf ("  No Command Completed Support");
-            }
-            printf ("  Physical slot number %u", physical_slot_number);
-            printf ("  Slot power limit %g W", slot_power_limit);
+            printf ("    SltCap:");
+            DISPLAY_FLAG ("AttnBtn", slot_capabilities, PCI_EXP_SLTCAP_ABP);
+            DISPLAY_FLAG ("PwrCtrl", slot_capabilities, PCI_EXP_SLTCAP_PCP);
+            DISPLAY_FLAG ("MRL", slot_capabilities, PCI_EXP_SLTCAP_MRLSP);
+            DISPLAY_FLAG ("AttnInd", slot_capabilities, PCI_EXP_SLTCAP_AIP);
+            DISPLAY_FLAG ("PwrInd", slot_capabilities, PCI_EXP_SLTCAP_PIP);
+            DISPLAY_FLAG ("HotPlug", slot_capabilities, PCI_EXP_SLTCAP_HPC);
+            DISPLAY_FLAG ("Surprise", slot_capabilities, PCI_EXP_SLTCAP_HPS);
+            printf ("\n");
+            display_indent (indent_level);
+            printf ("           ");
+            printf ("Slot #%u", physical_slot_number);
+            printf (" PowerLimit %.3fW;", slot_power_limit);
+            DISPLAY_FLAG ("Interlock", slot_capabilities, PCI_EXP_SLTCAP_EIP);
+            DISPLAY_FLAG ("NoCompl", slot_capabilities, PCI_EXP_SLTCAP_NCCS);
             printf ("\n");
         }
     }
@@ -358,27 +377,50 @@ static void display_pci_device (struct pci_device *const device, const uint32_t 
 {
     int rc;
     uint16_t cmd;
+    uint16_t status;
 
     rc = pci_device_probe (device);
     if (rc == 0)
     {
         rc = pci_device_cfg_read_u16 (device, &cmd, PCI_COMMAND);
+        if (rc == 0)
+        {
+            rc = pci_device_cfg_read_u16 (device, &status, PCI_STATUS);
+        }
 
         if (rc == 0)
         {
             display_indent (indent_level);
             printf ("domain=%04x bus=%02x dev=%02x func=%02x\n",
                     device->domain, device->bus, device->dev, device->func);
+
             display_indent (indent_level);
             printf ("  vendor_id=%04x (%s) device_id=%04x (%s) subvendor_id=%04x subdevice_id=%04x\n",
                     device->vendor_id, pci_device_get_vendor_name (device),
                     device->device_id, pci_device_get_device_name (device),
                     device->subvendor_id, device->subdevice_id);
+
             display_indent (indent_level);
-            printf ("  control: I/O%s Mem%s BusMaster%s\n",
-                    (cmd & PCI_COMMAND_IO) ? "+" : "-",
-                    (cmd & PCI_COMMAND_MEMORY) ? "+" : "-",
-                    (cmd & PCI_COMMAND_MASTER) ? "+" : "-");
+            printf ("  control:");
+            DISPLAY_FLAG ("I/O", cmd, PCI_COMMAND_IO);
+            DISPLAY_FLAG ("Mem", cmd, PCI_COMMAND_MEMORY);
+            DISPLAY_FLAG ("BusMaster", cmd, PCI_COMMAND_MASTER);
+            DISPLAY_FLAG ("ParErr", cmd, PCI_COMMAND_PARITY);
+            DISPLAY_FLAG ("SERR", cmd, PCI_COMMAND_SERR);
+            DISPLAY_FLAG ("DisINTx", cmd, PCI_COMMAND_INTX_DISABLE);
+            printf ("\n");
+
+            display_indent (indent_level);
+            printf ("  status:");
+            DISPLAY_FLAG ("INTx", status, PCI_STATUS_INTERRUPT);
+            DISPLAY_FLAG ("<ParErr", status, PCI_STATUS_PARITY);
+            DISPLAY_FLAG (">TAbort", status, PCI_STATUS_SIG_TARGET_ABORT);
+            DISPLAY_FLAG ("<TAbort", status, PCI_STATUS_REC_TARGET_ABORT);
+            DISPLAY_FLAG ("<MAbort", status, PCI_STATUS_REC_MASTER_ABORT);
+            DISPLAY_FLAG (">SERR", status, PCI_STATUS_SIG_SYSTEM_ERROR);
+            DISPLAY_FLAG ("DetParErr", status, PCI_STATUS_DETECTED_PARITY);
+            printf ("\n");
+
             for (unsigned bar_index = 0; bar_index < PCI_STD_NUM_BARS; bar_index++)
             {
                 const struct pci_mem_region *const region = &device->regions[bar_index];
@@ -397,40 +439,14 @@ static void display_pci_device (struct pci_device *const device, const uint32_t 
 }
 
 
-int main (int argc, char *argv[])
+/**
+ * @brief Display information about all PCI devices which match an identity
+ * @param[in] vendor_id The vendor identity to match, or PCI_MATCH_ANY
+ * @param[in] device_id The device identity to match, or PCI_MATCH_ANY
+ */
+static void display_pci_devices_by_id (const uint32_t vendor_id, const uint32_t device_id)
 {
     int rc;
-    uint32_t vendor_id;
-    uint32_t device_id;
-    char junk;
-
-    rc = pci_system_init ();
-    if (rc != 0)
-    {
-        fprintf (stderr, "pci_system_init failed\n");
-        exit (EXIT_FAILURE);
-    }
-
-    /* Use an optional command line arguments to specify the vendor and possibly device ID to display information for */
-    vendor_id = FPGA_SIO_VENDOR_ID;
-    device_id = PCI_MATCH_ANY;
-    if (argc > 1)
-    {
-        const char *const vendor_txt = argv[1];
-        if (sscanf (vendor_txt, "%x%c", &vendor_id, &junk) != 1)
-        {
-            printf ("Error: Invalid hex vendor ID %s\n", vendor_txt);
-        }
-    }
-    if (argc > 2)
-    {
-        const char *const device_txt = argv[2];
-        if (sscanf (device_txt, "%x%c", &device_id, &junk) != 1)
-        {
-            printf ("Error: Invalid hex vendor ID %s\n", device_txt);
-        }
-    }
-
     struct pci_id_match match =
     {
         .vendor_id = vendor_id,
@@ -456,10 +472,9 @@ int main (int argc, char *argv[])
             indent_level = 0;
             display_pci_device (device, indent_level);
 
-            /* If the device is connected to a parent bridge, display the information about the parent bridge
-             * to allow correlation of the PCIe link capabilities between the two. */
-            /* Display information about the tree of parent bridges, to allow correlation of the PCIe link capabilities
-             * up the bridges until the root port. */
+            /* Display information about the tree of parent bridges to allow correlation of:
+             * a. The PCIe link capabilities up the bridges until the root port.
+             * b. Error reporting up the bridges until the root port. */
             parent_bridge = pci_device_get_parent_bridge (device);
             while (parent_bridge != NULL)
             {
@@ -472,6 +487,54 @@ int main (int argc, char *argv[])
         }
         device = pci_device_next (device_iterator);
     }
+
+    pci_iterator_destroy (device_iterator);
+}
+
+
+int main (int argc, char *argv[])
+{
+    int rc;
+    uint32_t vendor_id;
+    uint32_t device_id;
+    char junk;
+
+    rc = pci_system_init ();
+    if (rc != 0)
+    {
+        fprintf (stderr, "pci_system_init failed\n");
+        exit (EXIT_FAILURE);
+    }
+
+    if (argc > 1)
+    {
+        /* Each command line argument is the <vendor_id> or <vendor_id>:<device_id> of PCI devices to display information for */
+        for (int arg_index = 1; arg_index < argc; arg_index++)
+        {
+            const char *const match_text = argv[arg_index];
+
+            if (sscanf (match_text, "%x:%x%c", &vendor_id, &device_id, &junk) == 2)
+            {
+                display_pci_devices_by_id (vendor_id, device_id);
+            }
+            else if (sscanf (match_text, "%x%c", &vendor_id, &junk) == 1)
+            {
+                display_pci_devices_by_id (vendor_id, PCI_MATCH_ANY);
+            }
+            else
+            {
+                printf ("Invalid PCI device ID %s\n", match_text);
+                exit (EXIT_FAILURE);
+            }
+        }
+    }
+    else
+    {
+        /* With no arguments display all Xilinx devices */
+        display_pci_devices_by_id (FPGA_SIO_VENDOR_ID, PCI_MATCH_ANY);
+    }
+
+    pci_system_cleanup ();
 
     return EXIT_SUCCESS;
 }
