@@ -138,6 +138,8 @@ typedef struct
     int container_fd;
     /* The IOMMU type which is used for the VFIO container */
     __s32 iommu_type;
+    /* When non-NULL contains the information about the IOMMU to support IOVA allocations */
+    struct vfio_iommu_type1_info *iommu_info;
     /* Used to allocate the next IOVA address allocated, when iommu_type is other than VFIO_NOIOMMU_IOMMU */
     uint64_t next_iova;
     /* Used to track usage of the cmem driver */
@@ -211,7 +213,7 @@ void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_dev
                                     const char *const design_names[const num_filters]);
 void allocate_vfio_dma_mapping (vfio_devices_t *const vfio_devices,
                                 vfio_dma_mapping_t *const mapping,
-                                const size_t size, const uint32_t permission,
+                                const size_t requested_size, const uint32_t permission,
                                 const vfio_buffer_allocation_type_t buffer_allocation);
 void *vfio_dma_mapping_allocate_space (vfio_dma_mapping_t *const mapping,
                                        const size_t allocation_size, uint64_t *const allocated_iova);

@@ -25,9 +25,9 @@
 /* Defines one DMA descriptor */
 #define DMA_DESCRIPTOR_MAGIC (0xad4bU << 16)
 
-#define DMA_DESCRIPTOR_CONTROL_EOP       (1 << 4)
-#define DMA_DESCRIPTOR_CONTROL_COMPLETED (1 << 1)
-#define DMA_DESCRIPTOR_CONTROL_STOP      (1 << 0)
+#define DMA_DESCRIPTOR_CONTROL_EOP       (1U << 4)
+#define DMA_DESCRIPTOR_CONTROL_COMPLETED (1U << 1)
+#define DMA_DESCRIPTOR_CONTROL_STOP      (1U << 0)
 
 /* While the features section of pg195 says "256 MB max transfer size per descriptor", given the descriptor length
  * is 28-bits wide assume the maximum length is one byte less. */
@@ -53,7 +53,7 @@ typedef struct
     uint32_t magic_nxt_adj_control;
     /* Length of the data in bytes. Only least significant 28 bits are used. */
     uint32_t len;
-    /* Source address for H2C and memory mapped transfers. Metadata writeback address for C2H transfers. */
+    /* Source address for H2C and memory mapped transfers. Metadata writeback address for C2H stream transfers. */
     uint64_t src_adr;
     /* Destination address for C2H and memory mapped transfers. Not used for H2C stream. */
     uint64_t dst_adr;
@@ -63,7 +63,6 @@ typedef struct
 
 
 /* Defines a completed descriptor count written back to host memory when DMA poll mode is enabled */
-
 #define COMPLETED_DESCRIPTOR_STS_ERR              0x80000000
 
 #define COMPLETED_DESCRIPTOR_COUNT_WRITEBACK_MASK 0x00ffffff
@@ -78,6 +77,24 @@ typedef struct
      */
     uint32_t sts_err_compl_descriptor_count;
 } completed_descriptor_count_writeback_t;
+
+
+/* Defines the C2H Channel Writeback information which provides the driver current length status of a particular descriptor,
+ * when the DMA Stream interface is used. */
+#define C2H_STREAM_WB_MAGIC     (0x52b4 << 16U)
+#define C2H_STREAM_WB_MAGIC_MASK 0xffff0000U
+#define CH2_STREAM_WB_EOP 0x1
+typedef struct
+{
+    /* Contains:
+     * 16 bits : WB magic value of C2H_STREAM_WB_MAGIC to verify the C2H writeback is valid.
+     * 15 bits : reserved
+     * 1 bit   : Set (CH2_STREAM_WB_EOP) to indicate End Of Packet
+     */
+    uint32_t wb_magic_status;
+    /* Length of the data in bytes. */
+    uint32_t length;
+} c2h_stream_writeback_t;
 
 
 /* The destination submodule within the DMA */
@@ -146,6 +163,7 @@ typedef struct
 #define H2C_CHANNEL_CONTROL_STREAM_WRITE_BACK_DISABLE (1 << 27) /* When set write back information for C2H in AXI-Stream
                                                                    mode is disabled, default write back is enabled. */
                                                                 /* @todo pg195 uses "C2H" in the description of this H2C register.
+                                                                 *       Also, no write back is defined for a DMA H2C Stream.
                                                                  *       Is the bit actually used? */
 #define C2H_CHANNEL_CONTROL_STREAM_WRITE_BACK_DISABLE (1 << 27) /* Disables the metadata writeback for C2H AXI4-Stream. No
                                                                    effect if the channel is configured to use AXI Memory Mapped. */
@@ -267,6 +285,8 @@ typedef struct
  * channels Control register Run bit or if Descriptor Credit Mode is disabled for the channel. The register can be read
  * to determine the number of current remaining credits for the channel. */
 #define X2X_SGDMA_DESCRIPTOR_CREDITS_OFFSET 0x8C
+
+#define X2X_SGDMA_MAX_DESCRIPTOR_CREDITS ((1 << 10) - 1) /* Based upon ten bits to store the number of credits */
 
 
 /* SGDMA Common registers space */

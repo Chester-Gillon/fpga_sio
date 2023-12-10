@@ -18,7 +18,7 @@
  *
  * The vfio_dma_mapping_t is placed in the context since:
  * a. Allows descriptors to be allocated per channel, which simplifies the code.
- * b. Allows the data DMA mapping to test different VFIO access. E.g..:
+ * b. Allows the data DMA mapping to test different VFIO access. E.g.:
  *    - For C2H transfers only allow DMA write access to host memory
  *    - For H2C transfers only allow DMA read access to host memory
  */

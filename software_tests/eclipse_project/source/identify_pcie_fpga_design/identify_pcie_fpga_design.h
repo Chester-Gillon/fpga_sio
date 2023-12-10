@@ -58,17 +58,25 @@ typedef enum
     FPGA_DESIGN_LITEFURY_PROJECT0,
     FPGA_DESIGN_NITEFURY_PROJECT0,
     /* fpga_tests/TEF1001_dma_ddr3 which contains:
-     * a. DMA/Bridge Subsystem to access 1GB of DDR3
+     * a. DMA/Bridge Subsystem to access 8GB of DDR3
      * b. Quad SPI connected to the configuration flash.
      * c. XADC
      * d. I2C controller, both the Xilinx "AXI IIC Bus Interface" IP and a GPIO based bit-banged interface. */
     FPGA_DESIGN_TEF1001_DMA_DDR3,
 
     /* fpga_tests/NiteFury_dma_ddr3 which contains:
-     * a. Access 1GB of DDR3 memory.
+     * a. DMA/Bridge Subsystem to access 1GB of DDR3 memory.
      * b. Access a Quad SPI connected to the FPGA configuration flash.
      * c. Access the XADC - internal sensors and one external input. */
     FPGA_DESIGN_NITEFURY_DMA_DDR3,
+
+    /* fpga_tests/TEF1001_dma_stream_loopback which contains:
+     * a. DMA/Bridge Subsysten loopback of two AXI streams.
+     * b. Access a Quad SPI connected to the FPGA configuration flash.
+     * c. Access the XADC (internal sensors only).
+     * d. Access the I2C bus, using either a AXI IIC Bus Interface PG090 and AXI GPIO PG144
+     *    in the same way as the i2c_probe (FPGA_SIO_SUBDEVICE_ID_I2C_PROBE) design. */
+    FPGA_DESIGN_TEF1001_DMA_STREAM_LOOPBACK,
 
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
@@ -89,7 +97,9 @@ typedef struct
     bool dma_bridge_present;
     /* Which BAR contains the DMA/Bridge Subsystem control registers */
     uint32_t dma_bridge_bar;
-    /* The amount of memory addressed by the DMA/Bridge Subsystem */
+    /* The amount of memory addressed by the DMA/Bridge Subsystem, which also indicates the assumed DMA interface option:
+     * a. A non-zero value means "AXI Memory Mapped".
+     * b. A zero values means "AXI Stream". */
     size_t dma_bridge_memory_size_bytes;
     /* When non-NULL the base of the mapped registers for the Xilinx Quad SPI present in the design */
     uint8_t *quad_spi_regs;

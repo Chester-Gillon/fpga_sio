@@ -118,7 +118,14 @@ int main (int argc, char *argv[])
         printf ("  PCI device %s IOMMU group %s\n", design->vfio_device->device_name, design->vfio_device->iommu_group);
         if (design->dma_bridge_present)
         {
-            printf ("  DMA bridge bar %u memory size 0x%zx\n", design->dma_bridge_bar, design->dma_bridge_memory_size_bytes);
+            if (design->dma_bridge_memory_size_bytes > 0)
+            {
+                printf ("  DMA bridge bar %u memory size 0x%zx\n", design->dma_bridge_bar, design->dma_bridge_memory_size_bytes);
+            }
+            else
+            {
+                printf ("  DMA bridge bar %u AXI Stream\n", design->dma_bridge_bar);
+            }
         }
         if (design->user_access != NULL)
         {

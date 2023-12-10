@@ -109,8 +109,11 @@ bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
     bool success;
 
     /* Check that have been passed a BAR which is large enough to contain the DMA control registers */
-    map_vfio_device_bar_before_use (vfio_device, bar_index);
-    if (vfio_device->regions_info[bar_index].size < 0x10000)
+    const size_t dma_control_base_offset = 0x0;
+    const size_t dma_control_frame_size = 0x10000;
+    uint8_t *const mapped_registers_base =
+            map_vfio_registers_block (vfio_device, bar_index, dma_control_base_offset, dma_control_frame_size);
+    if (mapped_registers_base == NULL)
     {
         printf ("BAR[%" PRIu32 " size of 0x%llx too small for DMA/Bridge Subsystem for PCI Express\n",
                 bar_index, vfio_device->regions_info[bar_index].size);
@@ -128,7 +131,6 @@ bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
     context->abs_timeout = 0;
 
     /* Set the mapped base of the DMA control registers used for the channel */
-    uint8_t *const mapped_registers_base = vfio_device->mapped_bars[bar_index];
     context->x2x_channel_regs = &mapped_registers_base[DMA_CHANNEL_BAR_START_OFFSET (channels_submodule, channel_id)];
     context->x2x_sgdma_regs = &mapped_registers_base[DMA_CHANNEL_BAR_START_OFFSET (sgdma_channels_submodule, channel_id)];
     context->sgdma_common_regs = &mapped_registers_base[DMA_SUBMODULE_BAR_START_OFFSET (DMA_SUBMODULE_SGDMA_COMMON)];
@@ -162,7 +164,7 @@ bool initialise_x2x_transfer_context (x2x_transfer_context_t *const context,
     context->num_descriptors =
             (uint32_t) ((context->data_mapping.buffer.size + (aligned_max_descriptor_len - 1)) / aligned_max_descriptor_len);
 
-    /* Allocate space for the DMA descriptors and initialise them. card address starts at zero but may be changed
+    /* Allocate space for the DMA descriptors and initialise them. Card address starts at zero but may be changed
      * before the transfer is started. */
     dma_descriptor_t *descriptor = NULL;
     dma_descriptor_t *previous_descriptor = NULL;

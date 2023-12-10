@@ -445,6 +445,46 @@ static int find_fd_from_primary_process (const char *const pathname_to_find)
 
 
 /**
+ * @brief Get the capabilities for a type 1 IOMMU, at the container level, to be used to perform IOVA allocations
+ * @param[in/out] vfio_devices The list of VFIO devices being opened
+ * @return Returns true if have obtained the capabilities, or false upon error.
+ */
+static bool get_type1_iommu_capabilities (vfio_devices_t *const vfio_devices)
+{
+    int rc;
+    struct vfio_iommu_type1_info iommu_info_get_size;
+
+    /* Determine the size required to get the capabilities for the IOMMU.
+     * This updates the argsz to indicate how much space is required. */
+    memset (&iommu_info_get_size, 0, sizeof iommu_info_get_size);
+    iommu_info_get_size.argsz = sizeof (iommu_info_get_size);
+    rc = ioctl (vfio_devices->container_fd, VFIO_IOMMU_GET_INFO, &iommu_info_get_size);
+    if (rc != 0)
+    {
+        printf ("VFIO_IOMMU_GET_INFO failed : %s\n", strerror (errno));
+        return false;
+    }
+
+    /* Allocate a structure of the required size for the IOMMU information, and get it */
+    vfio_devices->iommu_info = calloc (iommu_info_get_size.argsz, 1);
+    if (vfio_devices->iommu_info == NULL)
+    {
+        printf ("Failed to allocate %" PRIu32 " bytes for iommu_info\n", iommu_info_get_size.argsz);
+        return false;
+    }
+    vfio_devices->iommu_info->argsz = iommu_info_get_size.argsz;
+    rc = ioctl (vfio_devices->container_fd, VFIO_IOMMU_GET_INFO, vfio_devices->iommu_info);
+    if (rc != 0)
+    {
+        printf ("  VFIO_IOMMU_GET_INFO failed : %s\n", strerror (errno));
+        return false;
+    }
+
+    return true;
+}
+
+
+/**
  * @brief Open an VFIO device, without mapping it's memory BARs.
  * @param[in/out] vfio_devices The list of vfio devices to append the opened device to.
  *                             If this function is successful vfio_devices->num_devices is incremented
@@ -647,6 +687,19 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
         {
             printf ("  VFIO_SET_IOMMU failed : %s\n", strerror (-rc));
             return;
+        }
+    }
+
+    if (vfio_devices->num_devices == 0)
+    {
+        /* When using a type 1 IOMMU, get the capabilities */
+        vfio_devices->iommu_info = NULL;
+        if (vfio_devices->iommu_type == VFIO_TYPE1_IOMMU)
+        {
+            if (!get_type1_iommu_capabilities (vfio_devices))
+            {
+                exit (EXIT_FAILURE);
+            }
         }
     }
 
@@ -867,6 +920,9 @@ void close_vfio_devices (vfio_devices_t *const vfio_devices)
     }
 #endif
 
+    free (vfio_devices->iommu_info);
+    vfio_devices->iommu_info = NULL;
+
     /* Cleanup the PCI access, if was used */
     if (vfio_devices->pacc != NULL)
     {
@@ -986,7 +1042,8 @@ void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_dev
  * @param[out] mapping Contains the process memory and associated DMA mapping which has been allocated.
  *                     On failure, mapping->buffer.vaddr is NULL.
  *                     On success the buffer contents has been zeroed.
- * @param[in] size The size in bytes to allocate
+ * @param[in] requested_size The requested size in bytes to allocate.
+ *                           The actual size allocated may be increased to allow for the supported IOVA page sizes.
  * @param[in] permission Bitwise OR VFIO_DMA_MAP_FLAG_READ / VFIO_DMA_MAP_FLAG_WRITE flags to define
  *                       the device access to the DMA mapping.
  *                       Not used when using the cmem driver.
@@ -994,10 +1051,11 @@ void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_dev
  */
 void allocate_vfio_dma_mapping (vfio_devices_t *const vfio_devices,
                                 vfio_dma_mapping_t *const mapping,
-                                const size_t size, const uint32_t permission,
+                                const size_t requested_size, const uint32_t permission,
                                 const vfio_buffer_allocation_type_t buffer_allocation)
 {
     int rc;
+    size_t aligned_size = requested_size;
 
     mapping->num_allocated_bytes = 0;
     if (vfio_devices->iommu_type == VFIO_NOIOMMU_IOMMU)
@@ -1034,9 +1092,15 @@ void allocate_vfio_dma_mapping (vfio_devices_t *const vfio_devices,
 #ifdef HAVE_CMEM
         if (vfio_devices->cmem_usage == VFIO_CMEM_USAGE_DRIVER_OPEN)
         {
+            const size_t page_size = (size_t) getpagesize ();
+
+            /* Round up the requested size to a multiple of the page size, to ensure the next physical memory allocation
+             * starts on a page boundary. Otherwise, the next vaddr will be invalid. */
+            aligned_size = (requested_size + (page_size - 1)) & (~(page_size - 1));
+
             /* cmem driver is open, so attempt the allocation and use the allocated physical memory address as the IOVA
              * to be used for DMA. */
-            create_vfio_buffer (&mapping->buffer, size, VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY, NULL);
+            create_vfio_buffer (&mapping->buffer, aligned_size, VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY, NULL);
             mapping->iova = mapping->buffer.cmem_host_buf_desc.physAddr;
             if (mapping->buffer.vaddr != NULL)
             {
@@ -1050,6 +1114,17 @@ void allocate_vfio_dma_mapping (vfio_devices_t *const vfio_devices,
         /* Allocate IOVA using the IOMMU. */
         struct vfio_iommu_type1_dma_map dma_map;
         char name_suffix[PATH_MAX];
+        bool alignment_found = false;
+
+        /* Increase the requested size to be aligned to the smallest page size supported by the IOMMU */
+        for (uint64_t page_size = 1; (!alignment_found) && (page_size != 0); page_size <<= 1)
+        {
+            if ((vfio_devices->iommu_info->iova_pgsizes & page_size) == page_size)
+            {
+                aligned_size = (requested_size + (page_size - 1)) & (~(page_size - 1));
+                alignment_found = true;
+            }
+        }
 
         /* @todo For simplicity assume an incrementing IOVA for each allocation, without regard to any container constraints.
          *       If this attempts to allocate an invalid iova VFIO_IOMMU_MAP_DMA will fail with EPERM
@@ -1058,7 +1133,7 @@ void allocate_vfio_dma_mapping (vfio_devices_t *const vfio_devices,
 
         /* Create the buffer in the local process. As don't yet have multi-process support uses the PID to make the name unique */
         snprintf (name_suffix, sizeof (name_suffix), "pid-%d_iova-%" PRIu64, getpid(), mapping->iova);
-        create_vfio_buffer (&mapping->buffer, size, buffer_allocation, name_suffix);
+        create_vfio_buffer (&mapping->buffer, aligned_size, buffer_allocation, name_suffix);
 
         if (mapping->buffer.vaddr != NULL)
         {
@@ -1084,7 +1159,7 @@ void allocate_vfio_dma_mapping (vfio_devices_t *const vfio_devices,
         else
         {
             mapping->buffer.vaddr = NULL;
-            printf ("Failed to allocate %zu bytes for VFIO DMA mapping\n", size);
+            printf ("Failed to allocate %zu bytes for VFIO DMA mapping\n", aligned_size);
         }
     }
 }

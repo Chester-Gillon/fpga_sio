@@ -132,12 +132,21 @@ static bool probe_nite_fury_or_lite_fury (const uint8_t *const mapped_bar, const
 
             printf ("Found %.4s Fury at BAR offset 0x%" PRIx64" board_version=%" PRIu32 "\n", pid_string, bar_offset, board_version);
 
-            /* @todo Stop the probe if the Nite-Fury or Lite-Fury PID is found since:
-             *       a. None of the Xilinx IP (AXI-GPIO, AXI Quad SPI, XADC Wizard) used in the BAR has any identity registers.
-             *       b. Since not all address bits seem to be decoded the pid_string can be found at multiple aliases addresses.
-             *       c. Attempting to read from an unimplemented offset can cause the PC to hang.
-             *          Re-loading the FPGA didn't help to cause the PC to resume; had to hard power cycle.
-             *          Not sure why the PCIe read doesn't fail with a completion timeout.
+            /* Stop the probe if the Nite-Fury or Lite-Fury PID is found since:
+             * a. None of the Xilinx IP (AXI-GPIO, AXI Quad SPI, XADC Wizard) used in the BAR has any identity registers.
+             * b. Since not all address bits seem to be decoded the pid_string can be found at multiple aliases addresses.
+             * c. Attempting to read from an unimplemented offset can cause the PC to hang.
+             *    Re-loading the FPGA didn't help to cause the PC to resume; had to hard power cycle.
+             *
+             *    Investigation with other designs has shown that if the Master AXI-Lite interface has any part of
+             *    the address space which isn't mapped to a AXI-Lite slave then attempting to read addresses not
+             *    mapped to a slave can result in either:
+             *    a. Reading being "slow" (e.g. attempting to ping the PC which was reading the address spaces sometimes
+             *       took ~2 seconds to respond).
+             *    b. The PC eventually hung, and had to hard power cycle.
+             *    c. The default HP Z4 G4 BIOS settings rebooted the PC due to "PCIe Malformed TLP error detected".
+             *       After modifying the BIOS settings to disable error handling on the PCIe root port the symptoms
+             *       changed from a reboot to hang of the PC (the PC eventually hung after reading was initially slow).
              */
             return true;
         }
