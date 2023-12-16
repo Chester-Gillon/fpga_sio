@@ -10,22 +10,25 @@
 #
 #       Where the overriden physical properties are in NiteFury_dma_ddr3/NiteFury_dma_ddr3.gen/sources_1/bd/NiteFury_dma_ddr3/ip/NiteFury_dma_ddr3_xdma_0_0/ip_0/source/NiteFury_dma_ddr3_xdma_0_0_pcie2_ip-PCIE_X0Y0.xdc 
 #       which is a generated IP constraint file.
-set_property LOC "" [get_cells {NiteFury_dma_ddr3_i/xdma_0/inst/NiteFury_dma_ddr3_xdma_0_0_pcie2_to_pcie3_wrapper_i/pcie2_ip_i/inst/inst/gt_top_i/pipe_wrapper_i/pipe_lane[0].gt_wrapper_i/gtp_channel.gtpe2_channel_i}]
-set_property LOC "" [get_cells {NiteFury_dma_ddr3_i/xdma_0/inst/NiteFury_dma_ddr3_xdma_0_0_pcie2_to_pcie3_wrapper_i/pcie2_ip_i/inst/inst/gt_top_i/pipe_wrapper_i/pipe_lane[1].gt_wrapper_i/gtp_channel.gtpe2_channel_i}]
-set_property LOC "" [get_cells {NiteFury_dma_ddr3_i/xdma_0/inst/NiteFury_dma_ddr3_xdma_0_0_pcie2_to_pcie3_wrapper_i/pcie2_ip_i/inst/inst/gt_top_i/pipe_wrapper_i/pipe_lane[2].gt_wrapper_i/gtp_channel.gtpe2_channel_i}]
-set_property LOC "" [get_cells {NiteFury_dma_ddr3_i/xdma_0/inst/NiteFury_dma_ddr3_xdma_0_0_pcie2_to_pcie3_wrapper_i/pcie2_ip_i/inst/inst/gt_top_i/pipe_wrapper_i/pipe_lane[3].gt_wrapper_i/gtp_channel.gtpe2_channel_i}]
+#
+#       The wildcard parts of the names are to allow use in different project name,
+#       assumed to start with a NiteFury_dma_ prefix.
+set_property LOC "" [get_cells {NiteFury_dma_*_i/xdma_0/inst/NiteFury_dma_*_xdma_0_0_pcie2_to_pcie3_wrapper_i/pcie2_ip_i/inst/inst/gt_top_i/pipe_wrapper_i/pipe_lane[0].gt_wrapper_i/gtp_channel.gtpe2_channel_i}]
+set_property LOC "" [get_cells {NiteFury_dma_*_i/xdma_0/inst/NiteFury_dma_*_xdma_0_0_pcie2_to_pcie3_wrapper_i/pcie2_ip_i/inst/inst/gt_top_i/pipe_wrapper_i/pipe_lane[1].gt_wrapper_i/gtp_channel.gtpe2_channel_i}]
+set_property LOC "" [get_cells {NiteFury_dma_*_i/xdma_0/inst/NiteFury_dma_*_xdma_0_0_pcie2_to_pcie3_wrapper_i/pcie2_ip_i/inst/inst/gt_top_i/pipe_wrapper_i/pipe_lane[2].gt_wrapper_i/gtp_channel.gtpe2_channel_i}]
+set_property LOC "" [get_cells {NiteFury_dma_*_i/xdma_0/inst/NiteFury_dma_*_xdma_0_0_pcie2_to_pcie3_wrapper_i/pcie2_ip_i/inst/inst/gt_top_i/pipe_wrapper_i/pipe_lane[3].gt_wrapper_i/gtp_channel.gtpe2_channel_i}]
 
 # PCIe lane 0
-set_property LOC GTPE2_CHANNEL_X0Y7 [get_cells {NiteFury_dma_ddr3_i/xdma_0/inst/NiteFury_dma_ddr3_xdma_0_0_pcie2_to_pcie3_wrapper_i/pcie2_ip_i/inst/inst/gt_top_i/pipe_wrapper_i/pipe_lane[3].gt_wrapper_i/gtp_channel.gtpe2_channel_i}]
+set_property LOC GTPE2_CHANNEL_X0Y7 [get_cells {NiteFury_dma_*_i/xdma_0/inst/NiteFury_dma_*_xdma_0_0_pcie2_to_pcie3_wrapper_i/pcie2_ip_i/inst/inst/gt_top_i/pipe_wrapper_i/pipe_lane[3].gt_wrapper_i/gtp_channel.gtpe2_channel_i}]
 
 # PCIe lane 1
-set_property LOC GTPE2_CHANNEL_X0Y6 [get_cells {NiteFury_dma_ddr3_i/xdma_0/inst/NiteFury_dma_ddr3_xdma_0_0_pcie2_to_pcie3_wrapper_i/pcie2_ip_i/inst/inst/gt_top_i/pipe_wrapper_i/pipe_lane[0].gt_wrapper_i/gtp_channel.gtpe2_channel_i}]
+set_property LOC GTPE2_CHANNEL_X0Y6 [get_cells {NiteFury_dma_*_i/xdma_0/inst/NiteFury_dma_*_xdma_0_0_pcie2_to_pcie3_wrapper_i/pcie2_ip_i/inst/inst/gt_top_i/pipe_wrapper_i/pipe_lane[0].gt_wrapper_i/gtp_channel.gtpe2_channel_i}]
 
 # PCIe lane 2
-set_property LOC GTPE2_CHANNEL_X0Y5 [get_cells {NiteFury_dma_ddr3_i/xdma_0/inst/NiteFury_dma_ddr3_xdma_0_0_pcie2_to_pcie3_wrapper_i/pcie2_ip_i/inst/inst/gt_top_i/pipe_wrapper_i/pipe_lane[2].gt_wrapper_i/gtp_channel.gtpe2_channel_i}]
+set_property LOC GTPE2_CHANNEL_X0Y5 [get_cells {NiteFury_dma_*_i/xdma_0/inst/NiteFury_dma_*_xdma_0_0_pcie2_to_pcie3_wrapper_i/pcie2_ip_i/inst/inst/gt_top_i/pipe_wrapper_i/pipe_lane[2].gt_wrapper_i/gtp_channel.gtpe2_channel_i}]
 
 # PCIe lane 3
-set_property LOC GTPE2_CHANNEL_X0Y4 [get_cells {NiteFury_dma_ddr3_i/xdma_0/inst/NiteFury_dma_ddr3_xdma_0_0_pcie2_to_pcie3_wrapper_i/pcie2_ip_i/inst/inst/gt_top_i/pipe_wrapper_i/pipe_lane[1].gt_wrapper_i/gtp_channel.gtpe2_channel_i}]
+set_property LOC GTPE2_CHANNEL_X0Y4 [get_cells {NiteFury_dma_*_i/xdma_0/inst/NiteFury_dma_*_xdma_0_0_pcie2_to_pcie3_wrapper_i/pcie2_ip_i/inst/inst/gt_top_i/pipe_wrapper_i/pipe_lane[1].gt_wrapper_i/gtp_channel.gtpe2_channel_i}]
 
 # PCIe refclock
 set_property PACKAGE_PIN F6 [get_ports {CLK_PCIe_100MHz_clk_p[0]}]
