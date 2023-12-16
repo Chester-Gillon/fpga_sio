@@ -71,12 +71,18 @@ typedef enum
     FPGA_DESIGN_NITEFURY_DMA_DDR3,
 
     /* fpga_tests/TEF1001_dma_stream_loopback which contains:
-     * a. DMA/Bridge Subsysten loopback of two AXI streams.
+     * a. DMA/Bridge Subsystem loopback of two AXI streams.
      * b. Access a Quad SPI connected to the FPGA configuration flash.
      * c. Access the XADC (internal sensors only).
      * d. Access the I2C bus, using either a AXI IIC Bus Interface PG090 and AXI GPIO PG144
      *    in the same way as the i2c_probe (FPGA_SIO_SUBDEVICE_ID_I2C_PROBE) design. */
     FPGA_DESIGN_TEF1001_DMA_STREAM_LOOPBACK,
+
+    /* fpga_tests/NiteFury_dma_stream_loopback which contains:
+     * a. DMA/Bridge Subsystem loopback of two AXI streams.
+     * b. Access a Quad SPI connected to the FPGA configuration flash.
+     * c. Access the XADC - internal sensors and one external input. */
+    FPGA_DESIGN_NITEFURY_DMA_STREAM_LOOPBACK,
 
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
