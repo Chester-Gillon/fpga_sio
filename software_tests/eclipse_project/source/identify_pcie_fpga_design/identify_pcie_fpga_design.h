@@ -37,18 +37,21 @@ typedef enum
 {
     /* fpga_tests/dma_blkram which uses DMA/Bridge Subsystem to access block RAM */
     FPGA_DESIGN_DMA_BLKRAM,
+
     /* fpga_tests/i2c_probe/ which contains:
      * a. I2C controller, both the Xilinx "AXI IIC Bus Interface" IP and a GPIO based bit-banged interface.
      * b. Quad SPI connected to the configuration flash.
      * c. XADC
      */
     FPGA_DESIGN_I2C_PROBE,
+
     /* fpga_tests/TOSING_160T_dma_ddr3 which contains:
      * a. DMA/Bridge Subsystem to access 1GB of DDR3
      * b. Quad SPI connected to the configuration flash.
      * c. XADC
      */
     FPGA_DESIGN_TOSING_160T_DMA_DDR3,
+
     /* The Project-0 sample projects for the RHS Research LiteFury and Nitefury which contains:
      * a. DMA/Bridge Subsystem to access DDR3
      * b. Quad SPI connected to the configuration flash.
@@ -57,6 +60,7 @@ typedef enum
      */
     FPGA_DESIGN_LITEFURY_PROJECT0,
     FPGA_DESIGN_NITEFURY_PROJECT0,
+
     /* fpga_tests/TEF1001_dma_ddr3 which contains:
      * a. DMA/Bridge Subsystem to access 8GB of DDR3
      * b. Quad SPI connected to the configuration flash.
@@ -83,6 +87,13 @@ typedef enum
      * b. Access a Quad SPI connected to the FPGA configuration flash.
      * c. Access the XADC - internal sensors and one external input. */
     FPGA_DESIGN_NITEFURY_DMA_STREAM_LOOPBACK,
+
+    /* fpga_tests/TOSING_160T_dma_stream_loopback which contains:
+     * a. DMA/Bridge Subsystem loopback of two AXI streams.
+     * b. Quad SPI connected to the configuration flash.
+     * c. XADC
+     */
+    FPGA_DESIGN_TOSING_160T_DMA_STREAM_LOOPBACK,
 
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
