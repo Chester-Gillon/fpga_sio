@@ -59,6 +59,54 @@ static int64_t test_timeout_secs = 10;
 static int64_t abs_test_timeout;
 
 
+/* Optional command line arguments which can be used to add an offset to the allocate IOVA values
+ * for the VFIO DMA mapping to test the effect of using getting the PCIe card DMA to use an invalid IOVA. */
+static bool arg_apply_iova_offsets;
+static uint64_t arg_descriptors_iova_offset;
+static uint64_t arg_h2c_data_iova_offset;
+static uint64_t arg_c2h_data_iova_offset;
+
+
+/**
+ * @brief Parse the command line arguments
+ * @param[in] argc, argv Arguments passed to main
+ */
+static void parse_command_line_arguments (int argc, char *argv[])
+{
+    const char *const optstring = "d:o:";
+    int option;
+    char junk;
+
+    option = getopt (argc, argv, optstring);
+    while (option != -1)
+    {
+        switch (option)
+        {
+        case 'd':
+            vfio_add_pci_device_location_filter (optarg);
+            break;
+
+        case 'o':
+            if (sscanf (optarg, "%" SCNi64 ",%" SCNi64 ",%" SCNi64 ",%c",
+                    &arg_descriptors_iova_offset, &arg_h2c_data_iova_offset, &arg_c2h_data_iova_offset, &junk) != 3)
+            {
+                printf ("Invalid IOVA offsets %s\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            arg_apply_iova_offsets = true;
+            break;
+
+        case '?':
+        default:
+            printf ("Usage %s -d <pci_device_location> -o <descriptors_iova_offset,h2c_data_iova_offset,c2h_data_iova_offset>\n", argv[0]);
+            exit (EXIT_FAILURE);
+            break;
+        }
+        option = getopt (argc, argv, optstring);
+    }
+}
+
+
 /**
  * @brief Start the timeout for a test
  */
@@ -322,6 +370,49 @@ static void initialise_descriptor_ring (descriptor_ring_t *const ring, uint8_t *
 
 
 /**
+ * @brief When enabled by command line options apply an offset the allocated IOVAs to test IOMMU error handling
+ * @param[in/out] descriptors_mapping Used for DMA descriptors. IOVA has read/write access.
+ *                                    Write access needed for completion write-back.
+ * @param[in/out] h2c_data_mapping Used for data transfers from the host to card. IOVA has read access.
+ * @param[in/out] c2h_data_mapping Used for data transfers from the card to host. IOVA has write access.
+ */
+static void apply_iova_offsets (vfio_dma_mapping_t *const descriptors_mapping,
+                                vfio_dma_mapping_t *const h2c_data_mapping,
+                                vfio_dma_mapping_t *const c2h_data_mapping)
+{
+    if (arg_apply_iova_offsets)
+    {
+        if ((descriptors_mapping->buffer.allocation_type == VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY) ||
+            (h2c_data_mapping->buffer.allocation_type    == VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY) ||
+            (c2h_data_mapping->buffer.allocation_type    == VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY)   )
+        {
+            printf ("Applying IOVA offsets is disabled when physical memory is used, as may crash the PC\n");
+        }
+        else
+        {
+            printf ("Changing descriptors IOVA 0x%" PRIx64 "..0x%" PRIx64,
+                    descriptors_mapping->iova, descriptors_mapping->iova + (descriptors_mapping->buffer.size - 1));
+            descriptors_mapping->iova += arg_descriptors_iova_offset;
+            printf (" -> 0x%" PRIx64 "..0x%" PRIx64 "\n",
+                    descriptors_mapping->iova, descriptors_mapping->iova + (descriptors_mapping->buffer.size - 1));
+
+            printf ("Changing h2c_data IOVA 0x%" PRIx64 "..0x%" PRIx64,
+                    h2c_data_mapping->iova, h2c_data_mapping->iova + (h2c_data_mapping->buffer.size - 1));
+            h2c_data_mapping->iova += arg_h2c_data_iova_offset;
+            printf (" -> 0x%" PRIx64 "..0x%" PRIx64 "\n",
+                    h2c_data_mapping->iova, h2c_data_mapping->iova + (h2c_data_mapping->buffer.size - 1));
+
+            printf ("Changing c2h_data IOVA 0x%" PRIx64 "..0x%" PRIx64,
+                    c2h_data_mapping->iova, c2h_data_mapping->iova + (c2h_data_mapping->buffer.size - 1));
+            c2h_data_mapping->iova += arg_c2h_data_iova_offset;
+            printf (" -> 0x%" PRIx64 "..0x%" PRIx64 "\n",
+                    c2h_data_mapping->iova, c2h_data_mapping->iova + (c2h_data_mapping->buffer.size - 1));
+        }
+    }
+}
+
+
+/**
  * @brief Perform DMA tests on a DMA bridge with a memory mapped user interface.
  * @details A ring of descriptors is created and the DMA set to run.
  *          Descriptor credits are used to start the DMA transfers, where the descriptors are only populated
@@ -391,6 +482,8 @@ static bool test_memory_mapped_descriptor_rings (fpga_designs_t *const designs, 
     {
         return false;
     }
+
+    apply_iova_offsets (&descriptors_mapping, &h2c_data_mapping, &c2h_data_mapping);
 
     uint32_t *const host_words = h2c_data_mapping.buffer.vaddr;
     uint32_t *const card_words = c2h_data_mapping.buffer.vaddr;
@@ -502,7 +595,7 @@ static bool test_memory_mapped_descriptor_rings (fpga_designs_t *const designs, 
     write_reg32 (c2h_ring.x2x_channel_regs, X2X_CHANNEL_CONTROL_W1C_OFFSET, X2X_CHANNEL_CONTROL_RUN);
 
     /* Check the test pattern has been successfully transfered to the card words.
-     * Done even if the failed to complete with a timeout, to indicate how much of the test pattern was successfully written/ */
+     * Done even if the failed to complete with a timeout, to indicate how much of the test pattern was successfully written. */
     bool pattern_valid = true;
     for (word_index = 0; pattern_valid && (word_index < total_memory_words); word_index++)
     {
@@ -562,7 +655,9 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
     uint32_t remaining_message_words;
     uint32_t word_index;
     bool h2c_completed;
-    bool success;
+    bool dma_completion_success;
+    bool test_pattern_success;
+    uint32_t message_index;
 
     fpga_design_t *const design = &designs->designs[design_index];
 
@@ -608,6 +703,8 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
         return false;
     }
 
+    apply_iova_offsets (&descriptors_mapping, &h2c_data_mapping, &c2h_data_mapping);
+
     /* Initialise the rings, but don't populate the descriptors to actually perform DMA transfers */
     initialise_descriptor_ring (&h2c_ring, mapped_registers_base, DMA_SUBMODULE_H2C_CHANNELS, h2c_channel_id,
             num_descriptors_per_ring, &descriptors_mapping);
@@ -634,9 +731,11 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
     uint32_t host_test_pattern = 0;
     uint32_t card_test_pattern = 0;
     uint32_t num_processed_c2h_descriptors = 0;
-    success = true;
+    dma_completion_success = true;
+    test_pattern_success = true;
     start_test_timeout ();
-    for (uint32_t message_index = 0; success && (message_index < total_messages); message_index++)
+    message_index = 0;
+    while (dma_completion_success && (message_index < total_messages))
     {
         const uint32_t num_descriptors_for_message = (message_length_words + (page_size_words - 1)) / page_size_words;
 
@@ -672,7 +771,7 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
 
         /* Receive the message, split over one or more descriptors */
         remaining_message_words = message_length_words;
-        for (descriptor_offset = 0; success && (descriptor_offset < num_descriptors_for_message); descriptor_offset++)
+        for (descriptor_offset = 0; dma_completion_success && (descriptor_offset < num_descriptors_for_message); descriptor_offset++)
         {
             const uint32_t word_offset = page_size_words * c2h_ring.next_descriptor_index;
             const uint32_t num_words_in_descriptor = (remaining_message_words < page_size_words) ?
@@ -681,9 +780,11 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
             const uint32_t expected_length = num_words_in_descriptor * sizeof (uint32_t);
             c2h_stream_writeback_t *const stream_writeback = &c2h_ring.stream_writeback[c2h_ring.next_descriptor_index];
 
-            /* Wait for the next C2H descriptor to complete. */
+            /* Wait for the next C2H descriptor to complete.
+             * The H2C descriptor has to complete before the C2H descriptor can complete.
+             * In the event the H2C fails to complete, this code reports an error against the C2H failing to complete. */
             bool c2h_descriptor_populated = false;
-            while (success && (!c2h_descriptor_populated))
+            while (dma_completion_success && (!c2h_descriptor_populated))
             {
                 const uint32_t sts_err_compl_descriptor_count =
                         __atomic_load_n (&c2h_ring.completed_descriptor_count->sts_err_compl_descriptor_count, __ATOMIC_ACQUIRE);
@@ -696,13 +797,13 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
                 }
                 else
                 {
-                    check_for_test_timeout (&success, "C2H descriptor to complete (processed %" PRIu32 " completed %" PRIu32 " channel_status 0x%" PRIx32 ")",
+                    check_for_test_timeout (&dma_completion_success, "C2H descriptor to complete (processed %" PRIu32 " completed %" PRIu32 " channel_status 0x%" PRIx32 ")",
                             num_processed_c2h_descriptors, c2h_completed_descriptor_count,
                             read_reg32 (c2h_ring.x2x_channel_regs, X2X_CHANNEL_STATUS_RW1C_OFFSET));
                 }
             }
 
-            if (success)
+            if (dma_completion_success)
             {
                 /* A receive descriptor is available. Check:
                  * a. The stream writeback has the expected magic value.
@@ -714,28 +815,32 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
                 if ((stream_writeback->wb_magic_status & C2H_STREAM_WB_MAGIC_MASK) != C2H_STREAM_WB_MAGIC)
                 {
                     printf ("Incorrect stream wb_magic_status 0x%" PRIx32 "\n", stream_writeback->wb_magic_status);
-                    success = false;
+                    dma_completion_success = false;
                 }
                 else if (actual_eop != expected_eop)
                 {
                     printf ("Incorrect EOP actual %d expected %d\n", actual_eop, expected_eop);
-                    success = false;
+                    dma_completion_success = false;
                 }
                 else if (stream_writeback->length != expected_length)
                 {
                     printf ("Incorrect length actual %" PRIu32 " expected %" PRIu32 "\n",
                             stream_writeback->length, expected_length);
-                    success = false;
+                    dma_completion_success = false;
                 }
                 else
                 {
-                    for (word_index = 0; success && (word_index < num_words_in_descriptor); word_index++)
+                    /* Check the test pattern has been successfully transfered to the card words.
+                     * Stops checking the test pattern after the first failure, but allow DMA to continue.
+                     * This is tell the difference between errors which cause the transferred data to be incorrect,
+                     * v.s.errors which cause the DMA to fail to complete. */
+                    for (word_index = 0; test_pattern_success && (word_index < num_words_in_descriptor); word_index++)
                     {
                         if (card_words[word_offset + word_index] != card_test_pattern)
                         {
                             printf ("card_words[%" PRIu32 "] actual=0x%08" PRIx32 " expected=0x%08" PRIx32 "\n",
                                     word_index, card_words[word_index], card_test_pattern);
-                            success = false;
+                            test_pattern_success = false;
                         }
                         else
                         {
@@ -745,7 +850,7 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
                 }
             }
 
-            if (success)
+            if (dma_completion_success)
             {
                 /* Clear the writeback for the H2C descriptor and re-start it */
                 stream_writeback->wb_magic_status = 0;
@@ -758,9 +863,9 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
             }
         }
 
-        /* Ensure the C2H descriptors have completed. This is not expected to have to wait. */
+        /* Ensure the H2C descriptors have completed. This is not expected to have to wait. */
         h2c_completed = false;
-        while (success && (!h2c_completed))
+        while (dma_completion_success && (!h2c_completed))
         {
             const uint32_t sts_err_compl_descriptor_count =
                     __atomic_load_n (&h2c_ring.completed_descriptor_count->sts_err_compl_descriptor_count, __ATOMIC_ACQUIRE);
@@ -773,7 +878,7 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
             }
             else
             {
-                check_for_test_timeout (&success, "H2C descriptors to complete (started %" PRIu32 " completed %" PRIu32 " channel_status 0x%" PRIx32 ")",
+                check_for_test_timeout (&dma_completion_success, "H2C descriptors to complete (started %" PRIu32 " completed %" PRIu32 " channel_status 0x%" PRIx32 ")",
                         h2c_ring.started_descriptor_count, h2c_completed_descriptor_count,
                         read_reg32 (h2c_ring.x2x_channel_regs, X2X_CHANNEL_STATUS_RW1C_OFFSET));
             }
@@ -782,16 +887,27 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
         total_message_words += message_length_words;
         total_message_descriptors += num_descriptors_for_message;
         message_length_words++;
+
+        if (dma_completion_success)
+        {
+            message_index++;
+        }
     }
 
     /* Stop the channel running at the end of the test */
     write_reg32 (h2c_ring.x2x_channel_regs, X2X_CHANNEL_CONTROL_W1C_OFFSET, X2X_CHANNEL_CONTROL_RUN);
     write_reg32 (c2h_ring.x2x_channel_regs, X2X_CHANNEL_CONTROL_W1C_OFFSET, X2X_CHANNEL_CONTROL_RUN);
 
+    const bool success = dma_completion_success && test_pattern_success;
     if (success)
     {
         printf ("Successfully sent %" PRIu32 " messages from Ch%" PRIu32 "->%" PRIu32 " with a total of %zu words in %zu descriptors\n",
                 total_messages, h2c_channel_id, c2h_channel_id, total_message_words, total_message_descriptors);
+    }
+    else
+    {
+        printf ("Failed after %" PRIu32 " out of %" PRIu32 " messages transferred by DMA\n",
+                message_index, total_messages);
     }
 
     free_vfio_dma_mapping (&designs->vfio_devices, &c2h_data_mapping);
@@ -807,11 +923,7 @@ int main (int argc, char *argv[])
     fpga_designs_t designs;
     bool success;
 
-    /* Any command line arguments are PCI device location filters */
-    for (int arg_index = 1; arg_index < argc; arg_index++)
-    {
-        vfio_add_pci_device_location_filter (argv[arg_index]);
-    }
+    parse_command_line_arguments (argc, argv);
 
     /* Open the FPGA designs which have an IOMMU group assigned */
     identify_pcie_fpga_designs (&designs);
