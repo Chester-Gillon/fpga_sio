@@ -217,9 +217,9 @@ static uint32_t arg_num_uarts_tested = NUM_UARTS;
 static bool arg_enabled_test_modes[UART_TEST_MODE_ARRAY_SIZE];
 
 
-/* Command line argument to specify an increment added to the starting IOVA,
- * for testing handling of IOVA above the 4-GB Address Boundary space in the PEX8311 DMA. */
-static uint64_t arg_iova_increment;
+/* Command line argument to specify the DMA capability for testing handling of IOVA above the 4-GB Address Boundary
+ * space in the PEX8311 DMA. */
+static vfio_device_dma_capability_t arg_dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A32;
 
 
 /* Command line argument which sets the maximum size of each DMA transfer. Lowering the value requires more DMA transfers
@@ -238,7 +238,7 @@ static bool arg_no_dma_channel_overlap;
  */
 static void parse_command_line_arguments (int argc, char *argv[])
 {
-    const char *const optstring = "edu:m:i:t:o?";
+    const char *const optstring = "edu:m:6t:o?";
     int option;
     char junk;
     uart_test_mode_t test_mode;
@@ -285,12 +285,8 @@ static void parse_command_line_arguments (int argc, char *argv[])
             test_modes_specified = true;
             break;
 
-        case 'i':
-            if (sscanf (optarg, "%" SCNi64 "%c", &arg_iova_increment, &junk) != 1)
-            {
-                printf ("ERROR: Invalid IOVA increment \"%s\"\n", optarg);
-                exit (EXIT_FAILURE);
-            }
+        case '6':
+            arg_dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64;
             break;
 
         case 't':
@@ -308,12 +304,13 @@ static void parse_command_line_arguments (int argc, char *argv[])
 
         case '?':
         default:
-            printf ("Usage %s [-e] [-d] [-o] [-u <num_uarts_tested>] [-m PIO|DMA_BLOCK|DMA_RING] [-i <IOVA_increment>] [-t <MAX_DMA_transfer_size_bytes>]\n", argv[0]);
+            printf ("Usage %s [-e] [-d] [-o] [-u <num_uarts_tested>] [-m PIO|DMA_BLOCK|DMA_RING] [-6] [-t <MAX_DMA_transfer_size_bytes>]\n", argv[0]);
             printf ("  -e performs test using external loopback, in addition to internal loopback\n");
             printf ("  -d dumps the PEX8311 Local Configuration Space registers for debugging\n");
             printf ("  -o disables overlapping DMA between different channels\n");
             printf ("  -m may be specified more than once to specify multiple test modes\n");
             printf ("     Defaults to all test modes if not specified\n");
+            printf ("  -6 specifies 64-bit DMA addressing capability\n");
             exit (EXIT_FAILURE);
             break;
         }
@@ -1338,7 +1335,7 @@ static void perform_uart_tests (vfio_devices_t *const vfio_devices, const uint32
             vfio_align_cache_line_size ((TEST_DMA_RING_SIZE * sizeof (pex_ring_dma_descriptor_short_format_t))); /* DMA descriptors */
     const size_t required_iova_size = arg_num_uarts_tested * per_context_iova_size;
     const size_t aligned_iova_size = ((required_iova_size + page_size - 1) / page_size) * page_size;
-    allocate_vfio_dma_mapping (vfio_devices, &vfio_mapping, aligned_iova_size,
+    allocate_vfio_dma_mapping (vfio_device, &vfio_mapping, aligned_iova_size,
             VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, VFIO_BUFFER_ALLOCATION_HEAP);
     if (vfio_mapping.buffer.vaddr == NULL)
     {
@@ -1495,7 +1492,7 @@ static void perform_uart_tests (vfio_devices_t *const vfio_devices, const uint32
         serial_set_additional_status_read (&ports[port_index], enable_asr);
     }
 
-    free_vfio_dma_mapping (vfio_devices, &vfio_mapping);
+    free_vfio_dma_mapping (&vfio_mapping);
 
     if (total_tests > 0)
     {
@@ -1515,6 +1512,8 @@ int main (int argc, char *argv[])
 {
     vfio_devices_t vfio_devices;
 
+    parse_command_line_arguments (argc, argv);
+
     /* The device ID for a SIO4 board, which is what the identity of the Sealevel COMM+2.LPCIe board (7205e)
      * has been changed to as described in
      * https://github.com/Chester-Gillon/plx_poll_mode_driver/blob/master/plx_poll_mode_driver/sealevel_pex8311_addressing.txt */
@@ -1524,16 +1523,11 @@ int main (int argc, char *argv[])
         .device_id = 0x9056,
         .subsystem_vendor_id = 0x10b5,
         .subsystem_device_id = 0x3198,
-        .enable_bus_master = true
+        .dma_capability = arg_dma_capability
     };
-
-    parse_command_line_arguments (argc, argv);
 
     /* Open the Sealevel devices which have an IOMMU group assigned */
     open_vfio_devices_matching_filter (&vfio_devices, 1, &filter);
-
-    /* For test purposes allow overriding the starting IOVA value */
-    vfio_devices.next_iova += arg_iova_increment;
 
     /* Process any Sealevel devices found */
     for (uint32_t device_index = 0; device_index < vfio_devices.num_devices; device_index++)

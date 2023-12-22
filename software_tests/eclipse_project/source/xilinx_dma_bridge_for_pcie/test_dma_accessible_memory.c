@@ -46,13 +46,17 @@ static uint32_t arg_h2c_channel_id;
 static uint32_t arg_c2h_channel_id;
 
 
+/* Command line argument which selects VFIO_DEVICE_DMA_CAPABILITY_A32, for testing the vfio_access code */
+static bool arg_test_a32_dma_capability;
+
+
 /**
  * @brief Parse the command line arguments, storing the results in global variables
  * @param[in] argc, argv Arguments passed to main
  */
 static void parse_command_line_arguments (int argc, char *argv[])
 {
-    const char *const optstring = "a:b:c:h:l:m:d:?";
+    const char *const optstring = "a:b:c:h:l:m:d:3?";
     int option;
     char junk;
 
@@ -127,11 +131,16 @@ static void parse_command_line_arguments (int argc, char *argv[])
             vfio_add_pci_device_location_filter (optarg);
             break;
 
+        case '3':
+            arg_test_a32_dma_capability = true;
+            break;
+
         case '?':
         default:
-            printf ("Usage %s [-a <min_size_alignment>] [-b heap|shared_memory|huge_pages] [-c c2h_channel_id] [-h h2c_channel_id] [-l <c2h_transfer_size>] [-m <h2c_transfer_size>] [-d <pci_device_location>]\n", argv[0]);
+            printf ("Usage %s [-a <min_size_alignment>] [-b heap|shared_memory|huge_pages] [-c c2h_channel_id] [-h h2c_channel_id] [-l <c2h_transfer_size>] [-m <h2c_transfer_size>] [-d <pci_device_location>] [-3]\n", argv[0]);
             printf ("  -l limits the card-to-host transfer to one page at a time, reducing memory\n");
             printf ("     requirements but increasing transfer overheads.\n");
+            printf ("  -3 specifies only 32-bit DMA addressing capability\n");
             exit (EXIT_FAILURE);
             break;
         }
@@ -162,24 +171,19 @@ int main (int argc, char *argv[])
     /* Open the FPGA designs which have an IOMMU group assigned */
     identify_pcie_fpga_designs (&designs);
 
-    /* @todo Force IOVA to start at 4G boundary, as a simple way to avoid allocating reserved regions which are indicated
-     *       by VFIO_IOMMU_TYPE1_INFO_CAP_IOVA_RANGE.
-     *       Attempts to use a reserved region causes VFIO_IOMMU_MAP_DMA to fail with EPERM.
-     *       This simple method assumes:
-     *       a. The DMA uses 64 bit-addresses
-     *       b. Reserved regions are in the first 4GB or at very high addresses.
-     *
-     *       An improvement to the vfio_access library would be to take note of VFIO_IOMMU_TYPE1_INFO_CAP_IOVA_RANGE
-     */
-    designs.vfio_devices.next_iova = 0x100000000UL;
-
     /* Process any FPGA designs which have DMA accessible memory */
     for (uint32_t design_index = 0; design_index < designs.num_identified_designs; design_index++)
     {
         fpga_design_t *const design = &designs.designs[design_index];
+        vfio_device_t *const vfio_device = &designs.vfio_devices.devices[design_index];
 
         if (design->dma_bridge_present && (design->dma_bridge_memory_size_bytes > 0))
         {
+            if (arg_test_a32_dma_capability)
+            {
+                vfio_device->dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A32;
+            }
+
             printf ("Testing %s design", fpga_design_names[design->design_id]);
             if ((design->design_id == FPGA_DESIGN_LITEFURY_PROJECT0) || (design->design_id == FPGA_DESIGN_NITEFURY_PROJECT0))
             {
@@ -211,15 +215,15 @@ int main (int argc, char *argv[])
             }
 
             /* Create read/write mapping of a single page for DMA descriptors */
-            allocate_vfio_dma_mapping (&designs.vfio_devices, &descriptors_mapping, page_size,
+            allocate_vfio_dma_mapping (vfio_device, &descriptors_mapping, page_size,
                     VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
 
             /* Read mapping used by device, with each transfer limited to the maximum of the memory and command line argument */
-            allocate_vfio_dma_mapping (&designs.vfio_devices, &h2c_data_mapping, num_bytes_per_h2c_xfer,
+            allocate_vfio_dma_mapping (vfio_device, &h2c_data_mapping, num_bytes_per_h2c_xfer,
                     VFIO_DMA_MAP_FLAG_READ, arg_buffer_allocation);
 
             /* Write mapping used by device, with each transfer limited to the maximum of the memory and command line argument */
-            allocate_vfio_dma_mapping (&designs.vfio_devices, &c2h_data_mapping, num_bytes_per_c2h_xfer,
+            allocate_vfio_dma_mapping (vfio_device, &c2h_data_mapping, num_bytes_per_c2h_xfer,
                     VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
 
             if ((descriptors_mapping.buffer.vaddr != NULL) &&
@@ -344,9 +348,9 @@ int main (int argc, char *argv[])
                 display_transfer_timing_statistics (&c2h_timing);
             }
 
-            free_vfio_dma_mapping (&designs.vfio_devices, &c2h_data_mapping);
-            free_vfio_dma_mapping (&designs.vfio_devices, &h2c_data_mapping);
-            free_vfio_dma_mapping (&designs.vfio_devices, &descriptors_mapping);
+            free_vfio_dma_mapping (&c2h_data_mapping);
+            free_vfio_dma_mapping (&h2c_data_mapping);
+            free_vfio_dma_mapping (&descriptors_mapping);
         }
     }
 

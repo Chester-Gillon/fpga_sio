@@ -85,7 +85,7 @@ int main (int argc, char *argv[])
         .device_id = NVRAM_DEVICE_ID,
         .subsystem_vendor_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_device_id = VFIO_PCI_DEVICE_FILTER_ANY,
-        .enable_bus_master = false
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE /* Since only testing register access in this program */
     };
 
     /* Open the Micro Memory devices which have an IOMMU group assigned */

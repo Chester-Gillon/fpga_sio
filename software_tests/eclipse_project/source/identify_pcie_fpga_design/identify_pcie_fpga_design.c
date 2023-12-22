@@ -46,7 +46,7 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_DMA_BLKRAM,
-        .enable_bus_master = true
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     },
     [FPGA_DESIGN_I2C_PROBE] =
     {
@@ -54,7 +54,7 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_I2C_PROBE,
-        .enable_bus_master = false
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE
     },
     [FPGA_DESIGN_TOSING_160T_DMA_DDR3] =
     {
@@ -62,7 +62,7 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_TOSING_160T_DMA_DDR3,
-        .enable_bus_master = true
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     },
     /* Same identity used for both Litefury and Nitefury, with a GPIO read to identify which design */
     [FPGA_DESIGN_LITEFURY_PROJECT0 ... FPGA_DESIGN_NITEFURY_PROJECT0] =
@@ -71,7 +71,7 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .device_id = 0x7011,
         .subsystem_vendor_id = 0,
         .subsystem_device_id = 0,
-        .enable_bus_master = true
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     },
     [FPGA_DESIGN_TEF1001_DMA_DDR3] =
     {
@@ -79,7 +79,7 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_TEF1001_DMA_DDR3,
-        .enable_bus_master = true
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     },
     [FPGA_DESIGN_NITEFURY_DMA_DDR3] =
     {
@@ -87,7 +87,7 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_NITEFURY_DMA_DDR3,
-        .enable_bus_master = true
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     },
     [FPGA_DESIGN_TEF1001_DMA_STREAM_LOOPBACK] =
     {
@@ -95,7 +95,7 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_TEF1001_DMA_STREAM_LOOPBACK,
-        .enable_bus_master = true
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     },
     [FPGA_DESIGN_NITEFURY_DMA_STREAM_LOOPBACK] =
     {
@@ -103,7 +103,7 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_NITEFURY_DMA_STREAM_LOOPBACK,
-        .enable_bus_master = true
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     },
     [FPGA_DESIGN_TOSING_160T_DMA_STREAM_LOOPBACK] =
     {
@@ -111,7 +111,7 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_TOSING_160T_DMA_STREAM_LOOPBACK,
-        .enable_bus_master = true
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     }
 };
 

@@ -54,6 +54,18 @@ typedef struct
 } vfio_buffer_t;
 
 
+/* Defines the DMA capability of a VFIO device */
+typedef enum
+{
+    /* No DMA capability, and therefore no need to enable as a bus master */
+    VFIO_DEVICE_DMA_CAPABILITY_NONE,
+    /* Can perform DMA using only 32-bit addresses, and enabled as a bus master. Given priority to IOVA < 4GiB. */
+    VFIO_DEVICE_DMA_CAPABILITY_A32,
+    /* Performs DMA using 64-bit addresses, and enabled as a bus master. Defaults to allocations using IOVA >= 4GiB. */
+    VFIO_DEVICE_DMA_CAPABILITY_A64
+} vfio_device_dma_capability_t;
+
+
 /* Defines one device which has been opened using vfio and has all its memory BARs mapped */
 typedef struct
 {
@@ -62,6 +74,8 @@ typedef struct
     u16 pci_device_id;
     u16 pci_subsystem_vendor_id;
     u16 pci_subsystem_device_id;
+    /* The DMA capability of the device, which must be determined by the caller of this API */
+    vfio_device_dma_capability_t dma_capability;
     /* The IOMMU group for the device, read when scanning the PCI bus */
     char *iommu_group;
     /* The pathname for the vfio group character file */
@@ -103,6 +117,8 @@ typedef struct
      *    in the application until the first access, which triggers a page fault. Haven't yet confirmed this by tracing
      *    page faults. */
     uint8_t *mapped_bars[PCI_STD_NUM_BARS];
+    /* Points the at the enclosing vfio_devices_t to obtain the IOMMU container for allocating mappings */
+    struct vfio_devices_s *vfio_devices;
 } vfio_device_t;
 
 
@@ -120,9 +136,23 @@ typedef enum
 } vfio_cmem_usage_t;
 
 
+/* Defines one region of IOVA, for consecutive addresses, for the purpose of allocating IOVA */
+typedef struct
+{
+    /* The start IOVA of the region */
+    uint64_t start;
+    /* The inclusive end IOVA of the region */
+    uint64_t end;
+    /* Defines if the region is in-use:
+     * - false means free for allocation
+     * - true means has been allocated */
+    bool allocated;
+} vfio_iova_region_t;
+
+
 /* Contains all devices which have opened using vfio */
 #define MAX_VFIO_DEVICES 4
-typedef struct
+typedef struct vfio_devices_s
 {
     /* If non-NULL used to search for PCI devices */
     struct pci_access *pacc;
@@ -140,21 +170,30 @@ typedef struct
     __s32 iommu_type;
     /* When non-NULL contains the information about the IOMMU to support IOVA allocations */
     struct vfio_iommu_type1_info *iommu_info;
-    /* Used to allocate the next IOVA address allocated, when iommu_type is other than VFIO_NOIOMMU_IOMMU */
-    uint64_t next_iova;
     /* Used to track usage of the cmem driver */
     vfio_cmem_usage_t cmem_usage;
     /* The number of devices which have been opened */
     uint32_t num_devices;
     /* The devices which have been opened */
     vfio_device_t devices[MAX_VFIO_DEVICES];
+    /* Dynamically sized array of IOVA regions used to perform IOVA allocations in order to:
+     * a. Only allocate from valid region. I.e. excludes reserved regions.
+     * b. Support allocations for both VFIO_DEVICE_DMA_CAPABILITY_A32 and VFIO_DEVICE_DMA_CAPABILITY_A64
+     *
+     * Initialised to free regions reported by VFIO_IOMMU_TYPE1_INFO_CAP_IOVA_RANGE.
+     * Updated as allocate_vfio_dma_mapping() and free_vfio_dma_mapping() are called. */
+    vfio_iova_region_t *iova_regions;
+    /* The current number of valid entries in the iova_regions[] array */
+    uint32_t num_iova_regions;
+    /* The current allocated length of the iova_regions[] array, dynamically grown as required */
+    uint32_t iova_regions_allocated_length;
 } vfio_devices_t;
 
 
 /*
  * Defines a filter which can match PCI devices by identity to open for VFIO access.
  * VFIO_PCI_DEVICE_FILTER_ANY can be used for any field to ignore the value.
- * enable_bus_master is set to enable the PCI device as a bus master (for DMA).
+ * dma_capability is used to specify if the PCI device supports DMA, and needs to be enabled as a bus master.
  */
 #define VFIO_PCI_DEVICE_FILTER_ANY -1
 typedef struct
@@ -163,7 +202,7 @@ typedef struct
     int device_id;
     int subsystem_vendor_id;
     int subsystem_device_id;
-    bool enable_bus_master;
+    vfio_device_dma_capability_t dma_capability;
 } vfio_pci_device_identity_filter_t;
 
 
@@ -176,6 +215,8 @@ typedef struct
     uint64_t iova;
     /* Allows the mapping to have its contents allocated for different uses */
     size_t num_allocated_bytes;
+    /* Points the at the enclosing vfio_devices_t to obtain the IOMMU container for freeing mappings */
+    vfio_devices_t *vfio_devices;
 } vfio_dma_mapping_t;
 
 
@@ -199,7 +240,8 @@ void create_vfio_buffer (vfio_buffer_t *const buffer,
                          const size_t size, const vfio_buffer_allocation_type_t buffer_allocation,
                          const char *const name_suffix);
 void free_vfio_buffer (vfio_buffer_t *const buffer);
-void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev, const bool enable_bus_master);
+void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev,
+                       const vfio_device_dma_capability_t dma_capability);
 void map_vfio_device_bar_before_use (vfio_device_t *const vfio_device, const uint32_t bar_index);
 uint8_t *map_vfio_registers_block (vfio_device_t *const vfio_device, const uint32_t bar_index,
                                    const size_t base_offset, const size_t frame_size);
@@ -211,14 +253,14 @@ void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
 void close_vfio_devices (vfio_devices_t *const vfio_devices);
 void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_device_identity_filter_t filters[const num_filters],
                                     const char *const design_names[const num_filters]);
-void allocate_vfio_dma_mapping (vfio_devices_t *const vfio_devices,
+void allocate_vfio_dma_mapping (vfio_device_t *const vfio_device,
                                 vfio_dma_mapping_t *const mapping,
                                 const size_t requested_size, const uint32_t permission,
                                 const vfio_buffer_allocation_type_t buffer_allocation);
 void *vfio_dma_mapping_allocate_space (vfio_dma_mapping_t *const mapping,
                                        const size_t allocation_size, uint64_t *const allocated_iova);
 void vfio_dma_mapping_align_space (vfio_dma_mapping_t *const mapping);
-void free_vfio_dma_mapping (const vfio_devices_t *const vfio_devices, vfio_dma_mapping_t *const mapping);
+void free_vfio_dma_mapping (vfio_dma_mapping_t *const mapping);
 uint16_t vfio_read_pci_config_word (const vfio_device_t *const vfio_device, const uint32_t offset);
 uint32_t vfio_read_pci_config_long (const vfio_device_t *const vfio_device, const uint32_t offset);
 void vfio_write_pci_config_word (const vfio_device_t *const vfio_device, const uint32_t offset, const uint16_t config_word);

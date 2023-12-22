@@ -110,14 +110,9 @@ static void display_type1_iommu_capabilities (const int container_fd)
     }
 
     /* Report fixed information in the vfio_iommu_type1_info structure */
-#ifdef VFIO_IOMMU_INFO_CAPS
     printf ("  info supports: pagesizes=%d caps=%d\n",
             (iommu_info->flags & VFIO_IOMMU_INFO_PGSIZES) != 0,
             (iommu_info->flags & VFIO_IOMMU_INFO_CAPS) != 0);
-#else
-    printf ("  info supports: pagesizes=%d\n",
-            (iommu_info->flags & VFIO_IOMMU_INFO_PGSIZES) != 0);
-#endif
     printf ("  IOVA supported page sizes:");
     for (page_size = 1; page_size != 0; page_size <<= 1)
     {
@@ -128,7 +123,6 @@ static void display_type1_iommu_capabilities (const int container_fd)
     }
     printf ("\n");
 
-#ifdef VFIO_IOMMU_INFO_CAPS
     if (((iommu_info->flags & VFIO_IOMMU_INFO_CAPS) != 0) && (iommu_info->cap_offset > 0))
     {
         /* Report IOMMU capabilities, by following the chain */
@@ -196,7 +190,6 @@ static void display_type1_iommu_capabilities (const int container_fd)
             cap_offset = cap_header->next;
         }
     }
-#endif
 }
 
 

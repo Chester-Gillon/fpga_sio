@@ -203,7 +203,7 @@ int main (int argc, char *argv[])
         .device_id = NVRAM_DEVICE_ID,
         .subsystem_vendor_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_device_id = VFIO_PCI_DEVICE_FILTER_ANY,
-        .enable_bus_master = true
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     };
 
     /* Open the Micro Memory devices which have an IOMMU group assigned */
@@ -228,15 +228,15 @@ int main (int argc, char *argv[])
                 initialise_nvram_device (csr);
 
                 /* Create read/write mapping of a single page for DMA descriptors */
-                allocate_vfio_dma_mapping (&vfio_devices, &descriptors_mapping, page_size,
+                allocate_vfio_dma_mapping (vfio_device, &descriptors_mapping, page_size,
                         VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, VFIO_BUFFER_ALLOCATION_HEAP);
 
                 /* Read mapping used by device to transfer a region of host memory to the entire NVRAM contents */
-                allocate_vfio_dma_mapping (&vfio_devices, &h2c_data_mapping, nvram_size_bytes,
+                allocate_vfio_dma_mapping (vfio_device, &h2c_data_mapping, nvram_size_bytes,
                         VFIO_DMA_MAP_FLAG_READ, VFIO_BUFFER_ALLOCATION_HEAP);
 
                 /* Write mapping used by device to transfer the entire NVRAM contents to a region of host memory */
-                allocate_vfio_dma_mapping (&vfio_devices, &c2h_data_mapping, nvram_size_bytes,
+                allocate_vfio_dma_mapping (vfio_device, &c2h_data_mapping, nvram_size_bytes,
                         VFIO_DMA_MAP_FLAG_WRITE, VFIO_BUFFER_ALLOCATION_HEAP);
 
                 if ((descriptors_mapping.buffer.vaddr != NULL) &&
@@ -253,9 +253,9 @@ int main (int argc, char *argv[])
                     }
                 }
 
-                free_vfio_dma_mapping (&vfio_devices, &c2h_data_mapping);
-                free_vfio_dma_mapping (&vfio_devices, &h2c_data_mapping);
-                free_vfio_dma_mapping (&vfio_devices, &descriptors_mapping);
+                free_vfio_dma_mapping (&c2h_data_mapping);
+                free_vfio_dma_mapping (&h2c_data_mapping);
+                free_vfio_dma_mapping (&descriptors_mapping);
             }
         }
     }

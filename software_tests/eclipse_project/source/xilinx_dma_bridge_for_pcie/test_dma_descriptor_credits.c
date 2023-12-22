@@ -67,13 +67,17 @@ static uint64_t arg_h2c_data_iova_offset;
 static uint64_t arg_c2h_data_iova_offset;
 
 
+/* Command line argument which selects VFIO_DEVICE_DMA_CAPABILITY_A32, for testing the vfio_access code */
+static bool arg_test_a32_dma_capability;
+
+
 /**
  * @brief Parse the command line arguments
  * @param[in] argc, argv Arguments passed to main
  */
 static void parse_command_line_arguments (int argc, char *argv[])
 {
-    const char *const optstring = "d:o:";
+    const char *const optstring = "d:o:3?";
     int option;
     char junk;
 
@@ -96,9 +100,14 @@ static void parse_command_line_arguments (int argc, char *argv[])
             arg_apply_iova_offsets = true;
             break;
 
+        case '3':
+            arg_test_a32_dma_capability = true;
+            break;
+
         case '?':
         default:
-            printf ("Usage %s -d <pci_device_location> -o <descriptors_iova_offset,h2c_data_iova_offset,c2h_data_iova_offset>\n", argv[0]);
+            printf ("Usage %s -d <pci_device_location> -o <descriptors_iova_offset,h2c_data_iova_offset,c2h_data_iova_offset> [-3]\n", argv[0]);
+            printf ("  -3 specifies only 32-bit DMA addressing capability\n");
             exit (EXIT_FAILURE);
             break;
         }
@@ -375,11 +384,14 @@ static void initialise_descriptor_ring (descriptor_ring_t *const ring, uint8_t *
  *                                    Write access needed for completion write-back.
  * @param[in/out] h2c_data_mapping Used for data transfers from the host to card. IOVA has read access.
  * @param[in/out] c2h_data_mapping Used for data transfers from the card to host. IOVA has write access.
+ * @param[out] offsets_applied Set true if offsets have been applied.
  */
 static void apply_iova_offsets (vfio_dma_mapping_t *const descriptors_mapping,
                                 vfio_dma_mapping_t *const h2c_data_mapping,
-                                vfio_dma_mapping_t *const c2h_data_mapping)
+                                vfio_dma_mapping_t *const c2h_data_mapping,
+                                bool *const offsets_applied)
 {
+    *offsets_applied = false;
     if (arg_apply_iova_offsets)
     {
         if ((descriptors_mapping->buffer.allocation_type == VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY) ||
@@ -407,7 +419,29 @@ static void apply_iova_offsets (vfio_dma_mapping_t *const descriptors_mapping,
             c2h_data_mapping->iova += arg_c2h_data_iova_offset;
             printf (" -> 0x%" PRIx64 "..0x%" PRIx64 "\n",
                     c2h_data_mapping->iova, c2h_data_mapping->iova + (c2h_data_mapping->buffer.size - 1));
+            *offsets_applied = true;
         }
+    }
+}
+
+
+/**
+ * @brief Remove any IOVA offsets applied by apply_iova_offsets(), to allow the mappings to be freed
+ * @param[in/out] descriptors_mapping Used for DMA descriptors.
+ * @param[in/out] h2c_data_mapping Used for data transfers from the host to card.
+ * @param[in/out] c2h_data_mapping Used for data transfers from the card to host.
+ * @param[in] offsets_applied Set true if offsets need to be removed.
+ */
+static void remove_iova_offsets (vfio_dma_mapping_t *const descriptors_mapping,
+                                 vfio_dma_mapping_t *const h2c_data_mapping,
+                                 vfio_dma_mapping_t *const c2h_data_mapping,
+                                 const bool offsets_applied)
+{
+    if (offsets_applied)
+    {
+        descriptors_mapping->iova -= arg_descriptors_iova_offset;
+        h2c_data_mapping->iova -= arg_h2c_data_iova_offset;
+        c2h_data_mapping->iova -= arg_c2h_data_iova_offset;
     }
 }
 
@@ -431,6 +465,7 @@ static bool test_memory_mapped_descriptor_rings (fpga_designs_t *const designs, 
     vfio_dma_mapping_t descriptors_mapping;
     vfio_dma_mapping_t h2c_data_mapping;
     vfio_dma_mapping_t c2h_data_mapping;
+    bool iova_offsets_applied;
     descriptor_ring_t h2c_ring;
     descriptor_ring_t c2h_ring;
     size_t word_index;
@@ -439,6 +474,7 @@ static bool test_memory_mapped_descriptor_rings (fpga_designs_t *const designs, 
     bool success;
 
     fpga_design_t *const design = &designs->designs[design_index];
+    vfio_device_t *const vfio_device = &designs->vfio_devices.devices[design_index];
 
     /* Check that have been passed a BAR which is large enough to contain the DMA control registers */
     uint8_t *const mapped_registers_base = get_dma_mapped_registers_base (design);
@@ -465,15 +501,15 @@ static bool test_memory_mapped_descriptor_rings (fpga_designs_t *const designs, 
     const size_t total_descriptor_bytes_per_ring =
             vfio_align_cache_line_size (num_descriptors_per_ring * sizeof (dma_descriptor_t)) +
             vfio_align_cache_line_size (sizeof (completed_descriptor_count_writeback_t));
-    allocate_vfio_dma_mapping (&designs->vfio_devices, &descriptors_mapping, num_rings * total_descriptor_bytes_per_ring,
+    allocate_vfio_dma_mapping (vfio_device, &descriptors_mapping, num_rings * total_descriptor_bytes_per_ring,
             VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, VFIO_BUFFER_ALLOCATION_HEAP);
 
     /* Read mapping used by device, with each transfer limited to the maximum of the memory and command line argument */
-    allocate_vfio_dma_mapping (&designs->vfio_devices, &h2c_data_mapping, total_memory_bytes,
+    allocate_vfio_dma_mapping (vfio_device, &h2c_data_mapping, total_memory_bytes,
             VFIO_DMA_MAP_FLAG_READ, VFIO_BUFFER_ALLOCATION_HEAP);
 
     /* Write mapping used by device, with each transfer limited to the maximum of the memory and command line argument */
-    allocate_vfio_dma_mapping (&designs->vfio_devices, &c2h_data_mapping, total_memory_bytes,
+    allocate_vfio_dma_mapping (vfio_device, &c2h_data_mapping, total_memory_bytes,
             VFIO_DMA_MAP_FLAG_WRITE, VFIO_BUFFER_ALLOCATION_HEAP);
 
     if ((descriptors_mapping.buffer.vaddr == NULL) ||
@@ -483,7 +519,7 @@ static bool test_memory_mapped_descriptor_rings (fpga_designs_t *const designs, 
         return false;
     }
 
-    apply_iova_offsets (&descriptors_mapping, &h2c_data_mapping, &c2h_data_mapping);
+    apply_iova_offsets (&descriptors_mapping, &h2c_data_mapping, &c2h_data_mapping, &iova_offsets_applied);
 
     uint32_t *const host_words = h2c_data_mapping.buffer.vaddr;
     uint32_t *const card_words = c2h_data_mapping.buffer.vaddr;
@@ -612,9 +648,10 @@ static bool test_memory_mapped_descriptor_rings (fpga_designs_t *const designs, 
         }
     }
 
-    free_vfio_dma_mapping (&designs->vfio_devices, &c2h_data_mapping);
-    free_vfio_dma_mapping (&designs->vfio_devices, &h2c_data_mapping);
-    free_vfio_dma_mapping (&designs->vfio_devices, &descriptors_mapping);
+    remove_iova_offsets (&descriptors_mapping, &h2c_data_mapping, &c2h_data_mapping, iova_offsets_applied);
+    free_vfio_dma_mapping (&c2h_data_mapping);
+    free_vfio_dma_mapping (&h2c_data_mapping);
+    free_vfio_dma_mapping (&descriptors_mapping);
 
     return success;
 }
@@ -649,6 +686,7 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
     vfio_dma_mapping_t descriptors_mapping;
     vfio_dma_mapping_t h2c_data_mapping;
     vfio_dma_mapping_t c2h_data_mapping;
+    bool iova_offsets_applied;
     descriptor_ring_t h2c_ring;
     descriptor_ring_t c2h_ring;
     uint32_t descriptor_offset;
@@ -660,6 +698,7 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
     uint32_t message_index;
 
     fpga_design_t *const design = &designs->designs[design_index];
+    vfio_device_t *const vfio_device = &designs->vfio_devices.devices[design_index];
 
     /* Check that have been passed a BAR which is large enough to contain the DMA control registers */
     uint8_t *const mapped_registers_base = get_dma_mapped_registers_base (design);
@@ -684,16 +723,16 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
             vfio_align_cache_line_size (sizeof (completed_descriptor_count_writeback_t));
     const size_t total_descriptor_bytes_per_c2h_ring = total_descriptor_bytes_per_h2c_ring +
             vfio_align_cache_line_size (num_descriptors_per_ring * sizeof (c2h_stream_writeback_t));
-    allocate_vfio_dma_mapping (&designs->vfio_devices, &descriptors_mapping,
+    allocate_vfio_dma_mapping (vfio_device, &descriptors_mapping,
             total_descriptor_bytes_per_h2c_ring + total_descriptor_bytes_per_c2h_ring,
             VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, VFIO_BUFFER_ALLOCATION_HEAP);
 
     /* Read mapping used by device, with each transfer limited to the maximum of the memory and command line argument */
-    allocate_vfio_dma_mapping (&designs->vfio_devices, &h2c_data_mapping, total_memory_bytes,
+    allocate_vfio_dma_mapping (vfio_device, &h2c_data_mapping, total_memory_bytes,
             VFIO_DMA_MAP_FLAG_READ, VFIO_BUFFER_ALLOCATION_HEAP);
 
     /* Write mapping used by device, with each transfer limited to the maximum of the memory and command line argument */
-    allocate_vfio_dma_mapping (&designs->vfio_devices, &c2h_data_mapping, total_memory_bytes,
+    allocate_vfio_dma_mapping (vfio_device, &c2h_data_mapping, total_memory_bytes,
             VFIO_DMA_MAP_FLAG_WRITE, VFIO_BUFFER_ALLOCATION_HEAP);
 
     if ((descriptors_mapping.buffer.vaddr == NULL) ||
@@ -703,7 +742,7 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
         return false;
     }
 
-    apply_iova_offsets (&descriptors_mapping, &h2c_data_mapping, &c2h_data_mapping);
+    apply_iova_offsets (&descriptors_mapping, &h2c_data_mapping, &c2h_data_mapping, &iova_offsets_applied);
 
     /* Initialise the rings, but don't populate the descriptors to actually perform DMA transfers */
     initialise_descriptor_ring (&h2c_ring, mapped_registers_base, DMA_SUBMODULE_H2C_CHANNELS, h2c_channel_id,
@@ -910,9 +949,10 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
                 message_index, total_messages);
     }
 
-    free_vfio_dma_mapping (&designs->vfio_devices, &c2h_data_mapping);
-    free_vfio_dma_mapping (&designs->vfio_devices, &h2c_data_mapping);
-    free_vfio_dma_mapping (&designs->vfio_devices, &descriptors_mapping);
+    remove_iova_offsets (&descriptors_mapping, &h2c_data_mapping, &c2h_data_mapping, iova_offsets_applied);
+    free_vfio_dma_mapping (&c2h_data_mapping);
+    free_vfio_dma_mapping (&h2c_data_mapping);
+    free_vfio_dma_mapping (&descriptors_mapping);
 
     return success;
 }
@@ -935,6 +975,11 @@ int main (int argc, char *argv[])
 
         if (design->dma_bridge_present)
         {
+            if (arg_test_a32_dma_capability)
+            {
+                designs.vfio_devices.devices[design_index].dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A32;
+            }
+
             if (design->dma_bridge_memory_size_bytes > 0)
             {
                 printf ("Testing DMA bridge bar %u memory size 0x%zx\n", design->dma_bridge_bar, design->dma_bridge_memory_size_bytes);
