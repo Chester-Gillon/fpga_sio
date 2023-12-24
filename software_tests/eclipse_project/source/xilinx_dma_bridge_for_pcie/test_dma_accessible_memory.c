@@ -295,6 +295,22 @@ int main (int argc, char *argv[])
                             {
                                 success = false;
                                 printf ("H2C transfer failed starting at %zu words\n", total_words + ddr_word_index);
+
+                                /* If the H2C transfer timed out, try one C2H transfer to see if get any additional diagnostics */
+                                printf ("Trying C2H transfer... ");
+                                x2x_transfer_set_card_start_address (&c2h_context, ddr_byte_index);
+                                if (x2x_start_transfer (&c2h_context, transfer_timeout_secs))
+                                {
+                                    do
+                                    {
+                                        transfer_status = x2x_poll_transfer_completion (&c2h_context);
+                                    } while (transfer_status == X2X_TRANSFER_STATUS_IN_PROGRESS);
+
+                                    if (transfer_status == X2X_TRANSFER_STATUS_COMPLETE)
+                                    {
+                                        printf ("OK\n");
+                                    }
+                                }
                             }
                         }
                     }
