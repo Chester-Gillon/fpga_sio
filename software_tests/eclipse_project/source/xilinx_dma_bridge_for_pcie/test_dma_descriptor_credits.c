@@ -819,9 +819,7 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
             const uint32_t expected_length = num_words_in_descriptor * sizeof (uint32_t);
             c2h_stream_writeback_t *const stream_writeback = &c2h_ring.stream_writeback[c2h_ring.next_descriptor_index];
 
-            /* Wait for the next C2H descriptor to complete.
-             * The H2C descriptor has to complete before the C2H descriptor can complete.
-             * In the event the H2C fails to complete, this code reports an error against the C2H failing to complete. */
+            /* Wait for the next C2H descriptor to complete */
             bool c2h_descriptor_populated = false;
             while (dma_completion_success && (!c2h_descriptor_populated))
             {
@@ -839,6 +837,27 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
                     check_for_test_timeout (&dma_completion_success, "C2H descriptor to complete (processed %" PRIu32 " completed %" PRIu32 " channel_status 0x%" PRIx32 ")",
                             num_processed_c2h_descriptors, c2h_completed_descriptor_count,
                             read_reg32 (c2h_ring.x2x_channel_regs, X2X_CHANNEL_STATUS_RW1C_OFFSET));
+
+                    if (!dma_completion_success)
+                    {
+                        /* The H2C descriptor has to complete before the C2H descriptor can complete.
+                         * In the event the the C2H descriptor fails to complete, also report the status of the H2C descriptor. */
+                        const uint32_t sts_err_compl_descriptor_count =
+                                __atomic_load_n (&h2c_ring.completed_descriptor_count->sts_err_compl_descriptor_count, __ATOMIC_ACQUIRE);
+                        const uint32_t h2c_completed_descriptor_count =
+                                sts_err_compl_descriptor_count & COMPLETED_DESCRIPTOR_COUNT_WRITEBACK_MASK;
+
+                        if (h2c_completed_descriptor_count == h2c_ring.started_descriptor_count)
+                        {
+                            printf ("H2C had completed\n");
+                        }
+                        else
+                        {
+                            printf ("Test timeout waiting for H2C descriptors to complete (started %" PRIu32 " completed %" PRIu32 " channel_status 0x%" PRIx32 ")\n",
+                                    h2c_ring.started_descriptor_count, h2c_completed_descriptor_count,
+                                    read_reg32 (h2c_ring.x2x_channel_regs, X2X_CHANNEL_STATUS_RW1C_OFFSET));
+                        }
+                    }
                 }
             }
 
