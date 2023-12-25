@@ -1,4 +1,4 @@
-# Program a bitsteam into a FPGA. 
+# Program a bitstream into a FPGA. 
 # Designed to be sourced with the Xilinx Vivado lab tools <install_root>/Vitis/<version>/bin/vivado_lab.
 # Takes a single argument which is the bitstream filename.
 #
