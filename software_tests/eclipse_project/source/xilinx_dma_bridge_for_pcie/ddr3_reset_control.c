@@ -269,6 +269,20 @@ int main (int argc, char *argv[])
             }
             break;
 
+        case FPGA_DESIGN_NITEFURY_DMA_DDR3:
+            /* In this design CLOCKING_WIZARD_LOCKED_MASK is not actually used, and is fixed high at the GPIO input
+             * for compatibility with FPGA_DESIGN_TOSING_160T_DMA_DDR3 */
+            {
+                const uint32_t peripherals_bar_index = 0;
+                const size_t gpio_reset_control_base_offset = 0x3000;
+                const size_t gpio_reset_control_frame_size  = 0x1000;
+
+                gpio_reset_control_regs =
+                        map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                gpio_reset_control_base_offset, gpio_reset_control_frame_size);
+            }
+            break;
+
         default:
             gpio_reset_control_regs = NULL;
             break;
