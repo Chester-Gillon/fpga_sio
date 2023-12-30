@@ -71,13 +71,17 @@ static uint64_t arg_c2h_data_iova_offset;
 static bool arg_test_a32_dma_capability;
 
 
+/* Command line argument which performs a test of VFIO reset */
+static bool arg_test_vfio_reset;
+
+
 /**
  * @brief Parse the command line arguments
  * @param[in] argc, argv Arguments passed to main
  */
 static void parse_command_line_arguments (int argc, char *argv[])
 {
-    const char *const optstring = "d:o:3?";
+    const char *const optstring = "d:o:3r?";
     int option;
     char junk;
 
@@ -104,10 +108,15 @@ static void parse_command_line_arguments (int argc, char *argv[])
             arg_test_a32_dma_capability = true;
             break;
 
+        case 'r':
+            arg_test_vfio_reset = true;
+            break;
+
         case '?':
         default:
-            printf ("Usage %s -d <pci_device_location> -o <descriptors_iova_offset,h2c_data_iova_offset,c2h_data_iova_offset> [-3]\n", argv[0]);
+            printf ("Usage %s -d <pci_device_location> -o <descriptors_iova_offset,h2c_data_iova_offset,c2h_data_iova_offset> [-3] [-r]\n", argv[0]);
             printf ("  -3 specifies only 32-bit DMA addressing capability\n");
+            printf ("  -r performs a test of VFIO reset\n");
             exit (EXIT_FAILURE);
             break;
         }
@@ -977,6 +986,72 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
 }
 
 
+/**
+ * @brief Perform a test of applying a VFIO reset, to see the effect on a sample of DMA bridge registers.
+ * @param[in/out] designs The identified designs
+ * @param[in] design_index Which FPGA design containing a DMA bridge to test
+ */
+static void test_vfio_reset (fpga_designs_t *const designs, const uint32_t design_index)
+{
+    const uint32_t channel_id = 0;
+    fpga_design_t *const design = &designs->designs[design_index];
+    vfio_device_t *const vfio_device = &designs->vfio_devices.devices[design_index];
+
+    /* Check that have been passed a BAR which is large enough to contain the DMA control registers */
+    uint8_t *const mapped_registers_base = get_dma_mapped_registers_base (design);
+    if (mapped_registers_base == NULL)
+    {
+        return;
+    }
+
+    uint8_t *const x2x_channel_regs = &mapped_registers_base[DMA_CHANNEL_BAR_START_OFFSET (DMA_SUBMODULE_H2C_CHANNELS, channel_id)];
+    uint8_t *const x2x_sgdma_regs = &mapped_registers_base[DMA_CHANNEL_BAR_START_OFFSET (DMA_SUBMODULE_H2C_SGDMA, channel_id)];
+    uint8_t *const sgdma_common_regs = &mapped_registers_base[DMA_SUBMODULE_BAR_START_OFFSET (DMA_SUBMODULE_SGDMA_COMMON)];
+
+    /* Halt descriptor fetches for the channel as need to set the channel running to test adding credits,
+     * but this test doesn't setup any actual descriptors. */
+    write_reg32 (sgdma_common_regs, SGDMA_DESCRIPTOR_CONTROL_W1S_OFFSET, 1U << (SGDMA_DESCRIPTOR_H2C_DSC_HALT_LOW_BIT + channel_id));
+
+    /* Enable reporting of all errors */
+    const uint32_t all_errors =
+            X2C_CHANNEL_CONTROL_IE_DESC_ERROR |
+            X2X_CHANNEL_CONTROL_IE_READ_ERROR |
+            X2X_CHANNEL_CONTROL_IE_INVALID_LENGTH |
+            X2X_CHANNEL_CONTROL_IE_MAGIC_STOPPED |
+            X2X_CHANNEL_CONTROL_IE_ALIGN_MISMATCH |
+            H2C_CHANNEL_CONTROL_IE_WRITE_ERROR;
+    write_reg32 (x2x_channel_regs, X2X_CHANNEL_CONTROL_RW_OFFSET, all_errors);
+
+    /* Enable descriptor credits for the channel */
+    write_reg32 (sgdma_common_regs, SGDMA_DESCRIPTOR_CREDIT_MODE_ENABLE_W1S_OFFSET,
+            1U << (SGDMA_DESCRIPTOR_H2C_DSC_CREDIT_ENABLE_LOW_BIT + channel_id));
+
+    /* Write some credits */
+    write_reg32 (x2x_sgdma_regs, X2X_SGDMA_DESCRIPTOR_CREDITS_OFFSET, 0x1fd);
+
+    /* Set a write back address */
+    write_split_reg64 (x2x_channel_regs, X2X_CHANNEL_POLL_MODE_WRITE_BACK_ADDRESS_OFFSET, 0xfeedabbadeadbeef);
+
+    /* Set the channel running, but with actual descriptor fetches halted */
+    write_reg32 (x2x_channel_regs, X2X_CHANNEL_CONTROL_W1S_OFFSET, X2X_CHANNEL_CONTROL_RUN);
+
+    /* Report the register values before and after a VFIO reset */
+    for (uint32_t iteration = 0; iteration < 2; iteration++)
+    {
+        if (iteration == 1)
+        {
+            reset_vfio_device (vfio_device);
+        }
+        printf ("%s VFIO reset:\n", (iteration == 0) ? "Before" : "After");
+        printf ("  control %08" PRIx32 "  status %08" PRIx32 "  credits %04" PRIx32 "  addr %016" PRIx64 "\n",
+                read_reg32 (x2x_channel_regs, X2X_CHANNEL_CONTROL_RW_OFFSET),
+                read_reg32 (x2x_channel_regs, X2X_CHANNEL_STATUS_RW1C_OFFSET),
+                read_reg32 (x2x_sgdma_regs, X2X_SGDMA_DESCRIPTOR_CREDITS_OFFSET),
+                read_split_reg64 (x2x_channel_regs, X2X_CHANNEL_POLL_MODE_WRITE_BACK_ADDRESS_OFFSET));
+    }
+}
+
+
 int main (int argc, char *argv[])
 {
     fpga_designs_t designs;
@@ -1006,6 +1081,11 @@ int main (int argc, char *argv[])
             else
             {
                 printf ("Testing DMA bridge bar %u AXI Stream\n", design->dma_bridge_bar);
+            }
+
+            if (arg_test_vfio_reset)
+            {
+                test_vfio_reset (&designs, design_index);
             }
 
             success = test_dma_credit_incrementing (design);
