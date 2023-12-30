@@ -996,6 +996,12 @@ static void test_vfio_reset (fpga_designs_t *const designs, const uint32_t desig
     const uint32_t channel_id = 0;
     fpga_design_t *const design = &designs->designs[design_index];
     vfio_device_t *const vfio_device = &designs->vfio_devices.devices[design_index];
+    const char *const iteration_names[] =
+    {
+        "After VFIO open",
+        "After setting values",
+        "After VFIO reset"
+    };
 
     /* Check that have been passed a BAR which is large enough to contain the DMA control registers */
     uint8_t *const mapped_registers_base = get_dma_mapped_registers_base (design);
@@ -1008,46 +1014,54 @@ static void test_vfio_reset (fpga_designs_t *const designs, const uint32_t desig
     uint8_t *const x2x_sgdma_regs = &mapped_registers_base[DMA_CHANNEL_BAR_START_OFFSET (DMA_SUBMODULE_H2C_SGDMA, channel_id)];
     uint8_t *const sgdma_common_regs = &mapped_registers_base[DMA_SUBMODULE_BAR_START_OFFSET (DMA_SUBMODULE_SGDMA_COMMON)];
 
-    /* Halt descriptor fetches for the channel as need to set the channel running to test adding credits,
-     * but this test doesn't setup any actual descriptors. */
-    write_reg32 (sgdma_common_regs, SGDMA_DESCRIPTOR_CONTROL_W1S_OFFSET, 1U << (SGDMA_DESCRIPTOR_H2C_DSC_HALT_LOW_BIT + channel_id));
-
-    /* Enable reporting of all errors */
-    const uint32_t all_errors =
-            X2C_CHANNEL_CONTROL_IE_DESC_ERROR |
-            X2X_CHANNEL_CONTROL_IE_READ_ERROR |
-            X2X_CHANNEL_CONTROL_IE_INVALID_LENGTH |
-            X2X_CHANNEL_CONTROL_IE_MAGIC_STOPPED |
-            X2X_CHANNEL_CONTROL_IE_ALIGN_MISMATCH |
-            H2C_CHANNEL_CONTROL_IE_WRITE_ERROR;
-    write_reg32 (x2x_channel_regs, X2X_CHANNEL_CONTROL_RW_OFFSET, all_errors);
-
-    /* Enable descriptor credits for the channel */
-    write_reg32 (sgdma_common_regs, SGDMA_DESCRIPTOR_CREDIT_MODE_ENABLE_W1S_OFFSET,
-            1U << (SGDMA_DESCRIPTOR_H2C_DSC_CREDIT_ENABLE_LOW_BIT + channel_id));
-
-    /* Write some credits */
-    write_reg32 (x2x_sgdma_regs, X2X_SGDMA_DESCRIPTOR_CREDITS_OFFSET, 0x1fd);
-
-    /* Set a write back address */
-    write_split_reg64 (x2x_channel_regs, X2X_CHANNEL_POLL_MODE_WRITE_BACK_ADDRESS_OFFSET, 0xfeedabbadeadbeef);
-
-    /* Set the channel running, but with actual descriptor fetches halted */
-    write_reg32 (x2x_channel_regs, X2X_CHANNEL_CONTROL_W1S_OFFSET, X2X_CHANNEL_CONTROL_RUN);
-
-    /* Report the register values before and after a VFIO reset */
-    for (uint32_t iteration = 0; iteration < 2; iteration++)
+    /* Report the register values at different stages */
+    for (uint32_t iteration = 0; iteration < 3; iteration++)
     {
-        if (iteration == 1)
-        {
-            reset_vfio_device (vfio_device);
-        }
-        printf ("%s VFIO reset:\n", (iteration == 0) ? "Before" : "After");
+        printf ("%s:\n", iteration_names[iteration]);
         printf ("  control %08" PRIx32 "  status %08" PRIx32 "  credits %04" PRIx32 "  addr %016" PRIx64 "\n",
                 read_reg32 (x2x_channel_regs, X2X_CHANNEL_CONTROL_RW_OFFSET),
                 read_reg32 (x2x_channel_regs, X2X_CHANNEL_STATUS_RW1C_OFFSET),
                 read_reg32 (x2x_sgdma_regs, X2X_SGDMA_DESCRIPTOR_CREDITS_OFFSET),
                 read_split_reg64 (x2x_channel_regs, X2X_CHANNEL_POLL_MODE_WRITE_BACK_ADDRESS_OFFSET));
+
+        switch (iteration)
+        {
+        case 0:
+            /* Initialise the register values */
+            {
+                /* Halt descriptor fetches for the channel as need to set the channel running to test adding credits,
+                 * but this test doesn't setup any actual descriptors. */
+                write_reg32 (sgdma_common_regs, SGDMA_DESCRIPTOR_CONTROL_W1S_OFFSET, 1U << (SGDMA_DESCRIPTOR_H2C_DSC_HALT_LOW_BIT + channel_id));
+
+                /* Enable reporting of all errors */
+                const uint32_t all_errors =
+                        X2C_CHANNEL_CONTROL_IE_DESC_ERROR |
+                        X2X_CHANNEL_CONTROL_IE_READ_ERROR |
+                        X2X_CHANNEL_CONTROL_IE_INVALID_LENGTH |
+                        X2X_CHANNEL_CONTROL_IE_MAGIC_STOPPED |
+                        X2X_CHANNEL_CONTROL_IE_ALIGN_MISMATCH |
+                        H2C_CHANNEL_CONTROL_IE_WRITE_ERROR;
+                write_reg32 (x2x_channel_regs, X2X_CHANNEL_CONTROL_RW_OFFSET, all_errors);
+
+                /* Enable descriptor credits for the channel */
+                write_reg32 (sgdma_common_regs, SGDMA_DESCRIPTOR_CREDIT_MODE_ENABLE_W1S_OFFSET,
+                        1U << (SGDMA_DESCRIPTOR_H2C_DSC_CREDIT_ENABLE_LOW_BIT + channel_id));
+
+                /* Write some credits */
+                write_reg32 (x2x_sgdma_regs, X2X_SGDMA_DESCRIPTOR_CREDITS_OFFSET, 0x1fd);
+
+                /* Set a write back address */
+                write_split_reg64 (x2x_channel_regs, X2X_CHANNEL_POLL_MODE_WRITE_BACK_ADDRESS_OFFSET, 0xfeedabbadeadbeef);
+
+                /* Set the channel running, but with actual descriptor fetches halted */
+                write_reg32 (x2x_channel_regs, X2X_CHANNEL_CONTROL_W1S_OFFSET, X2X_CHANNEL_CONTROL_RUN);
+            }
+            break;
+
+        case 1:
+            reset_vfio_device (vfio_device);
+            break;
+        }
     }
 }
 
