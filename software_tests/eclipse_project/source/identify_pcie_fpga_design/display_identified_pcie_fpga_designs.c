@@ -6,6 +6,7 @@
  */
 
 #include "identify_pcie_fpga_design.h"
+#include "xilinx_dma_bridge_transfers.h"
 
 #include <stdlib.h>
 #include <stddef.h>
@@ -118,14 +119,20 @@ int main (int argc, char *argv[])
         printf ("  PCI device %s IOMMU group %s\n", design->vfio_device->device_name, design->vfio_device->iommu_group);
         if (design->dma_bridge_present)
         {
+            uint32_t num_h2c_channels;
+            uint32_t num_c2h_channels;
+
+            x2x_get_num_channels (design->vfio_device, design->dma_bridge_bar, design->dma_bridge_memory_size_bytes,
+                    &num_h2c_channels, &num_c2h_channels);
             if (design->dma_bridge_memory_size_bytes > 0)
             {
-                printf ("  DMA bridge bar %u memory size 0x%zx\n", design->dma_bridge_bar, design->dma_bridge_memory_size_bytes);
+                printf ("  DMA bridge bar %u memory size 0x%zx", design->dma_bridge_bar, design->dma_bridge_memory_size_bytes);
             }
             else
             {
-                printf ("  DMA bridge bar %u AXI Stream\n", design->dma_bridge_bar);
+                printf ("  DMA bridge bar %u AXI Stream", design->dma_bridge_bar);
             }
+            printf (" Num H2C channels %u Num C2H channels %u\n", num_h2c_channels, num_c2h_channels);
         }
         if (design->user_access != NULL)
         {

@@ -22,6 +22,9 @@
 
 #include <stdint.h>
 
+/* The maximum number of channels which can be configured in the IP */
+#define X2X_MAX_CHANNELS 4
+
 /* Defines one DMA descriptor */
 #define DMA_DESCRIPTOR_MAGIC (0xad4bU << 16)
 
