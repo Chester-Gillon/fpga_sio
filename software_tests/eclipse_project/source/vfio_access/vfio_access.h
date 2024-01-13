@@ -187,6 +187,12 @@ typedef struct vfio_devices_s
     uint32_t num_iova_regions;
     /* The current allocated length of the iova_regions[] array, dynamically grown as required */
     uint32_t iova_regions_allocated_length;
+#ifdef HAVE_CMEM
+    /* The total number of mappings which are currently allocated using physically contiguous memory.
+     * When drops to zero as the mappings are freed used to free all buffers, due to the cmem driver
+     * not currently supporting freeing all buffers. */
+    uint32_t num_cmem_mappings;
+#endif
 } vfio_devices_t;
 
 

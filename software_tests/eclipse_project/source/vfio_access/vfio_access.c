@@ -1111,6 +1111,9 @@ void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
     vfio_devices->iova_regions = NULL;
     vfio_devices->num_iova_regions = 0;
     vfio_devices->iova_regions_allocated_length = 0;
+#ifdef HAVE_CMEM
+    vfio_devices->num_cmem_mappings = 0;
+#endif
 
     /* Initialise PCI access using the defaults */
     vfio_devices->pacc = pci_alloc ();
@@ -1436,6 +1439,7 @@ void allocate_vfio_dma_mapping (vfio_device_t *const vfio_device,
             if (mapping->buffer.vaddr != NULL)
             {
                 memset (mapping->buffer.vaddr, 0, mapping->buffer.size);
+                mapping->vfio_devices->num_cmem_mappings++;
             }
         }
 #endif
@@ -1576,6 +1580,23 @@ void free_vfio_dma_mapping (vfio_dma_mapping_t *const mapping)
                 printf ("VFIO_IOMMU_UNMAP_DMA of size %zu failed : %s\n", mapping->buffer.size, strerror (-rc));
             }
         }
+
+#ifdef HAVE_CMEM
+        if (vfio_devices->num_cmem_mappings > 0)
+        {
+            vfio_devices->num_cmem_mappings--;
+            if (vfio_devices->num_cmem_mappings == 0)
+            {
+                /* All physically continuous buffers allocated by the program are no longer in use.
+                 * Free all physically contiguous buffers allocated by previous runs using the cmem driver.
+                 * This is done since:
+                 * a. The cmem driver doesn't currently support freeing individual buffers.
+                 * b. Allows multiple tests to be performed on the same device, in programs which iterate
+                 *    over creating and then freeing mappings multiple times. */
+                rc = cmem_drv_free (0, HOST_BUF_TYPE_DYNAMIC, NULL);
+            }
+        }
+#endif
     }
 }
 
