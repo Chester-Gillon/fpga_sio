@@ -1,6 +1,5 @@
 # Top level CMake file
 
-project (software_tests C CXX)
 # This project was originally created in CentOS 6 with cmake 2.18.12.2, and the minimum version specified below
 # was 2.8.
 #
@@ -13,6 +12,8 @@ project (software_tests C CXX)
 # @todo on the effect of compatiblity between different CMake versions and the functionality in the different CMake
 # files.
 cmake_minimum_required (VERSION 2.8.12)
+
+project (software_tests C CXX)
 
 # Create a file which contains all executables which link a specific target library.
 # This is to allow an external script to process the executables
