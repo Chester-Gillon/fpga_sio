@@ -207,7 +207,8 @@ static void x2x_initialise_transfer_register_mapping (x2x_transfer_context_t *co
  *          The IP allows the number of channels in the H2C and C2H direction to be configured independently which is the
  *          reason for the two outputs.
  *
- *          The dma_bridge_memory_size_bytes parameter is required, as used to determine the expected identification values.
+ *          The dma_bridge_memory_size_bytes parameter is required, as used to determine the expected identification values
+ *          depending upon if the channels are configured for memory access or AXI streams.
  * @param[in/out] vfio_device Used to obtain access to the memory mapped BAR containing the DMA control registers
  * @param[in] bar_index Which BAR in the vfio_device contains the DMA control registers
  * @param[in] dma_bridge_memory_size_bytes The amount of memory addressed by the DMA/Bridge Subsystem:
@@ -471,6 +472,14 @@ void x2x_initialise_transfer_context (x2x_transfer_context_t *const context,
          * Nxt_adj might be a usable optimisation when operating with a AXI stream and using fixed size buffers. */
         descriptor->magic_nxt_adj_control = DMA_DESCRIPTOR_MAGIC | DMA_DESCRIPTOR_CONTROL_COMPLETED;
 
+        /* When using fixed buffers on a H2C stream set the end of packet bit for each descriptor,
+         * as each buffer contains a single packet (message). */
+        if (context->is_axi_stream &&
+            (context->configuration.bytes_per_buffer > 0) && (context->configuration.channels_submodule == DMA_SUBMODULE_H2C_CHANNELS))
+        {
+            descriptor->magic_nxt_adj_control |= DMA_DESCRIPTOR_CONTROL_EOP;
+        }
+
         /* Set the length to that in the configuration, which may be changed before use */
         descriptor->len = (uint32_t) context->configuration.bytes_per_buffer;
 
@@ -498,6 +507,10 @@ void x2x_initialise_transfer_context (x2x_transfer_context_t *const context,
 
         /* The descriptors are linked in a ring */
         descriptor->nxt_adr = next_descriptor_iova;
+
+        /* For c2h_stream_continuous initialise to 1 descriptor per transfer to allow x2x_poll_completed_transfer()
+         * to work, as the software doesn't start the transfers. */
+        context->num_descriptors_per_transfer[descriptor_index] = context->configuration.c2h_stream_continuous ? 1 : 0;
     }
 
     /* Initialise the write back to monitor completed descriptors */
@@ -816,11 +829,14 @@ void *x2x_poll_completed_transfer (x2x_transfer_context_t *const context, size_t
             {
                 /* Return the pointer to data in the completed transfer, and indicate the descriptors are no longer in use */
                 completed_data = &buffer_data[buffer_offset];
-                context->num_in_use_descriptors -= num_descriptors_in_transfer;
                 context->num_pending_completed_descriptors -= num_descriptors_in_transfer;
-                X2X_ASSERT (context, (context->num_in_use_descriptors < context->configuration.num_descriptors) &&
-                        (context->num_pending_completed_descriptors < context->configuration.num_descriptors));
-                context->num_descriptors_per_transfer[context->next_completed_descriptor_index] = 0;
+                X2X_ASSERT (context, context->num_pending_completed_descriptors < context->configuration.num_descriptors);
+                if (!context->configuration.c2h_stream_continuous)
+                {
+                    context->num_in_use_descriptors -= num_descriptors_in_transfer;
+                    X2X_ASSERT (context, context->num_in_use_descriptors < context->configuration.num_descriptors);
+                    context->num_descriptors_per_transfer[context->next_completed_descriptor_index] = 0;
+                }
                 context->next_completed_descriptor_index = (context->next_completed_descriptor_index + num_descriptors_in_transfer) %
                         context->configuration.num_descriptors;
             }
