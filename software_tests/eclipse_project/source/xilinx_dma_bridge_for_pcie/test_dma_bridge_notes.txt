@@ -1,0 +1,1286 @@
+1. Tests with NOIOMMU in i5-2310 system
+=======================================
+
+These tests were performed in a i5-2310 system which doesn't have an IOMMU using:
+a. AlmaLinux 8.9
+b. Kernel 4.18.0-513.9.1.el8_9.x86_64
+c. Use cmem_gdb_access as no IOMMU
+d. Secure boot off. The PC BIOS doesn't have the option to enable secure boot,
+   and need to load the cmem_gdb_access module which isn't signed.
+e. Reserve 2 GiB of physical memory for use by the cmem_gdb_access module, by using kexec to temporary reboot with
+   a memmap argument:
+ ~/cmem_gdb_access/reboot_with_memmap_changes.sh 2050M\$4G,1M\$6146M
+About to:
+sudo kexec -l /boot/vmlinuz-4.18.0-513.9.1.el8_9.x86_64 --initrd=/boot/initramfs-4.18.0-513.9.1.el8_9.x86_64.img --append="BOOT_IMAGE=(hd0,gpt2)/vmlinuz-4.18.0-513.9.1.el8_9.x86_64 root=/dev/mapper/almalinux-root ro crashkernel=auto resume=/dev/mapper/almalinux-swap rd.lvm.lv=almalinux/root rd.lvm.lv=almalinux/swap rhgb quiet memmap=2050M$4G,1M$6146M"
+sudo shutdown -r now
+
+Are you sure you wish to continue?yes
+
+
+Setup after booting:
+$ ssh -X 192.168.0.120
+mr_halfword@192.168.0.120's password: 
+Activate the web console with: systemctl enable --now cockpit.socket
+
+Last login: Sun Jan 14 14:38:09 2024 from 192.168.0.118
+[mr_halfword@haswell-alma ~]$ ~/fpga_sio/software_tests/eclipse_project/bind_xilinx_devices_to_vfio.sh 
+No IOMMUs present
+Loading vfio module and enabling NOIOMMU (this taints the Kernel)
+[sudo] password for mr_halfword: 
+Loading vfio-pci module
+Bound vfio-pci driver to 0000:01:00.0 10ee:7024 [0002:0004]
+Waiting for /dev/vfio/noiommu-0 to be created
+Giving user permission to IOMMU group noiommu-0 for 0000:01:00.0 10ee:7024 [0002:0004]
+[mr_halfword@haswell-alma ~]$ cd ~/cmem_gdb_access/module/
+[mr_halfword@haswell-alma module]$ sudo ./load.sh 
+
+Which results in the Kernel being tainted:
+$ ~/Downloads/kernel-chktaint 
+Kernel is "tainted" for the following reasons:
+ * taint requested by userspace application (#6)
+ * externally-built ('out-of-tree') module was loaded  (#12)
+ * unsigned module was loaded (#13)
+For a more detailed explanation of the various taint flags see
+ Documentation/admin-guide/tainted-kernels.rst in the Linux kernel sources
+ or https://kernel.org/doc/html/latest/admin-guide/tainted-kernels.html
+Raw taint value as int/string: 12352/'G     U     OE     '
+
+1.1. Results from TOSING_160T_dma_ddr3 design
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Used 1 GiB buffers, which match the amount of memory on the card:
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge 
+Opening device 0000:01:00.0 (10ee:7024) with IOMMU group 0
+Enabling bus master for 0000:01:00.0
+Testing TOSING_160T_dma_ddr3 design with memory size 0x40000000
+PCI device 0000:01:00.0 IOMMU group 0
+
+Testing using 8 buffers of size 0x8000000 bytes, H2C channel 0 C2H channel 0
+Opened DMA MEM device : /dev/cmem (dev_desc = 0x00000007)
+Debug: mmap param length 0x1000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7f1fe02e4000 
+Debug: mmap param length 0x40000000, Addr: 0x100001000 
+Buff num 0: Phys addr : 0x100001000 User Addr: 0x7f1f9f8d0000 
+Debug: mmap param length 0x40000000, Addr: 0x140001000 
+Buff num 0: Phys addr : 0x140001000 User Addr: 0x7f1f5f8d0000 
+populate test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3147.354315 (Mbytes/sec)
+  Mean = 3152.164634 (Mbytes/sec)
+   Max = 3154.327720 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 693.212039 (Mbytes/sec)
+  Mean = 693.457953 (Mbytes/sec)
+   Max = 693.507971 (Mbytes/sec)
+verify test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 2985.510904 (Mbytes/sec)
+  Mean = 2988.524557 (Mbytes/sec)
+   Max = 2990.929308 (Mbytes/sec)
+TEST PASS
+
+Testing using 8 buffers of size 0x8000000 bytes, H2C channel 0 C2H channel 1
+Debug: mmap param length 0x1000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7f1fe02e3000 
+Debug: mmap param length 0x40000000, Addr: 0x100001000 
+Buff num 0: Phys addr : 0x100001000 User Addr: 0x7f1f1f8d0000 
+Debug: mmap param length 0x40000000, Addr: 0x140001000 
+Buff num 0: Phys addr : 0x140001000 User Addr: 0x7f1edf8d0000 
+populate test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3148.512758 (Mbytes/sec)
+  Mean = 3152.229541 (Mbytes/sec)
+   Max = 3154.339072 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 693.263844 (Mbytes/sec)
+  Mean = 693.430892 (Mbytes/sec)
+   Max = 693.505347 (Mbytes/sec)
+verify test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 2985.633036 (Mbytes/sec)
+  Mean = 2988.297986 (Mbytes/sec)
+   Max = 2990.508828 (Mbytes/sec)
+TEST PASS
+
+Testing using 8 buffers of size 0x8000000 bytes, H2C channel 1 C2H channel 0
+Debug: mmap param length 0x1000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7f1fe02e2000 
+Debug: mmap param length 0x40000000, Addr: 0x100001000 
+Buff num 0: Phys addr : 0x100001000 User Addr: 0x7f1e9f8d0000 
+Debug: mmap param length 0x40000000, Addr: 0x140001000 
+Buff num 0: Phys addr : 0x140001000 User Addr: 0x7f1e5f8d0000 
+populate test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3148.662310 (Mbytes/sec)
+  Mean = 3152.450249 (Mbytes/sec)
+   Max = 3154.519242 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 693.375780 (Mbytes/sec)
+  Mean = 693.460867 (Mbytes/sec)
+   Max = 693.505279 (Mbytes/sec)
+verify test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 2986.373135 (Mbytes/sec)
+  Mean = 2988.792185 (Mbytes/sec)
+   Max = 2990.479752 (Mbytes/sec)
+TEST PASS
+
+Testing using 8 buffers of size 0x8000000 bytes, H2C channel 1 C2H channel 1
+Debug: mmap param length 0x1000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7f1fe02e1000 
+Debug: mmap param length 0x40000000, Addr: 0x100001000 
+Buff num 0: Phys addr : 0x100001000 User Addr: 0x7f1e1f8d0000 
+Debug: mmap param length 0x40000000, Addr: 0x140001000 
+Buff num 0: Phys addr : 0x140001000 User Addr: 0x7f1ddf8d0000 
+populate test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3148.051699 (Mbytes/sec)
+  Mean = 3151.725975 (Mbytes/sec)
+   Max = 3154.116681 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 693.310209 (Mbytes/sec)
+  Mean = 693.431586 (Mbytes/sec)
+   Max = 693.506993 (Mbytes/sec)
+verify test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 2986.550120 (Mbytes/sec)
+  Mean = 2988.625374 (Mbytes/sec)
+   Max = 2990.415789 (Mbytes/sec)
+TEST PASS
+Memory Driver closed 
+
+Overall PASS
+
+1.2. Results from TOSING_160T_dma_stream_loopback design
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Used 1 GiB mappings:
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge 
+Opening device 0000:01:00.0 (10ee:7024) with IOMMU group 0
+Enabling bus master for 0000:01:00.0
+Testing TOSING_160T_dma_stream_loopback design with AXI stream
+PCI device 0000:01:00.0 IOMMU group 0
+
+Testing streams using H2C 64 buffers of size 0x1000000 bytes, C2H 64 buffers of size 0x1000000 bytes, H2C channel 0 C2H channel 1
+Opened DMA MEM device : /dev/cmem (dev_desc = 0x00000007)
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7fe591dba000 
+Debug: mmap param length 0x40000000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7fe5513a7000 
+Debug: mmap param length 0x40000000, Addr: 0x140002000 
+Buff num 0: Phys addr : 0x140002000 User Addr: 0x7fe5113a7000 
+populate test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3148.121762 (Mbytes/sec)
+  Mean = 3151.653780 (Mbytes/sec)
+   Max = 3153.295098 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 765.267951 (Mbytes/sec)
+  Mean = 765.698497 (Mbytes/sec)
+   Max = 765.807342 (Mbytes/sec)
+verify test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 2930.285631 (Mbytes/sec)
+  Mean = 2933.816548 (Mbytes/sec)
+   Max = 2936.188553 (Mbytes/sec)
+TEST PASS
+
+Testing streams using H2C 64 buffers of size 0x1000000 bytes, C2H 64 buffers of size 0x1000000 bytes, H2C channel 1 C2H channel 0
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7fe591db8000 
+Debug: mmap param length 0x40000000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7fe4d13a7000 
+Debug: mmap param length 0x40000000, Addr: 0x140002000 
+Buff num 0: Phys addr : 0x140002000 User Addr: 0x7fe4913a7000 
+populate test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3125.224740 (Mbytes/sec)
+  Mean = 3150.615235 (Mbytes/sec)
+   Max = 3154.490522 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 765.668386 (Mbytes/sec)
+  Mean = 765.796831 (Mbytes/sec)
+   Max = 765.846987 (Mbytes/sec)
+verify test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 2930.073961 (Mbytes/sec)
+  Mean = 2934.193925 (Mbytes/sec)
+   Max = 2936.231236 (Mbytes/sec)
+TEST PASS
+Testing TOSING_160T_dma_stream_loopback design with AXI stream
+PCI device 0000:01:00.0 IOMMU group 0
+
+Testing streams using H2C 64 buffers of size 0x1000000 bytes, C2H 64 buffers of size 0x1000000 bytes in continuous mode, H2C channel 0 C2H channel 1
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7fe591db6000 
+Debug: mmap param length 0x40000000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7fe4513a7000 
+Debug: mmap param length 0x40000000, Addr: 0x140002000 
+Buff num 0: Phys addr : 0x140002000 User Addr: 0x7fe4113a7000 
+populate test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3148.446333 (Mbytes/sec)
+  Mean = 3151.590247 (Mbytes/sec)
+   Max = 3153.585012 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 765.635276 (Mbytes/sec)
+  Mean = 765.784797 (Mbytes/sec)
+   Max = 765.890884 (Mbytes/sec)
+verify test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 2927.586361 (Mbytes/sec)
+  Mean = 2933.875156 (Mbytes/sec)
+   Max = 2935.996011 (Mbytes/sec)
+TEST PASS
+
+Testing streams using H2C 64 buffers of size 0x1000000 bytes, C2H 64 buffers of size 0x1000000 bytes in continuous mode, H2C channel 1 C2H channel 0
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7fe591db4000 
+Debug: mmap param length 0x40000000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7fe3d13a7000 
+Debug: mmap param length 0x40000000, Addr: 0x140002000 
+Buff num 0: Phys addr : 0x140002000 User Addr: 0x7fe3913a7000 
+populate test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3149.659267 (Mbytes/sec)
+  Mean = 3152.766659 (Mbytes/sec)
+   Max = 3154.305017 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 765.730304 (Mbytes/sec)
+  Mean = 765.798315 (Mbytes/sec)
+   Max = 765.879837 (Mbytes/sec)
+verify test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 2933.214987 (Mbytes/sec)
+  Mean = 2934.959568 (Mbytes/sec)
+   Max = 2936.404207 (Mbytes/sec)
+TEST PASS
+Memory Driver closed 
+
+Overall PASS
+
+
+2. Tests with IOMMU enabled in W-2123 system
+============================================
+
+These tests were performed in a W-2123 system which has an IOMMU:
+a. AlmaLinux 8.9
+b. Kernel 4.18.0-513.9.1.el8_9.x86_64
+c. Secure boot enabled in the BIOS. Linux reported the Kernel is locked down as a result:
+ dmesg|grep lockdown
+[    0.000000] Kernel is locked down from EFI secure boot; see man kernel_lockdown.7
+[    1.576104] Lockdown: swapper/0: Hibernation is restricted; see man kernel_lockdown.7
+d. The IOMMU is enabled in the default command line arguments, and there is no physical memory reserved by memmap: 
+$ cat /proc/cmdline 
+BOOT_IMAGE=(hd1,gpt2)/vmlinuz-4.18.0-513.9.1.el8_9.x86_64 root=/dev/mapper/almalinux_skylake--alma-root ro resume=/dev/mapper/almalinux_skylake--alma-swap rd.lvm.lv=almalinux_skylake-alma/root rd.lvm.lv=almalinux_skylake-alma/swap rhgb quiet intel_iommu=on
+
+Setup after booting:
+$ ~/fpga_sio/software_tests/eclipse_project/bind_xilinx_devices_to_vfio.sh 
+IOMMU devices present: dmar0  dmar1  dmar2  dmar3
+Loading vfio-pci module
+[sudo] password for mr_halfword: 
+Bound vfio-pci driver to 0000:15:00.0 10ee:7024 [0002:0005]
+Waiting for /dev/vfio/41 to be created
+Giving user permission to IOMMU group 41 for 0000:15:00.0 10ee:7024 [0002:0005]
+Bound vfio-pci driver to 0000:30:00.0 10ee:7024 [0002:0006]
+Waiting for /dev/vfio/89 to be created
+Giving user permission to IOMMU group 89 for 0000:30:00.0 10ee:7024 [0002:0006]
+
+And the Kernel isn't tainted:
+$ ~/Downloads/kernel-chktaint 
+Kernel not Tainted
+
+2.1. Results from TEF1001_dma_ddr3 and NiteFury_dma_ddr3 designs with default number of descriptors
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Used 8 GiB and 1 GiB buffers, which match the amount of memory on the cards:
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge 
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Enabling bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Enabling bus master for 0000:30:00.0
+Testing TEF1001_dma_ddr3 design with memory size 0x200000000
+PCI device 0000:15:00.0 IOMMU group 41
+
+Testing using 64 buffers of size 0x8000000 bytes, H2C channel 0 C2H channel 0
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3873.191280 (Mbytes/sec)
+  Mean = 3875.160979 (Mbytes/sec)
+   Max = 3877.132681 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 871.254136 (Mbytes/sec)
+  Mean = 871.267213 (Mbytes/sec)
+   Max = 871.280290 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3640.594562 (Mbytes/sec)
+  Mean = 3641.155612 (Mbytes/sec)
+   Max = 3641.716835 (Mbytes/sec)
+TEST PASS
+
+Testing using 64 buffers of size 0x8000000 bytes, H2C channel 0 C2H channel 1
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3878.886048 (Mbytes/sec)
+  Mean = 3879.169372 (Mbytes/sec)
+   Max = 3879.452738 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 871.256036 (Mbytes/sec)
+  Mean = 871.269204 (Mbytes/sec)
+   Max = 871.282373 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3641.893434 (Mbytes/sec)
+  Mean = 3642.226097 (Mbytes/sec)
+   Max = 3642.558821 (Mbytes/sec)
+TEST PASS
+
+Testing using 64 buffers of size 0x8000000 bytes, H2C channel 1 C2H channel 0
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3878.995565 (Mbytes/sec)
+  Mean = 3879.049198 (Mbytes/sec)
+   Max = 3879.102831 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 871.157973 (Mbytes/sec)
+  Mean = 871.203790 (Mbytes/sec)
+   Max = 871.249612 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3639.411634 (Mbytes/sec)
+  Mean = 3640.814133 (Mbytes/sec)
+   Max = 3642.217713 (Mbytes/sec)
+TEST PASS
+
+Testing using 64 buffers of size 0x8000000 bytes, H2C channel 1 C2H channel 1
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3878.387732 (Mbytes/sec)
+  Mean = 3878.998119 (Mbytes/sec)
+   Max = 3879.608698 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 871.193941 (Mbytes/sec)
+  Mean = 871.229320 (Mbytes/sec)
+   Max = 871.264702 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3642.394717 (Mbytes/sec)
+  Mean = 3642.434458 (Mbytes/sec)
+   Max = 3642.474199 (Mbytes/sec)
+TEST PASS
+Testing NiteFury_dma_ddr3 design with memory size 0x40000000
+PCI device 0000:30:00.0 IOMMU group 89
+
+Testing using 8 buffers of size 0x8000000 bytes, H2C channel 0 C2H channel 0
+populate test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3876.687647 (Mbytes/sec)
+  Mean = 3879.649260 (Mbytes/sec)
+   Max = 3881.489191 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 696.339283 (Mbytes/sec)
+  Mean = 697.760850 (Mbytes/sec)
+   Max = 697.878400 (Mbytes/sec)
+verify test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3636.933142 (Mbytes/sec)
+  Mean = 3642.100749 (Mbytes/sec)
+   Max = 3644.136808 (Mbytes/sec)
+TEST PASS
+
+Testing using 8 buffers of size 0x8000000 bytes, H2C channel 0 C2H channel 1
+populate test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3874.265501 (Mbytes/sec)
+  Mean = 3879.151994 (Mbytes/sec)
+   Max = 3881.765473 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 696.998332 (Mbytes/sec)
+  Mean = 697.799093 (Mbytes/sec)
+   Max = 697.875960 (Mbytes/sec)
+verify test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3636.529719 (Mbytes/sec)
+  Mean = 3641.668920 (Mbytes/sec)
+   Max = 3644.463840 (Mbytes/sec)
+TEST PASS
+
+Testing using 8 buffers of size 0x8000000 bytes, H2C channel 1 C2H channel 0
+populate test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3874.386326 (Mbytes/sec)
+  Mean = 3878.395197 (Mbytes/sec)
+   Max = 3881.417367 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 691.671460 (Mbytes/sec)
+  Mean = 697.460750 (Mbytes/sec)
+   Max = 697.878334 (Mbytes/sec)
+verify test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3642.085047 (Mbytes/sec)
+  Mean = 3642.696082 (Mbytes/sec)
+   Max = 3643.568304 (Mbytes/sec)
+TEST PASS
+
+Testing using 8 buffers of size 0x8000000 bytes, H2C channel 1 C2H channel 1
+populate test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3870.037740 (Mbytes/sec)
+  Mean = 3878.637987 (Mbytes/sec)
+   Max = 3881.265462 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 691.626906 (Mbytes/sec)
+  Mean = 696.817016 (Mbytes/sec)
+   Max = 697.869903 (Mbytes/sec)
+verify test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3631.662993 (Mbytes/sec)
+  Mean = 3641.876836 (Mbytes/sec)
+   Max = 3643.695062 (Mbytes/sec)
+TEST PASS
+
+Overall PASS
+
+2.2. Results from TEF1001_dma_ddr3 and NiteFury_dma_ddr3 designs with maximum number of buffers
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The TEF1001_dma_ddr3 and NiteFury_dma_ddr3 designs were re-tested but with the max_buffer_size changed
+to set the maximum number of buffers of 1023 (max DMA descriptors). This means the C2H transfers can be started
+sooner, as less of wait for the corresponding H2C transfer to first write data to the DDR3 memory.
+
+This caused a slight increase in the Mean transfer speed for TEF1001_dma_ddr3:
+  - from 871.267213 (Mbytes/sec) to 873.554303 (Mbytes/sec)
+
+Whereas for NiteFury_dma_ddr3 no measurable change (within the variation from run-to-run):
+  - from 697.760850 (Mbytes/sec) to 697.583653 (Mbytes/sec)
+
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge --device 0000:15:00.0 --max_buffer_size 8396808
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Enabling bus master for 0000:15:00.0
+Testing TEF1001_dma_ddr3 design with memory size 0x200000000
+PCI device 0000:15:00.0 IOMMU group 41
+
+Testing using 1023 buffers of size 0x802008 bytes, H2C channel 0 C2H channel 0
+populate test pattern timing for 3 transfers of 8589934584 bytes:
+   Min = 3876.392839 (Mbytes/sec)
+  Mean = 3877.281170 (Mbytes/sec)
+   Max = 3877.766972 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 3 transfers of 8589934584 bytes:
+   Min = 873.548558 (Mbytes/sec)
+  Mean = 873.554303 (Mbytes/sec)
+   Max = 873.558148 (Mbytes/sec)
+verify test pattern timing for 3 transfers of 8589934584 bytes:
+   Min = 3645.805634 (Mbytes/sec)
+  Mean = 3645.923166 (Mbytes/sec)
+   Max = 3646.096366 (Mbytes/sec)
+TEST PASS
+
+Testing using 1023 buffers of size 0x802008 bytes, H2C channel 0 C2H channel 1
+populate test pattern timing for 3 transfers of 8589934584 bytes:
+   Min = 3877.019505 (Mbytes/sec)
+  Mean = 3877.657529 (Mbytes/sec)
+   Max = 3878.493017 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 3 transfers of 8589934584 bytes:
+   Min = 873.549565 (Mbytes/sec)
+  Mean = 873.552314 (Mbytes/sec)
+   Max = 873.555315 (Mbytes/sec)
+verify test pattern timing for 3 transfers of 8589934584 bytes:
+   Min = 3645.591849 (Mbytes/sec)
+  Mean = 3646.292390 (Mbytes/sec)
+   Max = 3647.150025 (Mbytes/sec)
+TEST PASS
+
+Testing using 1023 buffers of size 0x802008 bytes, H2C channel 1 C2H channel 0
+populate test pattern timing for 3 transfers of 8589934584 bytes:
+   Min = 3876.289996 (Mbytes/sec)
+  Mean = 3877.057850 (Mbytes/sec)
+   Max = 3878.051761 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 3 transfers of 8589934584 bytes:
+   Min = 873.555938 (Mbytes/sec)
+  Mean = 873.562647 (Mbytes/sec)
+   Max = 873.573825 (Mbytes/sec)
+verify test pattern timing for 3 transfers of 8589934584 bytes:
+   Min = 3645.623456 (Mbytes/sec)
+  Mean = 3646.272615 (Mbytes/sec)
+   Max = 3646.840967 (Mbytes/sec)
+TEST PASS
+
+Testing using 1023 buffers of size 0x802008 bytes, H2C channel 1 C2H channel 1
+populate test pattern timing for 3 transfers of 8589934584 bytes:
+   Min = 3872.687965 (Mbytes/sec)
+  Mean = 3876.291413 (Mbytes/sec)
+   Max = 3878.184651 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 3 transfers of 8589934584 bytes:
+   Min = 873.550742 (Mbytes/sec)
+  Mean = 873.560822 (Mbytes/sec)
+   Max = 873.569128 (Mbytes/sec)
+verify test pattern timing for 3 transfers of 8589934584 bytes:
+   Min = 3646.774879 (Mbytes/sec)
+  Mean = 3647.154116 (Mbytes/sec)
+   Max = 3647.449347 (Mbytes/sec)
+TEST PASS
+
+Overall PASS
+
+
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge --device 0000:30:00.0 --max_buffer_size 1049601
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Enabling bus master for 0000:30:00.0
+Testing NiteFury_dma_ddr3 design with memory size 0x40000000
+PCI device 0000:30:00.0 IOMMU group 89
+
+Testing using 1023 buffers of size 0x100400 bytes, H2C channel 0 C2H channel 0
+populate test pattern timing for 17 transfers of 1073740800 bytes:
+   Min = 3864.143365 (Mbytes/sec)
+  Mean = 3877.665862 (Mbytes/sec)
+   Max = 3881.653914 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 17 transfers of 1073740800 bytes:
+   Min = 691.273014 (Mbytes/sec)
+  Mean = 697.583653 (Mbytes/sec)
+   Max = 698.617336 (Mbytes/sec)
+verify test pattern timing for 17 transfers of 1073740800 bytes:
+   Min = 3644.130835 (Mbytes/sec)
+  Mean = 3646.276531 (Mbytes/sec)
+   Max = 3648.145537 (Mbytes/sec)
+TEST PASS
+
+Testing using 1023 buffers of size 0x100400 bytes, H2C channel 0 C2H channel 1
+populate test pattern timing for 17 transfers of 1073740800 bytes:
+   Min = 3856.575925 (Mbytes/sec)
+  Mean = 3878.141218 (Mbytes/sec)
+   Max = 3881.745703 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 17 transfers of 1073740800 bytes:
+   Min = 690.761598 (Mbytes/sec)
+  Mean = 697.460841 (Mbytes/sec)
+   Max = 698.616994 (Mbytes/sec)
+verify test pattern timing for 17 transfers of 1073740800 bytes:
+   Min = 3643.815016 (Mbytes/sec)
+  Mean = 3646.406190 (Mbytes/sec)
+   Max = 3647.983951 (Mbytes/sec)
+TEST PASS
+
+Testing using 1023 buffers of size 0x100400 bytes, H2C channel 1 C2H channel 0
+populate test pattern timing for 17 transfers of 1073740800 bytes:
+   Min = 3878.098931 (Mbytes/sec)
+  Mean = 3879.652064 (Mbytes/sec)
+   Max = 3881.572261 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 17 transfers of 1073740800 bytes:
+   Min = 689.328242 (Mbytes/sec)
+  Mean = 697.393244 (Mbytes/sec)
+   Max = 698.617482 (Mbytes/sec)
+verify test pattern timing for 17 transfers of 1073740800 bytes:
+   Min = 3644.074328 (Mbytes/sec)
+  Mean = 3646.485605 (Mbytes/sec)
+   Max = 3648.495121 (Mbytes/sec)
+TEST PASS
+
+Testing using 1023 buffers of size 0x100400 bytes, H2C channel 1 C2H channel 1
+populate test pattern timing for 17 transfers of 1073740800 bytes:
+   Min = 3845.769590 (Mbytes/sec)
+  Mean = 3876.638588 (Mbytes/sec)
+   Max = 3881.369160 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 17 transfers of 1073740800 bytes:
+   Min = 688.965172 (Mbytes/sec)
+  Mean = 697.691811 (Mbytes/sec)
+   Max = 698.617252 (Mbytes/sec)
+verify test pattern timing for 17 transfers of 1073740800 bytes:
+   Min = 3644.747493 (Mbytes/sec)
+  Mean = 3646.442857 (Mbytes/sec)
+   Max = 3648.301683 (Mbytes/sec)
+TEST PASS
+
+Overall PASS
+
+
+2.3. Results from TEF1001_dma_stream_loopback and NiteFury_dma_stream_loopback designs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Tested using 8 GiB mappings, to use half of the physical memory on the PC:
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge --stream_mapping_size 0x200000000,0x200000000
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Enabling bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Enabling bus master for 0000:30:00.0
+Testing TEF1001_dma_stream_loopback design with AXI stream
+PCI device 0000:15:00.0 IOMMU group 41
+
+Testing streams using H2C 64 buffers of size 0x8000000 bytes, C2H 64 buffers of size 0x8000000 bytes, H2C channel 0 C2H channel 1
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3879.129324 (Mbytes/sec)
+  Mean = 3879.240728 (Mbytes/sec)
+   Max = 3879.352138 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 1637.207609 (Mbytes/sec)
+  Mean = 1637.210077 (Mbytes/sec)
+   Max = 1637.212544 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3764.876692 (Mbytes/sec)
+  Mean = 3765.721650 (Mbytes/sec)
+   Max = 3766.566985 (Mbytes/sec)
+TEST PASS
+
+Testing streams using H2C 64 buffers of size 0x8000000 bytes, C2H 64 buffers of size 0x8000000 bytes, H2C channel 1 C2H channel 0
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3879.385400 (Mbytes/sec)
+  Mean = 3879.740540 (Mbytes/sec)
+   Max = 3880.095743 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 1637.201676 (Mbytes/sec)
+  Mean = 1637.207706 (Mbytes/sec)
+   Max = 1637.213736 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3768.641455 (Mbytes/sec)
+  Mean = 3769.018852 (Mbytes/sec)
+   Max = 3769.396322 (Mbytes/sec)
+TEST PASS
+Testing TEF1001_dma_stream_loopback design with AXI stream
+PCI device 0000:15:00.0 IOMMU group 41
+
+Testing streams using H2C 64 buffers of size 0x8000000 bytes, C2H 64 buffers of size 0x8000000 bytes in continuous mode, H2C channel 0 C2H channel 1
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3879.703295 (Mbytes/sec)
+  Mean = 3880.025188 (Mbytes/sec)
+   Max = 3880.347133 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 1637.212244 (Mbytes/sec)
+  Mean = 1637.214084 (Mbytes/sec)
+   Max = 1637.215925 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3765.015403 (Mbytes/sec)
+  Mean = 3767.182249 (Mbytes/sec)
+   Max = 3769.351590 (Mbytes/sec)
+TEST PASS
+
+Testing streams using H2C 64 buffers of size 0x8000000 bytes, C2H 64 buffers of size 0x8000000 bytes in continuous mode, H2C channel 1 C2H channel 0
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3877.761379 (Mbytes/sec)
+  Mean = 3878.394339 (Mbytes/sec)
+   Max = 3879.027505 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 1637.214766 (Mbytes/sec)
+  Mean = 1637.215453 (Mbytes/sec)
+   Max = 1637.216139 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3767.928296 (Mbytes/sec)
+  Mean = 3768.139849 (Mbytes/sec)
+   Max = 3768.351424 (Mbytes/sec)
+TEST PASS
+Testing NiteFury_dma_stream_loopback design with AXI stream
+PCI device 0000:30:00.0 IOMMU group 89
+
+Testing streams using H2C 64 buffers of size 0x8000000 bytes, C2H 64 buffers of size 0x8000000 bytes, H2C channel 0 C2H channel 1
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3878.092970 (Mbytes/sec)
+  Mean = 3878.301471 (Mbytes/sec)
+   Max = 3878.509995 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 1637.187565 (Mbytes/sec)
+  Mean = 1637.197039 (Mbytes/sec)
+   Max = 1637.206512 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3765.081573 (Mbytes/sec)
+  Mean = 3766.809123 (Mbytes/sec)
+   Max = 3768.538259 (Mbytes/sec)
+TEST PASS
+
+Testing streams using H2C 64 buffers of size 0x8000000 bytes, C2H 64 buffers of size 0x8000000 bytes, H2C channel 1 C2H channel 0
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3878.750091 (Mbytes/sec)
+  Mean = 3879.498616 (Mbytes/sec)
+   Max = 3880.247429 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 1637.183778 (Mbytes/sec)
+  Mean = 1637.197373 (Mbytes/sec)
+   Max = 1637.210968 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3767.624172 (Mbytes/sec)
+  Mean = 3768.456580 (Mbytes/sec)
+   Max = 3769.289357 (Mbytes/sec)
+TEST PASS
+Testing NiteFury_dma_stream_loopback design with AXI stream
+PCI device 0000:30:00.0 IOMMU group 89
+
+Testing streams using H2C 64 buffers of size 0x8000000 bytes, C2H 64 buffers of size 0x8000000 bytes in continuous mode, H2C channel 0 C2H channel 1
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3828.037883 (Mbytes/sec)
+  Mean = 3853.840757 (Mbytes/sec)
+   Max = 3879.993838 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 1637.152753 (Mbytes/sec)
+  Mean = 1637.184519 (Mbytes/sec)
+   Max = 1637.216287 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3708.995972 (Mbytes/sec)
+  Mean = 3737.404725 (Mbytes/sec)
+   Max = 3766.252026 (Mbytes/sec)
+TEST PASS
+
+Testing streams using H2C 64 buffers of size 0x8000000 bytes, C2H 64 buffers of size 0x8000000 bytes in continuous mode, H2C channel 1 C2H channel 0
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3878.463499 (Mbytes/sec)
+  Mean = 3878.999697 (Mbytes/sec)
+   Max = 3879.536044 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 1637.197627 (Mbytes/sec)
+  Mean = 1637.202895 (Mbytes/sec)
+   Max = 1637.208162 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3765.546810 (Mbytes/sec)
+  Mean = 3765.758261 (Mbytes/sec)
+   Max = 3765.969734 (Mbytes/sec)
+TEST PASS
+
+Overall PASS
+
+
+3. Tests with NOIOMMU in W-2123 system
+======================================
+
+These tests were using the same system as the previous test, but without the IOMMU to investigate any performance
+difference of having the IOMMU enabled.
+
+To test with NOIOMMU:
+a. Disabled secure boot in the BIOS which is required to Load the cmem_gdb_access Kernel module which hasn't been signed.
+b. Run set_exe_vfio_capabilities.sh to set the required permissions on the executables to open VFIO devices as a
+   normal user in NOIOMMU mode.
+c. When booting use GRUB to manually edit the command line to:
+   - Remove:
+        intel_iommu=on
+   - Add the following, which reserves just over half the physical memory for the cmem_gdb_access module:
+        memmap=16386M\$4G,1M\$20482M
+
+The complete command line was:
+$ cat /proc/cmdline 
+BOOT_IMAGE=(hd1,gpt2)/vmlinuz-4.18.0-513.9.1.el8_9.x86_64 root=/dev/mapper/almalinux_skylake--alma-root ro resume=/dev/mapper/almalinux_skylake--alma-swap rd.lvm.lv=almalinux_skylake-alma/root rd.lvm.lv=almalinux_skylake-alma/swap rhgb quiet memmap=16386M$4G,1M$20482M
+
+Setup after booting:
+$ ~/fpga_sio/software_tests/eclipse_project/bind_xilinx_devices_to_vfio.sh 
+No IOMMUs present
+Loading vfio module and enabling NOIOMMU (this taints the Kernel)
+[sudo] password for mr_halfword: 
+Loading vfio-pci module
+Bound vfio-pci driver to 0000:15:00.0 10ee:7024 [0002:0005]
+Waiting for /dev/vfio/noiommu-0 to be created
+Giving user permission to IOMMU group noiommu-0 for 0000:15:00.0 10ee:7024 [0002:0005]
+Bound vfio-pci driver to 0000:30:00.0 10ee:7024 [0002:0006]
+Waiting for /dev/vfio/noiommu-1 to be created
+Giving user permission to IOMMU group noiommu-1 for 0000:30:00.0 10ee:7024 [0002:0006]
+[mr_halfword@skylake-alma ~]$ cd ~/cmem_gdb_access/module/
+[mr_halfword@skylake-alma module]$ sudo ./load.sh 
+
+The Kernel is tainted:
+$ ~/Downloads/kernel-chktaint 
+Kernel is "tainted" for the following reasons:
+ * taint requested by userspace application (#6)
+ * externally-built ('out-of-tree') module was loaded  (#12)
+ * unsigned module was loaded (#13)
+For a more detailed explanation of the various taint flags see
+ Documentation/admin-guide/tainted-kernels.rst in the Linux kernel sources
+ or https://kernel.org/doc/html/latest/admin-guide/tainted-kernels.html
+Raw taint value as int/string: 12352/'G     U     OE     '
+
+3.1. Results from TEF1001_dma_ddr3 and NiteFury_dma_ddr3 designs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Used 8 GiB and 1 GiB buffers, which match the amount of memory on the cards:
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge 
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 0
+Enabling bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 1
+Enabling bus master for 0000:30:00.0
+Testing TEF1001_dma_ddr3 design with memory size 0x200000000
+PCI device 0000:15:00.0 IOMMU group 0
+
+Testing using 64 buffers of size 0x8000000 bytes, H2C channel 0 C2H channel 0
+Opened DMA MEM device : /dev/cmem (dev_desc = 0x00000009)
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7f3101aff000 
+Debug: mmap param length 0x200000000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7f2f010f4000 
+Debug: mmap param length 0x200000000, Addr: 0x300002000 
+Buff num 0: Phys addr : 0x300002000 User Addr: 0x7f2d010f4000 
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3859.793332 (Mbytes/sec)
+  Mean = 3861.136758 (Mbytes/sec)
+   Max = 3862.481119 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 870.573479 (Mbytes/sec)
+  Mean = 870.576778 (Mbytes/sec)
+   Max = 870.580077 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3756.272326 (Mbytes/sec)
+  Mean = 3758.306803 (Mbytes/sec)
+   Max = 3760.343484 (Mbytes/sec)
+TEST PASS
+
+Testing using 64 buffers of size 0x8000000 bytes, H2C channel 0 C2H channel 1
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7f3101afd000 
+Debug: mmap param length 0x200000000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7f2b010f4000 
+Debug: mmap param length 0x200000000, Addr: 0x300002000 
+Buff num 0: Phys addr : 0x300002000 User Addr: 0x7f29010f4000 
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3858.931163 (Mbytes/sec)
+  Mean = 3859.980660 (Mbytes/sec)
+   Max = 3861.030726 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 870.572159 (Mbytes/sec)
+  Mean = 870.572869 (Mbytes/sec)
+   Max = 870.573580 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3752.022452 (Mbytes/sec)
+  Mean = 3754.571468 (Mbytes/sec)
+   Max = 3757.123949 (Mbytes/sec)
+TEST PASS
+
+Testing using 64 buffers of size 0x8000000 bytes, H2C channel 1 C2H channel 0
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7f3101ae8000 
+Debug: mmap param length 0x200000000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7f27010f4000 
+Debug: mmap param length 0x200000000, Addr: 0x300002000 
+Buff num 0: Phys addr : 0x300002000 User Addr: 0x7f25010f4000 
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3862.149508 (Mbytes/sec)
+  Mean = 3863.488394 (Mbytes/sec)
+   Max = 3864.828207 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 870.569155 (Mbytes/sec)
+  Mean = 870.573253 (Mbytes/sec)
+   Max = 870.577350 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3751.822308 (Mbytes/sec)
+  Mean = 3754.676973 (Mbytes/sec)
+   Max = 3757.535985 (Mbytes/sec)
+TEST PASS
+
+Testing using 64 buffers of size 0x8000000 bytes, H2C channel 1 C2H channel 1
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7f3101ae6000 
+Debug: mmap param length 0x200000000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7f23010f4000 
+Debug: mmap param length 0x200000000, Addr: 0x300002000 
+Buff num 0: Phys addr : 0x300002000 User Addr: 0x7f21010f4000 
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3863.893998 (Mbytes/sec)
+  Mean = 3864.937645 (Mbytes/sec)
+   Max = 3865.981854 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 870.572718 (Mbytes/sec)
+  Mean = 870.574111 (Mbytes/sec)
+   Max = 870.575504 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3757.765754 (Mbytes/sec)
+  Mean = 3758.200873 (Mbytes/sec)
+   Max = 3758.636093 (Mbytes/sec)
+TEST PASS
+Testing NiteFury_dma_ddr3 design with memory size 0x40000000
+PCI device 0000:30:00.0 IOMMU group 1
+
+Testing using 8 buffers of size 0x8000000 bytes, H2C channel 0 C2H channel 0
+Debug: mmap param length 0x1000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7f3101ad5000 
+Debug: mmap param length 0x40000000, Addr: 0x100001000 
+Buff num 0: Phys addr : 0x100001000 User Addr: 0x7f20c10f4000 
+Debug: mmap param length 0x40000000, Addr: 0x140001000 
+Buff num 0: Phys addr : 0x140001000 User Addr: 0x7f20810f4000 
+populate test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3855.750477 (Mbytes/sec)
+  Mean = 3863.571893 (Mbytes/sec)
+   Max = 3869.506135 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 697.845125 (Mbytes/sec)
+  Mean = 697.851858 (Mbytes/sec)
+   Max = 697.874549 (Mbytes/sec)
+verify test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3748.750217 (Mbytes/sec)
+  Mean = 3758.482312 (Mbytes/sec)
+   Max = 3766.589939 (Mbytes/sec)
+TEST PASS
+
+Testing using 8 buffers of size 0x8000000 bytes, H2C channel 0 C2H channel 1
+Debug: mmap param length 0x1000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7f3101ad4000 
+Debug: mmap param length 0x40000000, Addr: 0x100001000 
+Buff num 0: Phys addr : 0x100001000 User Addr: 0x7f20410f4000 
+Debug: mmap param length 0x40000000, Addr: 0x140001000 
+Buff num 0: Phys addr : 0x140001000 User Addr: 0x7f20010f4000 
+populate test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3820.394567 (Mbytes/sec)
+  Mean = 3861.700544 (Mbytes/sec)
+   Max = 3870.314807 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 697.844914 (Mbytes/sec)
+  Mean = 697.853460 (Mbytes/sec)
+   Max = 697.878409 (Mbytes/sec)
+verify test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3736.094915 (Mbytes/sec)
+  Mean = 3757.875417 (Mbytes/sec)
+   Max = 3763.349896 (Mbytes/sec)
+TEST PASS
+
+Testing using 8 buffers of size 0x8000000 bytes, H2C channel 1 C2H channel 0
+Debug: mmap param length 0x1000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7f3101ad3000 
+Debug: mmap param length 0x40000000, Addr: 0x100001000 
+Buff num 0: Phys addr : 0x100001000 User Addr: 0x7f1fc10f4000 
+Debug: mmap param length 0x40000000, Addr: 0x140001000 
+Buff num 0: Phys addr : 0x140001000 User Addr: 0x7f1f810f4000 
+populate test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3850.017591 (Mbytes/sec)
+  Mean = 3861.855977 (Mbytes/sec)
+   Max = 3870.197975 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 697.842670 (Mbytes/sec)
+  Mean = 697.848739 (Mbytes/sec)
+   Max = 697.869411 (Mbytes/sec)
+verify test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3737.258810 (Mbytes/sec)
+  Mean = 3758.735215 (Mbytes/sec)
+   Max = 3763.581569 (Mbytes/sec)
+TEST PASS
+
+Testing using 8 buffers of size 0x8000000 bytes, H2C channel 1 C2H channel 1
+Debug: mmap param length 0x1000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7f3101ad2000 
+Debug: mmap param length 0x40000000, Addr: 0x100001000 
+Buff num 0: Phys addr : 0x100001000 User Addr: 0x7f1f410f4000 
+Debug: mmap param length 0x40000000, Addr: 0x140001000 
+Buff num 0: Phys addr : 0x140001000 User Addr: 0x7f1f010f4000 
+populate test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3854.136511 (Mbytes/sec)
+  Mean = 3864.534695 (Mbytes/sec)
+   Max = 3868.670689 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 16 transfers of 1073741824 bytes:
+   Min = 697.840907 (Mbytes/sec)
+  Mean = 697.850745 (Mbytes/sec)
+   Max = 697.876603 (Mbytes/sec)
+verify test pattern timing for 16 transfers of 1073741824 bytes:
+   Min = 3754.574195 (Mbytes/sec)
+  Mean = 3761.056448 (Mbytes/sec)
+   Max = 3767.788013 (Mbytes/sec)
+TEST PASS
+Memory Driver closed 
+
+Overall PASS
+
+3.2. Results from TEF1001_dma_stream_loopback and NiteFury_dma_stream_loopback designs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Tested using 8 GiB mappings, to use half of the physical memory on the PC:
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge --stream_mapping_size 0x200000000,0x200000000
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 0
+Enabling bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 1
+Enabling bus master for 0000:30:00.0
+Testing TEF1001_dma_stream_loopback design with AXI stream
+PCI device 0000:15:00.0 IOMMU group 0
+
+Testing streams using H2C 64 buffers of size 0x8000000 bytes, C2H 64 buffers of size 0x8000000 bytes, H2C channel 0 C2H channel 1
+Opened DMA MEM device : /dev/cmem (dev_desc = 0x00000009)
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7fa8d4a08000 
+Debug: mmap param length 0x200000000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7fa6d3ffd000 
+Debug: mmap param length 0x200000000, Addr: 0x300002000 
+Buff num 0: Phys addr : 0x300002000 User Addr: 0x7fa4d3ffd000 
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3873.142306 (Mbytes/sec)
+  Mean = 3873.612861 (Mbytes/sec)
+   Max = 3874.083530 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 1637.212227 (Mbytes/sec)
+  Mean = 1637.212249 (Mbytes/sec)
+   Max = 1637.212271 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3751.474784 (Mbytes/sec)
+  Mean = 3751.653879 (Mbytes/sec)
+   Max = 3751.832991 (Mbytes/sec)
+TEST PASS
+
+Testing streams using H2C 64 buffers of size 0x8000000 bytes, C2H 64 buffers of size 0x8000000 bytes, H2C channel 1 C2H channel 0
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7fa8d4a06000 
+Debug: mmap param length 0x200000000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7fa2d3ffd000 
+Debug: mmap param length 0x200000000, Addr: 0x300002000 
+Buff num 0: Phys addr : 0x300002000 User Addr: 0x7fa0d3ffd000 
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3871.928943 (Mbytes/sec)
+  Mean = 3871.946024 (Mbytes/sec)
+   Max = 3871.963104 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 1637.212305 (Mbytes/sec)
+  Mean = 1637.212334 (Mbytes/sec)
+   Max = 1637.212363 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3751.612965 (Mbytes/sec)
+  Mean = 3752.217129 (Mbytes/sec)
+   Max = 3752.821487 (Mbytes/sec)
+TEST PASS
+Testing TEF1001_dma_stream_loopback design with AXI stream
+PCI device 0000:15:00.0 IOMMU group 0
+
+Testing streams using H2C 64 buffers of size 0x8000000 bytes, C2H 64 buffers of size 0x8000000 bytes in continuous mode, H2C channel 0 C2H channel 1
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7fa8d49f1000 
+Debug: mmap param length 0x200000000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7f9ed3ffd000 
+Debug: mmap param length 0x200000000, Addr: 0x300002000 
+Buff num 0: Phys addr : 0x300002000 User Addr: 0x7f9cd3ffd000 
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3873.385148 (Mbytes/sec)
+  Mean = 3873.449829 (Mbytes/sec)
+   Max = 3873.514512 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 1637.214104 (Mbytes/sec)
+  Mean = 1637.214237 (Mbytes/sec)
+   Max = 1637.214369 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3750.704141 (Mbytes/sec)
+  Mean = 3751.663477 (Mbytes/sec)
+   Max = 3752.623304 (Mbytes/sec)
+TEST PASS
+
+Testing streams using H2C 64 buffers of size 0x8000000 bytes, C2H 64 buffers of size 0x8000000 bytes in continuous mode, H2C channel 1 C2H channel 0
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7fa8d49ef000 
+Debug: mmap param length 0x200000000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7f9ad3ffd000 
+Debug: mmap param length 0x200000000, Addr: 0x300002000 
+Buff num 0: Phys addr : 0x300002000 User Addr: 0x7f98d3ffd000 
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3871.990392 (Mbytes/sec)
+  Mean = 3873.114708 (Mbytes/sec)
+   Max = 3874.239676 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 1637.214083 (Mbytes/sec)
+  Mean = 1637.214089 (Mbytes/sec)
+   Max = 1637.214095 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3750.963819 (Mbytes/sec)
+  Mean = 3751.548317 (Mbytes/sec)
+   Max = 3752.132998 (Mbytes/sec)
+TEST PASS
+Testing NiteFury_dma_stream_loopback design with AXI stream
+PCI device 0000:30:00.0 IOMMU group 1
+
+Testing streams using H2C 64 buffers of size 0x8000000 bytes, C2H 64 buffers of size 0x8000000 bytes, H2C channel 0 C2H channel 1
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7fa8d49dd000 
+Debug: mmap param length 0x200000000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7f96d3ffd000 
+Debug: mmap param length 0x200000000, Addr: 0x300002000 
+Buff num 0: Phys addr : 0x300002000 User Addr: 0x7f94d3ffd000 
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3871.173845 (Mbytes/sec)
+  Mean = 3872.523016 (Mbytes/sec)
+   Max = 3873.873125 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 1637.211983 (Mbytes/sec)
+  Mean = 1637.212008 (Mbytes/sec)
+   Max = 1637.212034 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3750.980652 (Mbytes/sec)
+  Mean = 3751.671721 (Mbytes/sec)
+   Max = 3752.363043 (Mbytes/sec)
+TEST PASS
+
+Testing streams using H2C 64 buffers of size 0x8000000 bytes, C2H 64 buffers of size 0x8000000 bytes, H2C channel 1 C2H channel 0
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7fa8d49db000 
+Debug: mmap param length 0x200000000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7f92d3ffd000 
+Debug: mmap param length 0x200000000, Addr: 0x300002000 
+Buff num 0: Phys addr : 0x300002000 User Addr: 0x7f90d3ffd000 
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3871.534339 (Mbytes/sec)
+  Mean = 3872.288137 (Mbytes/sec)
+   Max = 3873.042228 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 1637.210725 (Mbytes/sec)
+  Mean = 1637.211384 (Mbytes/sec)
+   Max = 1637.212044 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3750.500674 (Mbytes/sec)
+  Mean = 3751.417502 (Mbytes/sec)
+   Max = 3752.334779 (Mbytes/sec)
+TEST PASS
+Testing NiteFury_dma_stream_loopback design with AXI stream
+PCI device 0000:30:00.0 IOMMU group 1
+
+Testing streams using H2C 64 buffers of size 0x8000000 bytes, C2H 64 buffers of size 0x8000000 bytes in continuous mode, H2C channel 0 C2H channel 1
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7fa8d49d9000 
+Debug: mmap param length 0x200000000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7f8ed3ffd000 
+Debug: mmap param length 0x200000000, Addr: 0x300002000 
+Buff num 0: Phys addr : 0x300002000 User Addr: 0x7f8cd3ffd000 
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3872.307933 (Mbytes/sec)
+  Mean = 3873.051562 (Mbytes/sec)
+   Max = 3873.795476 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 1637.213574 (Mbytes/sec)
+  Mean = 1637.213600 (Mbytes/sec)
+   Max = 1637.213627 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3749.745110 (Mbytes/sec)
+  Mean = 3750.287139 (Mbytes/sec)
+   Max = 3750.829325 (Mbytes/sec)
+TEST PASS
+
+Testing streams using H2C 64 buffers of size 0x8000000 bytes, C2H 64 buffers of size 0x8000000 bytes in continuous mode, H2C channel 1 C2H channel 0
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7fa8d49d7000 
+Debug: mmap param length 0x200000000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7f8ad3ffd000 
+Debug: mmap param length 0x200000000, Addr: 0x300002000 
+Buff num 0: Phys addr : 0x300002000 User Addr: 0x7f88d3ffd000 
+populate test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3871.294682 (Mbytes/sec)
+  Mean = 3872.860483 (Mbytes/sec)
+   Max = 3874.427550 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 2 transfers of 8589934592 bytes:
+   Min = 1637.213527 (Mbytes/sec)
+  Mean = 1637.213564 (Mbytes/sec)
+   Max = 1637.213600 (Mbytes/sec)
+verify test pattern timing for 2 transfers of 8589934592 bytes:
+   Min = 3751.160453 (Mbytes/sec)
+  Mean = 3751.731976 (Mbytes/sec)
+   Max = 3752.303672 (Mbytes/sec)
+TEST PASS
+Memory Driver closed 
+
+Overall PASS
+
+
+4. TEF1001_dma_stream_loopback with different buffer sizes
+==========================================================
+
+Test passes when both H2C and C2H buffer sizes set to 0x810204 bytes, which isn't a multiple of 16 bytes:
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge --device 0000:15:00.0 --max_channel_combinations 1 --stream_num_descriptors 127,127
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 25
+Enabling bus master for 0000:15:00.0
+Testing TEF1001_dma_stream_loopback design with AXI stream
+PCI device 0000:15:00.0 IOMMU group 25
+
+Testing streams using H2C 127 buffers of size 0x810204 bytes, C2H 127 buffers of size 0x810204 bytes, H2C channel 0 C2H channel 1
+populate test pattern timing for 17 transfers of 1073741820 bytes:
+   Min = 3874.591884 (Mbytes/sec)
+  Mean = 3878.967615 (Mbytes/sec)
+   Max = 3881.418601 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 17 transfers of 1073741820 bytes:
+   Min = 1637.080600 (Mbytes/sec)
+  Mean = 1637.102635 (Mbytes/sec)
+   Max = 1637.105405 (Mbytes/sec)
+verify test pattern timing for 17 transfers of 1073741820 bytes:
+   Min = 3805.974719 (Mbytes/sec)
+  Mean = 3808.353198 (Mbytes/sec)
+   Max = 3810.299973 (Mbytes/sec)
+TEST PASS
+Testing TEF1001_dma_stream_loopback design with AXI stream
+PCI device 0000:15:00.0 IOMMU group 25
+
+Testing streams using H2C 127 buffers of size 0x810204 bytes, C2H 127 buffers of size 0x810204 bytes in continuous mode, H2C channel 0 C2H channel 1
+populate test pattern timing for 17 transfers of 1073741820 bytes:
+   Min = 3869.659993 (Mbytes/sec)
+  Mean = 3878.253908 (Mbytes/sec)
+   Max = 3881.949752 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 17 transfers of 1073741820 bytes:
+   Min = 1637.103396 (Mbytes/sec)
+  Mean = 1637.136117 (Mbytes/sec)
+   Max = 1637.138763 (Mbytes/sec)
+verify test pattern timing for 17 transfers of 1073741820 bytes:
+   Min = 3801.448353 (Mbytes/sec)
+  Mean = 3808.186064 (Mbytes/sec)
+   Max = 3811.387653 (Mbytes/sec)
+TEST PASS
+
+Overall PASS
+
+
+Test also passes when the H2C buffer size is set to 0x810204 bytes, and C2H left at the power-of-two 0x1000000 bytes:
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge --device 0000:15:00.0 --max_channel_combinations 1 --stream_num_descriptors 127,64
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 25
+Enabling bus master for 0000:15:00.0
+Testing TEF1001_dma_stream_loopback design with AXI stream
+PCI device 0000:15:00.0 IOMMU group 25
+
+Testing streams using H2C 127 buffers of size 0x810204 bytes, C2H 64 buffers of size 0x1000000 bytes, H2C channel 0 C2H channel 1
+populate test pattern timing for 32 transfers of 541098240 bytes:
+   Min = 3874.004451 (Mbytes/sec)
+  Mean = 3879.281945 (Mbytes/sec)
+   Max = 3881.885804 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 32 transfers of 541098240 bytes:
+   Min = 1637.088284 (Mbytes/sec)
+  Mean = 1637.110360 (Mbytes/sec)
+   Max = 1637.112747 (Mbytes/sec)
+verify test pattern timing for 32 transfers of 541098240 bytes:
+   Min = 3738.466067 (Mbytes/sec)
+  Mean = 3747.009878 (Mbytes/sec)
+   Max = 3749.334129 (Mbytes/sec)
+TEST PASS
+Testing TEF1001_dma_stream_loopback design with AXI stream
+PCI device 0000:15:00.0 IOMMU group 25
+
+Testing streams using H2C 127 buffers of size 0x810204 bytes, C2H 64 buffers of size 0x1000000 bytes in continuous mode, H2C channel 0 C2H channel 1
+populate test pattern timing for 32 transfers of 541098240 bytes:
+   Min = 3874.346383 (Mbytes/sec)
+  Mean = 3879.323941 (Mbytes/sec)
+   Max = 3881.868009 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 32 transfers of 541098240 bytes:
+   Min = 1637.112777 (Mbytes/sec)
+  Mean = 1637.143715 (Mbytes/sec)
+   Max = 1637.147361 (Mbytes/sec)
+verify test pattern timing for 32 transfers of 541098240 bytes:
+   Min = 3728.235202 (Mbytes/sec)
+  Mean = 3746.435907 (Mbytes/sec)
+   Max = 3749.029959 (Mbytes/sec)
+TEST PASS
+
+Overall PASS
+
+
+Trying the other way round with H2C left at the power-of-two 0x1000000 bytes, and C2H set to 0x810204 bytes fails: 
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge --device 0000:15:00.0 --max_channel_combinations 1 --stream_num_descriptors 64,127
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 25
+Enabling bus master for 0000:15:00.0
+Testing TEF1001_dma_stream_loopback design with AXI stream
+PCI device 0000:15:00.0 IOMMU group 25
+
+Testing streams using H2C 64 buffers of size 0x1000000 bytes, C2H 127 buffers of size 0x810204 bytes, H2C channel 0 C2H channel 1
+TEST FAIL:
+  C2H failure : Assertion failed: rx_buffer->transfer_len == expected_transfer_len
+Testing TEF1001_dma_stream_loopback design with AXI stream
+PCI device 0000:15:00.0 IOMMU group 25
+
+Testing streams using H2C 64 buffers of size 0x1000000 bytes, C2H 127 buffers of size 0x810204 bytes in continuous mode, H2C channel 0 C2H channel 1
+TEST FAIL:
+  C2H failure : Assertion failed: rx_buffer->transfer_len == expected_transfer_len
+
+Overall FAIL
+
+Debugging shows the failure is reported on the first C2H buffer which completed:
+- rx_buffer->transfer_len = 0x810210
+- expected_transfer_len = 0x810204 (the size of the buffer)
+- Each H2C buffer requires the packet to be split across 2 C2H buffers
+- The transfer_len reported by the DMA engine for a transfer not terminated by end of packet is rounded to the next
+  multiple of 16 bytes. The FPGA design has configured the DMA bridge with a AXI width of 128 bits (16 bytes).
+
+
+Adjusting the C2H buffer size to be 0x810210 then allows the test to pass:
+
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge --device 0000:15:00.0 --max_channel_combinations 1 --stream_num_descriptors 64,127 --stream_mapping_size 0x40000000,0x400005F0
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 25
+Enabling bus master for 0000:15:00.0
+Testing TEF1001_dma_stream_loopback design with AXI stream
+PCI device 0000:15:00.0 IOMMU group 25
+
+Testing streams using H2C 64 buffers of size 0x1000000 bytes, C2H 127 buffers of size 0x810210 bytes, H2C channel 0 C2H channel 1
+populate test pattern timing for 17 transfers of 1056964608 bytes:
+   Min = 3872.062904 (Mbytes/sec)
+  Mean = 3877.560529 (Mbytes/sec)
+   Max = 3881.642773 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 17 transfers of 1056964608 bytes:
+   Min = 1637.101368 (Mbytes/sec)
+  Mean = 1637.135042 (Mbytes/sec)
+   Max = 1637.139946 (Mbytes/sec)
+verify test pattern timing for 17 transfers of 1056964608 bytes:
+   Min = 3643.467871 (Mbytes/sec)
+  Mean = 3645.953391 (Mbytes/sec)
+   Max = 3648.440378 (Mbytes/sec)
+TEST PASS
+Testing TEF1001_dma_stream_loopback design with AXI stream
+PCI device 0000:15:00.0 IOMMU group 25
+
+Testing streams using H2C 64 buffers of size 0x1000000 bytes, C2H 127 buffers of size 0x810210 bytes in continuous mode, H2C channel 0 C2H channel 1
+populate test pattern timing for 17 transfers of 1056964608 bytes:
+   Min = 3870.658236 (Mbytes/sec)
+  Mean = 3877.137932 (Mbytes/sec)
+   Max = 3881.021221 (Mbytes/sec)
+host-to-card and card-to-host DMA timing for 17 transfers of 1056964608 bytes:
+   Min = 1637.128875 (Mbytes/sec)
+  Mean = 1637.167627 (Mbytes/sec)
+   Max = 1637.173125 (Mbytes/sec)
+verify test pattern timing for 17 transfers of 1056964608 bytes:
+   Min = 3640.265776 (Mbytes/sec)
+  Mean = 3645.993951 (Mbytes/sec)
+   Max = 3648.780553 (Mbytes/sec)
+TEST PASS
+
+Overall PASS
+
+
+This shows that when using AXI streams, and a packet may be split across multiple C2H buffers, each C2H buffer must
+be a multiple of the AXI stream width in the DMA bridge.

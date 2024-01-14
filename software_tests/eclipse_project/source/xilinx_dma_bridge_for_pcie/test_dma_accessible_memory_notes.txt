@@ -1,3 +1,17 @@
+Note: The test_dma_accessible_memory program these results were using has been replaced with test_dma_bridge.
+
+Differences between the programs are, which impact on the reported results are:
+a. test_dma_accessible_memory only supported Memory Mapped endpoints.
+   Whereas test_dma_bridge also supports stream AXI4 endpoints.
+b. The test_dma_accessible_memory options for controlling the address alignment for transfers haven't
+   been added to test_dma_bridge, as with test_dma_accessible_memory changing the address alignment didn't result in
+   any measureable change in transfer performance.
+c. test_dma_accessible_memory only transfers and times in one H2C to C2H direction at a time.
+   Whereas test_dma_bridge attempts to overlap the H2C and C2H transfers with multiple descriptors used for each transfer.
+   As a result, the transfer rate reported by test_dma_bridge is the simultaneous rate in each direction.
+d. test_dma_bridge reports the time taken to generate and verify the test pattern in host memory, in addition to the
+   transfer time.
+
 1. Tests using TOSING_160T_dma_ddr3 design with no IOMMU
 ========================================================
 
