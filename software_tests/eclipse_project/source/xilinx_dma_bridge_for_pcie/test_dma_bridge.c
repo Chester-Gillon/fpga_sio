@@ -650,15 +650,8 @@ static bool test_dma_accessible_memory_with_fixed_buffers (const fpga_design_t *
     }
     else
     {
-        /* Find the highest possible value of bytes_per_buffer which is a multiple of the memory size to be tested.
-         * Needs to also be multiple of words, to allow for the test pattern used. */
-        bytes_per_buffer = arg_max_buffer_size;
-        while ((bytes_per_buffer > sizeof (uint32_t)) &&
-                (((design->dma_bridge_memory_size_bytes % bytes_per_buffer) != 0) ||
-                 ((bytes_per_buffer % sizeof (uint32_t)                   ) != 0))  )
-        {
-            bytes_per_buffer--;
-        }
+        /* Calculate the number of bytes per buffer, which needs to be a multiple of words */
+        bytes_per_buffer = (arg_max_buffer_size / sizeof (uint32_t)) * sizeof (uint32_t);
         num_descriptors = (uint32_t) (design->dma_bridge_memory_size_bytes / bytes_per_buffer);
     }
 
