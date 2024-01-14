@@ -173,12 +173,7 @@ void create_vfio_buffer (vfio_buffer_t *const buffer,
 #ifdef HAVE_CMEM
         /* Perform a dynamic memory allocation of physical contiguous memory for a single buffer */
         buffer->vaddr = NULL;
-        if (size > UINT32_MAX)
-        {
-            printf ("Buffer size %zu too large for contiguous physical memory driver\n", size);
-            return;
-        }
-        rc = cmem_drv_alloc (1, (uint32_t) size, HOST_BUF_TYPE_DYNAMIC, &buffer->cmem_host_buf_desc);
+        rc = cmem_drv_alloc (1, size, HOST_BUF_TYPE_DYNAMIC, &buffer->cmem_host_buf_desc);
         if (rc == 0)
         {
             buffer->vaddr = buffer->cmem_host_buf_desc.userAddr;
