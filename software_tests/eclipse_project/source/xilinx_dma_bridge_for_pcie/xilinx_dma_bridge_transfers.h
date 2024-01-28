@@ -14,6 +14,10 @@
 #include "xilinx_dma_bridge_host_interface.h"
 
 
+/* Maximum descriptor length which is a multiple of cache lines */
+#define X2X_CACHE_LINE_ALIGNED_MAX_DESCRIPTOR_LEN (DMA_DESCRIPTOR_MAX_LEN & (~(VFIO_CACHE_LINE_SIZE - 1)))
+
+
 /* Defines the configuration used for control DMA transfers for either one H2C or C2C DMA channel.
  * This is provided by the caller of the API, and read-only as transfers are performed. */
 typedef struct
@@ -132,6 +136,7 @@ void x2x_record_failure (x2x_transfer_context_t *const context, const char *form
 void x2x_assert (x2x_transfer_context_t *const context, const bool assertion, const char *const assertion_message);
 #define X2X_ASSERT(context,assertion) x2x_assert (context, assertion, #assertion)
 size_t x2x_get_descriptor_allocation_size (const x2x_transfer_configuration_t *const configuration);
+uint32_t x2x_num_descriptors_for_transfer_len (const size_t len);
 void x2x_get_num_channels (vfio_device_t *const vfio_device, const uint32_t bar_index, const size_t dma_bridge_memory_size_bytes,
                            uint32_t *const num_h2c_channels, uint32_t *const num_c2h_channels);
 void x2x_initialise_transfer_context (x2x_transfer_context_t *const context,
@@ -141,6 +146,10 @@ uint32_t x2x_get_num_free_descriptors (x2x_transfer_context_t *const context);
 void x2x_start_populated_descriptors (x2x_transfer_context_t *const context);
 void *x2x_get_next_h2c_buffer (x2x_transfer_context_t *const context);
 void x2x_start_next_c2h_buffer (x2x_transfer_context_t *const context);
+void *x2x_populate_memory_transfer (x2x_transfer_context_t *const context, const size_t len,
+                                    const uint64_t host_buffer_offset, const uint64_t card_buffer_offset);
+void *x2x_populate_stream_transfer (x2x_transfer_context_t *const context, const size_t len,
+                                    const uint64_t host_buffer_offset);
 void *x2x_poll_completed_transfer (x2x_transfer_context_t *const context, size_t *const transfer_len, bool *const end_of_packet);
 
 #endif /* XILINX_DMA_BRIDGE_TRANSFERS_H_ */

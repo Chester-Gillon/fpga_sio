@@ -58,6 +58,12 @@ typedef enum
     /* Perform a DMA test of a pair of AXI streams which are looped-back, using fixed size buffers.
      * The C2H DMA runs continuously, without software having to start each C2H transfer. */
     DMA_TEST_STREAM_FIXED_BUFFERS_C2H_CONTINUOUS,
+    /* Perform a write/read test of DMA accessible memory using a pair of channels, and transfers in which
+     * the descriptors are modified before use. */
+    DMA_TEST_MEMORY_VARIABLE_TRANSFERS,
+    /* Perform a DMA test of a pair of AXI streams which are looped-back, and transfers in which the
+     * descriptors are modified before use. */
+    DMA_TEST_STREAM_VARIABLE_TRANSFERS,
 
     DMA_TEST_ARRAY_SIZE
 } dma_test_t;
@@ -67,14 +73,17 @@ static const char *const dma_test_names[DMA_TEST_ARRAY_SIZE] =
 {
     [DMA_TEST_MEMORY_FIXED_BUFFERS] = "memory_fixed_buffers",
     [DMA_TEST_STREAM_FIXED_BUFFERS] = "stream_fixed_buffers",
-    [DMA_TEST_STREAM_FIXED_BUFFERS_C2H_CONTINUOUS] = "stream_fixed_buffers_c2h_continuous"
+    [DMA_TEST_STREAM_FIXED_BUFFERS_C2H_CONTINUOUS] = "stream_fixed_buffers_c2h_continuous",
+    [DMA_TEST_MEMORY_VARIABLE_TRANSFERS] = "memory_variable_transfers",
+    [DMA_TEST_STREAM_VARIABLE_TRANSFERS] = "stream_variable_transfers"
 };
 
 /* Identifies which tests use AXI streams, as opposed to DMA accessible memory */
 static const bool dma_test_uses_stream[DMA_TEST_ARRAY_SIZE] =
 {
     [DMA_TEST_STREAM_FIXED_BUFFERS] = true,
-    [DMA_TEST_STREAM_FIXED_BUFFERS_C2H_CONTINUOUS] = true
+    [DMA_TEST_STREAM_FIXED_BUFFERS_C2H_CONTINUOUS] = true,
+    [DMA_TEST_STREAM_VARIABLE_TRANSFERS] = true
 };
 
 
@@ -83,7 +92,9 @@ static bool arg_enabled_tests[DMA_TEST_ARRAY_SIZE] =
 {
     [DMA_TEST_MEMORY_FIXED_BUFFERS] = true,
     [DMA_TEST_STREAM_FIXED_BUFFERS] = true,
-    [DMA_TEST_STREAM_FIXED_BUFFERS_C2H_CONTINUOUS] = true
+    [DMA_TEST_STREAM_FIXED_BUFFERS_C2H_CONTINUOUS] = true,
+    [DMA_TEST_MEMORY_VARIABLE_TRANSFERS] = true,
+    [DMA_TEST_STREAM_VARIABLE_TRANSFERS] = true
 };
 
 
@@ -115,6 +126,15 @@ static uint32_t arg_stream_h2c_num_descriptors = 64;
 static uint32_t arg_stream_c2h_num_descriptors = 64;
 
 
+/* Command line arguments which specify the length of each transfer when performing memory or stream variable transfers */
+static size_t arg_h2c_transfer_length = 0x10000000;
+static size_t arg_c2h_transfer_length = 0x10000000;
+
+
+/* Command line argument which specifies the width of the AXI streams, which controls C2H transfer alignment */
+static size_t arg_stream_axi_width_bytes = 16;
+
+
 /** The command line options for this program, in the format passed to getopt_long().
  *  Only long arguments are supported */
 static const struct option command_line_options[] =
@@ -127,8 +147,22 @@ static const struct option command_line_options[] =
     {"stream_mapping_size", required_argument, NULL, 0},
     {"stream_num_descriptors", required_argument, NULL, 0},
     {"enabled_tests", required_argument, NULL, 0},
+    {"transfer_length", required_argument, NULL, 0},
+    {"stream_axi_width_bytes", required_argument, NULL, 0},
     {NULL, 0, NULL, 0}
 };
+
+
+
+static inline size_t min_size_t (const size_t left, const size_t right)
+{
+    return (left < right) ? left : right;
+}
+
+static inline uint32_t min_uint32_t (const uint32_t left, const uint32_t right)
+{
+    return (left < right) ? left : right;
+}
 
 
 /**
@@ -160,6 +194,13 @@ static void display_usage (void)
     printf ("--stream_num_descriptors <h2c>,<c2h>\n");
     printf ("  Specifies the number of descriptors when performing AXI stream transfers.\n");
     printf ("  May use different values for each direction.\n");
+    printf ("--transfer_length <h2c>,<c2h>\n");
+    printf ("  Specifies the length of each transfer when performing memory or stream\n");
+    printf ("  variable transfers. May use different values for each direction.\n");
+    printf ("--stream_axi_width_bytes <width>\n");
+    printf ("  Sets the AXI stream width, used as the alignment for C2H stream transfers.\n");
+    printf ("  The reason is a packet which is split across multiple C2H descriptors aligns\n");
+    printf ("  each write except the one with EOP to the AXI stream width.\n");
     printf ("--enabled_tests <comma separated test names>\n");
     printf ("  Selects which tests are enabled. Possible tests are:\n");
     for (dma_test_t dma_test = 0; dma_test < DMA_TEST_ARRAY_SIZE; dma_test++)
@@ -246,11 +287,26 @@ static void parse_command_line_arguments (int argc, char *argv[])
                     printf ("Invalid %s %s\n", optdef->name, optarg);
                     exit (EXIT_FAILURE);
                 }
+                if (((arg_stream_h2c_mapping_size % sizeof (uint32_t)) != 0) ||
+                    ((arg_stream_c2h_mapping_size % sizeof (uint32_t)) != 0))
+                {
+                    printf ("stream_mapping_size not a multiple of words\n");
+                    exit (EXIT_FAILURE);
+                }
             }
             else if (strcmp (optdef->name, "stream_num_descriptors") == 0)
             {
                 if ((sscanf (optarg, "%i,%i%c", &arg_stream_h2c_num_descriptors, &arg_stream_c2h_num_descriptors, &junk) != 2) ||
                     (arg_stream_h2c_num_descriptors == 0) || (arg_stream_c2h_num_descriptors == 0))
+                {
+                    printf ("Invalid %s %s\n", optdef->name, optarg);
+                    exit (EXIT_FAILURE);
+                }
+            }
+            else if (strcmp (optdef->name, "transfer_length") == 0)
+            {
+                if ((sscanf (optarg, "%zi,%zi%c", &arg_h2c_transfer_length, &arg_c2h_transfer_length, &junk) != 2) ||
+                    (arg_h2c_transfer_length == 0) || (arg_c2h_transfer_length == 0))
                 {
                     printf ("Invalid %s %s\n", optdef->name, optarg);
                     exit (EXIT_FAILURE);
@@ -290,6 +346,14 @@ static void parse_command_line_arguments (int argc, char *argv[])
                 }
                 free (test_names);
             }
+            else if (strcmp (optdef->name, "stream_axi_width_bytes") == 0)
+            {
+                if ((sscanf (optarg, "%zu%c", &arg_stream_axi_width_bytes, &junk) != 1) || (arg_stream_axi_width_bytes == 0))
+                {
+                    printf ("Invalid %s %s\n", optdef->name, optarg);
+                    exit (EXIT_FAILURE);
+                }
+            }
             else
             {
                 /* This is a program error, and shouldn't be triggered by the command line options */
@@ -314,7 +378,6 @@ static void report_if_transfer_failed (const x2x_transfer_context_t *const conte
                 context->error_message,
                 context->timeout_awaiting_idle_at_finalisation ? " (+timeout waiting for idle at finalisation)" : "");
     }
-
 }
 
 
@@ -377,7 +440,10 @@ static bool test_stream_loopback_with_fixed_buffers (const fpga_design_t *const 
         .overall_success = &success
     };
 
-    const size_t c2h_buffer_size_words = (arg_stream_c2h_mapping_size / arg_stream_c2h_num_descriptors) / sizeof (uint32_t);
+    const size_t c2h_aligned_buffer_size_bytes =
+            ((arg_stream_c2h_mapping_size / arg_stream_c2h_num_descriptors) / arg_stream_axi_width_bytes) *
+            arg_stream_axi_width_bytes;
+    const size_t c2h_buffer_size_words = c2h_aligned_buffer_size_bytes / sizeof (uint32_t);
     const x2x_transfer_configuration_t c2h_transfer_configuration =
     {
         .dma_bridge_memory_size_bytes = design->dma_bridge_memory_size_bytes,
@@ -409,8 +475,7 @@ static bool test_stream_loopback_with_fixed_buffers (const fpga_design_t *const 
     const uint32_t num_h2c_buffers_which_fit_in_c2h_mapping =
             c2h_transfer_configuration.num_descriptors / num_c2h_buffers_per_h2c_buffer;
     const uint32_t num_h2c_buffers_per_iteration =
-            (num_h2c_buffers_which_fit_in_c2h_mapping < c2h_transfer_configuration.num_descriptors) ?
-             num_h2c_buffers_which_fit_in_c2h_mapping : c2h_transfer_configuration.num_descriptors;
+            min_uint32_t (num_h2c_buffers_which_fit_in_c2h_mapping, c2h_transfer_configuration.num_descriptors);
     const uint32_t num_c2h_buffers_per_iteration = num_h2c_buffers_per_iteration * num_c2h_buffers_per_h2c_buffer;
 
     const size_t num_bytes_per_iteration = num_h2c_buffers_per_iteration * h2c_transfer_configuration.bytes_per_buffer;
@@ -613,6 +678,362 @@ static bool test_stream_loopback_with_fixed_buffers (const fpga_design_t *const 
     free_vfio_dma_mapping (&descriptors_mapping);
     free (tx_buffers);
     free (rx_buffers);
+
+    return success;
+}
+
+
+/**
+ * @briefPerform a DMA test of a pair of AXI streams which are looped-back, using variable size transfers
+ * @param[in] design The design containing the DMA bridge to test
+ * @param[in/out] vfio_device The device containing the DMA bridge to test
+ * @param[in] h2c_channel_id Which channel to use for H2C transfers
+ * @param[in] c2h_channel_id Which channel to use for C2H transfers
+ * @return Returns true if the test passed, or false otherwise
+ */
+static bool test_stream_loopback_with_variable_transfers (const fpga_design_t *const design, vfio_device_t *const vfio_device,
+                                                          const uint32_t h2c_channel_id, const uint32_t c2h_channel_id)
+{
+    vfio_dma_mapping_t descriptors_mapping;
+    vfio_dma_mapping_t h2c_data_mapping;
+    vfio_dma_mapping_t c2h_data_mapping;
+    x2x_transfer_context_t h2c_transfer;
+    x2x_transfer_context_t c2h_transfer;
+    transfer_timing_t populate_test_pattern_timing;
+    transfer_timing_t verify_test_pattern_timing;
+    transfer_timing_t h2c_and_c2h_transfer_timing;
+    bool success;
+
+    /* Limit the transfer length to the maximum of the command line arguments and the mapping sizes.
+     * Aligning down to a multiple of arg_stream_axi_width_bytes is done to avoid any issues when the mapping sizes
+     * are different in each direction.
+     * For C2H direction also have to limit to the maximum for one descriptor, since transfers terminated with EOP are
+     * not allowed to span multiple descriptors as the API can only return a single transfer length. */
+    const size_t max_h2c_transfer_length =
+            (min_size_t (arg_h2c_transfer_length, arg_stream_h2c_mapping_size) / arg_stream_axi_width_bytes) *
+            arg_stream_axi_width_bytes;
+    const size_t max_c2h_transfer_length = (min_size_t (arg_c2h_transfer_length,
+            (min_size_t (arg_stream_c2h_mapping_size, X2X_CACHE_LINE_ALIGNED_MAX_DESCRIPTOR_LEN)))) / arg_stream_axi_width_bytes *
+                    arg_stream_axi_width_bytes;
+
+    /* Populate the transfer configurations to be used.
+     * The number of descriptors is set to the maximum. Each iteration may use a different number of descriptors
+     * as wrap around the H2C and C2H buffers which may be different sizes. */
+    const x2x_transfer_configuration_t h2c_transfer_configuration =
+    {
+        .dma_bridge_memory_size_bytes = design->dma_bridge_memory_size_bytes,
+        .min_size_alignment = 1, /* The card memory is byte addressable */
+        .num_descriptors = X2X_SGDMA_MAX_DESCRIPTOR_CREDITS,
+        .channels_submodule = DMA_SUBMODULE_H2C_CHANNELS,
+        .channel_id = h2c_channel_id,
+        .bytes_per_buffer = 0, /* Length and offsets set before each each transfer */
+        .host_buffer_start_offset = 0,
+        .card_buffer_start_offset = 0,
+        .c2h_stream_continuous = false,
+        .timeout_seconds = TRANSFER_TIMEOUT_SECS,
+        .vfio_device = vfio_device,
+        .bar_index = design->dma_bridge_bar,
+        .descriptors_mapping = &descriptors_mapping,
+        .data_mapping = &h2c_data_mapping,
+        .overall_success = &success
+    };
+
+    const x2x_transfer_configuration_t c2h_transfer_configuration =
+    {
+        .dma_bridge_memory_size_bytes = design->dma_bridge_memory_size_bytes,
+        .min_size_alignment = 1, /* The card memory is byte addressable */
+        .num_descriptors = X2X_SGDMA_MAX_DESCRIPTOR_CREDITS,
+        .channels_submodule = DMA_SUBMODULE_C2H_CHANNELS,
+        .channel_id = c2h_channel_id,
+        .bytes_per_buffer = 0, /* Length and offsets set before each each transfer */
+        .host_buffer_start_offset = 0,
+        .card_buffer_start_offset = 0,
+        .c2h_stream_continuous = false,
+        .timeout_seconds = TRANSFER_TIMEOUT_SECS,
+        .vfio_device = vfio_device,
+        .bar_index = design->dma_bridge_bar,
+        .descriptors_mapping = &descriptors_mapping,
+        .data_mapping = &c2h_data_mapping,
+        .overall_success = &success
+    };
+
+    /* Set the number of words in each iteration to the minimum of the mapping size for the host buffer for each direction,
+     * so the transfer time may be taken. */
+    const size_t h2c_mapping_size_words =
+            ((arg_stream_h2c_mapping_size / arg_stream_axi_width_bytes) * arg_stream_axi_width_bytes) / sizeof (uint32_t);
+    const size_t h2c_mapping_size_bytes = h2c_mapping_size_words * sizeof (uint32_t);
+    const size_t c2h_mapping_size_words =
+            ((arg_stream_c2h_mapping_size / arg_stream_axi_width_bytes) * arg_stream_axi_width_bytes) / sizeof (uint32_t);
+    const size_t c2h_mapping_size_bytes = c2h_mapping_size_words * sizeof (uint32_t);
+    const size_t num_bytes_per_iteration = min_size_t (h2c_mapping_size_bytes, c2h_mapping_size_bytes);
+    const size_t num_words_per_iteration = num_bytes_per_iteration / sizeof (uint32_t);
+
+    /* Defines the transfers which are used for a test iteration, in terms of the offsets and lengths.
+     * Dynamically allocated lengths as the actual number of transfers may vary between iterations as a result
+     * of transfers wrapping around the length of the mappings. */
+    typedef struct
+    {
+        size_t transfer_len;
+        uint64_t host_buffer_offset;
+    } tx_transfer_t;
+    tx_transfer_t *tx_transfers = NULL;
+    uint32_t num_tx_transfers = 0;
+    uint32_t tx_transfers_allocated_length = 0;
+
+    typedef struct
+    {
+        size_t transfer_len;
+        uint64_t host_buffer_offset;
+        bool end_of_packet;
+    } rx_transfer_t;
+    rx_transfer_t *rx_transfers = NULL;
+    uint32_t num_rx_transfers = 0;
+    uint32_t rx_transfers_allocated_length = 0;
+
+    const uint32_t transfers_grow_len = 64;
+
+    printf ("\nTesting streams with variable size buffers:\n");
+    printf ("  H2C mapping size 0x%zx max transfer length 0x%zx channel ID %u\n",
+            arg_stream_h2c_mapping_size, max_h2c_transfer_length, h2c_channel_id);
+    printf ("  C2H mapping size 0x%zx max transfer length 0x%zx channel ID %u\n",
+            arg_stream_c2h_mapping_size, max_c2h_transfer_length, c2h_channel_id);
+
+    /* Create read/write mapping for DMA descriptors */
+    const size_t descriptors_allocation_size = x2x_get_descriptor_allocation_size (&h2c_transfer_configuration) +
+            x2x_get_descriptor_allocation_size (&c2h_transfer_configuration);
+    allocate_vfio_dma_mapping (vfio_device, &descriptors_mapping, descriptors_allocation_size,
+            VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
+
+    /* Read mapping used by device, for the entire card memory */
+    allocate_vfio_dma_mapping (vfio_device, &h2c_data_mapping, h2c_mapping_size_bytes,
+            VFIO_DMA_MAP_FLAG_READ, arg_buffer_allocation);
+
+    /* Write mapping used by device, for the entire card memory */
+    allocate_vfio_dma_mapping (vfio_device, &c2h_data_mapping, c2h_mapping_size_bytes,
+            VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
+
+    success = (descriptors_mapping.buffer.vaddr != NULL) &&
+              (h2c_data_mapping.buffer.vaddr    != NULL) &&
+              (c2h_data_mapping.buffer.vaddr    != NULL);
+
+    if (success)
+    {
+        uint32_t tx_test_pattern = 0;
+        uint32_t rx_test_pattern = 0;
+        uint32_t *const tx_words = h2c_data_mapping.buffer.vaddr;
+        const uint32_t *const rx_words = c2h_data_mapping.buffer.vaddr;
+        size_t tx_test_word_index = 0;
+        size_t rx_test_word_index = 0;
+        size_t tx_transfer_start_buffer_offset = 0;
+        size_t rx_transfer_start_buffer_offset = 0;
+        size_t h2c_num_bytes_transfer_defined;
+        uint32_t h2c_num_transfers_started;
+        uint32_t h2c_num_transfers_completed;
+        uint32_t c2h_num_transfers_started;
+        uint32_t c2h_num_transfers_completed;
+        size_t word_offset;
+        bool no_available_buffer;
+        uint32_t *h2c_buffer;
+        uint32_t *c2h_buffer;
+        size_t transfer_len;
+        bool end_of_packet;
+
+        initialise_transfer_timing (&populate_test_pattern_timing, "populate test pattern", num_bytes_per_iteration);
+        initialise_transfer_timing (&verify_test_pattern_timing, "verify test pattern", num_bytes_per_iteration);
+        initialise_transfer_timing (&h2c_and_c2h_transfer_timing, "host-to-card and card-to-host DMA", num_bytes_per_iteration);
+
+        /* Initialise the transfers */
+        x2x_initialise_transfer_context (&h2c_transfer, &h2c_transfer_configuration);
+        x2x_initialise_transfer_context (&c2h_transfer, &c2h_transfer_configuration);
+
+        /* Perform test iterations to exercise all values of 32-bit test words */
+        for (size_t total_words = 0; success && (total_words < 0x100000000UL); total_words += num_words_per_iteration)
+        {
+            /* Determine the transmit transfers to be used for the iteration, which may wrap around the H2C buffer */
+            num_tx_transfers = 0;
+            h2c_num_bytes_transfer_defined = 0;
+            while (h2c_num_bytes_transfer_defined < num_bytes_per_iteration)
+            {
+                const size_t remaining_buffer_bytes =
+                        min_size_t (num_bytes_per_iteration - h2c_num_bytes_transfer_defined,
+                                    h2c_mapping_size_bytes - tx_transfer_start_buffer_offset);
+
+                transfer_len = min_size_t (remaining_buffer_bytes, max_h2c_transfer_length);
+                if (num_tx_transfers == tx_transfers_allocated_length)
+                {
+                    tx_transfers_allocated_length += transfers_grow_len;
+                    tx_transfers = realloc (tx_transfers, tx_transfers_allocated_length * sizeof (tx_transfers[0]));
+                }
+                tx_transfer_t *const tx_transfer = &tx_transfers[num_tx_transfers];
+
+                tx_transfer->transfer_len = transfer_len;
+                tx_transfer->host_buffer_offset = tx_transfer_start_buffer_offset;
+                h2c_num_bytes_transfer_defined += transfer_len;
+                tx_transfer_start_buffer_offset = (tx_transfer_start_buffer_offset + transfer_len) % h2c_mapping_size_bytes;
+                num_tx_transfers++;
+            }
+
+            /* Determine the receive transfers to be used for the iteration.
+             * For each transmit transfer, which is terminated by end-of-packet, define one or more receive transfers
+             * for the complete transmit transfer allowing for wrapping around the C2H buffer.
+             *
+             * Since each transmit transfer is terminated by end-of-packet, if arg_h2c_transfer_length is less than
+             * arg_c2h_transfer_length has the effect of reducing the C2H transfer length over that requested by the
+             * command line arguments. */
+            num_rx_transfers = 0;
+            for (uint32_t tx_transfer_index = 0; tx_transfer_index < num_tx_transfers; tx_transfer_index++)
+            {
+                size_t remaining_tx_transfer_bytes = tx_transfers[tx_transfer_index].transfer_len;
+
+                while (remaining_tx_transfer_bytes > 0)
+                {
+                    const size_t num_bytes_to_end_of_buffer = c2h_mapping_size_bytes - rx_transfer_start_buffer_offset;
+
+                    transfer_len = min_size_t (min_size_t (num_bytes_to_end_of_buffer, max_c2h_transfer_length),
+                            remaining_tx_transfer_bytes);
+                    if (num_rx_transfers == rx_transfers_allocated_length)
+                    {
+                        rx_transfers_allocated_length += transfers_grow_len;
+                        rx_transfers = realloc (rx_transfers, rx_transfers_allocated_length * sizeof (rx_transfers[0]));
+                    }
+                    rx_transfer_t *const rx_transfer = &rx_transfers[num_rx_transfers];
+
+                    rx_transfer->transfer_len = transfer_len;
+                    rx_transfer->host_buffer_offset = rx_transfer_start_buffer_offset;
+                    remaining_tx_transfer_bytes -= transfer_len;
+                    rx_transfer->end_of_packet = remaining_tx_transfer_bytes == 0;
+                    rx_transfer_start_buffer_offset = (rx_transfer_start_buffer_offset + transfer_len) % c2h_mapping_size_bytes;
+                    num_rx_transfers++;
+                }
+            }
+
+            /* Populate the transmit words with the pattern for the iteration, which may wrap around */
+            transfer_time_start (&populate_test_pattern_timing);
+            for (word_offset = 0; word_offset < num_words_per_iteration; word_offset++)
+            {
+                tx_words[tx_test_word_index] = tx_test_pattern;
+                linear_congruential_generator (&tx_test_pattern);
+                tx_test_word_index++;
+                if (tx_test_word_index == h2c_mapping_size_words)
+                {
+                    tx_test_word_index = 0;
+                }
+            }
+            transfer_time_stop (&populate_test_pattern_timing);
+
+            /* Perform the H2C and C2H transfers for all of the words for one iteration */
+            h2c_num_transfers_started = 0;
+            h2c_num_transfers_completed = 0;
+            c2h_num_transfers_started = 0;
+            c2h_num_transfers_completed = 0;
+            transfer_time_start (&h2c_and_c2h_transfer_timing);
+            while (success && ((h2c_num_transfers_completed < num_tx_transfers) || (c2h_num_transfers_completed < num_rx_transfers)))
+            {
+                /* Start all possible C2H transfers */
+                no_available_buffer = false;
+                while (success && !no_available_buffer && (c2h_num_transfers_started < num_rx_transfers))
+                {
+                    const rx_transfer_t *const rx_transfer = &rx_transfers[c2h_num_transfers_started];
+
+                    c2h_buffer = x2x_populate_stream_transfer (&c2h_transfer,
+                            rx_transfer->transfer_len, rx_transfer->host_buffer_offset);
+                    if (c2h_buffer != NULL)
+                    {
+                        x2x_start_populated_descriptors (&c2h_transfer);
+                        c2h_num_transfers_started++;
+                    }
+                    else
+                    {
+                        no_available_buffer = true;
+                    }
+                }
+
+                /* Start all possible H2C transfers */
+                no_available_buffer = false;
+                while (success && !no_available_buffer && (h2c_num_transfers_started < num_tx_transfers))
+                {
+                    const tx_transfer_t *const tx_transfer = &tx_transfers[h2c_num_transfers_started];
+
+                    h2c_buffer = x2x_populate_stream_transfer (&h2c_transfer,
+                            tx_transfer->transfer_len, tx_transfer->host_buffer_offset);
+                    if (h2c_buffer != NULL)
+                    {
+                        x2x_start_populated_descriptors (&h2c_transfer);
+                        h2c_num_transfers_started++;
+                    }
+                    else
+                    {
+                        no_available_buffer = true;
+                    }
+                }
+
+                /* Poll for completion of H2C transfers */
+                h2c_buffer = x2x_poll_completed_transfer (&h2c_transfer, &transfer_len, NULL);
+                if (h2c_buffer != NULL)
+                {
+                    const tx_transfer_t *const tx_transfer = &tx_transfers[h2c_num_transfers_completed];
+
+                    X2X_ASSERT (&h2c_transfer, transfer_len == tx_transfer->transfer_len);
+                    X2X_ASSERT (&h2c_transfer, h2c_buffer == &tx_words[tx_transfer->host_buffer_offset / sizeof (uint32_t)]);
+                    h2c_num_transfers_completed++;
+                }
+
+                /* Poll for completion of C2H transfers */
+                c2h_buffer = x2x_poll_completed_transfer (&c2h_transfer, &transfer_len, &end_of_packet);
+                if (c2h_buffer != NULL)
+                {
+                    const rx_transfer_t *const rx_transfer = &rx_transfers[c2h_num_transfers_completed];
+
+                    X2X_ASSERT (&c2h_transfer, transfer_len == rx_transfer->transfer_len);
+                    X2X_ASSERT (&c2h_transfer, end_of_packet == rx_transfer->end_of_packet);
+                    X2X_ASSERT (&c2h_transfer, c2h_buffer == &rx_words[rx_transfer->host_buffer_offset / sizeof (uint32_t)]);
+                    c2h_num_transfers_completed++;
+                }
+            }
+            transfer_time_stop (&h2c_and_c2h_transfer_timing);
+
+            /* Verify the receive words */
+            transfer_time_start (&verify_test_pattern_timing);
+            for (word_offset = 0; success && (word_offset < num_words_per_iteration); word_offset++)
+            {
+                X2X_ASSERT (&c2h_transfer, rx_words[rx_test_word_index] == rx_test_pattern);
+                linear_congruential_generator (&rx_test_pattern);
+                rx_test_word_index++;
+                if (rx_test_word_index == c2h_mapping_size_words)
+                {
+                    rx_test_word_index = 0;
+                }
+            }
+            transfer_time_stop (&verify_test_pattern_timing);
+        }
+
+        x2x_finalise_transfer_context (&h2c_transfer);
+        x2x_finalise_transfer_context (&c2h_transfer);
+
+        if (success)
+        {
+            display_transfer_timing_statistics (&populate_test_pattern_timing);
+            display_transfer_timing_statistics (&h2c_and_c2h_transfer_timing);
+            display_transfer_timing_statistics (&verify_test_pattern_timing);
+            printf ("TEST PASS\n");
+        }
+        else
+        {
+            printf ("TEST FAIL:\n");
+            report_if_transfer_failed (&h2c_transfer);
+            report_if_transfer_failed (&c2h_transfer);
+        }
+    }
+    else
+    {
+        printf ("TEST FAIL : allocate_vfio_dma_mapping()\n");
+    }
+
+    free_vfio_dma_mapping (&c2h_data_mapping);
+    free_vfio_dma_mapping (&h2c_data_mapping);
+    free_vfio_dma_mapping (&descriptors_mapping);
+    free (tx_transfers);
+    free (rx_transfers);
 
     return success;
 }
@@ -853,6 +1274,304 @@ static bool test_dma_accessible_memory_with_fixed_buffers (const fpga_design_t *
 
 
 /**
+ * @brief Perform a write/read test of DMA accessible memory using a pair of channels, using variable size transfers
+ * @param[in] design The design containing the DMA bridge to test
+ * @param[in/out] vfio_device The device containing the DMA bridge to test
+ * @param[in] h2c_channel_id Which channel to use for H2C transfers
+ * @param[in] c2h_channel_id Which channel to use for C2H transfers
+ * @return Returns true if the test passed, or false otherwise
+ */
+static bool test_dma_accessible_memory_with_variable_transfers (const fpga_design_t *const design, vfio_device_t *const vfio_device,
+                                                                const uint32_t h2c_channel_id, const uint32_t c2h_channel_id)
+{
+    vfio_dma_mapping_t descriptors_mapping;
+    vfio_dma_mapping_t h2c_data_mapping;
+    vfio_dma_mapping_t c2h_data_mapping;
+    x2x_transfer_context_t h2c_transfer;
+    x2x_transfer_context_t c2h_transfer;
+    transfer_timing_t populate_test_pattern_timing;
+    transfer_timing_t verify_test_pattern_timing;
+    transfer_timing_t h2c_and_c2h_transfer_timing;
+    bool success;
+
+    /* Limit the transfer length to the maximum of the command line arguments and the card memory */
+    const size_t h2c_transfer_length = min_size_t (arg_h2c_transfer_length, design->dma_bridge_memory_size_bytes);
+    const size_t c2h_transfer_length = min_size_t (arg_c2h_transfer_length, design->dma_bridge_memory_size_bytes);
+
+    /* Calculate the number of descriptors, to try and allow all transfers for the entire card memory to be queued at once.
+     * For "small" transfer sizes, limits the maximum number of descriptors to the maximum supported by the DMA engine.
+     *
+     * With the maximum number of descriptors in use can support a transfer of up to 255 GiB so assumes a single transfer
+     * will be sufficient to address all card memory, and so doesn't have to limit the maximum transfer size. */
+    const uint32_t num_descriptors_per_h2c_transfer = x2x_num_descriptors_for_transfer_len (h2c_transfer_length);
+    const uint32_t num_h2c_transfers_per_iteration = (uint32_t)
+            ((design->dma_bridge_memory_size_bytes + (h2c_transfer_length - 1)) / h2c_transfer_length);
+    const uint32_t num_h2c_descriptors =
+            min_uint32_t (num_h2c_transfers_per_iteration * num_descriptors_per_h2c_transfer, X2X_SGDMA_MAX_DESCRIPTOR_CREDITS);
+
+    const uint32_t num_descriptors_per_c2h_transfer = x2x_num_descriptors_for_transfer_len (c2h_transfer_length);
+    const uint32_t num_c2h_transfers_per_iteration = (uint32_t)
+            ((design->dma_bridge_memory_size_bytes + (c2h_transfer_length - 1)) / c2h_transfer_length);
+    const uint32_t num_c2h_descriptors =
+            min_uint32_t (num_c2h_transfers_per_iteration * num_descriptors_per_c2h_transfer, X2X_SGDMA_MAX_DESCRIPTOR_CREDITS);
+
+    /* Populate the transfer configurations to be used */
+    const x2x_transfer_configuration_t h2c_transfer_configuration =
+    {
+        .dma_bridge_memory_size_bytes = design->dma_bridge_memory_size_bytes,
+        .min_size_alignment = 1, /* The card memory is byte addressable */
+        .num_descriptors = num_h2c_descriptors,
+        .channels_submodule = DMA_SUBMODULE_H2C_CHANNELS,
+        .channel_id = h2c_channel_id,
+        .bytes_per_buffer = 0, /* Length and offsets set before each each transfer */
+        .host_buffer_start_offset = 0,
+        .card_buffer_start_offset = 0,
+        .timeout_seconds = TRANSFER_TIMEOUT_SECS,
+        .vfio_device = vfio_device,
+        .bar_index = design->dma_bridge_bar,
+        .descriptors_mapping = &descriptors_mapping,
+        .data_mapping = &h2c_data_mapping,
+        .overall_success = &success
+    };
+
+    const x2x_transfer_configuration_t c2h_transfer_configuration =
+    {
+        .dma_bridge_memory_size_bytes = design->dma_bridge_memory_size_bytes,
+        .min_size_alignment = 1, /* The card memory is byte addressable */
+        .num_descriptors = num_c2h_descriptors,
+        .channels_submodule = DMA_SUBMODULE_C2H_CHANNELS,
+        .channel_id = c2h_channel_id,
+        .bytes_per_buffer = 0, /* Length and offsets set before each each transfer */
+        .host_buffer_start_offset = 0,
+        .card_buffer_start_offset = 0,
+        .timeout_seconds = TRANSFER_TIMEOUT_SECS,
+        .vfio_device = vfio_device,
+        .bar_index = design->dma_bridge_bar,
+        .descriptors_mapping = &descriptors_mapping,
+        .data_mapping = &c2h_data_mapping,
+        .overall_success = &success
+    };
+
+    /* Allocate storage for the pointers to each host buffer, to validate that buffers are returned in the expected order */
+    uint32_t **const tx_buffers = calloc (num_h2c_transfers_per_iteration, sizeof (tx_buffers[0]));
+    uint32_t **const rx_buffers = calloc (num_c2h_transfers_per_iteration, sizeof (rx_buffers[0]));
+
+    printf ("\nTesting using:\n");
+    printf ("  H2C channel %u transfer length 0x%zx bytes with %u descriptors\n",
+            h2c_channel_id, h2c_transfer_length, num_h2c_descriptors);
+    printf ("  C2H channel %u transfer length 0x%zx bytes with %u descriptors\n",
+            c2h_channel_id, c2h_transfer_length, num_c2h_descriptors);
+
+    /* Create read/write mapping for DMA descriptors */
+    const size_t descriptors_allocation_size = x2x_get_descriptor_allocation_size (&h2c_transfer_configuration) +
+            x2x_get_descriptor_allocation_size (&c2h_transfer_configuration);
+    allocate_vfio_dma_mapping (vfio_device, &descriptors_mapping, descriptors_allocation_size,
+            VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
+
+    /* Read mapping used by device, for the entire card memory */
+    allocate_vfio_dma_mapping (vfio_device, &h2c_data_mapping, design->dma_bridge_memory_size_bytes,
+            VFIO_DMA_MAP_FLAG_READ, arg_buffer_allocation);
+
+    /* Write mapping used by device, for the entire card memory */
+    allocate_vfio_dma_mapping (vfio_device, &c2h_data_mapping, design->dma_bridge_memory_size_bytes,
+            VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
+
+    success = (descriptors_mapping.buffer.vaddr != NULL) &&
+              (h2c_data_mapping.buffer.vaddr    != NULL) &&
+              (c2h_data_mapping.buffer.vaddr    != NULL);
+
+    if (success)
+    {
+        uint32_t host_test_pattern = 0;
+        uint32_t card_test_pattern = 0;
+        uint32_t *const host_words = h2c_data_mapping.buffer.vaddr;
+        const uint32_t *const card_words = c2h_data_mapping.buffer.vaddr;
+        size_t transfer_len;
+        size_t h2c_num_bytes_transfer_started;
+        size_t h2c_num_bytes_transfer_completed;
+        uint32_t h2c_completed_buffer_index;
+        size_t c2h_num_bytes_transfer_started;
+        size_t c2h_num_bytes_transfer_completed;
+        uint32_t c2h_completed_buffer_index;
+        size_t word_index;
+        uint32_t *h2c_buffer;
+        uint32_t *c2h_buffer;
+        bool no_available_buffer;
+        bool attempt_further_transfer;
+        uint32_t buffer_index;
+        const size_t ddr_size_words = design->dma_bridge_memory_size_bytes / sizeof (uint32_t);
+
+        initialise_transfer_timing (&populate_test_pattern_timing, "populate test pattern", design->dma_bridge_memory_size_bytes);
+        initialise_transfer_timing (&verify_test_pattern_timing, "verify test pattern", design->dma_bridge_memory_size_bytes);
+        initialise_transfer_timing (&h2c_and_c2h_transfer_timing, "host-to-card and card-to-host DMA", design->dma_bridge_memory_size_bytes);
+
+        /* Initialise the transfers */
+        x2x_initialise_transfer_context (&h2c_transfer, &h2c_transfer_configuration);
+        x2x_initialise_transfer_context (&c2h_transfer, &c2h_transfer_configuration);
+
+        /* Perform test iterations to exercise all values of 32-bit test words */
+        for (size_t total_words = 0; success && (total_words < 0x100000000UL); total_words += ddr_size_words)
+        {
+            /* Fill all host buffers with the next test pattern */
+            transfer_time_start (&populate_test_pattern_timing);
+            for (word_index = 0; word_index < ddr_size_words; word_index++)
+            {
+                host_words[word_index] = host_test_pattern;
+                linear_congruential_generator (&host_test_pattern);
+            }
+            transfer_time_stop (&populate_test_pattern_timing);
+
+            /* Perform the H2C and C2H transfers for all buffers (descriptors) which cover the DMA accessible memory.
+             * Attempts to overlap transfers in both directions:
+             * a. H2C transfers can be started as soon as possible.
+             * b. C2H transfers can be started once the card memory has been written to by H2C transfers.
+             *    The logic allows for H2C and C2H directions to use different transfers lengths, and the number of
+             *    completed bytes of H2C transfers is used to determine when C2H transfers can be started.
+             *
+             * Due to potential overlapping transfers only records the timing across all H2C and C2H transfers. */
+            h2c_num_bytes_transfer_started = 0;
+            h2c_num_bytes_transfer_completed = 0;
+            h2c_completed_buffer_index = 0;
+            c2h_num_bytes_transfer_started = 0;
+            c2h_num_bytes_transfer_completed = 0;
+            c2h_completed_buffer_index = 0;
+            transfer_time_start (&h2c_and_c2h_transfer_timing);
+            while (success && (c2h_num_bytes_transfer_completed < design->dma_bridge_memory_size_bytes))
+            {
+                /* Start the H2C transfers for the entire card memory as soon as there are available descriptors */
+                no_available_buffer = false;
+                while (success && (h2c_num_bytes_transfer_started < design->dma_bridge_memory_size_bytes) && !no_available_buffer)
+                {
+                    const size_t remaining_bytes = design->dma_bridge_memory_size_bytes - h2c_num_bytes_transfer_started;
+
+                    transfer_len = min_size_t (remaining_bytes, h2c_transfer_length);
+                    h2c_buffer = x2x_populate_memory_transfer (&h2c_transfer, transfer_len,
+                            h2c_num_bytes_transfer_started, h2c_num_bytes_transfer_started);
+                    if (h2c_buffer != NULL)
+                    {
+                        x2x_start_populated_descriptors (&h2c_transfer);
+                        h2c_num_bytes_transfer_started += transfer_len;
+                    }
+                    else
+                    {
+                        no_available_buffer = true;
+                    }
+                }
+
+                /* Poll for completion of H2C transfers */
+                h2c_buffer = x2x_poll_completed_transfer (&h2c_transfer, &transfer_len, NULL);
+                if (h2c_buffer != NULL)
+                {
+                    const size_t remaining_bytes = design->dma_bridge_memory_size_bytes - h2c_num_bytes_transfer_completed;
+                    const size_t expected_transfer_len = min_size_t (remaining_bytes, h2c_transfer_length);;
+
+                    X2X_ASSERT (&h2c_transfer, transfer_len == expected_transfer_len);
+                    tx_buffers[h2c_completed_buffer_index] = h2c_buffer;
+                    h2c_completed_buffer_index++;
+                    h2c_num_bytes_transfer_completed += transfer_len;
+                }
+
+                /* Start the C2H transfers which encompass the range of card memory which has been written to by the
+                 * completed H2C transfers */
+                attempt_further_transfer = true;
+                while (success && (c2h_num_bytes_transfer_started < design->dma_bridge_memory_size_bytes) &&
+                       attempt_further_transfer)
+                {
+                    const size_t remaining_bytes = design->dma_bridge_memory_size_bytes - c2h_num_bytes_transfer_started;
+                    const size_t bytes_pending_c2h_transfer = h2c_num_bytes_transfer_completed - c2h_num_bytes_transfer_started;
+
+                    attempt_further_transfer = false;
+                    transfer_len = min_size_t (remaining_bytes, c2h_transfer_length);
+                    if (bytes_pending_c2h_transfer >= transfer_len)
+                    {
+                        c2h_buffer = x2x_populate_memory_transfer (&c2h_transfer, transfer_len,
+                                c2h_num_bytes_transfer_started, c2h_num_bytes_transfer_started);
+                        if (c2h_buffer != NULL)
+                        {
+                            x2x_start_populated_descriptors (&c2h_transfer);
+                            c2h_num_bytes_transfer_started += transfer_len;
+                            attempt_further_transfer = true;
+                        }
+                    }
+                }
+
+                /* Poll for completion of C2H transfers */
+                c2h_buffer = x2x_poll_completed_transfer (&c2h_transfer, &transfer_len, NULL);
+                if (c2h_buffer != NULL)
+                {
+                    const size_t remaining_bytes = design->dma_bridge_memory_size_bytes - c2h_num_bytes_transfer_completed;
+                    const size_t expected_transfer_len = min_size_t (remaining_bytes, c2h_transfer_length);
+
+                    X2X_ASSERT (&c2h_transfer, transfer_len == expected_transfer_len);
+                    rx_buffers[c2h_completed_buffer_index] = c2h_buffer;
+                    c2h_completed_buffer_index++;
+                    c2h_num_bytes_transfer_completed += transfer_len;
+                }
+            }
+            transfer_time_stop (&h2c_and_c2h_transfer_timing);
+
+            /* Check the buffer pointers returned were correct */
+            X2X_ASSERT (&h2c_transfer, h2c_completed_buffer_index == num_h2c_transfers_per_iteration);
+            for (buffer_index = 0; success && (buffer_index < num_h2c_transfers_per_iteration); buffer_index++)
+            {
+                word_index = buffer_index * (h2c_transfer_length / sizeof (uint32_t));
+                X2X_ASSERT (&h2c_transfer, tx_buffers[buffer_index] == &host_words[word_index]);
+            }
+            X2X_ASSERT (&c2h_transfer, c2h_completed_buffer_index == num_c2h_transfers_per_iteration);
+            for (buffer_index = 0; success && (buffer_index < num_c2h_transfers_per_iteration); buffer_index++)
+            {
+                word_index = buffer_index * (c2h_transfer_length / sizeof (uint32_t));
+                X2X_ASSERT (&c2h_transfer, rx_buffers[buffer_index] == &card_words[word_index]);
+            }
+
+            /* Verify that all card buffers have the expected contents */
+            transfer_time_start (&verify_test_pattern_timing);
+            for (word_index = 0; success && word_index < ddr_size_words; word_index++)
+            {
+                if (card_words[word_index] != card_test_pattern)
+                {
+                    x2x_record_failure (&c2h_transfer, "DDR word[%zu] actual=0x%" PRIx32 " expected=0x%" PRIx32,
+                            word_index, card_words[word_index], card_test_pattern);
+                    success = false;
+                }
+                linear_congruential_generator (&card_test_pattern);
+            }
+            transfer_time_stop (&verify_test_pattern_timing);
+        }
+
+        x2x_finalise_transfer_context (&h2c_transfer);
+        x2x_finalise_transfer_context (&c2h_transfer);
+
+        if (success)
+        {
+            display_transfer_timing_statistics (&populate_test_pattern_timing);
+            display_transfer_timing_statistics (&h2c_and_c2h_transfer_timing);
+            display_transfer_timing_statistics (&verify_test_pattern_timing);
+            printf ("TEST PASS\n");
+        }
+        else
+        {
+            printf ("TEST FAIL:\n");
+            report_if_transfer_failed (&h2c_transfer);
+            report_if_transfer_failed (&c2h_transfer);
+        }
+    }
+    else
+    {
+        printf ("TEST FAIL : allocate_vfio_dma_mapping()\n");
+    }
+
+    free_vfio_dma_mapping (&c2h_data_mapping);
+    free_vfio_dma_mapping (&h2c_data_mapping);
+    free_vfio_dma_mapping (&descriptors_mapping);
+    free (tx_buffers);
+    free (rx_buffers);
+
+    return success;
+}
+
+
+/**
  * @brief Perform one DMA bridge test which is enabled and supported by a design
  * @param[in] dma_test Which test to perform
  * @param[in] design The design containing the DMA bridge to test
@@ -884,6 +1603,14 @@ static bool perform_enabled_test (const dma_test_t dma_test,
         c2h_stream_continuous = true;
         success = test_stream_loopback_with_fixed_buffers (design, vfio_device, h2c_channel_id, c2h_channel_id,
                 c2h_stream_continuous);
+        break;
+
+    case DMA_TEST_MEMORY_VARIABLE_TRANSFERS:
+        success = test_dma_accessible_memory_with_variable_transfers (design, vfio_device, h2c_channel_id, c2h_channel_id);
+        break;
+
+    case DMA_TEST_STREAM_VARIABLE_TRANSFERS:
+        success = test_stream_loopback_with_variable_transfers (design, vfio_device, h2c_channel_id, c2h_channel_id);
         break;
 
     default:

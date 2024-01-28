@@ -279,6 +279,17 @@ size_t x2x_get_descriptor_allocation_size (const x2x_transfer_configuration_t *c
 
 
 /**
+ * @brief Get the number of descriptors required for a given transfer length, allowing for the maximum length of one descriptor
+ * @param[in] len The transfer length in bytes
+ * @return The number of descriptors required for len
+ */
+uint32_t x2x_num_descriptors_for_transfer_len (const size_t len)
+{
+    return (uint32_t) ((len + (X2X_CACHE_LINE_ALIGNED_MAX_DESCRIPTOR_LEN - 1)) / X2X_CACHE_LINE_ALIGNED_MAX_DESCRIPTOR_LEN);
+}
+
+
+/**
  * @brief Perform validation checks on the configuration for performing DMA transfers using one H2C or 2CH channel
  * @param[in/out] context Contains the configuration to validate
  */
@@ -714,23 +725,29 @@ void x2x_start_populated_descriptors (x2x_transfer_context_t *const context)
  */
 void *x2x_get_next_h2c_buffer (x2x_transfer_context_t *const context)
 {
-    uint32_t *const num_descriptors_in_transfer = &context->num_descriptors_per_transfer[context->next_started_descriptor_index];
     X2X_ASSERT (context, (context->configuration.channels_submodule == DMA_SUBMODULE_H2C_CHANNELS) &&
-            (context->configuration.bytes_per_buffer > 0) &&
-            (*num_descriptors_in_transfer == 0));
+            (context->configuration.bytes_per_buffer > 0));
 
     const uint32_t num_free_descriptors = x2x_get_num_free_descriptors (context);
     void *next_buffer = NULL;
 
-    if (!context->failed && (num_free_descriptors > 0))
+    if (num_free_descriptors > 0)
     {
-        const uint64_t buffer_start_offset = context->configuration.host_buffer_start_offset +
-                (context->next_started_descriptor_index * context->configuration.bytes_per_buffer);
-        uint8_t *const buffer_data = context->configuration.data_mapping->buffer.vaddr;
+        uint32_t *const num_descriptors_in_transfer = &context->num_descriptors_per_transfer[context->next_started_descriptor_index];
 
-        *num_descriptors_in_transfer = 1;
-        context->num_in_use_descriptors += *num_descriptors_in_transfer;
-        next_buffer = &buffer_data[buffer_start_offset];
+        /* Check any descriptors set from a previous call have been started */
+        X2X_ASSERT (context, *num_descriptors_in_transfer == 0);
+
+        if (!context->failed)
+        {
+            const uint64_t buffer_start_offset = context->configuration.host_buffer_start_offset +
+                    (context->next_started_descriptor_index * context->configuration.bytes_per_buffer);
+            uint8_t *const buffer_data = context->configuration.data_mapping->buffer.vaddr;
+
+            *num_descriptors_in_transfer = 1;
+            context->num_in_use_descriptors += *num_descriptors_in_transfer;
+            next_buffer = &buffer_data[buffer_start_offset];
+        }
     }
 
     return next_buffer;
@@ -744,19 +761,215 @@ void *x2x_get_next_h2c_buffer (x2x_transfer_context_t *const context)
  */
 void x2x_start_next_c2h_buffer (x2x_transfer_context_t *const context)
 {
-    uint32_t *const num_descriptors_in_transfer = &context->num_descriptors_per_transfer[context->next_started_descriptor_index];
     X2X_ASSERT (context, (context->configuration.channels_submodule == DMA_SUBMODULE_C2H_CHANNELS) &&
-            (context->configuration.bytes_per_buffer > 0) &&
-            (*num_descriptors_in_transfer == 0));
+            (context->configuration.bytes_per_buffer > 0));
 
     const uint32_t num_free_descriptors = x2x_get_num_free_descriptors (context);
 
-    if (!context->failed && (num_free_descriptors > 0))
+    if (num_free_descriptors > 0)
     {
-        *num_descriptors_in_transfer = 1;
-        context->num_in_use_descriptors += *num_descriptors_in_transfer;
-        x2x_start_populated_descriptors (context);
+        uint32_t *const num_descriptors_in_transfer = &context->num_descriptors_per_transfer[context->next_started_descriptor_index];
+
+        /* Check any descriptors set from a previous call have been started */
+        X2X_ASSERT (context, *num_descriptors_in_transfer == 0);
+
+        if (!context->failed)
+        {
+            *num_descriptors_in_transfer = 1;
+            context->num_in_use_descriptors += *num_descriptors_in_transfer;
+            x2x_start_populated_descriptors (context);
+        }
     }
+}
+
+
+/**
+ * @brief Populate a memory mapped transfer, by setting one or more descriptors to cover the length of the transfer
+ * @details To actually start the transfer, x2x_start_populated_descriptors() needs to be called.
+ *
+ *          This function checks if there are enough free descriptors for the transfer, but doesn't check if the
+ *          host or card addresses are covered by any existing outstanding transfers. It is the responsibility
+ *          of the caller to avoid any overlapping transfers to the same range of addresses.
+ * @param[in/out] context The context to populate the transfer for.
+ * @param[in] len The required transfer length in bytes
+ * @param[in] host_buffer_offset The start offset of the transfer in the host buffer
+ * @param[in] card_buffer_offset The start offset of the transfer in the card memory
+ * @return Returns either:
+ *         - A pointer to the start of the transfer in host memory if were sufficient free descriptors to populate the transfer.
+ *         - NULL if not currently sufficient free descriptors.
+ */
+void *x2x_populate_memory_transfer (x2x_transfer_context_t *const context, const size_t len,
+                                    const uint64_t host_buffer_offset, const uint64_t card_buffer_offset)
+{
+    const uint32_t num_descriptors_required = x2x_num_descriptors_for_transfer_len (len);
+
+            /* Only valid to be called for memory mapped channels, since sets the card addresses */
+    X2X_ASSERT (context, !context->is_axi_stream &&
+            /* Since this function modifies the descriptors it is only valid to be called when fixed size buffers aren't used,
+             * since also calling the API functions which operate on fixed size buffers assume the descriptors aren't modified */
+            (context->configuration.bytes_per_buffer == 0) &&
+            /* Validate that the number of descriptors required for the transfer doesn't exceed the number configured,
+             * since otherwise this function could never set a transfer. */
+            (num_descriptors_required <= context->configuration.num_descriptors) &&
+            /* Validate that not attempting to access off the end of the host buffer */
+            ((host_buffer_offset + len) <= context->configuration.data_mapping->buffer.size) &&
+            /* Validate that not attempting to access off the end of the card memory */
+            ((card_buffer_offset + len) <= context->configuration.dma_bridge_memory_size_bytes));
+
+    const uint32_t num_free_descriptors = x2x_get_num_free_descriptors (context);
+    void *host_buffer = NULL;
+
+    if (num_free_descriptors >= num_descriptors_required)
+    {
+        uint32_t *const num_descriptors_in_transfer = &context->num_descriptors_per_transfer[context->next_started_descriptor_index];
+
+        /* Check any descriptors set from a previous call have been started */
+        X2X_ASSERT (context, *num_descriptors_in_transfer == 0);
+
+        if (!context->failed)
+        {
+            uint8_t *const buffer_data = context->configuration.data_mapping->buffer.vaddr;
+            size_t bytes_added_to_descriptors = 0;
+
+            /* Update one or more descriptors for the transfer with the addresses and length,
+             * allowing for the transfer length to exceed the maximum length of a single descriptor. */
+            for (uint32_t descriptor_offset = 0; descriptor_offset < num_descriptors_required; descriptor_offset++)
+            {
+                const size_t remaining_len = len - bytes_added_to_descriptors;
+                const size_t this_descriptor_len = (remaining_len < X2X_CACHE_LINE_ALIGNED_MAX_DESCRIPTOR_LEN) ?
+                        remaining_len : X2X_CACHE_LINE_ALIGNED_MAX_DESCRIPTOR_LEN;
+                const uint32_t descriptor_index = (context->next_started_descriptor_index + descriptor_offset) %
+                        context->configuration.num_descriptors;
+                dma_descriptor_t *const descriptor = &context->descriptors[descriptor_index];
+                const uint64_t host_buffer_address =
+                        context->configuration.data_mapping->iova + host_buffer_offset + bytes_added_to_descriptors;
+                const uint64_t card_buffer_address = card_buffer_offset + bytes_added_to_descriptors;
+
+                descriptor->len = (uint32_t) this_descriptor_len;
+                if (context->configuration.channels_submodule == DMA_SUBMODULE_H2C_CHANNELS)
+                {
+                    /* H2C transfer */
+                    descriptor->src_adr = host_buffer_address;
+                    descriptor->dst_adr = card_buffer_address;
+                }
+                else
+                {
+                    /* C2H transfer */
+                    descriptor->src_adr = card_buffer_address;
+                    descriptor->dst_adr = host_buffer_address;
+                }
+                bytes_added_to_descriptors += this_descriptor_len;
+            }
+
+            host_buffer = &buffer_data[host_buffer_offset];
+            *num_descriptors_in_transfer = num_descriptors_required;
+            context->num_in_use_descriptors += num_descriptors_required;
+        }
+    }
+
+    return host_buffer;
+}
+
+
+/**
+ * @brief Populate a AXI4 stream transfer, by setting one or more descriptors to cover the length of the transfer
+ * @details To actually start the transfer, x2x_start_populated_descriptors() needs to be called.
+ *
+ *          This function checks if there are enough free descriptors for the transfer, but doesn't check if the
+ *          host or card addresses are covered by any existing outstanding transfers. It is the responsibility
+ *          of the caller to avoid any overlapping transfers to the same range of host buffer addresses.
+ * @param[in/out] context The context to populate the transfer for.
+ * @param[in] len The required transfer length in bytes
+ * @param[in] host_buffer_offset The start offset of the transfer in the host buffer
+ * @return Returns either:
+ *         - A pointer to the start of the transfer in host memory if were sufficient free descriptors to populate the transfer.
+ *         - NULL if not currently sufficient free descriptors.
+ */
+void *x2x_populate_stream_transfer (x2x_transfer_context_t *const context, const size_t len,
+                                    const uint64_t host_buffer_offset)
+{
+    const uint32_t num_descriptors_required = x2x_num_descriptors_for_transfer_len (len);
+
+            /* Only valid to be called for AXI stream mapped channels*/
+    X2X_ASSERT (context, context->is_axi_stream &&
+            /* Since this function modifies the descriptors it is only valid to be called when fixed size buffers aren't used,
+             * since also calling the API functions which operate on fixed size buffers assume the descriptors aren't modified */
+            (context->configuration.bytes_per_buffer == 0) &&
+            /* Validate that the number of descriptors required for the transfer doesn't exceed the number configured,
+             * since otherwise this function could never set a transfer. */
+            (num_descriptors_required <= context->configuration.num_descriptors) &&
+            /* Validate that not attempting to access off the end of the host buffer */
+            ((host_buffer_offset + len) <= context->configuration.data_mapping->buffer.size));
+
+    if (context->configuration.channels_submodule == DMA_SUBMODULE_C2H_CHANNELS)
+    {
+        /* For a C2H stream the length must fit a single descriptor. Otherwise if the data for the transfer is split into
+         * multiple packets the data wouldn't be consecutive in host memory. */
+        X2X_ASSERT (context, num_descriptors_required == 1);
+    }
+
+    const uint32_t num_free_descriptors = x2x_get_num_free_descriptors (context);
+    void *host_buffer = NULL;
+
+    if (num_free_descriptors >= num_descriptors_required)
+    {
+        uint32_t *const num_descriptors_in_transfer = &context->num_descriptors_per_transfer[context->next_started_descriptor_index];
+
+        /* Check any descriptors set from a previous call have been started */
+        X2X_ASSERT (context, *num_descriptors_in_transfer == 0);
+
+        if (!context->failed)
+        {
+            uint8_t *const buffer_data = context->configuration.data_mapping->buffer.vaddr;
+            size_t bytes_added_to_descriptors = 0;
+
+            /* Update one or more descriptors for the transfer with the host address and length,
+             * allowing for the transfer length to exceed the maximum length of a single descriptor. */
+            for (uint32_t descriptor_offset = 0; descriptor_offset < num_descriptors_required; descriptor_offset++)
+            {
+                const size_t remaining_len = len - bytes_added_to_descriptors;
+                const bool is_final_descriptor = remaining_len <= X2X_CACHE_LINE_ALIGNED_MAX_DESCRIPTOR_LEN;
+                const size_t this_descriptor_len = is_final_descriptor ?
+                        remaining_len : X2X_CACHE_LINE_ALIGNED_MAX_DESCRIPTOR_LEN;
+                const uint32_t descriptor_index = (context->next_started_descriptor_index + descriptor_offset) %
+                        context->configuration.num_descriptors;
+                dma_descriptor_t *const descriptor = &context->descriptors[descriptor_index];
+                const uint64_t host_buffer_address =
+                        context->configuration.data_mapping->iova + host_buffer_offset + bytes_added_to_descriptors;
+
+                descriptor->len = (uint32_t) this_descriptor_len;
+                if (context->configuration.channels_submodule == DMA_SUBMODULE_H2C_CHANNELS)
+                {
+                    /* H2C transfer */
+                    descriptor->src_adr = host_buffer_address;
+                }
+                else
+                {
+                    /* C2H transfer */
+                    descriptor->dst_adr = host_buffer_address;
+                }
+                if (context->configuration.channels_submodule == DMA_SUBMODULE_H2C_CHANNELS)
+                {
+                    /* For a H2C stream set End of Packet only on the final descriptor used for a transfer */
+                    if (is_final_descriptor)
+                    {
+                        descriptor->magic_nxt_adj_control |= DMA_DESCRIPTOR_CONTROL_EOP;
+                    }
+                    else
+                    {
+                        descriptor->magic_nxt_adj_control &= ~DMA_DESCRIPTOR_CONTROL_EOP;
+                    }
+                }
+                bytes_added_to_descriptors += this_descriptor_len;
+            }
+
+            host_buffer = &buffer_data[host_buffer_offset];
+            *num_descriptors_in_transfer = num_descriptors_required;
+            context->num_in_use_descriptors += num_descriptors_required;
+        }
+    }
+
+    return host_buffer;
 }
 
 
