@@ -138,7 +138,9 @@ void x2x_assert (x2x_transfer_context_t *const context, const bool assertion, co
 size_t x2x_get_descriptor_allocation_size (const x2x_transfer_configuration_t *const configuration);
 uint32_t x2x_num_descriptors_for_transfer_len (const size_t len);
 void x2x_get_num_channels (vfio_device_t *const vfio_device, const uint32_t bar_index, const size_t dma_bridge_memory_size_bytes,
-                           uint32_t *const num_h2c_channels, uint32_t *const num_c2h_channels);
+                           uint32_t *const num_h2c_channels, uint32_t *const num_c2h_channels,
+                           x2x_transfer_context_t h2c_transfers[const X2X_MAX_CHANNELS],
+                           x2x_transfer_context_t c2h_transfers[const X2X_MAX_CHANNELS]);
 void x2x_initialise_transfer_context (x2x_transfer_context_t *const context,
                                       const x2x_transfer_configuration_t *const configuration);
 void x2x_finalise_transfer_context (x2x_transfer_context_t *const context);

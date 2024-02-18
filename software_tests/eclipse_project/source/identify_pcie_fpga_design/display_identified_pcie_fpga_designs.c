@@ -96,6 +96,65 @@ static void display_design_present_peripheral (const fpga_design_t *const design
 }
 
 
+/**
+ * @brief Display information about a Xilinx "DMA/Bridge Subsystem for PCI Express" in an identified design
+ * @details
+ *   Displays the:
+ *   1. If the DMA bridge is configured as memory mapped or AXI streams.
+ *   2. If memory mapped, the amount of card memory (defined in the identify_pcie_fpga_design library as
+ *      not specified in any DMA brige register).
+ *   3. Alignment requirements of the DMA engine for each channel.
+ *      This is reported since:
+ *      a. PG195 doesn't seem to define which configuration parameters change the alignment requirements.
+ *      b. Current tests have left the alignment requirements at one byte, and xilinx_dma_bridge_transfers
+ *         doesn't check the alignment of addresses used for transfers.
+ * @param[in] design The identified design containing the DMA bridge
+ */
+static void display_dma_bridge (const fpga_design_t *const design)
+{
+    typedef enum
+    {
+        CHANNEL_DIR_H2C,
+        CHANNEL_DIR_C2H,
+        CHANNEL_DIR_ARRAY_SIZE
+    } channel_dir_t;
+    const char *const channel_dir_names[CHANNEL_DIR_ARRAY_SIZE] =
+    {
+        [CHANNEL_DIR_H2C] = "H2C",
+        [CHANNEL_DIR_C2H] = "C2H"
+    };
+    channel_dir_t channel_dir;
+    uint32_t channel_id;
+    uint32_t num_channels[CHANNEL_DIR_ARRAY_SIZE];
+    x2x_transfer_context_t transfers[CHANNEL_DIR_ARRAY_SIZE][X2X_MAX_CHANNELS] = {0};
+
+    x2x_get_num_channels (design->vfio_device, design->dma_bridge_bar, design->dma_bridge_memory_size_bytes,
+            &num_channels[CHANNEL_DIR_H2C], &num_channels[CHANNEL_DIR_C2H],
+            transfers[CHANNEL_DIR_H2C], transfers[CHANNEL_DIR_C2H]);
+    if (design->dma_bridge_memory_size_bytes > 0)
+    {
+        printf ("  DMA bridge bar %u memory size 0x%zx\n", design->dma_bridge_bar, design->dma_bridge_memory_size_bytes);
+    }
+    else
+    {
+        printf ("  DMA bridge bar %u AXI Stream\n", design->dma_bridge_bar);
+    }
+
+    printf ("  Channel ID  addr_alignment  len_granularity  num_address_bits\n");
+    for (channel_dir = 0; channel_dir < CHANNEL_DIR_ARRAY_SIZE; channel_dir++)
+    {
+        for (channel_id = 0; channel_id < num_channels[channel_dir]; channel_id++)
+        {
+            const x2x_transfer_context_t *const transfer = &transfers[channel_dir][channel_id];
+
+            printf ("       %s %u  %14u  %15u  %16u\n",
+                    channel_dir_names[channel_dir], channel_id,
+                    transfer->addr_alignment, transfer->len_granularity, transfer->num_address_bits);
+        }
+    }
+}
+
+
 int main (int argc, char *argv[])
 {
     fpga_designs_t designs;
@@ -119,20 +178,7 @@ int main (int argc, char *argv[])
         printf ("  PCI device %s IOMMU group %s\n", design->vfio_device->device_name, design->vfio_device->iommu_group);
         if (design->dma_bridge_present)
         {
-            uint32_t num_h2c_channels;
-            uint32_t num_c2h_channels;
-
-            x2x_get_num_channels (design->vfio_device, design->dma_bridge_bar, design->dma_bridge_memory_size_bytes,
-                    &num_h2c_channels, &num_c2h_channels);
-            if (design->dma_bridge_memory_size_bytes > 0)
-            {
-                printf ("  DMA bridge bar %u memory size 0x%zx", design->dma_bridge_bar, design->dma_bridge_memory_size_bytes);
-            }
-            else
-            {
-                printf ("  DMA bridge bar %u AXI Stream", design->dma_bridge_bar);
-            }
-            printf (" Num H2C channels %u Num C2H channels %u\n", num_h2c_channels, num_c2h_channels);
+            display_dma_bridge (design);
         }
         if (design->user_access != NULL)
         {

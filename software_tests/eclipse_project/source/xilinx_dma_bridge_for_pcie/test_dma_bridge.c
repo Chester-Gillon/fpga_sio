@@ -1663,7 +1663,7 @@ int main (int argc, char *argv[])
             const bool design_uses_stream = design->dma_bridge_memory_size_bytes == 0;
 
             x2x_get_num_channels (vfio_device, design->dma_bridge_bar, design->dma_bridge_memory_size_bytes,
-                    &num_h2c_channels, &num_c2h_channels);
+                    &num_h2c_channels, &num_c2h_channels, NULL, NULL);
             if ((num_h2c_channels > 0) && (num_c2h_channels > 0))
             {
                 /* Perform all enabled tests which are supported by the design */

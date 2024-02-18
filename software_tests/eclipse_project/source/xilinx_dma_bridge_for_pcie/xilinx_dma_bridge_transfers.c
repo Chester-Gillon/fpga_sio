@@ -216,9 +216,16 @@ static void x2x_initialise_transfer_register_mapping (x2x_transfer_context_t *co
  *                                         - Zero means ""AXI Stream" channels are expected.
  * @param[out] num_h2c_channels The number of configured H2C channels
  * @param[out] num_c2h_channels The number of configured C2H channels
+ * @param[out] h2c_transfers, c2h_transfers
+ *             If non-NULL contains the partial transfer contexts from determining the number of channels.
+ *             This contains:
+ *             a. The mapped register base addresses
+ *             b. The alignment requirements
  */
 void x2x_get_num_channels (vfio_device_t *const vfio_device, const uint32_t bar_index, const size_t dma_bridge_memory_size_bytes,
-                           uint32_t *const num_h2c_channels, uint32_t *const num_c2h_channels)
+                           uint32_t *const num_h2c_channels, uint32_t *const num_c2h_channels,
+                           x2x_transfer_context_t h2c_transfers[const X2X_MAX_CHANNELS],
+                           x2x_transfer_context_t c2h_transfers[const X2X_MAX_CHANNELS])
 {
     x2x_transfer_context_t context;
     bool success;
@@ -236,6 +243,10 @@ void x2x_get_num_channels (vfio_device_t *const vfio_device, const uint32_t bar_
     x2x_initialise_transfer_register_mapping (&context, &configuration);
     while (!context.failed && (*num_h2c_channels < X2X_MAX_CHANNELS))
     {
+        if (h2c_transfers != NULL)
+        {
+            h2c_transfers[*num_h2c_channels] = context;
+        }
         (*num_h2c_channels)++;
         configuration.channel_id++;
         x2x_initialise_transfer_register_mapping (&context, &configuration);
@@ -247,6 +258,10 @@ void x2x_get_num_channels (vfio_device_t *const vfio_device, const uint32_t bar_
     x2x_initialise_transfer_register_mapping (&context, &configuration);
     while (!context.failed && (*num_c2h_channels < X2X_MAX_CHANNELS))
     {
+        if (c2h_transfers != NULL)
+        {
+            c2h_transfers[*num_c2h_channels] = context;
+        }
         (*num_c2h_channels)++;
         configuration.channel_id++;
         x2x_initialise_transfer_register_mapping (&context, &configuration);
