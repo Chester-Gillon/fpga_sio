@@ -1284,3 +1284,1539 @@ Overall PASS
 
 This shows that when using AXI streams, and a packet may be split across multiple C2H buffers, each C2H buffer must
 be a multiple of the AXI stream width in the DMA bridge.
+
+
+5. test_dma_bridge_parallel_streams with TEF1001_dma_stream_loopback and NiteFury_dma_stream_loopback
+=====================================================================================================
+
+These tests run test_dma_bridge_parallel_streams testing the TEF1001_dma_stream_loopback and NiteFury_dma_stream_loopback
+designs in parllel, with two pairs of stream in each design.
+
+The tests:
+a. Use W-2123 system
+b. AlmaLinux release 8.9
+c. Kernel 4.18.0-513.18.1.el8_9.x86_64
+d. Set buffer to 2 GiB, so uses a total of 16 GiB of memory (transmit plus receive over 4 pairs of AXI streams).
+
+5.1. Tests with IOMMU enabled
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Secure boot enabled in the BIOS. Linux reported the Kernel is locked down as a result:
+$ dmesg|grep lockdown
+[    0.000000] Kernel is locked down from EFI secure boot; see man kernel_lockdown.7
+[    9.856769] Lockdown: swapper/0: Hibernation is restricted; see man kernel_lockdown.7
+
+The IOMMU is enabled in the default command line arguments, and there is no physical memory reserved by memmap:
+$ cat /proc/cmdline 
+BOOT_IMAGE=(hd1,gpt2)/vmlinuz-4.18.0-513.18.1.el8_9.x86_64 root=/dev/mapper/almalinux_skylake--alma-root ro resume=/dev/mapper/almalinux_skylake--alma-swap rd.lvm.lv=almalinux_skylake-alma/root rd.lvm.lv=almalinux_skylake-alma/swap rhgb quiet intel_iommu=on
+
+Result of running the test, left running for 38 minutes with no failures.
+This shows all streams maintain a constant throughput, and the two streams in each design share bandwidth equally
+(as measured over the 10 second statistics reporting interval):
+
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge_parallel_streams --stream_mapping_size 0x80000000
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Enabling bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Enabling bus master for 0000:30:00.0
+Using num_descriptors=64 bytes_per_buffer=0x2000000 data_mapping_size_words=0x20000000
+Selecting test of TEF1001_dma_stream_loopback design PCI device 0000:15:00.0 IOMMU group 41 H2C channel 0 C2H channel 1
+Selecting test of TEF1001_dma_stream_loopback design PCI device 0000:15:00.0 IOMMU group 41 H2C channel 1 C2H channel 0
+Selecting test of NiteFury_dma_stream_loopback design PCI device 0000:30:00.0 IOMMU group 89 H2C channel 0 C2H channel 1
+Selecting test of NiteFury_dma_stream_loopback design PCI device 0000:30:00.0 IOMMU group 89 H2C channel 1 C2H channel 0
+Press Ctrl-C to stop test
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8153726976 bytes in 9.960536 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8153726976 bytes in 9.960540 secs)
+  0000:30:00.0 0 -> 1 818.601 Mbytes/sec (8153726976 bytes in 9.960563 secs)
+  0000:30:00.0 1 -> 0 818.601 Mbytes/sec (8153726976 bytes in 9.960568 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001524 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001534 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001534 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001542 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001542 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001534 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+  0000:30:00.0 0 -> 1 818.601 Mbytes/sec (8187281408 bytes in 10.001555 secs)
+  0000:30:00.0 1 -> 0 818.601 Mbytes/sec (8187281408 bytes in 10.001555 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001539 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001538 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001546 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001546 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001534 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001534 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001541 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001540 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8153726976 bytes in 9.960537 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8153726976 bytes in 9.960537 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8153726976 bytes in 9.960537 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8153726976 bytes in 9.960536 secs)
+
+  0000:15:00.0 0 -> 1 821.972 Mbytes/sec (8187281408 bytes in 9.960536 secs)
+  0000:15:00.0 1 -> 0 821.972 Mbytes/sec (8187281408 bytes in 9.960536 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001538 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001538 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001538 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8153726976 bytes in 9.960536 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8153726976 bytes in 9.960536 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8153726976 bytes in 9.960537 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8153726976 bytes in 9.960537 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+  0000:30:00.0 0 -> 1 818.601 Mbytes/sec (8187281408 bytes in 10.001549 secs)
+  0000:30:00.0 1 -> 0 818.601 Mbytes/sec (8187281408 bytes in 10.001549 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001543 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001543 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001544 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001543 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001542 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001541 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8153726976 bytes in 9.960546 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8153726976 bytes in 9.960545 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8153726976 bytes in 9.960537 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8153726976 bytes in 9.960537 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001534 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001542 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001542 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.601 Mbytes/sec (8153726976 bytes in 9.960560 secs)
+  0000:30:00.0 1 -> 0 818.601 Mbytes/sec (8153726976 bytes in 9.960559 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8153726976 bytes in 9.960537 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8153726976 bytes in 9.960537 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001543 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001543 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+  0000:30:00.0 0 -> 1 818.600 Mbytes/sec (8187281408 bytes in 10.001565 secs)
+  0000:30:00.0 1 -> 0 818.600 Mbytes/sec (8187281408 bytes in 10.001565 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001534 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001534 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001534 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001539 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001538 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001534 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001534 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001539 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001539 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8153726976 bytes in 9.960539 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8153726976 bytes in 9.960538 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8153726976 bytes in 9.960539 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8153726976 bytes in 9.960539 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001546 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001546 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001534 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+
+  0000:15:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+  0000:15:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001544 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001543 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001538 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001538 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001538 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001546 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001546 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001545 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001545 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001540 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001539 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:15:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001544 secs)
+  0000:30:00.0 0 -> 1 818.601 Mbytes/sec (8187281408 bytes in 10.001549 secs)
+  0000:30:00.0 1 -> 0 818.601 Mbytes/sec (8187281408 bytes in 10.001549 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8153726976 bytes in 9.960539 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8153726976 bytes in 9.960538 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8153726976 bytes in 9.960539 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8153726976 bytes in 9.960538 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001538 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001538 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001541 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001541 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001539 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001538 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001543 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001543 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001543 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001543 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 0 -> 1 818.601 Mbytes/sec (8187281408 bytes in 10.001556 secs)
+  0000:30:00.0 1 -> 0 818.601 Mbytes/sec (8187281408 bytes in 10.001555 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001534 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001534 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001540 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001539 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.601 Mbytes/sec (8187281408 bytes in 10.001557 secs)
+  0000:30:00.0 1 -> 0 818.601 Mbytes/sec (8187281408 bytes in 10.001557 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8153726976 bytes in 9.960539 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8153726976 bytes in 9.960539 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8153726976 bytes in 9.960538 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8153726976 bytes in 9.960539 secs)
+  0000:15:00.0 1 -> 0 821.972 Mbytes/sec (8187281408 bytes in 9.960539 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001538 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001538 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+
+  0000:15:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:15:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001534 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001541 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001541 secs)
+
+  0000:15:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+  0000:30:00.0 0 -> 1 818.601 Mbytes/sec (8187281408 bytes in 10.001549 secs)
+  0000:30:00.0 1 -> 0 818.601 Mbytes/sec (8187281408 bytes in 10.001548 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001538 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8153726976 bytes in 9.960543 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8153726976 bytes in 9.960543 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8153726976 bytes in 9.960552 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8153726976 bytes in 9.960552 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001543 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001543 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001526 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+
+^C  0000:15:00.0 0 -> 1 818.604 Mbytes/sec (8019509248 bytes in 9.796571 secs)
+  0000:15:00.0 1 -> 0 818.604 Mbytes/sec (8019509248 bytes in 9.796568 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8019509248 bytes in 9.796587 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8019509248 bytes in 9.796583 secs)
+
+Overall test statistics:
+  0000:15:00.0 0 -> 1 818.604 Mbytes/sec (1890792243200 bytes in 2309.776806 secs)
+  0000:15:00.0 1 -> 0 818.604 Mbytes/sec (1890792243200 bytes in 2309.776807 secs)
+  0000:30:00.0 0 -> 1 818.604 Mbytes/sec (1890792243200 bytes in 2309.777766 secs)
+  0000:30:00.0 1 -> 0 818.604 Mbytes/sec (1890792243200 bytes in 2309.777767 secs)
+
+0000:15:00.0 0 -> 1 Test pattern verified in 536870912 words
+0000:15:00.0 1 -> 0 Test pattern verified in 536870912 words
+0000:30:00.0 0 -> 1 Test pattern verified in 536870912 words
+0000:30:00.0 1 -> 0 Test pattern verified in 536870912 words
+
+Overall PASS
+
+5.2. Tests with IOMMU disabled
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+These tests were using the same system as the previous test, but without the IOMMU to investigate any performance
+difference of having the IOMMU enabled.
+
+To test with NOIOMMU:
+a. Disabled secure boot in the BIOS which is required to Load the cmem_gdb_access Kernel module which hasn't been signed.
+b. Run set_exe_vfio_capabilities.sh to set the required permissions on the executables to open VFIO devices as a
+   normal user in NOIOMMU mode.
+c. When booting use GRUB to manually edit the command line to:
+   - Remove:
+        intel_iommu=on
+   - Add the following, which reserves just over half the physical memory for the cmem_gdb_access module:
+        memmap=16386M\$4G,1M\$20482M
+
+The complete command line was:
+$ cat /proc/cmdline 
+BOOT_IMAGE=(hd1,gpt2)/vmlinuz-4.18.0-513.18.1.el8_9.x86_64 root=/dev/mapper/almalinux_skylake--alma-root ro resume=/dev/mapper/almalinux_skylake--alma-swap rd.lvm.lv=almalinux_skylake-alma/root rd.lvm.lv=almalinux_skylake-alma/swap rhgb quiet memmap=16386M$4G,1M$20482M
+
+Setup after booting:
+$ ~/fpga_sio/software_tests/eclipse_project/bind_xilinx_devices_to_vfio.sh 
+No IOMMUs present
+Loading vfio module and enabling NOIOMMU (this taints the Kernel)
+[sudo] password for mr_halfword: 
+Loading vfio-pci module
+Bound vfio-pci driver to 0000:15:00.0 10ee:7024 [0002:0007]
+Waiting for /dev/vfio/noiommu-0 to be created
+Giving user permission to IOMMU group noiommu-0 for 0000:15:00.0 10ee:7024 [0002:0007]
+Bound vfio-pci driver to 0000:30:00.0 10ee:7024 [0002:0008]
+Waiting for /dev/vfio/noiommu-1 to be created
+Giving user permission to IOMMU group noiommu-1 for 0000:30:00.0 10ee:7024 [0002:0008]
+[mr_halfword@skylake-alma ~]$ cd ~/cmem_gdb_access/module/
+[mr_halfword@skylake-alma module]$ sudo ./load.sh
+
+The Kernel is tainted:
+$ ~/Downloads/kernel-chktaint 
+Kernel is "tainted" for the following reasons:
+ * taint requested by userspace application (#6)
+ * externally-built ('out-of-tree') module was loaded  (#12)
+ * unsigned module was loaded (#13)
+For a more detailed explanation of the various taint flags see
+ Documentation/admin-guide/tainted-kernels.rst in the Linux kernel sources
+ or https://kernel.org/doc/html/latest/admin-guide/tainted-kernels.html
+Raw taint value as int/string: 12352/'G     U     OE     '
+
+Result of running the test, left running for 7 minutes with no failures.
+This shows the same throughput as when the IOMMU was enabled:
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge_parallel_streams --stream_mapping_size 0x80000000
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 0
+Enabling bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 1
+Enabling bus master for 0000:30:00.0
+Using num_descriptors=64 bytes_per_buffer=0x2000000 data_mapping_size_words=0x20000000
+Selecting test of TEF1001_dma_stream_loopback design PCI device 0000:15:00.0 IOMMU group 0 H2C channel 0 C2H channel 1
+Selecting test of TEF1001_dma_stream_loopback design PCI device 0000:15:00.0 IOMMU group 0 H2C channel 1 C2H channel 0
+Selecting test of NiteFury_dma_stream_loopback design PCI device 0000:30:00.0 IOMMU group 1 H2C channel 0 C2H channel 1
+Selecting test of NiteFury_dma_stream_loopback design PCI device 0000:30:00.0 IOMMU group 1 H2C channel 1 C2H channel 0
+Opened DMA MEM device : /dev/cmem (dev_desc = 0x00000009)
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7f88c5264000 
+Debug: mmap param length 0x80000000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7f8842851000 
+Debug: mmap param length 0x80000000, Addr: 0x180002000 
+Buff num 0: Phys addr : 0x180002000 User Addr: 0x7f87c2851000 
+Debug: mmap param length 0x2000, Addr: 0x200002000 
+Buff num 0: Phys addr : 0x200002000 User Addr: 0x7f88c5262000 
+Debug: mmap param length 0x80000000, Addr: 0x200004000 
+Buff num 0: Phys addr : 0x200004000 User Addr: 0x7f8742851000 
+Debug: mmap param length 0x80000000, Addr: 0x280004000 
+Buff num 0: Phys addr : 0x280004000 User Addr: 0x7f86c2851000 
+Debug: mmap param length 0x2000, Addr: 0x300004000 
+Buff num 0: Phys addr : 0x300004000 User Addr: 0x7f88c5260000 
+Debug: mmap param length 0x80000000, Addr: 0x300006000 
+Buff num 0: Phys addr : 0x300006000 User Addr: 0x7f8642851000 
+Debug: mmap param length 0x80000000, Addr: 0x380006000 
+Buff num 0: Phys addr : 0x380006000 User Addr: 0x7f85c2851000 
+Debug: mmap param length 0x2000, Addr: 0x400006000 
+Buff num 0: Phys addr : 0x400006000 User Addr: 0x7f88c525e000 
+Debug: mmap param length 0x80000000, Addr: 0x400008000 
+Buff num 0: Phys addr : 0x400008000 User Addr: 0x7f8542851000 
+Debug: mmap param length 0x80000000, Addr: 0x480008000 
+Buff num 0: Phys addr : 0x480008000 User Addr: 0x7f84c2851000 
+Press Ctrl-C to stop test
+  0000:15:00.0 0 -> 1 818.604 Mbytes/sec (8153726976 bytes in 9.960528 secs)
+  0000:15:00.0 1 -> 0 818.604 Mbytes/sec (8153726976 bytes in 9.960533 secs)
+  0000:30:00.0 0 -> 1 818.604 Mbytes/sec (8153726976 bytes in 9.960533 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8153726976 bytes in 9.960533 secs)
+
+  0000:15:00.0 0 -> 1 818.604 Mbytes/sec (8187281408 bytes in 10.001520 secs)
+  0000:15:00.0 1 -> 0 818.604 Mbytes/sec (8187281408 bytes in 10.001520 secs)
+  0000:30:00.0 0 -> 1 818.604 Mbytes/sec (8187281408 bytes in 10.001522 secs)
+  0000:30:00.0 1 -> 0 818.604 Mbytes/sec (8187281408 bytes in 10.001522 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001524 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:15:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+
+  0000:15:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001540 secs)
+  0000:15:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001539 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001543 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001543 secs)
+
+  0000:15:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:15:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+
+  0000:15:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+  0000:15:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001540 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001540 secs)
+
+  0000:15:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001538 secs)
+  0000:15:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001538 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+
+  0000:15:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001539 secs)
+  0000:15:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001539 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001538 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001538 secs)
+
+  0000:15:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001541 secs)
+  0000:15:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001540 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001540 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001540 secs)
+
+  0000:15:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001542 secs)
+  0000:15:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001542 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001542 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001542 secs)
+
+  0000:15:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001542 secs)
+  0000:15:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001542 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001542 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001542 secs)
+
+  0000:15:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001542 secs)
+  0000:15:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001542 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001546 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001546 secs)
+
+  0000:15:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001542 secs)
+  0000:15:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001542 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001542 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001542 secs)
+
+  0000:15:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001545 secs)
+  0000:15:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001545 secs)
+  0000:30:00.0 0 -> 1 818.601 Mbytes/sec (8187281408 bytes in 10.001552 secs)
+  0000:30:00.0 1 -> 0 818.601 Mbytes/sec (8187281408 bytes in 10.001552 secs)
+
+  0000:15:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001540 secs)
+  0000:15:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001540 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001540 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001540 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001534 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001534 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8153726976 bytes in 9.960543 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8153726976 bytes in 9.960543 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8153726976 bytes in 9.960545 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8153726976 bytes in 9.960545 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001534 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+
+  0000:15:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:15:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001535 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001533 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001532 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001531 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001530 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001529 secs)
+  0000:30:00.0 0 -> 1 818.602 Mbytes/sec (8187281408 bytes in 10.001536 secs)
+  0000:30:00.0 1 -> 0 818.602 Mbytes/sec (8187281408 bytes in 10.001537 secs)
+
+  0000:15:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:15:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001525 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (8187281408 bytes in 10.001527 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (8187281408 bytes in 10.001528 secs)
+
+^C  0000:15:00.0 0 -> 1 818.604 Mbytes/sec (5838471168 bytes in 7.132231 secs)
+  0000:15:00.0 1 -> 0 818.604 Mbytes/sec (5838471168 bytes in 7.132227 secs)
+  0000:30:00.0 0 -> 1 818.604 Mbytes/sec (5838471168 bytes in 7.132230 secs)
+  0000:30:00.0 1 -> 0 818.604 Mbytes/sec (5838471168 bytes in 7.132229 secs)
+
+Overall test statistics:
+  0000:15:00.0 0 -> 1 818.604 Mbytes/sec (374199025664 bytes in 457.118767 secs)
+  0000:15:00.0 1 -> 0 818.604 Mbytes/sec (374199025664 bytes in 457.118768 secs)
+  0000:30:00.0 0 -> 1 818.603 Mbytes/sec (374199025664 bytes in 457.118815 secs)
+  0000:30:00.0 1 -> 0 818.603 Mbytes/sec (374199025664 bytes in 457.118815 secs)
+
+0000:15:00.0 0 -> 1 Test pattern verified in 536870912 words
+0000:15:00.0 1 -> 0 Test pattern verified in 536870912 words
+0000:30:00.0 0 -> 1 Test pattern verified in 536870912 words
+0000:30:00.0 1 -> 0 Test pattern verified in 536870912 words
+Memory Driver closed 
+
+Overall PASS
