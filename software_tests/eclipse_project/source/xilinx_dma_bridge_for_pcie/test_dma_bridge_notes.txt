@@ -2820,3 +2820,844 @@ Overall test statistics:
 Memory Driver closed 
 
 Overall PASS
+
+
+6. test_dma_bridge_parallel_streams with TOSING_160T_dma_stream_loopback
+========================================================================
+
+These tests were performed in a i5-2310 system which doesn't have an IOMMU using:
+a. AlmaLinux 8.9
+b. Kernel 4.18.0-513.18.1.el8_9.x86_64
+c. Use cmem_gdb_access as no IOMMU
+d. Secure boot off. The PC BIOS doesn't have the option to enable secure boot,
+   and need to load the cmem_gdb_access module which isn't signed.
+e. Reserve 2 GiB of physical memory for use by the cmem_gdb_access module, by using kexec to temporary reboot with
+   a memmap argument.
+
+Resulting in:
+$ cat /proc/cmdline 
+BOOT_IMAGE=(hd0,gpt2)/vmlinuz-4.18.0-513.18.1.el8_9.x86_64 root=/dev/mapper/almalinux-root ro crashkernel=auto resume=/dev/mapper/almalinux-swap rd.lvm.lv=almalinux/root rd.lvm.lv=almalinux/swap rhgb quiet memmap=2050M$4G,1M$6146M
+
+6.1 Tests with PCIe link on enumerating at 2.5 GT/s
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+After loading the FPGA, rebooting to enumerate and then running reboot_with_memmap_changes.sh resulted in the PCIe link
+only enumerating at 2.5 GT/s instead of 5.0 GT/s, as shown by dump_info_libpciaccess:
+$ dump_info/dump_info_libpciaccess 
+domain=0000 bus=01 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0009
+  control: I/O- Mem+ BusMaster- ParErr- SERR- DisINTx-
+  status: INTx- <ParErr- >TAbort- <TAbort- <MAbort- >SERR- DetParErr-
+  bar[0] base_addr=f0110000 size=4000 is_IO=0 is_prefetchable=1 is_64=1
+  bar[2] base_addr=f0100000 size=10000 is_IO=0 is_prefetchable=1 is_64=1
+  Capabilities: [40] Power Management
+  Capabilities: [48] Message Signaled Interrupts
+  Capabilities: [60] PCI Express v2 Express Endpoint, MSI 0
+    Link capabilities: Max speed 5.0 GT/s Max width x4
+    Negotiated link status: Current speed 2.5 GT/s Width x4
+    Link capabilities2: Not implemented
+    DevCtl: CorrErr- NonFatalErr- FatalErr- UnsupReq-
+            RlxdOrd- ExtTag+ PhantFunc- AuxPwr- NoSnoop+
+    DevSta: CorrErr- NonFatalErr- FatalErr- UnsupReq- AuxPwr- TransPend-
+  domain=0000 bus=00 dev=01 func=00
+    vendor_id=8086 (Intel Corporation) device_id=0101 (Xeon E3-1200/2nd Generation Core Processor Family PCI Express Root Port) subvendor_id=8086 subdevice_id=2002
+    control: I/O+ Mem+ BusMaster+ ParErr- SERR- DisINTx+
+    status: INTx- <ParErr- >TAbort- <TAbort- <MAbort- >SERR- DetParErr-
+    Capabilities: [88] Bridge subsystem vendor/device ID
+    Capabilities: [80] Power Management
+    Capabilities: [90] Message Signaled Interrupts
+    Capabilities: [a0] PCI Express v2 Root Port, MSI 0
+      Link capabilities: Max speed 5.0 GT/s Max width x16
+      Negotiated link status: Current speed 2.5 GT/s Width x4
+      Link capabilities2: Not implemented
+      DevCtl: CorrErr- NonFatalErr- FatalErr- UnsupReq-
+              RlxdOrd- ExtTag- PhantFunc- AuxPwr- NoSnoop-
+      DevSta: CorrErr+ NonFatalErr- FatalErr- UnsupReq- AuxPwr- TransPend-
+      SltCap: AttnBtn- PwrCtrl- MRL- AttnInd- PwrInd- HotPlug- Surprise-
+             Slot #0 PowerLimit 0.000W; Interlock- NoCompl+
+
+
+Which resulted in the following transfer rate during the test:
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge_parallel_streams --stream_mapping_size 020000000
+Opening device 0000:01:00.0 (10ee:7024) with IOMMU group 0
+Enabling bus master for 0000:01:00.0
+Using num_descriptors=64 bytes_per_buffer=0x10000 data_mapping_size_words=0x100000
+Selecting test of TOSING_160T_dma_stream_loopback design PCI device 0000:01:00.0 IOMMU group 0 H2C channel 0 C2H channel 1
+Selecting test of TOSING_160T_dma_stream_loopback design PCI device 0000:01:00.0 IOMMU group 0 H2C channel 1 C2H channel 0
+Opened DMA MEM device : /dev/cmem (dev_desc = 0x00000007)
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7fb4a4d02000 
+Debug: mmap param length 0x400000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7fb4a3eef000 
+Debug: mmap param length 0x400000, Addr: 0x100402000 
+Buff num 0: Phys addr : 0x100402000 User Addr: 0x7fb4a3aef000 
+Debug: mmap param length 0x2000, Addr: 0x100802000 
+Buff num 0: Phys addr : 0x100802000 User Addr: 0x7fb4a4d00000 
+Debug: mmap param length 0x400000, Addr: 0x100804000 
+Buff num 0: Phys addr : 0x100804000 User Addr: 0x7fb4a36ef000 
+Debug: mmap param length 0x400000, Addr: 0x100c04000 
+Buff num 0: Phys addr : 0x100c04000 User Addr: 0x7fb4a32ef000 
+Press Ctrl-C to stop test
+  0000:01:00.0 0 -> 1 381.378 Mbytes/sec (3813736448 bytes in 9.999898 secs)
+  0000:01:00.0 1 -> 0 381.377 Mbytes/sec (3813736448 bytes in 9.999903 secs)
+
+  0000:01:00.0 0 -> 1 381.391 Mbytes/sec (3813933056 bytes in 10.000050 secs)
+  0000:01:00.0 1 -> 0 381.391 Mbytes/sec (3813933056 bytes in 10.000050 secs)
+
+  0000:01:00.0 0 -> 1 381.455 Mbytes/sec (3814522880 bytes in 9.999929 secs)
+  0000:01:00.0 1 -> 0 381.455 Mbytes/sec (3814522880 bytes in 9.999930 secs)
+
+  0000:01:00.0 0 -> 1 381.393 Mbytes/sec (3813933056 bytes in 10.000011 secs)
+  0000:01:00.0 1 -> 0 381.393 Mbytes/sec (3813933056 bytes in 10.000011 secs)
+
+  0000:01:00.0 0 -> 1 381.455 Mbytes/sec (3814588416 bytes in 10.000089 secs)
+  0000:01:00.0 1 -> 0 381.455 Mbytes/sec (3814588416 bytes in 10.000089 secs)
+
+  0000:01:00.0 0 -> 1 381.420 Mbytes/sec (3814195200 bytes in 9.999990 secs)
+  0000:01:00.0 1 -> 0 381.420 Mbytes/sec (3814195200 bytes in 9.999990 secs)
+
+  0000:01:00.0 0 -> 1 381.477 Mbytes/sec (3814719488 bytes in 9.999871 secs)
+  0000:01:00.0 1 -> 0 381.477 Mbytes/sec (3814719488 bytes in 9.999871 secs)
+
+  0000:01:00.0 0 -> 1 381.433 Mbytes/sec (3814391808 bytes in 10.000152 secs)
+  0000:01:00.0 1 -> 0 381.433 Mbytes/sec (3814326272 bytes in 9.999980 secs)
+
+  0000:01:00.0 0 -> 1 381.498 Mbytes/sec (3814916096 bytes in 9.999835 secs)
+  0000:01:00.0 1 -> 0 381.498 Mbytes/sec (3814981632 bytes in 10.000007 secs)
+
+  0000:01:00.0 0 -> 1 381.432 Mbytes/sec (3814326272 bytes in 10.000004 secs)
+  0000:01:00.0 1 -> 0 381.432 Mbytes/sec (3814326272 bytes in 10.000004 secs)
+
+  0000:01:00.0 0 -> 1 381.485 Mbytes/sec (3814850560 bytes in 10.000007 secs)
+  0000:01:00.0 1 -> 0 381.485 Mbytes/sec (3814850560 bytes in 10.000007 secs)
+
+  0000:01:00.0 0 -> 1 381.428 Mbytes/sec (3814326272 bytes in 10.000129 secs)
+  0000:01:00.0 1 -> 0 381.428 Mbytes/sec (3814326272 bytes in 10.000129 secs)
+
+  0000:01:00.0 0 -> 1 381.490 Mbytes/sec (3814850560 bytes in 9.999866 secs)
+  0000:01:00.0 1 -> 0 381.490 Mbytes/sec (3814850560 bytes in 9.999866 secs)
+
+  0000:01:00.0 0 -> 1 381.420 Mbytes/sec (3814195200 bytes in 9.999997 secs)
+  0000:01:00.0 1 -> 0 381.420 Mbytes/sec (3814195200 bytes in 9.999997 secs)
+
+  0000:01:00.0 0 -> 1 381.464 Mbytes/sec (3814653952 bytes in 10.000026 secs)
+  0000:01:00.0 1 -> 0 381.464 Mbytes/sec (3814653952 bytes in 10.000027 secs)
+
+  0000:01:00.0 0 -> 1 381.391 Mbytes/sec (3813933056 bytes in 10.000051 secs)
+  0000:01:00.0 1 -> 0 381.391 Mbytes/sec (3813933056 bytes in 10.000051 secs)
+
+  0000:01:00.0 0 -> 1 381.509 Mbytes/sec (3815112704 bytes in 10.000050 secs)
+  0000:01:00.0 1 -> 0 381.509 Mbytes/sec (3815112704 bytes in 10.000050 secs)
+
+  0000:01:00.0 0 -> 1 381.435 Mbytes/sec (3814326272 bytes in 9.999937 secs)
+  0000:01:00.0 1 -> 0 381.435 Mbytes/sec (3814326272 bytes in 9.999937 secs)
+
+  0000:01:00.0 0 -> 1 381.487 Mbytes/sec (3814850560 bytes in 9.999952 secs)
+  0000:01:00.0 1 -> 0 381.487 Mbytes/sec (3814850560 bytes in 9.999952 secs)
+
+  0000:01:00.0 0 -> 1 381.450 Mbytes/sec (3814522880 bytes in 10.000067 secs)
+  0000:01:00.0 1 -> 0 381.450 Mbytes/sec (3814522880 bytes in 10.000067 secs)
+
+  0000:01:00.0 0 -> 1 381.508 Mbytes/sec (3815047168 bytes in 9.999912 secs)
+  0000:01:00.0 1 -> 0 381.508 Mbytes/sec (3815047168 bytes in 9.999912 secs)
+
+  0000:01:00.0 0 -> 1 381.432 Mbytes/sec (3814326272 bytes in 10.000024 secs)
+  0000:01:00.0 1 -> 0 381.432 Mbytes/sec (3814326272 bytes in 10.000025 secs)
+
+  0000:01:00.0 0 -> 1 381.516 Mbytes/sec (3815178240 bytes in 10.000054 secs)
+  0000:01:00.0 1 -> 0 381.516 Mbytes/sec (3815178240 bytes in 10.000053 secs)
+
+  0000:01:00.0 0 -> 1 381.447 Mbytes/sec (3814457344 bytes in 9.999954 secs)
+  0000:01:00.0 1 -> 0 381.447 Mbytes/sec (3814457344 bytes in 9.999954 secs)
+
+  0000:01:00.0 0 -> 1 381.492 Mbytes/sec (3814916096 bytes in 10.000000 secs)
+  0000:01:00.0 1 -> 0 381.492 Mbytes/sec (3814916096 bytes in 10.000000 secs)
+
+  0000:01:00.0 0 -> 1 381.436 Mbytes/sec (3814391808 bytes in 10.000071 secs)
+  0000:01:00.0 1 -> 0 381.436 Mbytes/sec (3814391808 bytes in 10.000071 secs)
+
+  0000:01:00.0 0 -> 1 381.479 Mbytes/sec (3814785024 bytes in 9.999993 secs)
+  0000:01:00.0 1 -> 0 381.479 Mbytes/sec (3814785024 bytes in 9.999993 secs)
+
+  0000:01:00.0 0 -> 1 381.446 Mbytes/sec (3814457344 bytes in 9.999992 secs)
+  0000:01:00.0 1 -> 0 381.446 Mbytes/sec (3814457344 bytes in 9.999993 secs)
+
+  0000:01:00.0 0 -> 1 381.510 Mbytes/sec (3815112704 bytes in 10.000040 secs)
+  0000:01:00.0 1 -> 0 381.510 Mbytes/sec (3815112704 bytes in 10.000040 secs)
+
+  0000:01:00.0 0 -> 1 381.495 Mbytes/sec (3814916096 bytes in 9.999924 secs)
+  0000:01:00.0 1 -> 0 381.495 Mbytes/sec (3814916096 bytes in 9.999924 secs)
+
+  0000:01:00.0 0 -> 1 381.493 Mbytes/sec (3814916096 bytes in 9.999967 secs)
+  0000:01:00.0 1 -> 0 381.493 Mbytes/sec (3814916096 bytes in 9.999967 secs)
+
+  0000:01:00.0 0 -> 1 381.522 Mbytes/sec (3815243776 bytes in 10.000067 secs)
+  0000:01:00.0 1 -> 0 381.522 Mbytes/sec (3815243776 bytes in 10.000068 secs)
+
+  0000:01:00.0 0 -> 1 381.503 Mbytes/sec (3815047168 bytes in 10.000041 secs)
+  0000:01:00.0 1 -> 0 381.503 Mbytes/sec (3815047168 bytes in 10.000042 secs)
+
+  0000:01:00.0 0 -> 1 381.502 Mbytes/sec (3814981632 bytes in 9.999900 secs)
+  0000:01:00.0 1 -> 0 381.502 Mbytes/sec (3814981632 bytes in 9.999900 secs)
+
+  0000:01:00.0 0 -> 1 381.488 Mbytes/sec (3814916096 bytes in 10.000085 secs)
+  0000:01:00.0 1 -> 0 381.488 Mbytes/sec (3814916096 bytes in 10.000086 secs)
+
+  0000:01:00.0 0 -> 1 381.509 Mbytes/sec (3815047168 bytes in 9.999882 secs)
+  0000:01:00.0 1 -> 0 381.509 Mbytes/sec (3815047168 bytes in 9.999882 secs)
+
+  0000:01:00.0 0 -> 1 381.495 Mbytes/sec (3814981632 bytes in 10.000088 secs)
+  0000:01:00.0 1 -> 0 381.495 Mbytes/sec (3814981632 bytes in 10.000088 secs)
+
+  0000:01:00.0 0 -> 1 381.485 Mbytes/sec (3814850560 bytes in 10.000005 secs)
+  0000:01:00.0 1 -> 0 381.485 Mbytes/sec (3814850560 bytes in 10.000004 secs)
+
+  0000:01:00.0 0 -> 1 381.504 Mbytes/sec (3815047168 bytes in 10.000014 secs)
+  0000:01:00.0 1 -> 0 381.504 Mbytes/sec (3815047168 bytes in 10.000013 secs)
+
+  0000:01:00.0 0 -> 1 381.487 Mbytes/sec (3814850560 bytes in 9.999942 secs)
+  0000:01:00.0 1 -> 0 381.487 Mbytes/sec (3814850560 bytes in 9.999942 secs)
+
+  0000:01:00.0 0 -> 1 381.518 Mbytes/sec (3815178240 bytes in 10.000007 secs)
+  0000:01:00.0 1 -> 0 381.518 Mbytes/sec (3815178240 bytes in 10.000006 secs)
+
+  0000:01:00.0 0 -> 1 381.522 Mbytes/sec (3815243776 bytes in 10.000068 secs)
+  0000:01:00.0 1 -> 0 381.522 Mbytes/sec (3815243776 bytes in 10.000068 secs)
+
+  0000:01:00.0 0 -> 1 381.497 Mbytes/sec (3814981632 bytes in 10.000028 secs)
+  0000:01:00.0 1 -> 0 381.497 Mbytes/sec (3814981632 bytes in 10.000028 secs)
+
+  0000:01:00.0 0 -> 1 381.498 Mbytes/sec (3814981632 bytes in 10.000017 secs)
+  0000:01:00.0 1 -> 0 381.498 Mbytes/sec (3814916096 bytes in 9.999845 secs)
+
+  0000:01:00.0 0 -> 1 381.498 Mbytes/sec (3814981632 bytes in 9.999993 secs)
+  0000:01:00.0 1 -> 0 381.498 Mbytes/sec (3815047168 bytes in 10.000164 secs)
+
+  0000:01:00.0 0 -> 1 381.498 Mbytes/sec (3814981632 bytes in 9.999996 secs)
+  0000:01:00.0 1 -> 0 381.498 Mbytes/sec (3814981632 bytes in 9.999996 secs)
+
+  0000:01:00.0 0 -> 1 381.502 Mbytes/sec (3814981632 bytes in 9.999902 secs)
+  0000:01:00.0 1 -> 0 381.502 Mbytes/sec (3814981632 bytes in 9.999901 secs)
+
+  0000:01:00.0 0 -> 1 381.532 Mbytes/sec (3815309312 bytes in 9.999959 secs)
+  0000:01:00.0 1 -> 0 381.532 Mbytes/sec (3815309312 bytes in 9.999959 secs)
+
+  0000:01:00.0 0 -> 1 381.533 Mbytes/sec (3815374848 bytes in 10.000118 secs)
+  0000:01:00.0 1 -> 0 381.533 Mbytes/sec (3815374848 bytes in 10.000118 secs)
+
+  0000:01:00.0 0 -> 1 381.525 Mbytes/sec (3815243776 bytes in 9.999978 secs)
+  0000:01:00.0 1 -> 0 381.525 Mbytes/sec (3815243776 bytes in 9.999977 secs)
+
+  0000:01:00.0 0 -> 1 381.503 Mbytes/sec (3815047168 bytes in 10.000037 secs)
+  0000:01:00.0 1 -> 0 381.503 Mbytes/sec (3815047168 bytes in 10.000036 secs)
+
+  0000:01:00.0 0 -> 1 381.501 Mbytes/sec (3814981632 bytes in 9.999915 secs)
+  0000:01:00.0 1 -> 0 381.501 Mbytes/sec (3814981632 bytes in 9.999915 secs)
+
+  0000:01:00.0 0 -> 1 381.519 Mbytes/sec (3815178240 bytes in 9.999962 secs)
+  0000:01:00.0 1 -> 0 381.519 Mbytes/sec (3815178240 bytes in 9.999963 secs)
+
+  0000:01:00.0 0 -> 1 381.519 Mbytes/sec (3815243776 bytes in 10.000143 secs)
+  0000:01:00.0 1 -> 0 381.519 Mbytes/sec (3815178240 bytes in 9.999971 secs)
+
+  0000:01:00.0 0 -> 1 381.502 Mbytes/sec (3814981632 bytes in 9.999906 secs)
+  0000:01:00.0 1 -> 0 381.502 Mbytes/sec (3815047168 bytes in 10.000077 secs)
+
+  0000:01:00.0 0 -> 1 381.490 Mbytes/sec (3814916096 bytes in 10.000038 secs)
+  0000:01:00.0 1 -> 0 381.490 Mbytes/sec (3814916096 bytes in 10.000038 secs)
+
+  0000:01:00.0 0 -> 1 381.487 Mbytes/sec (3814850560 bytes in 9.999942 secs)
+  0000:01:00.0 1 -> 0 381.487 Mbytes/sec (3814850560 bytes in 9.999942 secs)
+
+  0000:01:00.0 0 -> 1 381.484 Mbytes/sec (3814850560 bytes in 10.000025 secs)
+  0000:01:00.0 1 -> 0 381.484 Mbytes/sec (3814850560 bytes in 10.000025 secs)
+
+  0000:01:00.0 0 -> 1 381.489 Mbytes/sec (3814916096 bytes in 10.000078 secs)
+  0000:01:00.0 1 -> 0 381.489 Mbytes/sec (3814916096 bytes in 10.000077 secs)
+
+  0000:01:00.0 0 -> 1 381.498 Mbytes/sec (3814981632 bytes in 10.000000 secs)
+  0000:01:00.0 1 -> 0 381.498 Mbytes/sec (3814981632 bytes in 10.000000 secs)
+
+  0000:01:00.0 0 -> 1 381.499 Mbytes/sec (3814981632 bytes in 9.999972 secs)
+  0000:01:00.0 1 -> 0 381.499 Mbytes/sec (3814981632 bytes in 9.999971 secs)
+
+  0000:01:00.0 0 -> 1 381.509 Mbytes/sec (3815047168 bytes in 9.999877 secs)
+  0000:01:00.0 1 -> 0 381.509 Mbytes/sec (3815047168 bytes in 9.999877 secs)
+
+  0000:01:00.0 0 -> 1 381.492 Mbytes/sec (3814981632 bytes in 10.000150 secs)
+  0000:01:00.0 1 -> 0 381.492 Mbytes/sec (3814981632 bytes in 10.000150 secs)
+
+  0000:01:00.0 0 -> 1 381.469 Mbytes/sec (3814653952 bytes in 9.999909 secs)
+  0000:01:00.0 1 -> 0 381.469 Mbytes/sec (3814653952 bytes in 9.999909 secs)
+
+  0000:01:00.0 0 -> 1 381.494 Mbytes/sec (3814916096 bytes in 9.999944 secs)
+  0000:01:00.0 1 -> 0 381.494 Mbytes/sec (3814916096 bytes in 9.999944 secs)
+
+  0000:01:00.0 0 -> 1 381.497 Mbytes/sec (3814981632 bytes in 10.000018 secs)
+  0000:01:00.0 1 -> 0 381.497 Mbytes/sec (3814981632 bytes in 10.000018 secs)
+
+  0000:01:00.0 0 -> 1 381.510 Mbytes/sec (3815112704 bytes in 10.000042 secs)
+  0000:01:00.0 1 -> 0 381.510 Mbytes/sec (3815112704 bytes in 10.000042 secs)
+
+  0000:01:00.0 0 -> 1 381.509 Mbytes/sec (3815112704 bytes in 10.000058 secs)
+  0000:01:00.0 1 -> 0 381.509 Mbytes/sec (3815112704 bytes in 10.000058 secs)
+
+  0000:01:00.0 0 -> 1 381.520 Mbytes/sec (3815178240 bytes in 9.999935 secs)
+  0000:01:00.0 1 -> 0 381.520 Mbytes/sec (3815178240 bytes in 9.999935 secs)
+
+  0000:01:00.0 0 -> 1 381.499 Mbytes/sec (3814981632 bytes in 9.999970 secs)
+  0000:01:00.0 1 -> 0 381.499 Mbytes/sec (3814981632 bytes in 9.999970 secs)
+
+  0000:01:00.0 0 -> 1 381.506 Mbytes/sec (3815047168 bytes in 9.999976 secs)
+  0000:01:00.0 1 -> 0 381.506 Mbytes/sec (3815047168 bytes in 9.999977 secs)
+
+  0000:01:00.0 0 -> 1 381.513 Mbytes/sec (3815178240 bytes in 10.000134 secs)
+  0000:01:00.0 1 -> 0 381.513 Mbytes/sec (3815178240 bytes in 10.000134 secs)
+
+  0000:01:00.0 0 -> 1 381.512 Mbytes/sec (3815112704 bytes in 9.999984 secs)
+  0000:01:00.0 1 -> 0 381.512 Mbytes/sec (3815112704 bytes in 9.999984 secs)
+
+  0000:01:00.0 0 -> 1 381.493 Mbytes/sec (3814916096 bytes in 9.999970 secs)
+  0000:01:00.0 1 -> 0 381.493 Mbytes/sec (3814916096 bytes in 9.999970 secs)
+
+  0000:01:00.0 0 -> 1 381.506 Mbytes/sec (3815047168 bytes in 9.999972 secs)
+  0000:01:00.0 1 -> 0 381.506 Mbytes/sec (3815047168 bytes in 9.999971 secs)
+
+  0000:01:00.0 0 -> 1 381.486 Mbytes/sec (3814850560 bytes in 9.999968 secs)
+  0000:01:00.0 1 -> 0 381.486 Mbytes/sec (3814850560 bytes in 9.999968 secs)
+
+  0000:01:00.0 0 -> 1 381.499 Mbytes/sec (3815047168 bytes in 10.000138 secs)
+  0000:01:00.0 1 -> 0 381.499 Mbytes/sec (3814981632 bytes in 9.999967 secs)
+
+  0000:01:00.0 0 -> 1 381.514 Mbytes/sec (3815112704 bytes in 9.999938 secs)
+  0000:01:00.0 1 -> 0 381.514 Mbytes/sec (3815178240 bytes in 10.000110 secs)
+
+  0000:01:00.0 0 -> 1 381.520 Mbytes/sec (3815178240 bytes in 9.999933 secs)
+  0000:01:00.0 1 -> 0 381.520 Mbytes/sec (3815178240 bytes in 9.999933 secs)
+
+  0000:01:00.0 0 -> 1 381.504 Mbytes/sec (3815047168 bytes in 10.000030 secs)
+  0000:01:00.0 1 -> 0 381.504 Mbytes/sec (3815047168 bytes in 10.000030 secs)
+
+  0000:01:00.0 0 -> 1 381.501 Mbytes/sec (3815047168 bytes in 10.000087 secs)
+  0000:01:00.0 1 -> 0 381.501 Mbytes/sec (3815047168 bytes in 10.000087 secs)
+
+  0000:01:00.0 0 -> 1 381.473 Mbytes/sec (3814719488 bytes in 9.999979 secs)
+  0000:01:00.0 1 -> 0 381.473 Mbytes/sec (3814719488 bytes in 9.999979 secs)
+
+  0000:01:00.0 0 -> 1 381.498 Mbytes/sec (3814981632 bytes in 10.000007 secs)
+  0000:01:00.0 1 -> 0 381.498 Mbytes/sec (3814981632 bytes in 10.000008 secs)
+
+  0000:01:00.0 0 -> 1 381.503 Mbytes/sec (3814981632 bytes in 9.999871 secs)
+  0000:01:00.0 1 -> 0 381.503 Mbytes/sec (3814981632 bytes in 9.999872 secs)
+
+  0000:01:00.0 0 -> 1 381.498 Mbytes/sec (3814981632 bytes in 10.000011 secs)
+  0000:01:00.0 1 -> 0 381.498 Mbytes/sec (3814981632 bytes in 10.000011 secs)
+
+  0000:01:00.0 0 -> 1 381.526 Mbytes/sec (3815309312 bytes in 10.000120 secs)
+  0000:01:00.0 1 -> 0 381.526 Mbytes/sec (3815309312 bytes in 10.000120 secs)
+
+  0000:01:00.0 0 -> 1 381.526 Mbytes/sec (3815243776 bytes in 9.999969 secs)
+  0000:01:00.0 1 -> 0 381.526 Mbytes/sec (3815243776 bytes in 9.999969 secs)
+
+  0000:01:00.0 0 -> 1 381.500 Mbytes/sec (3814981632 bytes in 9.999942 secs)
+  0000:01:00.0 1 -> 0 381.500 Mbytes/sec (3814981632 bytes in 9.999942 secs)
+
+  0000:01:00.0 0 -> 1 381.524 Mbytes/sec (3815243776 bytes in 10.000013 secs)
+  0000:01:00.0 1 -> 0 381.524 Mbytes/sec (3815243776 bytes in 10.000012 secs)
+
+  0000:01:00.0 0 -> 1 381.517 Mbytes/sec (3815178240 bytes in 10.000033 secs)
+  0000:01:00.0 1 -> 0 381.517 Mbytes/sec (3815178240 bytes in 10.000032 secs)
+
+  0000:01:00.0 0 -> 1 381.518 Mbytes/sec (3815178240 bytes in 9.999986 secs)
+  0000:01:00.0 1 -> 0 381.518 Mbytes/sec (3815178240 bytes in 9.999985 secs)
+
+  0000:01:00.0 0 -> 1 381.515 Mbytes/sec (3815178240 bytes in 10.000066 secs)
+  0000:01:00.0 1 -> 0 381.515 Mbytes/sec (3815178240 bytes in 10.000066 secs)
+
+  0000:01:00.0 0 -> 1 381.514 Mbytes/sec (3815112704 bytes in 9.999917 secs)
+  0000:01:00.0 1 -> 0 381.514 Mbytes/sec (3815112704 bytes in 9.999917 secs)
+
+  0000:01:00.0 0 -> 1 381.486 Mbytes/sec (3814850560 bytes in 9.999971 secs)
+  0000:01:00.0 1 -> 0 381.486 Mbytes/sec (3814850560 bytes in 9.999971 secs)
+
+  0000:01:00.0 0 -> 1 381.518 Mbytes/sec (3815178240 bytes in 9.999995 secs)
+  0000:01:00.0 1 -> 0 381.518 Mbytes/sec (3815178240 bytes in 9.999995 secs)
+
+  0000:01:00.0 0 -> 1 381.480 Mbytes/sec (3814785024 bytes in 9.999972 secs)
+  0000:01:00.0 1 -> 0 381.480 Mbytes/sec (3814785024 bytes in 9.999971 secs)
+
+  0000:01:00.0 0 -> 1 381.533 Mbytes/sec (3815374848 bytes in 10.000124 secs)
+  0000:01:00.0 1 -> 0 381.533 Mbytes/sec (3815374848 bytes in 10.000123 secs)
+
+  0000:01:00.0 0 -> 1 381.518 Mbytes/sec (3815178240 bytes in 10.000005 secs)
+  0000:01:00.0 1 -> 0 381.518 Mbytes/sec (3815178240 bytes in 10.000005 secs)
+
+  0000:01:00.0 0 -> 1 381.506 Mbytes/sec (3815047168 bytes in 9.999959 secs)
+  0000:01:00.0 1 -> 0 381.506 Mbytes/sec (3815047168 bytes in 9.999959 secs)
+
+  0000:01:00.0 0 -> 1 381.491 Mbytes/sec (3814916096 bytes in 10.000015 secs)
+  0000:01:00.0 1 -> 0 381.491 Mbytes/sec (3814916096 bytes in 10.000015 secs)
+
+  0000:01:00.0 0 -> 1 381.495 Mbytes/sec (3814916096 bytes in 9.999906 secs)
+  0000:01:00.0 1 -> 0 381.495 Mbytes/sec (3814916096 bytes in 9.999906 secs)
+
+  0000:01:00.0 0 -> 1 381.498 Mbytes/sec (3814981632 bytes in 10.000015 secs)
+  0000:01:00.0 1 -> 0 381.498 Mbytes/sec (3814981632 bytes in 10.000015 secs)
+
+  0000:01:00.0 0 -> 1 381.525 Mbytes/sec (3815243776 bytes in 9.999995 secs)
+  0000:01:00.0 1 -> 0 381.525 Mbytes/sec (3815243776 bytes in 9.999995 secs)
+
+  0000:01:00.0 0 -> 1 381.496 Mbytes/sec (3814981632 bytes in 10.000062 secs)
+  0000:01:00.0 1 -> 0 381.496 Mbytes/sec (3814981632 bytes in 10.000062 secs)
+
+  0000:01:00.0 0 -> 1 381.513 Mbytes/sec (3815112704 bytes in 9.999945 secs)
+  0000:01:00.0 1 -> 0 381.513 Mbytes/sec (3815112704 bytes in 9.999945 secs)
+
+  0000:01:00.0 0 -> 1 381.512 Mbytes/sec (3815112704 bytes in 9.999975 secs)
+  0000:01:00.0 1 -> 0 381.512 Mbytes/sec (3815112704 bytes in 9.999976 secs)
+
+  0000:01:00.0 0 -> 1 381.489 Mbytes/sec (3814916096 bytes in 10.000062 secs)
+  0000:01:00.0 1 -> 0 381.489 Mbytes/sec (3814916096 bytes in 10.000066 secs)
+
+  0000:01:00.0 0 -> 1 381.500 Mbytes/sec (3814981632 bytes in 9.999943 secs)
+  0000:01:00.0 1 -> 0 381.501 Mbytes/sec (3814981632 bytes in 9.999938 secs)
+
+  0000:01:00.0 0 -> 1 381.494 Mbytes/sec (3814981632 bytes in 10.000108 secs)
+  0000:01:00.0 1 -> 0 381.494 Mbytes/sec (3814981632 bytes in 10.000108 secs)
+
+^C  0000:01:00.0 0 -> 1 381.264 Mbytes/sec (3759734784 bytes in 9.861225 secs)
+  0000:01:00.0 1 -> 0 381.265 Mbytes/sec (3759734784 bytes in 9.861223 secs)
+
+Overall test statistics:
+  0000:01:00.0 0 -> 1 381.489 Mbytes/sec (419584475136 bytes in 1099.861169 secs)
+  0000:01:00.0 1 -> 0 381.489 Mbytes/sec (419584475136 bytes in 1099.861170 secs)
+
+0000:01:00.0 0 -> 1 Test pattern verified in 1048576 words
+0000:01:00.0 1 -> 0 Test pattern verified in 1048576 words
+Memory Driver closed 
+
+Overall PASS
+
+
+6.2. Could change the PCIe link speed to 5 GT/s, but dropped back to 2.5 GT/s before started the test
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Ran the script from https://alexforencich.com/wiki/en/pcie/set-speed:
+
+$ sudo ~/Downloads/pcie_set_speed.sh 0000:01:00.0
+[sudo] password for mr_halfword: 
+Link capabilities: 02212d02
+Max link speed: 2
+Link status: 5841
+Current link speed: 1
+Configuring 0000:00:01.0...
+Original link control 2: 00000002
+Original link target speed: 2
+New target link speed: 2
+New link control 2: 00000002
+Triggering link retraining...
+Original link control: 58410040
+New link control: 58410060
+Link status: 5842
+Current link speed: 2
+
+Confirmed the link speed had changed to 5 GT/s:
+$ dump_info/dump_info_libpciaccess 
+domain=0000 bus=01 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0009
+  control: I/O- Mem+ BusMaster- ParErr- SERR- DisINTx-
+  status: INTx- <ParErr- >TAbort- <TAbort- <MAbort- >SERR- DetParErr-
+  bar[0] base_addr=f0110000 size=4000 is_IO=0 is_prefetchable=1 is_64=1
+  bar[2] base_addr=f0100000 size=10000 is_IO=0 is_prefetchable=1 is_64=1
+  Capabilities: [40] Power Management
+  Capabilities: [48] Message Signaled Interrupts
+  Capabilities: [60] PCI Express v2 Express Endpoint, MSI 0
+    Link capabilities: Max speed 5.0 GT/s Max width x4
+    Negotiated link status: Current speed 5.0 GT/s Width x4
+    Link capabilities2: Not implemented
+    DevCtl: CorrErr- NonFatalErr- FatalErr- UnsupReq-
+            RlxdOrd- ExtTag+ PhantFunc- AuxPwr- NoSnoop+
+    DevSta: CorrErr+ NonFatalErr- FatalErr- UnsupReq- AuxPwr- TransPend-
+  domain=0000 bus=00 dev=01 func=00
+    vendor_id=8086 (Intel Corporation) device_id=0101 (Xeon E3-1200/2nd Generation Core Processor Family PCI Express Root Port) subvendor_id=8086 subdevice_id=2002
+    control: I/O+ Mem+ BusMaster+ ParErr- SERR- DisINTx+
+    status: INTx- <ParErr- >TAbort- <TAbort- <MAbort- >SERR- DetParErr-
+    Capabilities: [88] Bridge subsystem vendor/device ID
+    Capabilities: [80] Power Management
+    Capabilities: [90] Message Signaled Interrupts
+    Capabilities: [a0] PCI Express v2 Root Port, MSI 0
+      Link capabilities: Max speed 5.0 GT/s Max width x16
+      Negotiated link status: Current speed 5.0 GT/s Width x4
+      Link capabilities2: Not implemented
+      DevCtl: CorrErr- NonFatalErr- FatalErr- UnsupReq-
+              RlxdOrd- ExtTag- PhantFunc- AuxPwr- NoSnoop-
+      DevSta: CorrErr+ NonFatalErr- FatalErr- UnsupReq- AuxPwr- TransPend-
+      SltCap: AttnBtn- PwrCtrl- MRL- AttnInd- PwrInd- HotPlug- Surprise-
+             Slot #0 PowerLimit 0.000W; Interlock- NoCompl+
+
+The transfer speed hadn't increased:
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge_parallel_streams --stream_mapping_size 020000000
+Opening device 0000:01:00.0 (10ee:7024) with IOMMU group 0
+Enabling bus master for 0000:01:00.0
+Using num_descriptors=64 bytes_per_buffer=0x10000 data_mapping_size_words=0x100000
+Selecting test of TOSING_160T_dma_stream_loopback design PCI device 0000:01:00.0 IOMMU group 0 H2C channel 0 C2H channel 1
+Selecting test of TOSING_160T_dma_stream_loopback design PCI device 0000:01:00.0 IOMMU group 0 H2C channel 1 C2H channel 0
+Opened DMA MEM device : /dev/cmem (dev_desc = 0x00000007)
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7f8b24c39000 
+Debug: mmap param length 0x400000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7f8b23e26000 
+Debug: mmap param length 0x400000, Addr: 0x100402000 
+Buff num 0: Phys addr : 0x100402000 User Addr: 0x7f8b23a26000 
+Debug: mmap param length 0x2000, Addr: 0x100802000 
+Buff num 0: Phys addr : 0x100802000 User Addr: 0x7f8b24c37000 
+Debug: mmap param length 0x400000, Addr: 0x100804000 
+Buff num 0: Phys addr : 0x100804000 User Addr: 0x7f8b23626000 
+Debug: mmap param length 0x400000, Addr: 0x100c04000 
+Buff num 0: Phys addr : 0x100c04000 User Addr: 0x7f8b23226000 
+Press Ctrl-C to stop test
+  0000:01:00.0 0 -> 1 381.253 Mbytes/sec (3812491264 bytes in 9.999896 secs)
+  0000:01:00.0 1 -> 0 381.253 Mbytes/sec (3812491264 bytes in 9.999900 secs)
+
+  0000:01:00.0 0 -> 1 381.272 Mbytes/sec (3812753408 bytes in 10.000096 secs)
+  0000:01:00.0 1 -> 0 381.272 Mbytes/sec (3812687872 bytes in 9.999924 secs)
+
+  0000:01:00.0 0 -> 1 381.128 Mbytes/sec (3811246080 bytes in 9.999915 secs)
+  0000:01:00.0 1 -> 0 381.128 Mbytes/sec (3811311616 bytes in 10.000086 secs)
+
+  0000:01:00.0 0 -> 1 381.196 Mbytes/sec (3811966976 bytes in 10.000009 secs)
+  0000:01:00.0 1 -> 0 381.196 Mbytes/sec (3811966976 bytes in 10.000009 secs)
+
+^C  0000:01:00.0 0 -> 1 381.047 Mbytes/sec (1173422080 bytes in 3.079471 secs)
+  0000:01:00.0 1 -> 0 381.047 Mbytes/sec (1173422080 bytes in 3.079469 secs)
+
+Overall test statistics:
+  0000:01:00.0 0 -> 1 381.200 Mbytes/sec (16421879808 bytes in 43.079387 secs)
+  0000:01:00.0 1 -> 0 381.200 Mbytes/sec (16421879808 bytes in 43.079389 secs)
+
+0000:01:00.0 0 -> 1 Test pattern verified in 1048576 words
+0000:01:00.0 1 -> 0 Test pattern verified in 1048576 words
+Memory Driver closed 
+
+Overall PASS
+
+However, after stopping the test checking again the link speed had dropped 2.5 GT/s again:
+$ dump_info/dump_info_libpciaccess 
+domain=0000 bus=01 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=0002 subdevice_id=0009
+  control: I/O- Mem+ BusMaster- ParErr- SERR- DisINTx-
+  status: INTx- <ParErr- >TAbort- <TAbort- <MAbort- >SERR- DetParErr-
+  bar[0] base_addr=f0110000 size=4000 is_IO=0 is_prefetchable=1 is_64=1
+  bar[2] base_addr=f0100000 size=10000 is_IO=0 is_prefetchable=1 is_64=1
+  Capabilities: [40] Power Management
+  Capabilities: [48] Message Signaled Interrupts
+  Capabilities: [60] PCI Express v2 Express Endpoint, MSI 0
+    Link capabilities: Max speed 5.0 GT/s Max width x4
+    Negotiated link status: Current speed 2.5 GT/s Width x4
+    Link capabilities2: Not implemented
+    DevCtl: CorrErr- NonFatalErr- FatalErr- UnsupReq-
+            RlxdOrd- ExtTag+ PhantFunc- AuxPwr- NoSnoop+
+    DevSta: CorrErr- NonFatalErr- FatalErr- UnsupReq- AuxPwr- TransPend-
+  domain=0000 bus=00 dev=01 func=00
+    vendor_id=8086 (Intel Corporation) device_id=0101 (Xeon E3-1200/2nd Generation Core Processor Family PCI Express Root Port) subvendor_id=8086 subdevice_id=2002
+    control: I/O+ Mem+ BusMaster+ ParErr- SERR- DisINTx+
+    status: INTx- <ParErr- >TAbort- <TAbort- <MAbort- >SERR- DetParErr-
+    Capabilities: [88] Bridge subsystem vendor/device ID
+    Capabilities: [80] Power Management
+    Capabilities: [90] Message Signaled Interrupts
+    Capabilities: [a0] PCI Express v2 Root Port, MSI 0
+      Link capabilities: Max speed 5.0 GT/s Max width x16
+      Negotiated link status: Current speed 2.5 GT/s Width x4
+      Link capabilities2: Not implemented
+      DevCtl: CorrErr- NonFatalErr- FatalErr- UnsupReq-
+              RlxdOrd- ExtTag- PhantFunc- AuxPwr- NoSnoop-
+      DevSta: CorrErr+ NonFatalErr- FatalErr- UnsupReq- AuxPwr- TransPend-
+      SltCap: AttnBtn- PwrCtrl- MRL- AttnInd- PwrInd- HotPlug- Surprise-
+             Slot #0 PowerLimit 0.000W; Interlock- NoCompl+
+
+
+6.3. Increased link speed to 5 GT/s test while the test was running
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Started the test and:
+a. After test_dma_bridge_parallel_streams was started reported 381.186 Mbytes/sec for each stream.
+b. Ran pcie_set_speed.sh, which reported had increased the PCIe link speed.
+c. The throughput in the test inceased to 736.898 Mbytes/sec for each stream.
+
+Output from script:
+$ sudo ~/Downloads/pcie_set_speed.sh 0000:01:00.0
+Link capabilities: 02212d02
+Max link speed: 2
+Link status: 5041
+Current link speed: 1
+Configuring 0000:00:01.0...
+Original link control 2: 00000002
+Original link target speed: 2
+New target link speed: 2
+New link control 2: 00000002
+Triggering link retraining...
+Original link control: 50410040
+New link control: 50410060
+Link status: 5042
+Current link speed: 2
+
+Output from test:
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge_parallel_streams --stream_mapping_size 020000000
+Opening device 0000:01:00.0 (10ee:7024) with IOMMU group 0
+Enabling bus master for 0000:01:00.0
+Using num_descriptors=64 bytes_per_buffer=0x10000 data_mapping_size_words=0x100000
+Selecting test of TOSING_160T_dma_stream_loopback design PCI device 0000:01:00.0 IOMMU group 0 H2C channel 0 C2H channel 1
+Selecting test of TOSING_160T_dma_stream_loopback design PCI device 0000:01:00.0 IOMMU group 0 H2C channel 1 C2H channel 0
+Opened DMA MEM device : /dev/cmem (dev_desc = 0x00000007)
+Debug: mmap param length 0x2000, Addr: 0x100000000 
+Buff num 0: Phys addr : 0x100000000 User Addr: 0x7fc5ad023000 
+Debug: mmap param length 0x400000, Addr: 0x100002000 
+Buff num 0: Phys addr : 0x100002000 User Addr: 0x7fc5ac210000 
+Debug: mmap param length 0x400000, Addr: 0x100402000 
+Buff num 0: Phys addr : 0x100402000 User Addr: 0x7fc5abe10000 
+Debug: mmap param length 0x2000, Addr: 0x100802000 
+Buff num 0: Phys addr : 0x100802000 User Addr: 0x7fc5ad021000 
+Debug: mmap param length 0x400000, Addr: 0x100804000 
+Buff num 0: Phys addr : 0x100804000 User Addr: 0x7fc5aba10000 
+Debug: mmap param length 0x400000, Addr: 0x100c04000 
+Buff num 0: Phys addr : 0x100c04000 User Addr: 0x7fc5ab610000 
+Press Ctrl-C to stop test
+  0000:01:00.0 0 -> 1 380.198 Mbytes/sec (3801939968 bytes in 9.999904 secs)
+  0000:01:00.0 1 -> 0 380.197 Mbytes/sec (3801939968 bytes in 9.999908 secs)
+
+  0000:01:00.0 0 -> 1 380.370 Mbytes/sec (3803709440 bytes in 10.000023 secs)
+  0000:01:00.0 1 -> 0 380.370 Mbytes/sec (3803709440 bytes in 10.000023 secs)
+
+  0000:01:00.0 0 -> 1 380.533 Mbytes/sec (3805347840 bytes in 10.000041 secs)
+  0000:01:00.0 1 -> 0 380.533 Mbytes/sec (3805347840 bytes in 10.000042 secs)
+
+  0000:01:00.0 0 -> 1 381.154 Mbytes/sec (3811508224 bytes in 9.999923 secs)
+  0000:01:00.0 1 -> 0 381.154 Mbytes/sec (3811508224 bytes in 9.999924 secs)
+
+  0000:01:00.0 0 -> 1 381.206 Mbytes/sec (3812098048 bytes in 10.000089 secs)
+  0000:01:00.0 1 -> 0 381.206 Mbytes/sec (3812098048 bytes in 10.000090 secs)
+
+  0000:01:00.0 0 -> 1 380.590 Mbytes/sec (3805872128 bytes in 9.999929 secs)
+  0000:01:00.0 1 -> 0 380.590 Mbytes/sec (3805872128 bytes in 9.999929 secs)
+
+  0000:01:00.0 0 -> 1 380.961 Mbytes/sec (3809607680 bytes in 9.999994 secs)
+  0000:01:00.0 1 -> 0 380.961 Mbytes/sec (3809607680 bytes in 9.999994 secs)
+
+  0000:01:00.0 0 -> 1 381.186 Mbytes/sec (3811835904 bytes in 9.999928 secs)
+  0000:01:00.0 1 -> 0 381.186 Mbytes/sec (3811835904 bytes in 9.999928 secs)
+
+  0000:01:00.0 0 -> 1 381.193 Mbytes/sec (3811966976 bytes in 10.000095 secs)
+  0000:01:00.0 1 -> 0 381.193 Mbytes/sec (3811966976 bytes in 10.000095 secs)
+
+  0000:01:00.0 0 -> 1 680.225 Mbytes/sec (6802243584 bytes in 9.999985 secs)
+  0000:01:00.0 1 -> 0 680.226 Mbytes/sec (6802243584 bytes in 9.999983 secs)
+
+  0000:01:00.0 0 -> 1 737.226 Mbytes/sec (7372210176 bytes in 9.999935 secs)
+  0000:01:00.0 1 -> 0 737.219 Mbytes/sec (7372210176 bytes in 10.000023 secs)
+
+  0000:01:00.0 0 -> 1 737.226 Mbytes/sec (7372275712 bytes in 10.000028 secs)
+  0000:01:00.0 1 -> 0 737.226 Mbytes/sec (7372275712 bytes in 10.000027 secs)
+
+  0000:01:00.0 0 -> 1 737.255 Mbytes/sec (7372537856 bytes in 9.999980 secs)
+  0000:01:00.0 1 -> 0 737.255 Mbytes/sec (7372537856 bytes in 9.999980 secs)
+
+  0000:01:00.0 0 -> 1 737.299 Mbytes/sec (7372931072 bytes in 9.999915 secs)
+  0000:01:00.0 1 -> 0 737.299 Mbytes/sec (7372931072 bytes in 9.999914 secs)
+
+  0000:01:00.0 0 -> 1 737.320 Mbytes/sec (7373193216 bytes in 9.999987 secs)
+  0000:01:00.0 1 -> 0 737.320 Mbytes/sec (7373193216 bytes in 9.999987 secs)
+
+  0000:01:00.0 0 -> 1 737.322 Mbytes/sec (7373193216 bytes in 9.999962 secs)
+  0000:01:00.0 1 -> 0 737.322 Mbytes/sec (7373193216 bytes in 9.999961 secs)
+
+  0000:01:00.0 0 -> 1 737.273 Mbytes/sec (7372734464 bytes in 10.000010 secs)
+  0000:01:00.0 1 -> 0 737.273 Mbytes/sec (7372734464 bytes in 10.000010 secs)
+
+  0000:01:00.0 0 -> 1 737.338 Mbytes/sec (7373389824 bytes in 10.000011 secs)
+  0000:01:00.0 1 -> 0 737.338 Mbytes/sec (7373389824 bytes in 10.000011 secs)
+
+  0000:01:00.0 0 -> 1 737.339 Mbytes/sec (7373389824 bytes in 10.000001 secs)
+  0000:01:00.0 1 -> 0 737.339 Mbytes/sec (7373389824 bytes in 10.000001 secs)
+
+  0000:01:00.0 0 -> 1 737.329 Mbytes/sec (7373258752 bytes in 9.999956 secs)
+  0000:01:00.0 1 -> 0 737.322 Mbytes/sec (7373258752 bytes in 10.000047 secs)
+
+  0000:01:00.0 0 -> 1 737.267 Mbytes/sec (7372668928 bytes in 9.999992 secs)
+  0000:01:00.0 1 -> 0 737.267 Mbytes/sec (7372668928 bytes in 9.999992 secs)
+
+  0000:01:00.0 0 -> 1 737.316 Mbytes/sec (7373193216 bytes in 10.000047 secs)
+  0000:01:00.0 1 -> 0 737.316 Mbytes/sec (7373193216 bytes in 10.000047 secs)
+
+  0000:01:00.0 0 -> 1 737.321 Mbytes/sec (7373193216 bytes in 9.999974 secs)
+  0000:01:00.0 1 -> 0 737.321 Mbytes/sec (7373193216 bytes in 9.999974 secs)
+
+  0000:01:00.0 0 -> 1 737.312 Mbytes/sec (7373127680 bytes in 10.000004 secs)
+  0000:01:00.0 1 -> 0 737.313 Mbytes/sec (7373127680 bytes in 10.000004 secs)
+
+  0000:01:00.0 0 -> 1 737.296 Mbytes/sec (7372996608 bytes in 10.000051 secs)
+  0000:01:00.0 1 -> 0 737.296 Mbytes/sec (7372996608 bytes in 10.000045 secs)
+
+  0000:01:00.0 0 -> 1 737.277 Mbytes/sec (7372800000 bytes in 10.000046 secs)
+  0000:01:00.0 1 -> 0 737.277 Mbytes/sec (7372734464 bytes in 9.999957 secs)
+
+  0000:01:00.0 0 -> 1 736.478 Mbytes/sec (7364739072 bytes in 9.999944 secs)
+  0000:01:00.0 1 -> 0 736.485 Mbytes/sec (7364804608 bytes in 9.999943 secs)
+
+  0000:01:00.0 0 -> 1 739.064 Mbytes/sec (7390691328 bytes in 10.000075 secs)
+  0000:01:00.0 1 -> 0 739.064 Mbytes/sec (7390691328 bytes in 10.000073 secs)
+
+  0000:01:00.0 0 -> 1 739.051 Mbytes/sec (7390494720 bytes in 9.999984 secs)
+  0000:01:00.0 1 -> 0 739.051 Mbytes/sec (7390494720 bytes in 9.999985 secs)
+
+  0000:01:00.0 0 -> 1 738.869 Mbytes/sec (7388659712 bytes in 9.999964 secs)
+  0000:01:00.0 1 -> 0 738.869 Mbytes/sec (7388659712 bytes in 9.999964 secs)
+
+  0000:01:00.0 0 -> 1 737.062 Mbytes/sec (7370637312 bytes in 10.000025 secs)
+  0000:01:00.0 1 -> 0 737.062 Mbytes/sec (7370637312 bytes in 10.000025 secs)
+
+  0000:01:00.0 0 -> 1 736.737 Mbytes/sec (7367360512 bytes in 9.999985 secs)
+  0000:01:00.0 1 -> 0 736.737 Mbytes/sec (7367360512 bytes in 9.999985 secs)
+
+  0000:01:00.0 0 -> 1 736.896 Mbytes/sec (7368933376 bytes in 9.999962 secs)
+  0000:01:00.0 1 -> 0 736.896 Mbytes/sec (7368933376 bytes in 9.999961 secs)
+
+  0000:01:00.0 0 -> 1 737.077 Mbytes/sec (7370768384 bytes in 9.999992 secs)
+  0000:01:00.0 1 -> 0 737.077 Mbytes/sec (7370768384 bytes in 9.999992 secs)
+
+  0000:01:00.0 0 -> 1 736.178 Mbytes/sec (7361789952 bytes in 10.000016 secs)
+  0000:01:00.0 1 -> 0 736.178 Mbytes/sec (7361789952 bytes in 10.000016 secs)
+
+  0000:01:00.0 0 -> 1 736.462 Mbytes/sec (7364608000 bytes in 9.999988 secs)
+  0000:01:00.0 1 -> 0 736.462 Mbytes/sec (7364608000 bytes in 9.999988 secs)
+
+  0000:01:00.0 0 -> 1 737.168 Mbytes/sec (7371685888 bytes in 10.000006 secs)
+  0000:01:00.0 1 -> 0 737.168 Mbytes/sec (7371685888 bytes in 10.000006 secs)
+
+  0000:01:00.0 0 -> 1 737.052 Mbytes/sec (7370506240 bytes in 9.999985 secs)
+  0000:01:00.0 1 -> 0 737.052 Mbytes/sec (7370506240 bytes in 9.999985 secs)
+
+  0000:01:00.0 0 -> 1 736.293 Mbytes/sec (7362904064 bytes in 9.999959 secs)
+  0000:01:00.0 1 -> 0 736.293 Mbytes/sec (7362904064 bytes in 9.999959 secs)
+
+  0000:01:00.0 0 -> 1 737.065 Mbytes/sec (7370702848 bytes in 10.000075 secs)
+  0000:01:00.0 1 -> 0 737.065 Mbytes/sec (7370702848 bytes in 10.000074 secs)
+
+  0000:01:00.0 0 -> 1 737.562 Mbytes/sec (7375618048 bytes in 9.999999 secs)
+  0000:01:00.0 1 -> 0 737.562 Mbytes/sec (7375618048 bytes in 9.999999 secs)
+
+  0000:01:00.0 0 -> 1 737.524 Mbytes/sec (7375224832 bytes in 9.999979 secs)
+  0000:01:00.0 1 -> 0 737.524 Mbytes/sec (7375224832 bytes in 9.999979 secs)
+
+  0000:01:00.0 0 -> 1 736.898 Mbytes/sec (7368998912 bytes in 10.000024 secs)
+  0000:01:00.0 1 -> 0 736.898 Mbytes/sec (7368998912 bytes in 10.000024 secs)
+
+  0000:01:00.0 0 -> 1 736.973 Mbytes/sec (7369719808 bytes in 9.999985 secs)
+  0000:01:00.0 1 -> 0 736.973 Mbytes/sec (7369719808 bytes in 9.999985 secs)
+
+  0000:01:00.0 0 -> 1 737.077 Mbytes/sec (7370768384 bytes in 10.000003 secs)
+  0000:01:00.0 1 -> 0 737.077 Mbytes/sec (7370768384 bytes in 10.000003 secs)
+
+  0000:01:00.0 0 -> 1 737.033 Mbytes/sec (7370375168 bytes in 10.000055 secs)
+  0000:01:00.0 1 -> 0 737.033 Mbytes/sec (7370375168 bytes in 10.000055 secs)
+
+  0000:01:00.0 0 -> 1 736.922 Mbytes/sec (7369195520 bytes in 9.999973 secs)
+  0000:01:00.0 1 -> 0 736.922 Mbytes/sec (7369195520 bytes in 9.999972 secs)
+
+  0000:01:00.0 0 -> 1 736.763 Mbytes/sec (7367688192 bytes in 10.000079 secs)
+  0000:01:00.0 1 -> 0 736.763 Mbytes/sec (7367622656 bytes in 9.999990 secs)
+
+  0000:01:00.0 0 -> 1 736.794 Mbytes/sec (7367884800 bytes in 9.999929 secs)
+  0000:01:00.0 1 -> 0 736.800 Mbytes/sec (7367950336 bytes in 9.999929 secs)
+
+  0000:01:00.0 0 -> 1 736.584 Mbytes/sec (7365787648 bytes in 9.999923 secs)
+  0000:01:00.0 1 -> 0 736.584 Mbytes/sec (7365787648 bytes in 9.999923 secs)
+
+  0000:01:00.0 0 -> 1 736.920 Mbytes/sec (7369195520 bytes in 9.999999 secs)
+  0000:01:00.0 1 -> 0 736.920 Mbytes/sec (7369195520 bytes in 9.999998 secs)
+
+  0000:01:00.0 0 -> 1 736.914 Mbytes/sec (7369129984 bytes in 9.999984 secs)
+  0000:01:00.0 1 -> 0 736.914 Mbytes/sec (7369129984 bytes in 9.999984 secs)
+
+  0000:01:00.0 0 -> 1 736.772 Mbytes/sec (7367688192 bytes in 9.999957 secs)
+  0000:01:00.0 1 -> 0 736.772 Mbytes/sec (7367688192 bytes in 9.999957 secs)
+
+  0000:01:00.0 0 -> 1 736.879 Mbytes/sec (7368736768 bytes in 9.999928 secs)
+  0000:01:00.0 1 -> 0 736.879 Mbytes/sec (7368736768 bytes in 9.999928 secs)
+
+  0000:01:00.0 0 -> 1 736.932 Mbytes/sec (7369261056 bytes in 9.999918 secs)
+  0000:01:00.0 1 -> 0 736.932 Mbytes/sec (7369261056 bytes in 9.999917 secs)
+
+  0000:01:00.0 0 -> 1 736.989 Mbytes/sec (7369850880 bytes in 9.999952 secs)
+  0000:01:00.0 1 -> 0 736.989 Mbytes/sec (7369850880 bytes in 9.999952 secs)
+
+  0000:01:00.0 0 -> 1 736.950 Mbytes/sec (7369523200 bytes in 10.000035 secs)
+  0000:01:00.0 1 -> 0 736.950 Mbytes/sec (7369523200 bytes in 10.000028 secs)
+
+  0000:01:00.0 0 -> 1 736.962 Mbytes/sec (7369588736 bytes in 9.999958 secs)
+  0000:01:00.0 1 -> 0 736.962 Mbytes/sec (7369588736 bytes in 9.999958 secs)
+
+  0000:01:00.0 0 -> 1 737.244 Mbytes/sec (7372406784 bytes in 9.999950 secs)
+  0000:01:00.0 1 -> 0 737.244 Mbytes/sec (7372406784 bytes in 9.999950 secs)
+
+  0000:01:00.0 0 -> 1 736.774 Mbytes/sec (7367753728 bytes in 10.000016 secs)
+  0000:01:00.0 1 -> 0 736.774 Mbytes/sec (7367753728 bytes in 10.000016 secs)
+
+  0000:01:00.0 0 -> 1 737.070 Mbytes/sec (7370702848 bytes in 9.999998 secs)
+  0000:01:00.0 1 -> 0 737.070 Mbytes/sec (7370702848 bytes in 9.999998 secs)
+
+  0000:01:00.0 0 -> 1 737.105 Mbytes/sec (7371096064 bytes in 10.000065 secs)
+  0000:01:00.0 1 -> 0 737.105 Mbytes/sec (7371096064 bytes in 10.000065 secs)
+
+  0000:01:00.0 0 -> 1 737.102 Mbytes/sec (7371030528 bytes in 10.000009 secs)
+  0000:01:00.0 1 -> 0 737.102 Mbytes/sec (7371030528 bytes in 10.000008 secs)
+
+  0000:01:00.0 0 -> 1 737.065 Mbytes/sec (7370637312 bytes in 9.999986 secs)
+  0000:01:00.0 1 -> 0 737.065 Mbytes/sec (7370637312 bytes in 9.999986 secs)
+
+  0000:01:00.0 0 -> 1 736.918 Mbytes/sec (7369195520 bytes in 10.000022 secs)
+  0000:01:00.0 1 -> 0 736.918 Mbytes/sec (7369195520 bytes in 10.000022 secs)
+
+  0000:01:00.0 0 -> 1 736.910 Mbytes/sec (7369129984 bytes in 10.000035 secs)
+  0000:01:00.0 1 -> 0 736.910 Mbytes/sec (7369129984 bytes in 10.000035 secs)
+
+  0000:01:00.0 0 -> 1 736.975 Mbytes/sec (7369719808 bytes in 9.999954 secs)
+  0000:01:00.0 1 -> 0 736.975 Mbytes/sec (7369719808 bytes in 9.999954 secs)
+
+  0000:01:00.0 0 -> 1 736.966 Mbytes/sec (7369654272 bytes in 9.999995 secs)
+  0000:01:00.0 1 -> 0 736.966 Mbytes/sec (7369654272 bytes in 9.999995 secs)
+
+  0000:01:00.0 0 -> 1 736.898 Mbytes/sec (7368933376 bytes in 9.999930 secs)
+  0000:01:00.0 1 -> 0 736.899 Mbytes/sec (7368933376 bytes in 9.999930 secs)
+
+  0000:01:00.0 0 -> 1 736.944 Mbytes/sec (7369457664 bytes in 10.000025 secs)
+  0000:01:00.0 1 -> 0 736.944 Mbytes/sec (7369457664 bytes in 10.000025 secs)
+
+^C  0000:01:00.0 0 -> 1 736.981 Mbytes/sec (3099262976 bytes in 4.205351 secs)
+  0000:01:00.0 1 -> 0 736.981 Mbytes/sec (3099262976 bytes in 4.205350 secs)
+
+Overall test statistics:
+  0000:01:00.0 0 -> 1 690.780 Mbytes/sec (486450921472 bytes in 704.205272 secs)
+  0000:01:00.0 1 -> 0 690.780 Mbytes/sec (486450921472 bytes in 704.205271 secs)
+
+0000:01:00.0 0 -> 1 Test pattern verified in 1048576 words
+0000:01:00.0 1 -> 0 Test pattern verified in 1048576 words
+Memory Driver closed 
+
+Overall PASS
+
+
+The following was repeatable several times:
+a. dump_info_libpciaccess reports the link speed was 2.5 GT/s
+b. Run pcie_set_speed.sh, which reports has changed the Current Link Speed from 1 to 2.
+c. dump_info_libpciaccess reports the link speed is now 5 GT/s
+d. Run test_dma_bridge_parallel_streams and get 380.263 Mbytes/sec
+e. While test_dma_bridge_parallel_streams is running, run pcie_set_speed.sh
+f. test_dma_bridge_parallel_streams reports the thoughput has increased to 737.004 Mbytes/sec
+g. dump_info_libpciaccess reports the current link speed is 5 GT/s
+h. Stop test_dma_bridge_parallel_streams
+i. dump_info_libpciaccess reports the current link speed is 2.5 GT/s
+
+https://unix.stackexchange.com/a/71177/535730 "force re-negotiation of PCIe speed on Linux" suggests the issue
+could be related to PCIe ASPM (Active-State Power Management).
+
+In "1. Tests with NOIOMMU in i5-2310 system" didn't check the current link speed while the tests were running.
