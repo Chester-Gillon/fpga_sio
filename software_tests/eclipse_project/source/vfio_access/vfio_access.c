@@ -34,16 +34,6 @@
 #define VFIO_CONTAINER_PATH VFIO_ROOT_PATH "vfio"
 
 
-/* Used to define a filter to only open a specific PCI device by location */
-typedef struct
-{
-    int domain;
-    u8 bus;
-    u8 dev;
-    u8 func;
-} vfio_pci_device_location_filter_t;
-
-
 /* Optional filters which may be set to only open by VFIO specific PCI device(s) by location.
  * This can be used to limit which VFIO devices one process may open. */
 static vfio_pci_device_location_filter_t vfio_pci_device_location_filters[MAX_VFIO_DEVICES];
@@ -816,8 +806,7 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
     }
 
     /* Save PCI device identification */
-    new_device->pci_vendor_id = pci_dev->vendor_id;
-    new_device->pci_device_id = pci_dev->device_id;
+    new_device->pci_dev = pci_dev;
     new_device->pci_subsystem_vendor_id = pci_read_word (pci_dev, PCI_SUBSYSTEM_VENDOR_ID);
     new_device->pci_subsystem_device_id = pci_read_word (pci_dev, PCI_SUBSYSTEM_ID);
     new_device->dma_capability = dma_capability;
@@ -1068,8 +1057,8 @@ static bool pci_filter_id_match (const u16 pci_id, const int filter_id)
  */
 bool vfio_device_pci_filter_match (const vfio_device_t *const vfio_device, const vfio_pci_device_identity_filter_t *const filter)
 {
-    return pci_filter_id_match (vfio_device->pci_vendor_id, filter->vendor_id) &&
-            pci_filter_id_match (vfio_device->pci_device_id, filter->device_id) &&
+    return pci_filter_id_match (vfio_device->pci_dev->vendor_id, filter->vendor_id) &&
+            pci_filter_id_match (vfio_device->pci_dev->device_id, filter->device_id) &&
             pci_filter_id_match (vfio_device->pci_subsystem_vendor_id, filter->subsystem_vendor_id) &&
             pci_filter_id_match (vfio_device->pci_subsystem_device_id, filter->subsystem_device_id);
 }

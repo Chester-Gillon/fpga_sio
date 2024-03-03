@@ -43,10 +43,6 @@
 static vfio_buffer_allocation_type_t arg_buffer_allocation = VFIO_BUFFER_ALLOCATION_HEAP;
 
 
-/* Command line argument which specifies the maximum number of combinations of different H2C and C2H channels tested */
-static uint32_t arg_max_channel_combinations = X2X_MAX_CHANNELS * X2X_MAX_CHANNELS;
-
-
 /* Command line arguments which specify the size of the mapping for the host buffer when performing AXI stream transfers */
 static size_t arg_stream_mapping_size = 0x40000000;
 
@@ -55,13 +51,27 @@ static size_t arg_stream_mapping_size = 0x40000000;
 static uint32_t arg_stream_num_descriptors = 64;
 
 
+/* Command line arguments to specify which stream pairs on which devices to perform the test on.
+ * If no filters are specified on the command line, all possible stream pairs are tested. */
+typedef struct
+{
+    /* The location of the PCI device containing the streams to be tested */
+    vfio_pci_device_location_filter_t device_filter;
+    /* The number of streams to be tested on the PCI device */
+    uint32_t num_device_streams;
+    /* The C2H channels IDs of the stream pairs on the device to be tested */
+    uint32_t h2c_channel_ids[X2X_MAX_CHANNELS];
+} tested_device_filter_t;
+static tested_device_filter_t arg_tested_device_filters[MAX_VFIO_DEVICES];
+static uint32_t arg_num_tested_device_filters;
+
+
 /** The command line options for this program, in the format passed to getopt_long().
  *  Only long arguments are supported */
 static const struct option command_line_options[] =
 {
-    {"device", required_argument, NULL, 0},
+    {"stream_device", required_argument, NULL, 0},
     {"buffer_allocation", required_argument, NULL, 0},
-    {"max_channel_combinations", required_argument, NULL, 0},
     {"stream_mapping_size", required_argument, NULL, 0},
     {"stream_num_descriptors", required_argument, NULL, 0},
     {NULL, 0, NULL, 0}
@@ -191,15 +201,12 @@ static void display_usage (void)
     printf ("  test_dma_bridge_parallel_streams <options>\n");
     printf ("   Test Xilinx DMA/Bridge Subsystem for PCI Express with parallel streams\n");
     printf ("\n");
-    printf ("--device <domain>:<bus>:<dev>.<func>\n");
-    printf ("  only open using VFIO specific PCI devices in the event that there is one than\n");
-    printf ("  one PCI device which matches the identity filters.\n");
+    printf ("--stream_device <domain>:<bus>:<dev>.<func>,<h2c_channel_id>\n");
+    printf ("  Specify a specific PCI device and H2C channel ID to perform the\n");
+    printf ("  stream test on. Without this test all present streams.\n");
     printf ("  May be used more than once.\n");
     printf ("--buffer_allocation heap|shared_memory|huge_pages\n");
     printf ("  Selects the VFIO buffer allocation type\n");
-    printf ("--max_channel_combinations <num>\n");
-    printf ("  When a DMA bridge has more than 1 channel, limits the maximum number of\n");
-    printf ("  different H2C and C2H channels used during testing\n");
     printf ("--stream_mapping_size <size_bytes>\n");
     printf ("  Specifies the size of the mapping for the host buffer when performing AXI\n");
     printf ("  stream transfers.\n");
@@ -218,6 +225,11 @@ static void parse_command_line_arguments (int argc, char *argv[])
 {
     int opt_status;
     char junk;
+    vfio_pci_device_location_filter_t filter;
+    uint32_t h2c_channel_id;
+    char device_name[64];
+    bool found_existing_device;
+    uint32_t device_filter_index;
 
     do
     {
@@ -236,9 +248,55 @@ static void parse_command_line_arguments (int argc, char *argv[])
             {
                 /* Argument just sets a flag */
             }
-            else if (strcmp (optdef->name, "device") == 0)
+            else if (strcmp (optdef->name, "stream_device") == 0)
             {
-                vfio_add_pci_device_location_filter (optarg);
+                const int num_values = sscanf (optarg, "%d:%" SCNx8 ":%" SCNx8 ".%" SCNx8 ",%" SCNu32 "%c",
+                        &filter.domain, &filter.bus, &filter.dev, &filter.func, &h2c_channel_id, &junk);
+
+                if (num_values == 5)
+                {
+                    found_existing_device = false;
+                    for (device_filter_index = 0;
+                         !found_existing_device && (device_filter_index < arg_num_tested_device_filters);
+                         device_filter_index++)
+                    {
+                        tested_device_filter_t *const existing = &arg_tested_device_filters[device_filter_index];
+
+                        if ((filter.domain == existing->device_filter.domain) &&
+                            (filter.bus    == existing->device_filter.bus   ) &&
+                            (filter.dev    == existing->device_filter.dev   ) &&
+                            (filter.func   == existing->device_filter.func  )   )
+                        {
+                            /* Append a stream to be tested to a device which is already to be tested */
+                            if (existing->num_device_streams < X2X_MAX_CHANNELS)
+                            {
+                                existing->h2c_channel_ids[existing->num_device_streams] = h2c_channel_id;
+                                existing->num_device_streams++;
+                            }
+                            found_existing_device = true;
+                        }
+                    }
+
+                    if (!found_existing_device && (arg_num_tested_device_filters < MAX_VFIO_DEVICES))
+                    {
+                        /* Add a new device to be tested */
+                        tested_device_filter_t *const new_filter = &arg_tested_device_filters[arg_num_tested_device_filters];
+
+                        new_filter->device_filter = filter;
+                        new_filter->h2c_channel_ids[0] = h2c_channel_id;
+                        new_filter->num_device_streams = 1;
+                        arg_num_tested_device_filters++;
+
+                        snprintf (device_name, sizeof (device_name), "%04x:%02x:%02x.%x",
+                                filter.domain, filter.bus, filter.dev, filter.func);
+                        vfio_add_pci_device_location_filter (device_name);
+                    }
+                }
+                else
+                {
+                    printf ("Invalid %s %s\n", optdef->name, optarg);
+                    exit (EXIT_FAILURE);
+                }
             }
             else if (strcmp (optdef->name, "buffer_allocation") == 0)
             {
@@ -257,14 +315,6 @@ static void parse_command_line_arguments (int argc, char *argv[])
                 else
                 {
                     printf ("Invalid %s %s\n", optdef->name, optarg);
-                    exit (EXIT_FAILURE);
-                }
-            }
-            else if (strcmp (optdef->name, "max_channel_combinations") == 0)
-            {
-                if (sscanf (optarg, "%u%c", &arg_max_channel_combinations, &junk) != 1)
-                {
-                    fprintf (stderr, "Invalid %s %s\n", optdef->name, optarg);
                     exit (EXIT_FAILURE);
                 }
             }
@@ -773,6 +823,48 @@ static void sequence_parallel_streams_test (stream_test_contexts_t *const contex
 }
 
 
+/**
+ * @brief Determine if a stream pair on a VFIO device is to be tested
+ * @param[in] vfio_device The potential device to test
+ * @param[in] h2c_channel_id The H2C channel end of the stream to potentially test
+ * @return Returns true if the stream pair is to be tested
+ */
+static bool is_stream_tested (const vfio_device_t *const vfio_device, const uint32_t h2c_channel_id)
+{
+    bool stream_tested = false;
+
+    if (arg_num_tested_device_filters == 0)
+    {
+        /* No filter supplied on command line arguments, so test all available streams */
+        stream_tested = true;
+    }
+    else
+    {
+        for (uint32_t device_filter_index = 0;
+             !stream_tested && (device_filter_index < arg_num_tested_device_filters);
+             device_filter_index++)
+        {
+            const tested_device_filter_t *const tested_device = &arg_tested_device_filters[device_filter_index];
+
+            if ((tested_device->device_filter.domain == vfio_device->pci_dev->domain) &&
+                (tested_device->device_filter.bus    == vfio_device->pci_dev->bus   ) &&
+                (tested_device->device_filter.dev    == vfio_device->pci_dev->dev   ) &&
+                (tested_device->device_filter.func   == vfio_device->pci_dev->func  )   )
+            {
+                for (uint32_t stream_index = 0;
+                     !stream_tested && (stream_index < tested_device->num_device_streams);
+                     stream_index++)
+                {
+                    stream_tested = h2c_channel_id == tested_device->h2c_channel_ids[stream_index];
+                }
+            }
+        }
+    }
+
+    return stream_tested;
+}
+
+
 int main (int argc, char *argv[])
 {
     fpga_designs_t designs;
@@ -781,7 +873,6 @@ int main (int argc, char *argv[])
     uint32_t num_c2h_channels;
     uint32_t h2c_channel_id;
     uint32_t c2h_channel_id;
-    uint32_t num_channel_combinations_tested;
 
     parse_command_line_arguments (argc, argv);
 
@@ -810,33 +901,32 @@ int main (int argc, char *argv[])
                     &num_h2c_channels, &num_c2h_channels, NULL, NULL);
             if (design_uses_stream && (num_h2c_channels > 0) && (num_c2h_channels > 0))
             {
-                num_channel_combinations_tested = 0;
-                for (h2c_channel_id = 0;
-                     (h2c_channel_id < num_h2c_channels) && (num_channel_combinations_tested < arg_max_channel_combinations);
-                     h2c_channel_id++)
+                for (h2c_channel_id = 0; h2c_channel_id < num_h2c_channels; h2c_channel_id++)
                 {
-                    stream_test_context_t *const stream_pair = &context.stream_pairs[context.num_stream_pairs];
-
-                    if ((h2c_channel_id & 1) == 1)
+                    if (is_stream_tested (vfio_device, h2c_channel_id))
                     {
-                        c2h_channel_id = h2c_channel_id - 1;
-                    }
-                    else
-                    {
-                        c2h_channel_id = (h2c_channel_id + 1) % num_c2h_channels;
-                    }
+                        stream_test_context_t *const stream_pair = &context.stream_pairs[context.num_stream_pairs];
 
-                    stream_pair->design = design;
-                    stream_pair->vfio_device = vfio_device;
-                    stream_pair->h2c_channel_id = h2c_channel_id;
-                    stream_pair->c2h_channel_id = c2h_channel_id;
-                    printf ("Selecting test of %s design PCI device %s IOMMU group %s H2C channel %u C2H channel %u\n",
-                            fpga_design_names[stream_pair->design->design_id],
-                            stream_pair->vfio_device->device_name, stream_pair->vfio_device->iommu_group,
-                            stream_pair->h2c_channel_id, stream_pair->c2h_channel_id);
+                        if ((h2c_channel_id & 1) == 1)
+                        {
+                            c2h_channel_id = h2c_channel_id - 1;
+                        }
+                        else
+                        {
+                            c2h_channel_id = (h2c_channel_id + 1) % num_c2h_channels;
+                        }
 
-                    num_channel_combinations_tested++;
-                    context.num_stream_pairs++;
+                        stream_pair->design = design;
+                        stream_pair->vfio_device = vfio_device;
+                        stream_pair->h2c_channel_id = h2c_channel_id;
+                        stream_pair->c2h_channel_id = c2h_channel_id;
+                        printf ("Selecting test of %s design PCI device %s IOMMU group %s H2C channel %u C2H channel %u\n",
+                                fpga_design_names[stream_pair->design->design_id],
+                                stream_pair->vfio_device->device_name, stream_pair->vfio_device->iommu_group,
+                                stream_pair->h2c_channel_id, stream_pair->c2h_channel_id);
+
+                        context.num_stream_pairs++;
+                    }
                 }
             }
         }

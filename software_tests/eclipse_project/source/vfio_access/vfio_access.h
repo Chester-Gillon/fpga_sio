@@ -69,9 +69,9 @@ typedef enum
 /* Defines one device which has been opened using vfio and has all its memory BARs mapped */
 typedef struct
 {
-    /* The PCI identity of the device */
-    u16 pci_vendor_id;
-    u16 pci_device_id;
+    /* The PCI device */
+    struct pci_dev *pci_dev;
+    /* The PCI identity of the subsystem (read from the PCI device configuration) */
     u16 pci_subsystem_vendor_id;
     u16 pci_subsystem_device_id;
     /* The DMA capability of the device, which must be determined by the caller of this API */
@@ -210,6 +210,16 @@ typedef struct
     int subsystem_device_id;
     vfio_device_dma_capability_t dma_capability;
 } vfio_pci_device_identity_filter_t;
+
+
+/* Used to define a filter to only open a specific PCI device by location */
+typedef struct
+{
+    int domain;
+    u8 bus;
+    u8 dev;
+    u8 func;
+} vfio_pci_device_location_filter_t;
 
 
 /* Defines one mapping which has been allocated for DMA using the IOMMU */
