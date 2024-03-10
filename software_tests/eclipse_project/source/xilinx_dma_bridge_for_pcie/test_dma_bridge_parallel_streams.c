@@ -944,5 +944,5 @@ int main (int argc, char *argv[])
         printf ("\nOverall %s\n", context.overall_success ? "PASS" : "FAIL");
     }
 
-    return EXIT_SUCCESS;
+    return context.overall_success ? EXIT_SUCCESS : EXIT_FAILURE;
 }

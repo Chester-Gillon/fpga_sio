@@ -156,6 +156,9 @@ typedef struct vfio_devices_s
 {
     /* If non-NULL used to search for PCI devices */
     struct pci_access *pacc;
+    /* Set true when running in a secondary process, meaning use the contain and group file descriptors opened from
+     * the primary process */
+    bool secondary_process;
     /* The VFIO container used by all devices.
      * DMA mapping is done for the container, so having one container for multiple devices should all the DMA mappings
      * to be used by multiple devices.

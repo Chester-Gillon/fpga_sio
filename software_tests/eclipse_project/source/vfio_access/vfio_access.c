@@ -792,7 +792,6 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
     int saved_errno;
     int api_version;
     vfio_device_t *const new_device = &vfio_devices->devices[vfio_devices->num_devices];
-    bool secondary_process = false;
 
     /* Check the PCI device has an IOMMU group. */
     snprintf (new_device->device_name, sizeof (new_device->device_name), "%04x:%02x:%02x.%x",
@@ -818,9 +817,9 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
     {
         /* Determine if we are a secondary process due to the contain already being opened by the primary */
         vfio_devices->container_fd = find_fd_from_primary_process (VFIO_CONTAINER_PATH);
-        secondary_process = vfio_devices->container_fd != -1;
+        vfio_devices->secondary_process = vfio_devices->container_fd != -1;
 
-        if (!secondary_process)
+        if (!vfio_devices->secondary_process)
         {
             /* Are the primary process. Sanity check that the VFIO container path exists, and the user has access */
             errno = 0;
@@ -916,7 +915,7 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
 
     printf ("Opening device %s (%04x:%04x) with IOMMU group %s\n",
             new_device->device_name, pci_dev->vendor_id, pci_dev->device_id, new_device->iommu_group);
-    if (secondary_process)
+    if (vfio_devices->secondary_process)
     {
         /* In a secondary process find the group FD which was opened in the primary process */
         new_device->group_fd =  (find_fd_from_primary_process (new_device->group_pathname));
@@ -988,7 +987,7 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
         }
     }
 
-    if ((vfio_devices->num_devices == 0) && (!secondary_process))
+    if ((vfio_devices->num_devices == 0) && (!vfio_devices->secondary_process))
     {
         /* In the primary process set the IOMMU type used */
         rc = ioctl (vfio_devices->container_fd, VFIO_SET_IOMMU, vfio_devices->iommu_type);
@@ -1811,6 +1810,7 @@ void vfio_await_secondary_processes (const uint32_t num_processes, vfio_secondar
     int rc;
     siginfo_t info;
     uint32_t process_index;
+    uint32_t num_failed_processes = 0;
 
     while (num_active_processes > 0)
     {
@@ -1829,18 +1829,29 @@ void vfio_await_secondary_processes (const uint32_t num_processes, vfio_secondar
                         if (info.si_status != EXIT_SUCCESS)
                         {
                             printf ("Secondary %s exited with status %d\n", process->executable, info.si_status);
+                            num_failed_processes++;
                         }
                         break;
 
                     case CLD_KILLED:
                     case CLD_DUMPED:
                         printf ("Secondary %s killed with signal %d\n", process->executable, info.si_status);
+                        num_failed_processes++;
                     }
                     process->reaped = true;
                     num_active_processes--;
                 }
             }
         }
+    }
 
+    if (num_failed_processes > 0)
+    {
+        printf ("%" PRIu32 " out of %" PRIu32 " child processes had non-successful exit\n",
+                num_failed_processes, num_processes);
+    }
+    else
+    {
+        printf ("All %" PRIu32 " child processed exited successfully\n", num_processes);
     }
 }

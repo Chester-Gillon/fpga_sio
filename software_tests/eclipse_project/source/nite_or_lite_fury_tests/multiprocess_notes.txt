@@ -331,3 +331,882 @@ card-to-host DMA timing for 14170 transfers of 1212416 bytes:
    Min = 1386.413691 (Mbytes/sec)
   Mean = 1413.675297 (Mbytes/sec)
    Max = 1413.863234 (Mbytes/sec)
+
+
+5. Tests with secondary processes each opening two devices
+==========================================================
+
+This was after a bug fix to make secondary_process a field in vfio_devices_t, to allow a secondary process to open more than
+one device.
+
+Tried multiple runs to get mmap() to fail with EBUSY as seen once above in
+"Secondary processes use container and group FDs from primary, and opens device FD", but couldn't to re-create the failure.
+Attempting to look at the VFIO code in the Kernel, could be some paths which return EBUSY if the PTEs are currently locked
+with a mutex.
+
+TBD if:
+a. Could re-try mmap() after failed with EBUSY.
+b. Need to synchronise multiple processes calling mmap() to map device registers.
+
+The code currently opens the device_fd, used for the mmap(), in each secondary process rather than trying to share the
+file device file descriptors.
+
+Consider trying to use ftrace to trace the Kernel calls when mmap() is used to check for any mutexes used, to check for
+possible race conditions when multiple processes need to map BARs in the same device.
+
+5.1. Success with 5 secondary processes, but only one using DMA
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+[mr_halfword@skylake-alma coverage]$ nite_or_lite_fury_tests/test_primary identify_pcie_fpga_design/display_identified_pcie_fpga_designs -- xilinx_xadc/display_xadc_values -- xilinx_quad_spi/quad_spi_flasher -- i2c_probe/i2c_dump_info -- xilinx_dma_bridge_for_pcie/test_dma_bridge_parallel_streams
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Enabling bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Enabling bus master for 0000:30:00.0
+container_fd=4
+  0000:15:00.0 : group_fd=5 device_fd=6
+  0000:30:00.0 : group_fd=7 device_fd=8
+Contents of /proc/3664/fd in test_primary:
+  fd 0 -> /dev/pts/0
+  fd 1 -> /dev/pts/0
+  fd 2 -> /dev/pts/0
+  fd 3 -> /sys/devices/pci0000:2c/0000:2c:02.0/0000:30:00.0/config
+  fd 4 -> /dev/vfio/vfio
+  fd 5 -> /dev/vfio/41
+  fd 6 -> anon_inode:[vfio-device]
+  fd 7 -> /dev/vfio/89
+  fd 8 -> anon_inode:[vfio-device]
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Displaying XADC values for design TEF1001_dma_stream_loopback in PCI device 0000:15:00.0 IOMMU group 41:
+XADC samples using Continuous sequence mode
+Current enabled channels in sequencer: Temp    Vccint  Vccaux  Vbram   Cal    
+ADC A calibration: unipolar offset=-4 (lsbs)  bipolar offset=-3 (lsbs)  gain correction factor=6.3 (%)
+ADC B calibration: unipolar offset=-5 (lsbs)  bipolar offset=-4 (lsbs)  gain correction factor=6.3 (%)
+  Channel  Measurement     Min           Max
+  Temp       32.3602C     31.2529C      34.5750C
+  Vccint      1.0012V      0.9954V       1.0056V
+  Vccaux      1.7834V      1.7769V       1.7930V
+  Vbram       0.9998V      0.9954V       1.0056V
+  Cal         0.0000V           
+
+Displaying XADC values for design NiteFury_dma_stream_loopback in PCI device 0000:30:00.0 IOMMU group 89:
+XADC samples using Continuous sequence mode
+Current enabled channels in sequencer: Temp    Vccint  Vccaux  Vbram   Cal     Vaux14  (acq time)
+ADC A calibration: unipolar offset=-7 (lsbs)  bipolar offset=-8 (lsbs)  gain correction factor=6.3 (%)
+ADC B calibration: unipolar offset=-10 (lsbs)  bipolar offset=-11 (lsbs)  gain correction factor=6.3 (%)
+  Channel  Measurement     Min           Max
+  Temp       33.7137C     32.2372C      34.9441C
+  Vccint      1.0276V      1.0239V       1.0312V
+  Vccaux      1.7827V      1.7798V       1.7893V
+  Vbram       1.0269V      1.0247V       1.0320V
+  Cal         0.0000V           
+  Vaux14      0.0396V           
+
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+
+Design TEF1001_dma_stream_loopback:
+  PCI device 0000:15:00.0 IOMMU group 41
+  DMA bridge bar 2 AXI Stream
+  Channel ID  addr_alignment  len_granularity  num_address_bits
+       H2C 0               1                1                64
+       H2C 1               1                1                64
+       C2H 0               1                1                64
+       C2H 1               1                1                64
+  User access build timestamp : C1310413 - 24/02/2024 16:16:19
+  Quad SPI registers at bar 0 offset 0x2000
+  XADC registers at bar 0 offset 0x3000
+  IIC registers at bar 0 offset 0x0
+  bit-banged I2C GPIO registers at bar 0 offset 0x1000
+
+Design NiteFury_dma_stream_loopback:
+  PCI device 0000:30:00.0 IOMMU group 89
+  DMA bridge bar 2 AXI Stream
+  Channel ID  addr_alignment  len_granularity  num_address_bits
+       H2C 0               1                1                64
+       H2C 1               1                1                64
+       C2H 0               1                1                64
+       C2H 1               1                1                64
+  User access build timestamp : C1310A5B - 24/02/2024 16:41:27
+  Quad SPI registers at bar 0 offset 0x0
+  XADC registers at bar 0 offset 0x1000
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+
+Displaying information for SPI flash using TEF1001_dma_stream_loopback design in PCI device 0000:15:00.0 IOMMU group 41
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+FIFO depth=256
+Flash device : Micron N25Q256A
+Manufacturer ID=0x20  Memory Interface Type=0xbb  Density=0x19
+Flash Size Bytes=33554432  Page Size Bytes=256  Num Address Bytes=4
+Using num_descriptors=64 bytes_per_buffer=0x1000000 data_mapping_size_words=0x10000000
+Selecting test of TEF1001_dma_stream_loopback design PCI device 0000:15:00.0 IOMMU group 41 H2C channel 0 C2H channel 1
+Selecting test of TEF1001_dma_stream_loopback design PCI device 0000:15:00.0 IOMMU group 41 H2C channel 1 C2H channel 0
+Selecting test of NiteFury_dma_stream_loopback design PCI device 0000:30:00.0 IOMMU group 89 H2C channel 0 C2H channel 1
+Selecting test of NiteFury_dma_stream_loopback design PCI device 0000:30:00.0 IOMMU group 89 H2C channel 1 C2H channel 0
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Using design TEF1001_dma_stream_loopback in device 0000:15:00.0
+
+TEF1001 CPLD fan information:
+  FAN Control register = 0xff (fan Enabled)
+  FAN1 RPM = 5280
+
+DDR temperature sensor information:
+  Capabilities = 0x006f
+  Configuration register = 0x0000
+  Temperature high limit register = 0x0000 (0.0 C)
+  Temperature low limit register = 0x0000 (0.0 C)
+  Temperature critical limit register = 0x0000 (0.0 C)
+  Ambient temperature register = 0xc17c above TCRIT above HIGH (23.8 C)
+  Sensor manufacturer ID register = 0x104a (STMicroelectronics)
+
+DDR3 SPD decode:
+  RAW bytes:
+      0- 15: 92 13 0b 08 04 21 02 09 0b 11 01 08 0a 00 fe 00
+     16- 31: 69 78 69 30 69 11 18 81 20 08 3c 3c 00 f0 83 05
+     32- 47: 80 00 00 00 00 00 00 00 00 88 00 00 00 00 00 00
+     48- 63: 00 00 00 00 00 00 00 00 00 00 00 00 0f 11 23 00
+     64- 79: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+     80- 95: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+     96-111: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    112-127: 00 00 00 00 00 80 2c 0f 16 17 12 6a fb a9 bd a1
+    128-143: 31 38 4b 53 46 31 47 37 32 48 5a 2d 31 47 36 50
+    144-159: 31 20 50 31 80 2c 44 50 41 47 39 46 41 30 30 31
+    160-175: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    176-191: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+    192-207: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+    208-223: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+    224-239: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+    240-255: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+  CRC coverage bytes=117  SPD bytes total=256  SPD bytes used=176
+  Actual CRC=0xa1bd  Expected CRC=0xa1bd : CRC PASS
+  SPD revision 1.3
+  Module type : 72b-SO-UDIMM
+  Bank Address Bits=3  Total SDRAM Capacity (Mibibits)=4096
+  Row Address Bits=16  Column Addess Bits=10
+  Module Nominal Voltage : NOT 1.25 V operable  1.35 V operable  1.5 V operable
+  Number of Ranks=2  SDRAM Device Width (bits)=8
+  Bus width extension (bits)=8  Primary bus width (bits)=64
+  Module capacity (MiB)=8192
+  Module Part Number "18KSF1G72HZ-1G6P1 "
+  72b-SO-UDIMM Rank 1 Mapping : standard
+  Supported CAS latencies: 5 6 7 8 9 10 11
+  Fine Timebase Dividend=1 Divisor=1 FTB=0.001 ns
+  Medium Timebase Dividend=1 Divisor=8 MTB=0.125 ns
+  SDRAM Minimum Cycle Time (tCKmin)=1.250 ns
+  Minimum CAS Latency Time (tAAmin)=13.125 ns
+  Minimum Write Recovery Time (tWRmin)=15.000 ns
+  Minimum RAS# to CAS# Delay Time (tRCDmin)=13.125 ns
+  Minimum Row Active to Row Active Delay Time (tRRDmin)=6.000 ns
+  Minimum Row Precharge Delay Time (tRPmin)=13.125 ns
+  Minimum Active to Precharge Delay Time (tRASmin)=35.000 ns
+  Minimum Active to Active/Refresh Delay Time (tRCmin)=48.125 ns
+  Minimum Refresh Recovery Delay Time (tRFCmin)=260.000 ns
+  Minimum Internal Write to Read Command Delay Time (tWTRmin)=7.500 ns
+  Minimum Internal Read to Precharge Command Delay Time (tRTPmin)=7.500 ns
+  Minimum Four Activate Window Delay Time (tFAWmin)=30.000 ns
+  SDRAM Optional Features : DLL-Off Mode Support Supported  RZQ/7 Supported  RZQ/6 Supported
+  SDRAM Thermal and Refresh Options:
+    Partial Array Self Refresh (PASR) : Not Supported
+    On-die Thermal Sensor (ODTS) Readout : On-die thermal sensor readout is not supported
+    Auto Self Refresh (ASR) : ASR is supported and the SDRAM will determine the proper refresh rate for any supported temperature
+    Extended Temperature Refresh Rate : Use in extended operating temperature range from 85-95 C requires 2X refresh rate
+    Extended Temperature Range : Normal and extended operating temperature range 0-95 C supported
+  Thermal Sensor : Thermal sensor incorporated onto this assembly
+  SDRAM Device Type : Standard Monolithic DRAM Device
+  Die Count : Not Specified
+  Signal Loading : Not specified
+  Maximum Activate : Vendor Specific=2  Maximum Activate Window (tMAW)=8192 * tREFI  Maximum Activate Count (MAC)=Unrestricted MAC
+
+LTM4676A at I2C address 0x40
+  PMBus capability=0xb0 : PEC supported  Max bus speed=400 kHz  SMBALERT# supported
+  PMBus revision=0x22 : Part I revision 1.2  Part II revision 1.2
+  MFR_ID=LTC  MFR_MODEL=LTM4676A
+  WRITE_PROTECT=0x00 : Enable writes to all commands
+  MFR_COMMON=0xfc : WP pin INACTIVE
+  Measured input supply (SVin) voltage                                                  :  12.109 V
+  Calculated input supply current                                                       :   0.304 A
+  Control IC die temperature                                                            :  59.812 C
+  Maximum measured value of READ_VIN since last MFR_CLEAR_PEAKS                         :  12.141 V
+  Maximum measured value of control IC die temperature since last MFR_CLEAR_PEAKS       :  60.875 C
+  Measured output voltage                                                         page 0:   1.500 V
+  Calculated input current per channel                                            page 0:   0.174 A
+  Measured output current                                                         page 0:   1.104 A
+  Power stage temperature sensor                                                  page 0:  42.188 C
+  Duty cycle of the top gate control signal                                       page 0:  12.984 %
+  Calculated output power                                                         page 0:   1.654 W
+  Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 0:   1.501 V
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 0:  43.188 C
+  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 0:   1.119 A
+  Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 0:   1.613 V
+  Output overvoltage fault limit                                                  page 0:   1.650 V
+  Output overvoltage warning limit                                                page 0:   1.613 V
+  Margin high output voltage set point                                            page 0:   1.575 V
+  Nominal output voltage set point                                                page 0:   1.500 V
+  Margin low output voltage set point                                             page 0:   1.425 V
+  Output undervoltage warning limit                                               page 0:   1.403 V
+  Output undervoltage fault limit                                                 page 0:   1.395 V
+  Maximum allowed output voltage including VOUT_OV_FAULT_LIMIT                    page 0:   2.750 V
+  Output overcurrent fault limit                                                  page 0:  22.844 A
+  Output overcurrent warning limit                                                page 0:  15.594 A
+  Power stage overtemperature fault limit                                         page 0: 128.000 C
+  Power stage overtemperature warning limit                                       page 0: 125.000 C
+  Power stage undertemperature fault limit                                        page 0: -45.000 C
+  Measured output voltage                                                         page 1:   4.000 V
+  Calculated input current per channel                                            page 1:   0.130 A
+  Measured output current                                                         page 1:   0.301 A
+  Power stage temperature sensor                                                  page 1:  43.438 C
+  Duty cycle of the top gate control signal                                       page 1:  33.250 %
+  Calculated output power                                                         page 1:   1.203 W
+  Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 1:   4.001 V
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 1:  44.562 C
+  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 1:   0.337 A
+  Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 1:   4.300 V
+  Output overvoltage fault limit                                                  page 1:   4.400 V
+  Output overvoltage warning limit                                                page 1:   4.300 V
+  Margin high output voltage set point                                            page 1:   4.200 V
+  Nominal output voltage set point                                                page 1:   4.000 V
+  Margin low output voltage set point                                             page 1:   3.800 V
+  Output undervoltage warning limit                                               page 1:   3.740 V
+  Output undervoltage fault limit                                                 page 1:   3.720 V
+  Maximum allowed output voltage including VOUT_OV_FAULT_LIMIT                    page 1:   5.700 V
+  Output overcurrent fault limit                                                  page 1:  22.844 A
+  Output overcurrent warning limit                                                page 1:  15.594 A
+  Power stage overtemperature fault limit                                         page 1: 128.000 C
+  Power stage overtemperature warning limit                                       page 1: 125.000 C
+  Power stage undertemperature fault limit                                        page 1: -45.000 C
+
+LTM4676A at I2C address 0x4f
+  PMBus capability=0xb0 : PEC supported  Max bus speed=400 kHz  SMBALERT# supported
+  PMBus revision=0x22 : Part I revision 1.2  Part II revision 1.2
+  MFR_ID=LTC  MFR_MODEL=LTM4676A
+  WRITE_PROTECT=0x00 : Enable writes to all commands
+  MFR_COMMON=0xfc : WP pin INACTIVE
+  Measured input supply (SVin) voltage                                                  :  12.156 V
+  Calculated input supply current                                                       :   0.101 A
+  Control IC die temperature                                                            :  53.438 C
+  Maximum measured value of READ_VIN since last MFR_CLEAR_PEAKS                         :  12.172 V
+  Maximum measured value of control IC die temperature since last MFR_CLEAR_PEAKS       :  54.188 C
+  Measured output voltage                                                         page 0:   1.001 V
+  Calculated input current per channel                                            page 0:   0.058 A
+  Measured output current                                                         page 0:   0.325 A
+  Power stage temperature sensor                                                  page 0:  40.000 C
+  Duty cycle of the top gate control signal                                       page 0:   8.594 %
+  Calculated output power                                                         page 0:   0.325 W
+  Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 0:   1.002 V
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 0:  40.875 C
+  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 0:   0.995 A
+  Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 0:   1.076 V
+  Output overvoltage fault limit                                                  page 0:   1.101 V
+  Output overvoltage warning limit                                                page 0:   1.076 V
+  Margin high output voltage set point                                            page 0:   1.051 V
+  Nominal output voltage set point                                                page 0:   1.001 V
+  Margin low output voltage set point                                             page 0:   0.951 V
+  Output undervoltage warning limit                                               page 0:   0.936 V
+  Output undervoltage fault limit                                                 page 0:   0.931 V
+  Maximum allowed output voltage including VOUT_OV_FAULT_LIMIT                    page 0:   2.750 V
+  Output overcurrent fault limit                                                  page 0:  22.844 A
+  Output overcurrent warning limit                                                page 0:  15.594 A
+  Power stage overtemperature fault limit                                         page 0: 128.000 C
+  Power stage overtemperature warning limit                                       page 0: 125.000 C
+  Power stage undertemperature fault limit                                        page 0: -45.000 C
+  Measured output voltage                                                         page 1:   1.001 V
+  Calculated input current per channel                                            page 1:   0.043 A
+  Measured output current                                                         page 1:   0.152 A
+  Power stage temperature sensor                                                  page 1:  40.875 C
+  Duty cycle of the top gate control signal                                       page 1:   8.547 %
+  Calculated output power                                                         page 1:   0.152 W
+  Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 1:   1.002 V
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 1:  41.875 C
+  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 1:   0.886 A
+  Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 1:   1.076 V
+  Output overvoltage fault limit                                                  page 1:   1.101 V
+  Output overvoltage warning limit                                                page 1:   1.076 V
+  Margin high output voltage set point                                            page 1:   1.051 V
+  Nominal output voltage set point                                                page 1:   1.001 V
+  Margin low output voltage set point                                             page 1:   0.951 V
+  Output undervoltage warning limit                                               page 1:   0.936 V
+  Output undervoltage fault limit                                                 page 1:   0.931 V
+  Maximum allowed output voltage including VOUT_OV_FAULT_LIMIT                    page 1:   2.750 V
+  Output overcurrent fault limit                                                  page 1:  22.844 A
+  Output overcurrent warning limit                                                page 1:  15.594 A
+  Power stage overtemperature fault limit                                         page 1: 128.000 C
+  Power stage overtemperature warning limit                                       page 1: 125.000 C
+  Power stage undertemperature fault limit                                        page 1: -45.000 C
+
+Si5338 Clock Generator information:
+  Device: Si5338A revision B
+  NVM code=0
+  Configured 7-bit I2C address=0x70
+
+XADC samples using Continuous sequence mode
+Current enabled channels in sequencer: Temp    Vccint  Vccaux  Vbram   Cal    
+ADC A calibration: unipolar offset=-4 (lsbs)  bipolar offset=-3 (lsbs)  gain correction factor=6.3 (%)
+ADC B calibration: unipolar offset=-5 (lsbs)  bipolar offset=-4 (lsbs)  gain correction factor=6.3 (%)
+  Channel  Measurement     Min           Max
+  Temp       32.6063C     31.2529C      34.5750C
+  Vccint      1.0005V      0.9954V       1.0056V
+  Vccaux      1.7856V      1.7769V       1.7930V
+  Vbram       0.9998V      0.9954V       1.0056V
+  Cal         0.0000V           
+Successfully parsed bitstream of length 4404100 bytes with 25294 configuration packets
+Read 4423680 bytes from SPI flash starting at address 0
+Sync word at byte index 0x130
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register BSPI words 0000026C
+  Type 1 packet opcode write register CMD command BSPI_READ
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register TIMER words 00000000
+  Type 1 packet opcode write register WBSTAR words 00000000
+  Type 1 packet opcode write register CMD command NULL
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register CMD command RCRC
+  Type 1 packet opcode NOP (2 consecutive)
+  Type 1 packet opcode write register AXSS 322E072A - 06/04/2023 00:28:42
+  Type 1 packet opcode write register RBCRC_SW words 00000000
+  Type 1 packet opcode write register COR0 words 02303FE5
+  Type 1 packet opcode write register COR1 words 00000000
+  Type 1 packet opcode write register IDCODE 7K160T
+  Type 1 packet opcode write register CMD command SWITCH
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register MASK words 00000401
+  Type 1 packet opcode write register CTL0 words 00000501
+  Type 1 packet opcode write register MASK words 00001000
+  Type 1 packet opcode write register CTL1 words 00001000
+  Type 1 packet opcode NOP (8 consecutive)
+  Configuration data writes consisting of:
+    10537 NOPs
+    6798 FAR writes
+    343 WCFG commands
+    343 FDRI writes with a total of 116352 words
+    117 MFW commands
+    6572 MFWR writes with a total of 26756 words
+    108 Type 2 packets with a total of 925261 words
+  Type 1 packet opcode write register CRC words B1E3A122
+  Type 1 packet opcode NOP (2 consecutive)
+  Type 1 packet opcode write register CMD command GRESTORE
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register CMD command DGHIGH_LFRM
+  Type 1 packet opcode write register MASK words 00001000
+  Type 1 packet opcode write register CTL1 words 00000000
+  Type 1 packet opcode NOP (100 consecutive)
+  Type 1 packet opcode write register CMD command START
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register FAR words 03BE0000
+  Type 1 packet opcode write register MASK words 00000501
+  Type 1 packet opcode write register CTL0 words 00000501
+  Type 1 packet opcode write register CRC words 615009A6
+  Type 1 packet opcode NOP (2 consecutive)
+  Type 1 packet opcode write register CMD command DESYNC
+  Type 1 packet opcode NOP (329 consecutive)
+
+Displaying information for SPI flash using NiteFury_dma_stream_loopback design in PCI device 0000:30:00.0 IOMMU group 89
+FIFO depth=256
+Flash device : Spansion S25FL_A
+Manufacturer ID=0x01  Memory Interface Type=0x02  Density=0x19
+Flash Size Bytes=33554432  Page Size Bytes=256  Num Address Bytes=4
+Successfully parsed bitstream of length 3235252 bytes with 48527 configuration packets
+Read 3244032 bytes from SPI flash starting at address 0
+Sync word at byte index 0x30
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register BSPI words 0000026B
+  Type 1 packet opcode write register CMD command BSPI_READ
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register TIMER words 00000000
+  Type 1 packet opcode write register WBSTAR words 00000000
+  Type 1 packet opcode write register CMD command NULL
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register CMD command RCRC
+  Type 1 packet opcode NOP (2 consecutive)
+  Type 1 packet opcode write register RBCRC_SW words 00000000
+  Type 1 packet opcode write register COR0 words 06603FE5
+  Type 1 packet opcode write register COR1 words 00000000
+  Type 1 packet opcode write register IDCODE 7A200T
+  Type 1 packet opcode write register CMD command FALL_EDGE
+  Type 1 packet opcode write register CMD command SWITCH
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register MASK words 00001401
+  Type 1 packet opcode write register CTL0 words 00001501
+  Type 1 packet opcode write register MASK words 00001000
+  Type 1 packet opcode write register CTL1 words 00001000
+  Type 1 packet opcode NOP (8 consecutive)
+  Configuration data writes consisting of:
+    12367 NOPs
+    17670 FAR writes
+    154 WCFG commands
+    154 FDRI writes with a total of 63731 words
+    45 MFW commands
+    17561 MFWR writes with a total of 70424 words
+    36 Type 2 packets with a total of 608222 words
+  Type 1 packet opcode write register CRC words 89EB1BE0
+  Type 1 packet opcode NOP (2 consecutive)
+  Type 1 packet opcode write register CMD command GRESTORE
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register CMD command DGHIGH_LFRM
+  Type 1 packet opcode write register MASK words 00001000
+  Type 1 packet opcode write register CTL1 words 00000000
+  Type 1 packet opcode NOP (100 consecutive)
+  Type 1 packet opcode write register CMD command START
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register FAR words 03BE0000
+  Type 1 packet opcode write register MASK words 00001501
+  Type 1 packet opcode write register CTL0 words 00001501
+  Type 1 packet opcode write register CRC words 12ED42F4
+  Type 1 packet opcode NOP (2 consecutive)
+  Type 1 packet opcode write register CMD command DESYNC
+  Type 1 packet opcode NOP (393 consecutive)
+Press Ctrl-C to stop test
+  0000:15:00.0 0 -> 1 818.598 Mbytes/sec (8170504192 bytes in 9.981100 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8170504192 bytes in 9.981104 secs)
+  0000:30:00.0 0 -> 1 818.591 Mbytes/sec (8170504192 bytes in 9.981177 secs)
+  0000:30:00.0 1 -> 0 818.591 Mbytes/sec (8170504192 bytes in 9.981182 secs)
+
+^C  0000:15:00.0 0 -> 1 818.598 Mbytes/sec (5721030656 bytes in 6.988819 secs)
+  0000:15:00.0 1 -> 0 818.598 Mbytes/sec (5721030656 bytes in 6.988815 secs)
+  0000:30:00.0 0 -> 1 818.591 Mbytes/sec (5721030656 bytes in 6.988872 secs)
+  0000:30:00.0 1 -> 0 818.592 Mbytes/sec (5721030656 bytes in 6.988868 secs)
+
+Overall test statistics:
+  0000:15:00.0 0 -> 1 818.598 Mbytes/sec (13891534848 bytes in 16.969908 secs)
+  0000:15:00.0 1 -> 0 818.598 Mbytes/sec (13891534848 bytes in 16.969909 secs)
+  0000:30:00.0 0 -> 1 818.592 Mbytes/sec (13891534848 bytes in 16.970040 secs)
+  0000:30:00.0 1 -> 0 818.592 Mbytes/sec (13891534848 bytes in 16.970041 secs)
+
+0000:15:00.0 0 -> 1 Test pattern verified in 268435456 words
+0000:15:00.0 1 -> 0 Test pattern verified in 268435456 words
+0000:30:00.0 0 -> 1 Test pattern verified in 268435456 words
+0000:30:00.0 1 -> 0 Test pattern verified in 268435456 words
+
+Overall PASS
+All 5 child processed exited successfully
+
+
+5.2. With 6 secondary processes, the two attempting DMA failed in VFIO_IOMMU_MAP_DMA with EPERM
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The failure of in VFIO_IOMMU_MAP_DMA with EPERM is expected, as a result of the two processes attempting
+to allocate the same IOVA.
+
+[mr_halfword@skylake-alma coverage]$ nite_or_lite_fury_tests/test_primary identify_pcie_fpga_design/display_identified_pcie_fpga_designs -- xilinx_xadc/display_xadc_values -- xilinx_quad_spi/quad_spi_flasher -- i2c_probe/i2c_dump_info -- xilinx_dma_bridge_for_pcie/test_dma_bridge_parallel_streams --stream_device 0000:15:00.0,0 --stream_device 0000:30:00.0,0 -- xilinx_dma_bridge_for_pcie/test_dma_bridge_parallel_streams --stream_device 0000:15:00.0,1 --stream_device 0000:30:00.0,1
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Enabling bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Enabling bus master for 0000:30:00.0
+container_fd=4
+  0000:15:00.0 : group_fd=5 device_fd=6
+  0000:30:00.0 : group_fd=7 device_fd=8
+Contents of /proc/4390/fd in test_primary:
+  fd 0 -> /dev/pts/0
+  fd 1 -> /dev/pts/0
+  fd 2 -> /dev/pts/0
+  fd 3 -> /sys/devices/pci0000:2c/0000:2c:02.0/0000:30:00.0/config
+  fd 4 -> /dev/vfio/vfio
+  fd 5 -> /dev/vfio/41
+  fd 6 -> anon_inode:[vfio-device]
+  fd 7 -> /dev/vfio/89
+  fd 8 -> anon_inode:[vfio-device]
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+
+Design TEF1001_dma_stream_loopback:
+  PCI device 0000:15:00.0 IOMMU group 41
+  DMA bridge bar 2 AXI Stream
+  Channel ID  addr_alignment  len_granularity  num_address_bits
+       H2C 0               1                1                64
+       H2C 1               1                1                64
+       C2H 0               1                1                64
+       C2H 1               1                1                64
+  User access build timestamp : C1310413 - 24/02/2024 16:16:19
+  Quad SPI registers at bar 0 offset 0x2000
+  XADC registers at bar 0 offset 0x3000
+  IIC registers at bar 0 offset 0x0
+  bit-banged I2C GPIO registers at bar 0 offset 0x1000
+
+Design NiteFury_dma_stream_loopback:
+  PCI device 0000:30:00.0 IOMMU group 89
+  DMA bridge bar 2 AXI Stream
+  Channel ID  addr_alignment  len_granularity  num_address_bits
+       H2C 0               1                1                64
+       H2C 1               1                1                64
+       C2H 0               1                1                64
+       C2H 1               1                1                64
+  User access build timestamp : C1310A5B - 24/02/2024 16:41:27
+  Quad SPI registers at bar 0 offset 0x0
+  XADC registers at bar 0 offset 0x1000
+Using design TEF1001_dma_stream_loopback in device 0000:15:00.0
+
+TEF1001 CPLD fan information:
+
+Displaying information for SPI flash using TEF1001_dma_stream_loopback design in PCI device 0000:15:00.0 IOMMU group 41
+Displaying XADC values for design TEF1001_dma_stream_loopback in PCI device 0000:15:00.0 IOMMU group 41:
+XADC samples using Continuous sequence mode
+Current enabled channels in sequencer: Temp    Vccint  Vccaux  Vbram   Cal    
+ADC A calibration: unipolar offset=-4 (lsbs)  bipolar offset=-3 (lsbs)  gain correction factor=6.3 (%)
+ADC B calibration: unipolar offset=-5 (lsbs)  bipolar offset=-4 (lsbs)  gain correction factor=6.3 (%)
+  Channel  Measurement     Min           Max
+  Temp       32.8524C     31.1298C      34.3289C
+  Vccint      0.9990V      0.9954V       1.0056V
+  Vccaux      1.7864V      1.7776V       1.7922V
+  Vbram       1.0005V      0.9961V       1.0056V
+  Cal         0.0000V           
+
+  FAN Control register = 0xff (fan Enabled)
+Using num_descriptors=64 bytes_per_buffer=0x1000000 data_mapping_size_words=0x10000000
+Displaying XADC values for design NiteFury_dma_stream_loopback in PCI device 0000:30:00.0 IOMMU group 89:
+XADC samples using Continuous sequence mode
+Current enabled channels in sequencer: Temp    Vccint  Vccaux  Vbram   Cal     Vaux14  (acq time)
+Selecting test of TEF1001_dma_stream_loopback design PCI device 0000:15:00.0 IOMMU group 41 H2C channel 1 C2H channel 0
+ADC A calibration: unipolar offset=-7 (lsbs)  bipolar offset=-8 (lsbs)  gain correction factor=6.3 (%)
+ADC B calibration: unipolar offset=-11 (lsbs)  bipolar offset=-11 (lsbs)  gain correction factor=6.3 (%)
+  Channel  Measurement     Min           Max
+  Temp       33.9598C     31.7450C      34.8211C
+  Vccint      1.0276V      1.0247V       1.0320V
+  Vccaux      1.7849V      1.7805V       1.7893V
+  Vbram       1.0261V      1.0247V       1.0320V
+  Cal         0.0000V           
+  Vaux14      0.0403V           
+
+Selecting test of NiteFury_dma_stream_loopback design PCI device 0000:30:00.0 IOMMU group 89 H2C channel 1 C2H channel 0
+Using num_descriptors=64 bytes_per_buffer=0x1000000 data_mapping_size_words=0x10000000
+Selecting test of TEF1001_dma_stream_loopback design PCI device 0000:15:00.0 IOMMU group 41 H2C channel 0 C2H channel 1
+Selecting test of NiteFury_dma_stream_loopback design PCI device 0000:30:00.0 IOMMU group 89 H2C channel 0 C2H channel 1
+VFIO_IOMMU_MAP_DMA of size 8192 failed : Operation not permitted
+  FAN1 RPM = 5250
+
+DDR temperature sensor information:
+  Capabilities = 0x006f
+  Configuration register = 0x0000
+  Temperature high limit register = 0x0000 (0.0 C)
+  Temperature low limit register = 0x0000 (0.0 C)
+  Temperature critical limit register = 0x0000 (0.0 C)
+  Ambient temperature register = 0xc17c above TCRIT above HIGH (23.8 C)
+FIFO depth=256
+Flash device : Micron N25Q256A
+Manufacturer ID=0x20  Memory Interface Type=0xbb  Density=0x19
+Flash Size Bytes=33554432  Page Size Bytes=256  Num Address Bytes=4
+  Sensor manufacturer ID register = 0x104a (STMicroelectronics)
+
+DDR3 SPD decode:
+  RAW bytes:
+      0- 15: 92 13 0b 08 04 21 02 09 0b 11 01 08 0a 00 fe 00
+     16- 31: 69 78 69 30 69 11 18 81 20 08 3c 3c 00 f0 83 05
+     32- 47: 80 00 00 00 00 00 00 00 00 88 00 00 00 00 00 00
+     48- 63: 00 00 00 00 00 00 00 00 00 00 00 00 0f 11 23 00
+     64- 79: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+     80- 95: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+     96-111: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    112-127: 00 00 00 00 00 80 2c 0f 16 17 12 6a fb a9 bd a1
+    128-143: 31 38 4b 53 46 31 47 37 32 48 5a 2d 31 47 36 50
+    144-159: 31 20 50 31 80 2c 44 50 41 47 39 46 41 30 30 31
+    160-175: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    176-191: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+    192-207: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+    208-223: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+    224-239: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+    240-255: ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+  CRC coverage bytes=117  SPD bytes total=256  SPD bytes used=176
+  Actual CRC=0xa1bd  Expected CRC=0xa1bd : CRC PASS
+  SPD revision 1.3
+  Module type : 72b-SO-UDIMM
+  Bank Address Bits=3  Total SDRAM Capacity (Mibibits)=4096
+  Row Address Bits=16  Column Addess Bits=10
+  Module Nominal Voltage : NOT 1.25 V operable  1.35 V operable  1.5 V operable
+  Number of Ranks=2  SDRAM Device Width (bits)=8
+  Bus width extension (bits)=8  Primary bus width (bits)=64
+  Module capacity (MiB)=8192
+  Module Part Number "18KSF1G72HZ-1G6P1 "
+  72b-SO-UDIMM Rank 1 Mapping : standard
+  Supported CAS latencies: 5 6 7 8 9 10 11
+  Fine Timebase Dividend=1 Divisor=1 FTB=0.001 ns
+  Medium Timebase Dividend=1 Divisor=8 MTB=0.125 ns
+  SDRAM Minimum Cycle Time (tCKmin)=1.250 ns
+  Minimum CAS Latency Time (tAAmin)=13.125 ns
+  Minimum Write Recovery Time (tWRmin)=15.000 ns
+  Minimum RAS# to CAS# Delay Time (tRCDmin)=13.125 ns
+  Minimum Row Active to Row Active Delay Time (tRRDmin)=6.000 ns
+  Minimum Row Precharge Delay Time (tRPmin)=13.125 ns
+  Minimum Active to Precharge Delay Time (tRASmin)=35.000 ns
+  Minimum Active to Active/Refresh Delay Time (tRCmin)=48.125 ns
+  Minimum Refresh Recovery Delay Time (tRFCmin)=260.000 ns
+  Minimum Internal Write to Read Command Delay Time (tWTRmin)=7.500 ns
+  Minimum Internal Read to Precharge Command Delay Time (tRTPmin)=7.500 ns
+  Minimum Four Activate Window Delay Time (tFAWmin)=30.000 ns
+  SDRAM Optional Features : DLL-Off Mode Support Supported  RZQ/7 Supported  RZQ/6 Supported
+  SDRAM Thermal and Refresh Options:
+    Partial Array Self Refresh (PASR) : Not Supported
+    On-die Thermal Sensor (ODTS) Readout : On-die thermal sensor readout is not supported
+    Auto Self Refresh (ASR) : ASR is supported and the SDRAM will determine the proper refresh rate for any supported temperature
+    Extended Temperature Refresh Rate : Use in extended operating temperature range from 85-95 C requires 2X refresh rate
+    Extended Temperature Range : Normal and extended operating temperature range 0-95 C supported
+  Thermal Sensor : Thermal sensor incorporated onto this assembly
+  SDRAM Device Type : Standard Monolithic DRAM Device
+  Die Count : Not Specified
+  Signal Loading : Not specified
+  Maximum Activate : Vendor Specific=2  Maximum Activate Window (tMAW)=8192 * tREFI  Maximum Activate Count (MAC)=Unrestricted MAC
+
+LTM4676A at I2C address 0x40
+  PMBus capability=0xb0 : PEC supported  Max bus speed=400 kHz  SMBALERT# supported
+  PMBus revision=0x22 : Part I revision 1.2  Part II revision 1.2
+  MFR_ID=LTC  MFR_MODEL=LTM4676A
+  WRITE_PROTECT=0x00 : Enable writes to all commands
+  MFR_COMMON=0xfc : WP pin INACTIVE
+  Measured input supply (SVin) voltage                                                  :  12.109 V
+  Calculated input supply current                                                       :   0.305 A
+  Control IC die temperature                                                            :  59.688 C
+  Maximum measured value of READ_VIN since last MFR_CLEAR_PEAKS                         :  12.141 V
+  Maximum measured value of control IC die temperature since last MFR_CLEAR_PEAKS       :  60.875 C
+  Measured output voltage                                                         page 0:   1.500 V
+  Calculated input current per channel                                            page 0:   0.174 A
+  Measured output current                                                         page 0:   1.107 A
+  Power stage temperature sensor                                                  page 0:  41.812 C
+  Duty cycle of the top gate control signal                                       page 0:  13.000 %
+  Calculated output power                                                         page 0:   1.662 W
+  Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 0:   1.501 V
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 0:  43.188 C
+  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 0:   1.119 A
+  Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 0:   1.613 V
+  Output overvoltage fault limit                                                  page 0:   1.650 V
+  Output overvoltage warning limit                                                page 0:   1.613 V
+  Margin high output voltage set point                                            page 0:   1.575 V
+  Nominal output voltage set point                                                page 0:   1.500 V
+  Margin low output voltage set point                                             page 0:   1.425 V
+  Output undervoltage warning limit                                               page 0:   1.403 V
+  Output undervoltage fault limit                                                 page 0:   1.395 V
+  Maximum allowed output voltage including VOUT_OV_FAULT_LIMIT                    page 0:   2.750 V
+  Output overcurrent fault limit                                                  page 0:  22.844 A
+  Output overcurrent warning limit                                                page 0:  15.594 A
+  Power stage overtemperature fault limit                                         page 0: 128.000 C
+  Power stage overtemperature warning limit                                       page 0: 125.000 C
+  Power stage undertemperature fault limit                                        page 0: -45.000 C
+  Measured output voltage                                                         page 1:   4.000 V
+  Calculated input current per channel                                            page 1:   0.131 A
+  Measured output current                                                         page 1:   0.304 A
+  Power stage temperature sensor                                                  page 1:  43.438 C
+  Duty cycle of the top gate control signal                                       page 1:  33.250 %
+  Calculated output power                                                         page 1:   1.217 W
+  Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 1:   4.001 V
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 1:  44.562 C
+  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 1:   0.337 A
+  Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 1:   4.300 V
+  Output overvoltage fault limit                                                  page 1:   4.400 V
+  Output overvoltage warning limit                                                page 1:   4.300 V
+  Margin high output voltage set point                                            page 1:   4.200 V
+  Nominal output voltage set point                                                page 1:   4.000 V
+  Margin low output voltage set point                                             page 1:   3.800 V
+  Output undervoltage warning limit                                               page 1:   3.740 V
+  Output undervoltage fault limit                                                 page 1:   3.720 V
+  Maximum allowed output voltage including VOUT_OV_FAULT_LIMIT                    page 1:   5.700 V
+  Output overcurrent fault limit                                                  page 1:  22.844 A
+  Output overcurrent warning limit                                                page 1:  15.594 A
+  Power stage overtemperature fault limit                                         page 1: 128.000 C
+  Power stage overtemperature warning limit                                       page 1: 125.000 C
+  Power stage undertemperature fault limit                                        page 1: -45.000 C
+
+LTM4676A at I2C address 0x4f
+  PMBus capability=0xb0 : PEC supported  Max bus speed=400 kHz  SMBALERT# supported
+  PMBus revision=0x22 : Part I revision 1.2  Part II revision 1.2
+  MFR_ID=LTC  MFR_MODEL=LTM4676A
+  WRITE_PROTECT=0x00 : Enable writes to all commands
+  MFR_COMMON=0xfc : WP pin INACTIVE
+  Measured input supply (SVin) voltage                                                  :  12.141 V
+  Calculated input supply current                                                       :   0.102 A
+  Control IC die temperature                                                            :  53.375 C
+  Maximum measured value of READ_VIN since last MFR_CLEAR_PEAKS                         :  12.172 V
+  Maximum measured value of control IC die temperature since last MFR_CLEAR_PEAKS       :  54.188 C
+  Measured output voltage                                                         page 0:   1.001 V
+  Calculated input current per channel                                            page 0:   0.059 A
+  Measured output current                                                         page 0:   0.333 A
+  Power stage temperature sensor                                                  page 0:  39.875 C
+  Duty cycle of the top gate control signal                                       page 0:   8.594 %
+  Calculated output power                                                         page 0:   0.333 W
+  Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 0:   1.002 V
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 0:  40.875 C
+  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 0:   0.995 A
+  Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 0:   1.076 V
+  Output overvoltage fault limit                                                  page 0:   1.101 V
+  Output overvoltage warning limit                                                page 0:   1.076 V
+  Margin high output voltage set point                                            page 0:   1.051 V
+  Nominal output voltage set point                                                page 0:   1.001 V
+  Margin low output voltage set point                                             page 0:   0.951 V
+  Output undervoltage warning limit                                               page 0:   0.936 V
+  Output undervoltage fault limit                                                 page 0:   0.931 V
+  Maximum allowed output voltage including VOUT_OV_FAULT_LIMIT                    page 0:   2.750 V
+  Output overcurrent fault limit                                                  page 0:  22.844 A
+  Output overcurrent warning limit                                                page 0:  15.594 A
+  Power stage overtemperature fault limit                                         page 0: 128.000 C
+  Power stage overtemperature warning limit                                       page 0: 125.000 C
+  Power stage undertemperature fault limit                                        page 0: -45.000 C
+  Measured output voltage                                                         page 1:   1.001 V
+  Calculated input current per channel                                            page 1:   0.043 A
+  Measured output current                                                         page 1:   0.149 A
+  Power stage temperature sensor                                                  page 1:  41.000 C
+  Duty cycle of the top gate control signal                                       page 1:   8.547 %
+  Calculated output power                                                         page 1:   0.149 W
+  Maximum measured value of READ_VOUT since last MFR_CLEAR_PEAKS                  page 1:   1.002 V
+  Maximum measured value of power stage temperature since last MFR_CLEAR_PEAKS    page 1:  41.875 C
+  Report the maximum measured value of READ_IOUT since last MFR_CLEAR_PEAKS       page 1:   0.886 A
+  Upper limit on the commanded output voltage including VOUT_MARGIN_HIGH          page 1:   1.076 V
+  Output overvoltage fault limit                                                  page 1:   1.101 V
+  Output overvoltage warning limit                                                page 1:   1.076 V
+  Margin high output voltage set point                                            page 1:   1.051 V
+  Nominal output voltage set point                                                page 1:   1.001 V
+  Margin low output voltage set point                                             page 1:   0.951 V
+  Output undervoltage warning limit                                               page 1:   0.936 V
+  Output undervoltage fault limit                                                 page 1:   0.931 V
+  Maximum allowed output voltage including VOUT_OV_FAULT_LIMIT                    page 1:   2.750 V
+  Output overcurrent fault limit                                                  page 1:  22.844 A
+  Output overcurrent warning limit                                                page 1:  15.594 A
+  Power stage overtemperature fault limit                                         page 1: 128.000 C
+  Power stage overtemperature warning limit                                       page 1: 125.000 C
+  Power stage undertemperature fault limit                                        page 1: -45.000 C
+
+Si5338 Clock Generator information:
+VFIO_IOMMU_MAP_DMA of size 1073741824 failed : Operation not permitted
+  Device: Si5338A revision B
+  NVM code=0
+  Configured 7-bit I2C address=0x70
+
+XADC samples using Continuous sequence mode
+Current enabled channels in sequencer: Temp    Vccint  Vccaux  Vbram   Cal    
+ADC A calibration: unipolar offset=-4 (lsbs)  bipolar offset=-3 (lsbs)  gain correction factor=6.3 (%)
+ADC B calibration: unipolar offset=-4 (lsbs)  bipolar offset=-4 (lsbs)  gain correction factor=6.3 (%)
+  Channel  Measurement     Min           Max
+  Temp       33.3446C     31.1298C      34.3289C
+  Vccint      1.0012V      0.9954V       1.0056V
+  Vccaux      1.7805V      1.7776V       1.7922V
+  Vbram       0.9990V      0.9961V       1.0056V
+  Cal         0.0000V           
+Overall test statistics:
+VFIO_IOMMU_MAP_DMA of size 1073741824 failed : Operation not permitted
+  0000:15:00.0 0 -> 1 No completed transfers
+  0000:30:00.0 0 -> 1 No completed transfers
+
+Overall test statistics:
+  0000:15:00.0 1 -> 0 No completed transfers
+  0000:30:00.0 1 -> 0 No completed transfers
+
+
+Overall FAIL
+Secondary xilinx_dma_bridge_for_pcie/test_dma_bridge_parallel_streams exited with status 1
+
+Overall FAIL
+Secondary xilinx_dma_bridge_for_pcie/test_dma_bridge_parallel_streams exited with status 1
+Successfully parsed bitstream of length 4404100 bytes with 25294 configuration packets
+Read 4423680 bytes from SPI flash starting at address 0
+Sync word at byte index 0x130
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register BSPI words 0000026C
+  Type 1 packet opcode write register CMD command BSPI_READ
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register TIMER words 00000000
+  Type 1 packet opcode write register WBSTAR words 00000000
+  Type 1 packet opcode write register CMD command NULL
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register CMD command RCRC
+  Type 1 packet opcode NOP (2 consecutive)
+  Type 1 packet opcode write register AXSS 322E072A - 06/04/2023 00:28:42
+  Type 1 packet opcode write register RBCRC_SW words 00000000
+  Type 1 packet opcode write register COR0 words 02303FE5
+  Type 1 packet opcode write register COR1 words 00000000
+  Type 1 packet opcode write register IDCODE 7K160T
+  Type 1 packet opcode write register CMD command SWITCH
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register MASK words 00000401
+  Type 1 packet opcode write register CTL0 words 00000501
+  Type 1 packet opcode write register MASK words 00001000
+  Type 1 packet opcode write register CTL1 words 00001000
+  Type 1 packet opcode NOP (8 consecutive)
+  Configuration data writes consisting of:
+    10537 NOPs
+    6798 FAR writes
+    343 WCFG commands
+    343 FDRI writes with a total of 116352 words
+    117 MFW commands
+    6572 MFWR writes with a total of 26756 words
+    108 Type 2 packets with a total of 925261 words
+  Type 1 packet opcode write register CRC words B1E3A122
+  Type 1 packet opcode NOP (2 consecutive)
+  Type 1 packet opcode write register CMD command GRESTORE
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register CMD command DGHIGH_LFRM
+  Type 1 packet opcode write register MASK words 00001000
+  Type 1 packet opcode write register CTL1 words 00000000
+  Type 1 packet opcode NOP (100 consecutive)
+  Type 1 packet opcode write register CMD command START
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register FAR words 03BE0000
+  Type 1 packet opcode write register MASK words 00000501
+  Type 1 packet opcode write register CTL0 words 00000501
+  Type 1 packet opcode write register CRC words 615009A6
+  Type 1 packet opcode NOP (2 consecutive)
+  Type 1 packet opcode write register CMD command DESYNC
+  Type 1 packet opcode NOP (329 consecutive)
+
+Displaying information for SPI flash using NiteFury_dma_stream_loopback design in PCI device 0000:30:00.0 IOMMU group 89
+FIFO depth=256
+Flash device : Spansion S25FL_A
+Manufacturer ID=0x01  Memory Interface Type=0x02  Density=0x19
+Flash Size Bytes=33554432  Page Size Bytes=256  Num Address Bytes=4
+Successfully parsed bitstream of length 3235252 bytes with 48527 configuration packets
+Read 3244032 bytes from SPI flash starting at address 0
+Sync word at byte index 0x30
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register BSPI words 0000026B
+  Type 1 packet opcode write register CMD command BSPI_READ
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register TIMER words 00000000
+  Type 1 packet opcode write register WBSTAR words 00000000
+  Type 1 packet opcode write register CMD command NULL
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register CMD command RCRC
+  Type 1 packet opcode NOP (2 consecutive)
+  Type 1 packet opcode write register RBCRC_SW words 00000000
+  Type 1 packet opcode write register COR0 words 06603FE5
+  Type 1 packet opcode write register COR1 words 00000000
+  Type 1 packet opcode write register IDCODE 7A200T
+  Type 1 packet opcode write register CMD command FALL_EDGE
+  Type 1 packet opcode write register CMD command SWITCH
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register MASK words 00001401
+  Type 1 packet opcode write register CTL0 words 00001501
+  Type 1 packet opcode write register MASK words 00001000
+  Type 1 packet opcode write register CTL1 words 00001000
+  Type 1 packet opcode NOP (8 consecutive)
+  Configuration data writes consisting of:
+    12367 NOPs
+    17670 FAR writes
+    154 WCFG commands
+    154 FDRI writes with a total of 63731 words
+    45 MFW commands
+    17561 MFWR writes with a total of 70424 words
+    36 Type 2 packets with a total of 608222 words
+  Type 1 packet opcode write register CRC words 89EB1BE0
+  Type 1 packet opcode NOP (2 consecutive)
+  Type 1 packet opcode write register CMD command GRESTORE
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register CMD command DGHIGH_LFRM
+  Type 1 packet opcode write register MASK words 00001000
+  Type 1 packet opcode write register CTL1 words 00000000
+  Type 1 packet opcode NOP (100 consecutive)
+  Type 1 packet opcode write register CMD command START
+  Type 1 packet opcode NOP
+  Type 1 packet opcode write register FAR words 03BE0000
+  Type 1 packet opcode write register MASK words 00001501
+  Type 1 packet opcode write register CTL0 words 00001501
+  Type 1 packet opcode write register CRC words 12ED42F4
+  Type 1 packet opcode NOP (2 consecutive)
+  Type 1 packet opcode write register CMD command DESYNC
+  Type 1 packet opcode NOP (393 consecutive)
+2 out of 6 child processes had non-successful exit

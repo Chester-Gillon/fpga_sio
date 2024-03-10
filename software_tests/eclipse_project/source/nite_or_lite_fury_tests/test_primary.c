@@ -1,8 +1,8 @@
 /*
- * @file test_general_primary.c
+ * @file test_primary.c
  * @date 5 Mar 2023
  * @author Chester Gillon
- * @brief The primary process for testing multi-process VFIO to Fury devices
+ * @brief The primary process for testing multi-process VFIO
  */
 
 #include "vfio_access.h"
@@ -12,10 +12,9 @@
 #include <string.h>
 #include <stdio.h>
 
-#include <libgen.h>
-#include <sys/types.h>
 #include <dirent.h>
 #include <unistd.h>
+#include <signal.h>
 
 #define MAX_SECONDARY_PROCESSES 8
 
@@ -69,32 +68,69 @@ static void display_open_fds (const char *const process_name)
 
 int main (int argc, char *argv[])
 {
+    int rc;
     fpga_designs_t designs;
     vfio_secondary_process_t secondary_processes[MAX_SECONDARY_PROCESSES] = {0};
+    int argc_index;
     uint32_t num_secondary_processes = 0;
 
     if (argc == 1)
     {
-        printf ("Usage: %s <secondary_process_1> [ .. <secondary_process_N>\n", argv[0]);
+        printf ("Usage: %s <secondary_process_1> [ <procesess_1_arg_1> .. <procesess_1_arg_N>] --\n", argv[0]);
+        printf ("The arguments consist of secondary process executables to run, with optional arguments.\n");
+        printf ("-- is used to delimit the start of the next process\n");
         exit (EXIT_FAILURE);
     }
 
-    /* The command line specifies which secondary processes to launch, the executables for which are in the same
-     * directory as this primary processes. The only argument is the executable name. */
-    char *const my_realpath = realpath (argv[0], NULL);
-    char *const my_dir = dirname (my_realpath);
-    for (int argc_index = 1; (num_secondary_processes < MAX_SECONDARY_PROCESSES) && (argc_index < argc); argc_index++)
+    /* Get the list of secondary processes to launch, and any arguments, from the command line */
+    argc_index = 1;
+    num_secondary_processes = 0;
+    while ((num_secondary_processes < MAX_SECONDARY_PROCESSES) && (argc_index < argc))
     {
         vfio_secondary_process_t *const secondary_process = &secondary_processes[num_secondary_processes];
+        uint32_t num_secondary_arguments = 0;
 
-        snprintf (secondary_process->executable, sizeof (secondary_process->executable), "%s/%s", my_dir, argv[argc_index]);
-        secondary_process->argv[0] = secondary_process->executable;
-        secondary_process->argv[1] = NULL;
+        /* Store pathname of secondary process */
+        snprintf (secondary_process->executable, sizeof (secondary_process->executable), "%s", argv[argc_index]);
+        secondary_process->argv[num_secondary_arguments] = secondary_process->executable;
+        num_secondary_arguments++;
+        argc_index++;
+
+        bool found_next_process = false;
+        while ((argc_index < argc) && (!found_next_process))
+        {
+            if (strcmp (argv[argc_index], "--") == 0)
+            {
+                found_next_process = true;
+            }
+            else if (num_secondary_arguments < VFIO_SECONDARY_MAX_ARGC)
+            {
+                secondary_process->argv[num_secondary_arguments] = strdup (argv[argc_index]);
+                num_secondary_arguments++;
+            }
+            argc_index++;
+        }
+        secondary_process->argv[num_secondary_arguments] = NULL;
+
         num_secondary_processes++;
     }
 
     /* Open the FPGA designs which have an IOMMU group assigned */
     identify_pcie_fpga_designs (&designs);
+
+    /* Ignore Ctrl-C in the primary, to wait until the child processes have exited following forwarding of the Ctrl-C */
+    struct sigaction action =
+    {
+        .sa_handler = SIG_IGN,
+        .sa_flags = 0
+    };
+
+    rc = sigaction (SIGINT, &action, NULL);
+    if (rc != 0)
+    {
+        printf ("sigaction() failed\n");
+        exit (EXIT_FAILURE);
+    }
 
     vfio_display_fds (&designs.vfio_devices);
     display_open_fds ("test_primary");

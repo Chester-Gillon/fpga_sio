@@ -1744,5 +1744,5 @@ int main (int argc, char *argv[])
 
     printf ("\nOverall %s\n", overall_success ? "PASS" : "FAIL");
 
-    return EXIT_SUCCESS;
+    return overall_success ? EXIT_SUCCESS : EXIT_FAILURE;
 }
