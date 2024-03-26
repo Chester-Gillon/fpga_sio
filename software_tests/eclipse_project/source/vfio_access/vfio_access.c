@@ -163,7 +163,7 @@ void create_vfio_buffer (vfio_buffer_t *const buffer,
 #ifdef HAVE_CMEM
         /* Perform a dynamic memory allocation of physical contiguous memory for a single buffer */
         buffer->vaddr = NULL;
-        rc = cmem_drv_alloc (1, size, HOST_BUF_TYPE_DYNAMIC, &buffer->cmem_host_buf_desc);
+        rc = cmem_drv_alloc (1, size, &buffer->cmem_host_buf_desc);
         if (rc == 0)
         {
             buffer->vaddr = buffer->cmem_host_buf_desc.userAddr;
@@ -1389,7 +1389,7 @@ void allocate_vfio_dma_mapping (vfio_device_t *const vfio_device,
                 /* Free any physically contiguous buffers allocated by previous runs using the cmem driver.
                  * Do this after opening the driver as the cmem driver doesn't currently support freeing individual buffers.
                  * This does mean only one process can use the cmem driver at once. */
-                rc = cmem_drv_free (0, HOST_BUF_TYPE_DYNAMIC, NULL);
+                rc = cmem_drv_free (0, NULL);
             }
             if (rc == 0)
             {
@@ -1576,7 +1576,7 @@ void free_vfio_dma_mapping (vfio_dma_mapping_t *const mapping)
                  * a. The cmem driver doesn't currently support freeing individual buffers.
                  * b. Allows multiple tests to be performed on the same device, in programs which iterate
                  *    over creating and then freeing mappings multiple times. */
-                rc = cmem_drv_free (0, HOST_BUF_TYPE_DYNAMIC, NULL);
+                rc = cmem_drv_free (0, NULL);
             }
         }
 #endif

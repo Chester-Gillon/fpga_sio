@@ -17,9 +17,33 @@
 #include "fpga_sio_pci_ids.h"
 
 
-/* Display one PCIe flag (a single bit) in a similar format to lspci */
-#define DISPLAY_FLAG(field_name,register_value,field_mask) \
-    printf (" " field_name "%s", (((register_value) & (field_mask)) != 0) ? "+" : "-")
+#define NELEMENTS(array) (sizeof(array) / sizeof(array[0]))
+
+
+/**
+ * @brief Display one PCIe flag (a single bit) in a similar format to lspci
+ * @param[in] field_name The name of the field displayed
+ * @param[in] register_value The register value
+ * @param[in] field_mask The mask containing the single bit for the field
+ */
+static inline void display_flag (const char *const field_name, const uint32_t register_value, const uint32_t field_mask)
+{
+    printf (" %s%s", field_name, ((register_value & field_mask) != 0) ? "+" : "-");
+}
+
+
+/**
+ * @brief Extract a field which spans multiple consecutive bits
+ * @param[in] register_value The register containing the field
+ * @param[in] field_mask The mask for the field to extract
+ * @return The extracted field value, shifted to the least significant bits
+ */
+static inline uint32_t extract_field (const uint32_t register_value, const uint32_t field_mask)
+{
+    const int field_shift = ffs ((int) field_mask) - 1; /* ffs returns the least significant bit as zero */
+
+    return (register_value & field_mask) >> field_shift;
+}
 
 
 /**
@@ -31,6 +55,26 @@ static void display_indent (const uint32_t indent_level)
     for (uint32_t indent = 0; indent < indent_level; indent++)
     {
         printf (" ");
+    }
+}
+
+
+/**
+ * @brief Display an enumeration
+ * @param[in] enums_array_size The size of the enumeration array
+ * @param[in] enum_names Contains the names of the enumeration. Values which are not valid are NULL.
+ * @param[in] value The enumeration value to display the name for
+ */
+static void display_enumeration (const size_t enums_array_size, const char *const enum_names[const enums_array_size],
+                                 const uint32_t value)
+{
+    if ((value < enums_array_size) && (enum_names[value] != NULL))
+    {
+        printf ("%s", enum_names[value]);
+    }
+    else
+    {
+        printf ("Unknown encoding 0x%x", value);
     }
 }
 
@@ -50,6 +94,7 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
     uint16_t device_control;
     uint16_t device_status;
     uint32_t link_capabilities;
+    uint16_t link_control;
     uint16_t link_status;
     uint32_t link_capabilities2;
     uint32_t slot_capabilities;
@@ -69,6 +114,10 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
     }
     if (rc == 0)
     {
+        rc = pci_device_cfg_read_u16 (device, &link_control, capability_pointer + PCI_EXP_LNKCTL);
+    }
+    if (rc == 0)
+    {
         rc = pci_device_cfg_read_u16 (device, &link_status, capability_pointer + PCI_EXP_LNKSTA);
     }
     if (rc == 0)
@@ -82,22 +131,22 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
 
     if (rc == 0)
     {
-        const uint32_t capability_version = flags & PCI_EXP_FLAGS_VERS;
-        const uint32_t device_port_type = (flags & PCI_EXP_FLAGS_TYPE) >> 4;
-        const uint32_t interrupt_message_number = (flags & PCI_EXP_FLAGS_IRQ) >> 9;
+        const uint32_t capability_version = extract_field (flags, PCI_EXP_FLAGS_VERS);
+        const uint32_t device_port_type = extract_field (flags, PCI_EXP_FLAGS_TYPE);
+        const uint32_t interrupt_message_number =  extract_field (flags, PCI_EXP_FLAGS_IRQ);
         const bool slot_implemented = (flags & PCI_EXP_FLAGS_SLOT) != 0;
 
-        const uint32_t max_link_speed = link_capabilities & PCI_EXP_LNKCAP_SPEED;
-        const uint32_t max_link_width = (link_capabilities & PCI_EXP_LNKCAP_WIDTH) >> 4;
+        const uint32_t max_link_speed = extract_field (link_capabilities, PCI_EXP_LNKCAP_SPEED);
+        const uint32_t max_link_width = extract_field (link_capabilities, PCI_EXP_LNKCAP_WIDTH);
 
-        const uint32_t negotiated_link_speed = link_status & PCI_EXP_LNKSTA_SPEED;
-        const uint32_t negotiated_link_width = (link_status & PCI_EXP_LNKSTA_WIDTH) >> 4;
+        const uint32_t negotiated_link_speed = extract_field (link_status, PCI_EXP_LNKSTA_SPEED);
+        const uint32_t negotiated_link_width = extract_field (link_status, PCI_EXP_LNKSTA_WIDTH);
 
         const uint32_t supported_link_speeds = PCI_EXP_LNKCAP2_SPEED (link_capabilities2);
 
-        const uint32_t slot_power_limit_value = (slot_capabilities & PCI_EXP_SLTCAP_SPLV) >> 7;
-        const uint32_t slot_power_limit_scale = (slot_capabilities & PCI_EXP_SLTCAP_SPLS) >> 15;
-        const uint32_t physical_slot_number = (slot_capabilities & PCI_EXP_SLTCAP_PSN) >> 19;
+        const uint32_t slot_power_limit_value = extract_field (slot_capabilities, PCI_EXP_SLTCAP_SPLV);
+        const uint32_t slot_power_limit_scale = extract_field (slot_capabilities, PCI_EXP_SLTCAP_SPLS);
+        const uint32_t physical_slot_number = extract_field (slot_capabilities, PCI_EXP_SLTCAP_PSN);
 
         const char *const device_port_type_names[] =
         {
@@ -111,7 +160,6 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
             [PCI_EXP_TYPE_ROOT_INT_EP] = "Root Complex Integrated Endpoint",
             [PCI_EXP_TYPE_ROOT_EC    ] = "Root Complex Event Collector"
         };
-        const size_t device_port_type_names_array_size = sizeof (device_port_type_names) / sizeof (device_port_type_names[0]);
 
         const char *const link_speed_names[] =
         {
@@ -120,7 +168,6 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
             [3] = "8.0 GT/s",
             [4] = "16.0 GT/s"
         };
-        const size_t link_speed_names_array_size = sizeof (link_speed_names) / sizeof (link_speed_names[0]);
 
         const double slot_power_limit_scales[] =
         {
@@ -130,42 +177,61 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
             0.001
         };
 
+        const char *const aspm_names[] =
+        {
+            [0] = "not supported",
+            [1] = "L0s",
+            [2] = "L1",
+            [3] = "L0s and L1"
+        };
+
+        const char *const l0s_exit_latency_names[] =
+        {
+            [0] = "Less than 64 ns",
+            [1] = "64 ns to less than 128 ns",
+            [2] = "128 ns to less than 256 ns",
+            [3] = "256 ns to less than 512 ns",
+            [4] = "512 ns to less than 1 μs",
+            [5] = "1 μs to less than 2 μs",
+            [6] = "2 μs to 4 μs",
+            [7] = "More than 4 μs"
+        };
+
+        const char *const l1_exit_latency_names[] =
+        {
+            [0] = "Less than 1 μs",
+            [1] = "1 μs to less than 2 μs",
+            [2] = "2 μs to less than 4 μs",
+            [3] = "4 μs to less than 8 μs",
+            [4] = "8 μs to less than 16 μs",
+            [5] = "16 μs to less than 32 μs",
+            [6] = "32 μs to 64 μs",
+            [7] = "More than 64 μs"
+        };
+
+        const char *const aspm_control_names[] =
+        {
+            [0] = "Disabled",
+            [1] = "L0s Entry Enabled",
+            [2] = "L1 Entry Enabled",
+            [3] = "L0s and L1 Entry Enabled"
+        };
+
         /* Continuation of the capability identification line from the caller */
-        printf (" v%u", capability_version);
-        if ((device_port_type < device_port_type_names_array_size) && (device_port_type_names[device_port_type] != NULL))
-        {
-            printf (" %s", device_port_type_names[device_port_type]);
-        }
-        else
-        {
-            printf (" device port type 0x%x", device_port_type);
-        }
+        printf (" v%u ", capability_version);
+        display_enumeration (NELEMENTS (device_port_type_names), device_port_type_names, device_port_type);
         printf (", MSI %u\n", interrupt_message_number);
 
         /* Display link capabilities */
         display_indent (indent_level);
         printf ("    Link capabilities: Max speed ");
-        if ((max_link_speed < link_speed_names_array_size) && (link_speed_names[max_link_speed] != NULL))
-        {
-            printf ("%s", link_speed_names[max_link_speed]);
-        }
-        else
-        {
-            printf (" Unknown encoding 0x%x", max_link_speed);
-        }
+        display_enumeration (NELEMENTS (link_speed_names), link_speed_names, max_link_speed);
         printf (" Max width x%u\n", max_link_width);
 
         /* Display negotiated link status */
         display_indent (indent_level);
         printf ("    Negotiated link status: Current speed ");
-        if ((max_link_speed < link_speed_names_array_size) && (link_speed_names[negotiated_link_speed] != NULL))
-        {
-            printf ("%s", link_speed_names[negotiated_link_speed]);
-        }
-        else
-        {
-            printf (" Unknown encoding 0x%x", negotiated_link_speed);
-        }
+        display_enumeration (NELEMENTS (link_speed_names), link_speed_names, negotiated_link_speed);
         printf (" Width x%u\n", negotiated_link_width);
 
         /* Display supported link speeds */
@@ -200,29 +266,88 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
         /* Display device control */
         display_indent (indent_level);
         printf ("    DevCtl:");
-        DISPLAY_FLAG ("CorrErr", device_control, PCI_EXP_DEVCTL_CERE);
-        DISPLAY_FLAG ("NonFatalErr", device_control, PCI_EXP_DEVCTL_NFERE);
-        DISPLAY_FLAG ("FatalErr", device_control, PCI_EXP_DEVCTL_FERE);
-        DISPLAY_FLAG ("UnsupReq", device_control, PCI_EXP_DEVCTL_URRE);
+        display_flag ("CorrErr", device_control, PCI_EXP_DEVCTL_CERE);
+        display_flag ("NonFatalErr", device_control, PCI_EXP_DEVCTL_NFERE);
+        display_flag ("FatalErr", device_control, PCI_EXP_DEVCTL_FERE);
+        display_flag ("UnsupReq", device_control, PCI_EXP_DEVCTL_URRE);
         printf ("\n");
         display_indent (indent_level);
         printf ("           ");
-        DISPLAY_FLAG ("RlxdOrd", device_control, PCI_EXP_DEVCTL_RELAX_EN);
-        DISPLAY_FLAG ("ExtTag", device_control, PCI_EXP_DEVCTL_EXT_TAG);
-        DISPLAY_FLAG ("PhantFunc", device_control, PCI_EXP_DEVCTL_PHANTOM);
-        DISPLAY_FLAG ("AuxPwr", device_control, PCI_EXP_DEVCTL_AUX_PME);
-        DISPLAY_FLAG ("NoSnoop", device_control, PCI_EXP_DEVCTL_NOSNOOP_EN);
+        display_flag ("RlxdOrd", device_control, PCI_EXP_DEVCTL_RELAX_EN);
+        display_flag ("ExtTag", device_control, PCI_EXP_DEVCTL_EXT_TAG);
+        display_flag ("PhantFunc", device_control, PCI_EXP_DEVCTL_PHANTOM);
+        display_flag ("AuxPwr", device_control, PCI_EXP_DEVCTL_AUX_PME);
+        display_flag ("NoSnoop", device_control, PCI_EXP_DEVCTL_NOSNOOP_EN);
         printf ("\n");
 
         /* Display device status */
         display_indent (indent_level);
         printf ("    DevSta:");
-        DISPLAY_FLAG ("CorrErr", device_status, PCI_EXP_DEVSTA_CED);
-        DISPLAY_FLAG ("NonFatalErr", device_status, PCI_EXP_DEVSTA_NFED);
-        DISPLAY_FLAG ("FatalErr", device_status, PCI_EXP_DEVSTA_FED);
-        DISPLAY_FLAG ("UnsupReq", device_status, PCI_EXP_DEVSTA_URD);
-        DISPLAY_FLAG ("AuxPwr", device_status, PCI_EXP_DEVSTA_AUXPD);
-        DISPLAY_FLAG ("TransPend", device_status, PCI_EXP_DEVSTA_TRPND);
+        display_flag ("CorrErr", device_status, PCI_EXP_DEVSTA_CED);
+        display_flag ("NonFatalErr", device_status, PCI_EXP_DEVSTA_NFED);
+        display_flag ("FatalErr", device_status, PCI_EXP_DEVSTA_FED);
+        display_flag ("UnsupReq", device_status, PCI_EXP_DEVSTA_URD);
+        display_flag ("AuxPwr", device_status, PCI_EXP_DEVSTA_AUXPD);
+        display_flag ("TransPend", device_status, PCI_EXP_DEVSTA_TRPND);
+        printf ("\n");
+
+        /* Display link capabilities (excluding width and speed displayed above) */
+        display_indent (indent_level);
+        printf ("    LnkCap:");
+        printf (" Port # %u", extract_field (link_capabilities, PCI_EXP_LNKCAP_PN));
+        printf (" ASPM ");
+        display_enumeration (NELEMENTS (aspm_names), aspm_names, extract_field (link_capabilities, PCI_EXP_LNKCAP_ASPMS));
+        printf ("\n");
+        display_indent (indent_level);
+        printf ("            L0s Exit Latency ");
+        display_enumeration (NELEMENTS (l0s_exit_latency_names), l0s_exit_latency_names,
+                extract_field (link_capabilities, PCI_EXP_LNKCAP_L0SEL));
+        printf ("\n");
+        display_indent (indent_level);
+        printf ("            L1 Exit Latency ");
+        display_enumeration (NELEMENTS (l1_exit_latency_names), l1_exit_latency_names,
+                extract_field (link_capabilities, PCI_EXP_LNKCAP_L1EL));
+        printf ("\n");
+        display_indent (indent_level);
+        printf ("           ");
+        display_flag ("ClockPM", link_capabilities, PCI_EXP_LNKCAP_CLKPM);
+        display_flag ("Surprise", link_capabilities, PCI_EXP_LNKCAP_SDERC);
+        display_flag ("LLActRep", link_capabilities, PCI_EXP_LNKCAP_DLLLARC);
+        display_flag ("BwNot", link_capabilities, PCI_EXP_LNKCAP_LBNC);
+        /* No macro defined for the "ASPM Optionality Compliance" bit.
+         * The PCIe v4 spec says:
+         *   "This bit must be set to 1b in all Functions. Components implemented against certain earlier
+         *    versions of this specification will have this bit set to 0b." */
+        display_flag ("ASPMOptComp", link_capabilities, 1u << 22);
+        printf ("\n");
+
+        /* Display link control */
+        display_indent (indent_level);
+        printf ("    LnkCtl:");
+        printf (" ASPM ");
+        display_enumeration (NELEMENTS (aspm_control_names), aspm_control_names,
+                extract_field (link_control, PCI_EXP_LNKCTL_ASPMC));
+        printf (" RCB %u bytes", (link_control & PCI_EXP_LNKCTL_RCB) != 0 ? 128 : 64);
+        display_flag ("Disabled", link_control, PCI_EXP_LNKCTL_LD);
+        display_flag ("CommClk", link_control, PCI_EXP_LNKCTL_CCC);
+        printf ("\n");
+        printf ("           ");
+        display_flag ("ExtSynch", link_control, PCI_EXP_LNKCTL_ES);
+        display_flag ("ClockPM", link_control, PCI_EXP_LNKCTL_CLKREQ_EN);
+        display_flag ("AutWidDis", link_control, PCI_EXP_LNKCTL_HAWD);
+        display_flag ("BWInt", link_control, PCI_EXP_LNKCTL_LBMIE);
+        display_flag ("ABWMgmt", link_control, PCI_EXP_LNKCTL_LABIE);
+        printf ("\n");
+
+        /* Display link status (excluding width and speed displayed above) */
+        display_indent (indent_level);
+        printf ("    LnkSta:");
+        display_flag ("TrErr", link_status, 1u << 10); /* PCIe v4 spec says this is now reserved */
+        display_flag ("Train", link_status, PCI_EXP_LNKSTA_LT);
+        display_flag ("SlotClk", link_status, PCI_EXP_LNKSTA_SLC);
+        display_flag ("DLActive", link_status, PCI_EXP_LNKSTA_DLLLA);
+        display_flag ("BWMgmt", link_status, PCI_EXP_LNKSTA_LBMS);
+        display_flag ("ABWMgmt", link_status, PCI_EXP_LNKSTA_LABS);
         printf ("\n");
 
         /* Display slot capabilities */
@@ -251,20 +376,20 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
 
             display_indent (indent_level);
             printf ("    SltCap:");
-            DISPLAY_FLAG ("AttnBtn", slot_capabilities, PCI_EXP_SLTCAP_ABP);
-            DISPLAY_FLAG ("PwrCtrl", slot_capabilities, PCI_EXP_SLTCAP_PCP);
-            DISPLAY_FLAG ("MRL", slot_capabilities, PCI_EXP_SLTCAP_MRLSP);
-            DISPLAY_FLAG ("AttnInd", slot_capabilities, PCI_EXP_SLTCAP_AIP);
-            DISPLAY_FLAG ("PwrInd", slot_capabilities, PCI_EXP_SLTCAP_PIP);
-            DISPLAY_FLAG ("HotPlug", slot_capabilities, PCI_EXP_SLTCAP_HPC);
-            DISPLAY_FLAG ("Surprise", slot_capabilities, PCI_EXP_SLTCAP_HPS);
+            display_flag ("AttnBtn", slot_capabilities, PCI_EXP_SLTCAP_ABP);
+            display_flag ("PwrCtrl", slot_capabilities, PCI_EXP_SLTCAP_PCP);
+            display_flag ("MRL", slot_capabilities, PCI_EXP_SLTCAP_MRLSP);
+            display_flag ("AttnInd", slot_capabilities, PCI_EXP_SLTCAP_AIP);
+            display_flag ("PwrInd", slot_capabilities, PCI_EXP_SLTCAP_PIP);
+            display_flag ("HotPlug", slot_capabilities, PCI_EXP_SLTCAP_HPC);
+            display_flag ("Surprise", slot_capabilities, PCI_EXP_SLTCAP_HPS);
             printf ("\n");
             display_indent (indent_level);
-            printf ("           ");
+            printf ("            ");
             printf ("Slot #%u", physical_slot_number);
             printf (" PowerLimit %.3fW;", slot_power_limit);
-            DISPLAY_FLAG ("Interlock", slot_capabilities, PCI_EXP_SLTCAP_EIP);
-            DISPLAY_FLAG ("NoCompl", slot_capabilities, PCI_EXP_SLTCAP_NCCS);
+            display_flag ("Interlock", slot_capabilities, PCI_EXP_SLTCAP_EIP);
+            display_flag ("NoCompl", slot_capabilities, PCI_EXP_SLTCAP_NCCS);
             printf ("\n");
         }
     }
@@ -305,7 +430,6 @@ static void display_pci_capabilities (const uint32_t indent_level, struct pci_de
         [PCI_CAP_ID_AF     ] = "Advanced features of PCI devices integrated in PCIe root cplx",
         [PCI_CAP_ID_EA     ] = "Enhanced Allocation"
     };
-    const size_t capability_id_names_array_size = sizeof (capability_id_names) / sizeof (capability_id_names[0]);
 
     bool been_hear[256] = {false};
     int rc;
@@ -329,14 +453,7 @@ static void display_pci_capabilities (const uint32_t indent_level, struct pci_de
                 /* Display the capability identity */
                 display_indent (indent_level);
                 printf ("  Capabilities: [%x] ", capability_pointer);
-                if ((capability_id < capability_id_names_array_size) && (capability_id_names[capability_id] != NULL))
-                {
-                    printf ("%s", capability_id_names[capability_id]);
-                }
-                else
-                {
-                    printf ("Capability ID 0x%x", capability_id);
-                }
+                display_enumeration (NELEMENTS (capability_id_names), capability_id_names, capability_id);
 
                 /* Perform identify specific decode */
                 switch (capability_id)
@@ -402,23 +519,23 @@ static void display_pci_device (struct pci_device *const device, const uint32_t 
 
             display_indent (indent_level);
             printf ("  control:");
-            DISPLAY_FLAG ("I/O", cmd, PCI_COMMAND_IO);
-            DISPLAY_FLAG ("Mem", cmd, PCI_COMMAND_MEMORY);
-            DISPLAY_FLAG ("BusMaster", cmd, PCI_COMMAND_MASTER);
-            DISPLAY_FLAG ("ParErr", cmd, PCI_COMMAND_PARITY);
-            DISPLAY_FLAG ("SERR", cmd, PCI_COMMAND_SERR);
-            DISPLAY_FLAG ("DisINTx", cmd, PCI_COMMAND_INTX_DISABLE);
+            display_flag ("I/O", cmd, PCI_COMMAND_IO);
+            display_flag ("Mem", cmd, PCI_COMMAND_MEMORY);
+            display_flag ("BusMaster", cmd, PCI_COMMAND_MASTER);
+            display_flag ("ParErr", cmd, PCI_COMMAND_PARITY);
+            display_flag ("SERR", cmd, PCI_COMMAND_SERR);
+            display_flag ("DisINTx", cmd, PCI_COMMAND_INTX_DISABLE);
             printf ("\n");
 
             display_indent (indent_level);
             printf ("  status:");
-            DISPLAY_FLAG ("INTx", status, PCI_STATUS_INTERRUPT);
-            DISPLAY_FLAG ("<ParErr", status, PCI_STATUS_PARITY);
-            DISPLAY_FLAG (">TAbort", status, PCI_STATUS_SIG_TARGET_ABORT);
-            DISPLAY_FLAG ("<TAbort", status, PCI_STATUS_REC_TARGET_ABORT);
-            DISPLAY_FLAG ("<MAbort", status, PCI_STATUS_REC_MASTER_ABORT);
-            DISPLAY_FLAG (">SERR", status, PCI_STATUS_SIG_SYSTEM_ERROR);
-            DISPLAY_FLAG ("DetParErr", status, PCI_STATUS_DETECTED_PARITY);
+            display_flag ("INTx", status, PCI_STATUS_INTERRUPT);
+            display_flag ("<ParErr", status, PCI_STATUS_PARITY);
+            display_flag (">TAbort", status, PCI_STATUS_SIG_TARGET_ABORT);
+            display_flag ("<TAbort", status, PCI_STATUS_REC_TARGET_ABORT);
+            display_flag ("<MAbort", status, PCI_STATUS_REC_MASTER_ABORT);
+            display_flag (">SERR", status, PCI_STATUS_SIG_SYSTEM_ERROR);
+            display_flag ("DetParErr", status, PCI_STATUS_DETECTED_PARITY);
             printf ("\n");
 
             for (unsigned bar_index = 0; bar_index < PCI_STD_NUM_BARS; bar_index++)

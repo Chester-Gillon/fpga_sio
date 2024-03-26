@@ -3661,3 +3661,129 @@ https://unix.stackexchange.com/a/71177/535730 "force re-negotiation of PCIe spee
 could be related to PCIe ASPM (Active-State Power Management).
 
 In "1. Tests with NOIOMMU in i5-2310 system" didn't check the current link speed while the tests were running.
+
+
+6.4. Temporarily adding pcie_aspm=off didn't help
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Performed the sequence:
+a. Switch on the PC, and enter the BIOS.
+b. Load the TOSING_160T_dma_stream_loopback design into the FPGA using JTAG.
+c. Reboot the PC from the BIOS.
+d. Stop AlmaLinux boot at the grub prompt and manually add pcie_aspm=off to the command line.
+e. Once Linux has boot run:
+   ~/cmem_gdb_access/reboot_with_memmap_changes.sh 2050M\$4G,1M\$6146M
+f. Once has rebooted load the cmem_gdb_access module and run:
+   xilinx_dma_bridge_for_pcie/test_dma_bridge_parallel_streams --stream_mapping_size 020000000
+g. Test starts running with:
+  0000:01:00.0 0 -> 1 381.653 Mbytes/sec (3816488960 bytes in 9.999885 secs)
+  0000:01:00.0 1 -> 0 381.653 Mbytes/sec (3816488960 bytes in 9.999889 secs)
+h. Run the following from a different shell:
+   sudo ~/Downloads/pcie_set_speed.sh 0000:01:00.0
+i. Test throughput increases:
+  0000:01:00.0 0 -> 1 739.954 Mbytes/sec (7399538688 bytes in 9.999998 secs)
+  0000:01:00.0 1 -> 0 739.954 Mbytes/sec (7399538688 bytes in 9.999998 secs)
+
+The complete command line is:
+$ cat /proc/cmdline 
+BOOT_IMAGE=(hd0,gpt2)/vmlinuz-4.18.0-513.18.1.el8_9.x86_64 root=/dev/mapper/almalinux-root ro crashkernel=auto resume=/dev/mapper/almalinux-swap rd.lvm.lv=almalinux/root rd.lvm.lv=almalinux/swap rhgb quiet pcie_aspm=off memmap=2050M$4G,1M$6146M
+
+The following is in dmesg, which indicates adding pcie_aspm=off had an effect on the Kernel due to "PCIe ASPM is disabled":
+$ dmesg | grep -i aspm
+[    0.000000] Command line: BOOT_IMAGE=(hd0,gpt2)/vmlinuz-4.18.0-513.18.1.el8_9.x86_64 root=/dev/mapper/almalinux-root ro crashkernel=auto resume=/dev/mapper/almalinux-swap rd.lvm.lv=almalinux/root rd.lvm.lv=almalinux/swap rhgb quiet pcie_aspm=off memmap=2050M$4G,1M$6146M
+[    0.000000] Kernel command line: BOOT_IMAGE=(hd0,gpt2)/vmlinuz-4.18.0-513.18.1.el8_9.x86_64 root=/dev/mapper/almalinux-root ro crashkernel=auto resume=/dev/mapper/almalinux-swap rd.lvm.lv=almalinux/root rd.lvm.lv=almalinux/swap rhgb quiet pcie_aspm=off memmap=2050M$4G,1M$6146M
+[    0.000000] PCIe ASPM is disabled
+[    0.040745] acpi PNP0A08:00: _OSC: not requesting OS control; OS requires [ExtendedConfig ASPM ClockPM MSI]
+
+Whereas on previous boots which didn't use pcie_aspm=off and searching for ASPM found that reporting disabling ASPM
+on a different device (PEX 8111 PCI Express-to-PCI Bridge):
+$ sudo grep -i aspm /var/log/messages-20240324 
+Mar 16 13:24:39 haswell-alma kernel: acpi PNP0A08:00: _OSC: OS supports [ExtendedConfig ASPM ClockPM Segments MSI EDR HPX-Type3]
+Mar 16 13:24:39 haswell-alma kernel: pci 0000:04:00.0: disabling ASPM on pre-1.1 PCIe device.  You can enable it with 'pcie_aspm=force'
+
+
+6.5. One DMA timeout when stopping the test
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When testing some changes to the cmem_gdb_access module, had one case where
+test_dma_bridge_parallel_streams --stream_mapping_size 020000000 had been running without error but a timeout was
+reported when went to stop the test:
+  0000:01:00.0 0 -> 1 738.660 Mbytes/sec (7386562560 bytes in 9.999951 secs)
+  0000:01:00.0 1 -> 0 738.660 Mbytes/sec (7386562560 bytes in 9.999951 secs)
+
+^C  0000:01:00.0 0 -> 1 738.307 Mbytes/sec (5855969280 bytes in 7.931613 secs)
+  0000:01:00.0 1 -> 0 738.308 Mbytes/sec (5855969280 bytes in 7.931612 secs)
+
+  0000:01:00.0 0 -> 1 738.307 Mbytes/sec (5855969280 bytes in 7.931613 secs)
+  0000:01:00.0 1 -> 0 738.308 Mbytes/sec (5855969280 bytes in 7.931612 secs)
+
+Overall test statistics:
+  0000:01:00.0 0 -> 1 689.096 Mbytes/sec (129502806016 bytes in 187.931514 secs)
+  0000:01:00.0 1 -> 0 689.096 Mbytes/sec (129502806016 bytes in 187.931515 secs)
+
+0000:01:00.0 0 -> 1 Test pattern verified in 1048576 words
+  0000:01:00.0 H2C channel 0 failure : Timeout: channel_status=0x1 num_descriptors_started=1976057 num_completed_descriptors=1976056 next_started_descriptor_index=57 next_completed_descriptor_index=56 channel_id=0 direction=H2C device=0000:01:00.0 (+timeout waiting for idle at finalisation)
+0000:01:00.0 1 -> 0 Test pattern verified in 1048576 words
+Memory Driver closed 
+
+Overall FAIL
+
+
+test_dma_bridge_parallel_streams had been compiled for release.
+
+Initially was able to repeat the failure by the following, when pcie_aspm=off was still present.
+a. Re-loading the cmem_gdb_access module.
+b. Starting test_dma_bridge_parallel_streams
+c. Running the following to increase the link speed from 2.5 GT/s to 5 GT/s 
+   sudo ~/Downloads/pcie_set_speed.sh 0000:01:00.0
+d. Stop the test.
+
+However, after a power cycle which removed pcie_aspm=off, then couldn't repeat the issue.
+
+In this boot, a "ASPM: current common clock configuration is inconsistent, reconfiguring" message was reported:
+ dmesg | grep -i aspm
+[    0.040726] acpi PNP0A08:00: _OSC: OS supports [ExtendedConfig ASPM ClockPM Segments MSI EDR HPX-Type3]
+[    0.043588] pci 0000:00:01.0: ASPM: current common clock configuration is inconsistent, reconfiguring
+[    0.046940] pci 0000:04:00.0: disabling ASPM on pre-1.1 PCIe device.  You can enable it with 'pcie_aspm=force'
+
+Which sometimes been reported before:
+$ sudo grep -i aspm /var/log/messages*|grep incon
+/var/log/messages:Mar 25 16:39:28 haswell-alma kernel: pci 0000:00:01.0: ASPM: current common clock configuration is inconsistent, reconfiguring
+/var/log/messages-20240113:Dec 28 16:39:34 haswell-alma kernel: pci 0000:00:01.0: ASPM: current common clock configuration is inconsistent, reconfiguring
+/var/log/messages-20240114:Jan 13 15:06:57 haswell-alma kernel: pci 0000:00:01.0: ASPM: current common clock configuration is inconsistent, reconfiguring
+/var/log/messages-20240114:Jan 13 16:11:42 haswell-alma kernel: pci 0000:00:01.0: ASPM: current common clock configuration is inconsistent, reconfiguring
+/var/log/messages-20240114:Jan 14 14:32:33 haswell-alma kernel: pci 0000:00:01.0: ASPM: current common clock configuration is inconsistent, reconfiguring
+/var/log/messages-20240114:Jan 14 14:58:57 haswell-alma kernel: pci 0000:00:01.0: ASPM: current common clock configuration is inconsistent, reconfiguring
+/var/log/messages-20240324:Mar 24 12:37:35 haswell-alma kernel: pci 0000:00:01.0: ASPM: current common clock configuration is inconsistent, reconfiguring
+
+pci 0000:00:01.0 is the PCIe Root Complex PCIe port connected to the FPGA.
+
+https://superuser.com/questions/1172743/aspm-could-not-configure-common-clock has some pointers to the source of
+the "ASPM: current common clock configuration is inconsistent, reconfiguring" message.
+
+Some other issues seen with other PCIe cards used in the same PCIe slot are:
+1. https://gist.github.com/Chester-Gillon/02143524b4f7fb65fe1ab32ba3296a7d#51-in-a-intel-desktop-board-dh67bl-hung-at-bios-splash-screen-when-fitted-in-a-x16-pcie-slot
+   A QL41112HxCU-DE "In a Intel® Desktop Board DH67BL hung at BIOS splash screen when fitted in a x16 PCIe slot"
+2. https://gist.github.com/Chester-Gillon/15f27f0338fc9c61117f26cf795586d8#11-failed-to-enumerate-in-the-pcie-v2-x16-slot
+   An Intel X722-DA2 "Failed to enumerate in the PCIe v2 x16 slot"
+
+The message comes from the pcie_aspm_configure_common_clock() function in
+/usr/src/debug/kernel-4.18.0-513.9.1.el8_9/linux-4.18.0-513.9.1.el8_9.x86_64/drivers/pci/pcie/aspm.c :
+    /* Port might be already in common clock mode */
+    pcie_capability_read_word(parent, PCI_EXP_LNKCTL, &reg16);
+    if (same_clock && (reg16 & PCI_EXP_LNKCTL_CCC)) {
+        bool consistent = true;
+
+        list_for_each_entry(child, &linkbus->devices, bus_list) {
+            pcie_capability_read_word(child, PCI_EXP_LNKCTL,
+                          &reg16);
+            if (!(reg16 & PCI_EXP_LNKCTL_CCC)) {
+                consistent = false;
+                break;
+            }
+        }
+        if (consistent)
+            return;
+        pci_info(parent, "ASPM: current common clock configuration is inconsistent, reconfiguring\n");
+    }
+

@@ -193,7 +193,7 @@ typedef struct vfio_devices_s
 #ifdef HAVE_CMEM
     /* The total number of mappings which are currently allocated using physically contiguous memory.
      * When drops to zero as the mappings are freed used to free all buffers, due to the cmem driver
-     * not currently supporting freeing all buffers. */
+     * not currently supporting freeing individual buffers. */
     uint32_t num_cmem_mappings;
 #endif
 } vfio_devices_t;
