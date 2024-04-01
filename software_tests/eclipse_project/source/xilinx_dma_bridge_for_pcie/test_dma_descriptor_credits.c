@@ -403,9 +403,12 @@ static void apply_iova_offsets (vfio_dma_mapping_t *const descriptors_mapping,
     *offsets_applied = false;
     if (arg_apply_iova_offsets)
     {
-        if ((descriptors_mapping->buffer.allocation_type == VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY) ||
-            (h2c_data_mapping->buffer.allocation_type    == VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY) ||
-            (c2h_data_mapping->buffer.allocation_type    == VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY)   )
+        if ((descriptors_mapping->buffer.allocation_type == VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A32) ||
+            (descriptors_mapping->buffer.allocation_type == VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A64) ||
+            (h2c_data_mapping->buffer.allocation_type    == VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A32) ||
+            (h2c_data_mapping->buffer.allocation_type    == VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A64) ||
+            (c2h_data_mapping->buffer.allocation_type    == VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A32) ||
+            (c2h_data_mapping->buffer.allocation_type    == VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A64)   )
         {
             printf ("Applying IOVA offsets is disabled when physical memory is used, as may crash the PC\n");
         }

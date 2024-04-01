@@ -159,11 +159,13 @@ void create_vfio_buffer (vfio_buffer_t *const buffer,
         }
         break;
 
-    case VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY:
+    case VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A32:
+    case VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A64:
 #ifdef HAVE_CMEM
         /* Perform a dynamic memory allocation of physical contiguous memory for a single buffer */
         buffer->vaddr = NULL;
-        rc = cmem_drv_alloc (1, size, &buffer->cmem_host_buf_desc);
+        rc = cmem_drv_alloc (buffer->allocation_type == VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A64,
+                1, size, &buffer->cmem_host_buf_desc);
         if (rc == 0)
         {
             buffer->vaddr = buffer->cmem_host_buf_desc.userAddr;
@@ -232,8 +234,9 @@ void free_vfio_buffer (vfio_buffer_t *const buffer)
         }
         break;
 
-    case VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY:
-        /* Nothing to do here, as the cmem driver doesn't currently support freeing individual buffers */
+    case VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A32:
+    case VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A64:
+        rc = cmem_drv_free (1, &buffer->cmem_host_buf_desc);
         break;
     }
 
@@ -1094,9 +1097,6 @@ void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
     vfio_devices->iova_regions = NULL;
     vfio_devices->num_iova_regions = 0;
     vfio_devices->iova_regions_allocated_length = 0;
-#ifdef HAVE_CMEM
-    vfio_devices->num_cmem_mappings = 0;
-#endif
 
     /* Initialise PCI access using the defaults */
     vfio_devices->pacc = pci_alloc ();
@@ -1417,12 +1417,13 @@ void allocate_vfio_dma_mapping (vfio_device_t *const vfio_device,
 
             /* cmem driver is open, so attempt the allocation and use the allocated physical memory address as the IOVA
              * to be used for DMA. */
-            create_vfio_buffer (&mapping->buffer, aligned_size, VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY, NULL);
+            create_vfio_buffer (&mapping->buffer, aligned_size,
+                    (vfio_device->dma_capability == VFIO_DEVICE_DMA_CAPABILITY_A64) ?
+                            VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A64 : VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A32, NULL);
             mapping->iova = mapping->buffer.cmem_host_buf_desc.physAddr;
             if (mapping->buffer.vaddr != NULL)
             {
                 memset (mapping->buffer.vaddr, 0, mapping->buffer.size);
-                mapping->vfio_devices->num_cmem_mappings++;
             }
         }
 #endif
@@ -1563,23 +1564,6 @@ void free_vfio_dma_mapping (vfio_dma_mapping_t *const mapping)
                 printf ("VFIO_IOMMU_UNMAP_DMA of size %zu failed : %s\n", mapping->buffer.size, strerror (-rc));
             }
         }
-
-#ifdef HAVE_CMEM
-        if (vfio_devices->num_cmem_mappings > 0)
-        {
-            vfio_devices->num_cmem_mappings--;
-            if (vfio_devices->num_cmem_mappings == 0)
-            {
-                /* All physically continuous buffers allocated by the program are no longer in use.
-                 * Free all physically contiguous buffers allocated by previous runs using the cmem driver.
-                 * This is done since:
-                 * a. The cmem driver doesn't currently support freeing individual buffers.
-                 * b. Allows multiple tests to be performed on the same device, in programs which iterate
-                 *    over creating and then freeing mappings multiple times. */
-                rc = cmem_drv_free (0, NULL);
-            }
-        }
-#endif
     }
 }
 

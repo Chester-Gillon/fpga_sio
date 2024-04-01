@@ -29,8 +29,12 @@ typedef enum
     VFIO_BUFFER_ALLOCATION_SHARED_MEMORY,
     /* Allocate the buffer using huge pages (of the default huge page size), when using an IOMMU */
     VFIO_BUFFER_ALLOCATION_HUGE_PAGES,
-    /* Allocate the buffer using a physical contiguous memory allocator, when using NOIOMMU */
-    VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY
+    /* Allocate the buffer using a physical contiguous memory allocator, when using NOIOMMU:
+     * - VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A32 allocates physical addresses in the first 4 GiB,
+     *   for DMA devices which can only address 32-bits.
+     * - VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A64 allocates any possible physical addresses */
+    VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A32,
+    VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A64
 } vfio_buffer_allocation_type_t;
 
 
@@ -48,7 +52,8 @@ typedef struct
     /* For VFIO_BUFFER_ALLOCATION_SHARED_MEMORY the file descriptor of the POSIX shared memory file */
     int fd;
 #ifdef HAVE_CMEM
-    /* For VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY the buffer allocated in physically contiguous memory */
+    /* For VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A32 and VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A64
+     * the buffer allocated in physically contiguous memory */
     cmem_host_buf_desc_t cmem_host_buf_desc;
 #endif
 } vfio_buffer_t;
@@ -190,12 +195,6 @@ typedef struct vfio_devices_s
     uint32_t num_iova_regions;
     /* The current allocated length of the iova_regions[] array, dynamically grown as required */
     uint32_t iova_regions_allocated_length;
-#ifdef HAVE_CMEM
-    /* The total number of mappings which are currently allocated using physically contiguous memory.
-     * When drops to zero as the mappings are freed used to free all buffers, due to the cmem driver
-     * not currently supporting freeing individual buffers. */
-    uint32_t num_cmem_mappings;
-#endif
 } vfio_devices_t;
 
 

@@ -80,7 +80,53 @@ static void display_enumeration (const size_t enums_array_size, const char *cons
 
 
 /**
+ * @brief Display a slow power limit, scaled into watts
+ * @param[in] register_value The register containing the power value and scale to decode
+ * @param[in] power_value_mask The mask for the register bits containing the power value
+ * @param[in] power_scale_mask The mask for the register bits containing the power scale
+ */
+static void display_slot_power_limit (const uint32_t register_value,
+                                      const uint32_t power_value_mask, const uint32_t power_scale_mask)
+{
+    const uint32_t slot_power_limit_value = extract_field (register_value, power_value_mask);
+    const uint32_t slot_power_limit_scale = extract_field (register_value, power_scale_mask);
+
+    const double slot_power_limit_scales[] =
+    {
+        1.0,
+        0.1,
+        0.01,
+        0.001
+    };
+    double slot_power_limit = (double) slot_power_limit_value * slot_power_limit_scales[slot_power_limit_scale];
+
+    if ((slot_power_limit_scale == 0) && (slot_power_limit_value > 0xef))
+    {
+        /* Handle special case of large slot power limit values which exceed the standard encoding */
+        switch (slot_power_limit_value)
+        {
+        case 0xF0:
+            slot_power_limit = 250;
+            break;
+
+        case 0xF1:
+            slot_power_limit = 275;
+            break;
+
+        default:
+            slot_power_limit = 300;
+            break;
+        }
+    }
+
+    printf ("%.3fW", slot_power_limit);
+}
+
+
+/**
  * @brief Display PCI express capabilities, decoding the link capabilities and status.
+ * @details For simplicity doesn't use the Device/Port type to determine which fields are valid to decode.
+ *          I.e. can report field values are are not defined for a Device/Port type.
  * @param[in] indent Amount of indentation at the start of each line of output
  * @param[in] device Device to read from
  * @param[in] capability_pointer Offset for the start of the capabilities to decode.
@@ -91,6 +137,7 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
 {
     int rc;
     uint16_t flags;
+    uint32_t device_capabilities;
     uint16_t device_control;
     uint16_t device_status;
     uint32_t link_capabilities;
@@ -100,6 +147,10 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
     uint32_t slot_capabilities;
 
     rc = pci_device_cfg_read_u16 (device, &flags, capability_pointer + PCI_EXP_FLAGS);
+    if (rc == 0)
+    {
+        rc = pci_device_cfg_read_u32 (device, &device_capabilities, capability_pointer + PCI_EXP_DEVCAP);
+    }
     if (rc == 0)
     {
         rc = pci_device_cfg_read_u16 (device, &device_control, capability_pointer + PCI_EXP_DEVCTL);
@@ -144,8 +195,6 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
 
         const uint32_t supported_link_speeds = PCI_EXP_LNKCAP2_SPEED (link_capabilities2);
 
-        const uint32_t slot_power_limit_value = extract_field (slot_capabilities, PCI_EXP_SLTCAP_SPLV);
-        const uint32_t slot_power_limit_scale = extract_field (slot_capabilities, PCI_EXP_SLTCAP_SPLS);
         const uint32_t physical_slot_number = extract_field (slot_capabilities, PCI_EXP_SLTCAP_PSN);
 
         const char *const device_port_type_names[] =
@@ -169,12 +218,14 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
             [4] = "16.0 GT/s"
         };
 
-        const double slot_power_limit_scales[] =
+        const char *const max_payload_size_names[] =
         {
-            1.0,
-            0.1,
-            0.01,
-            0.001
+            [0] = "128 bytes",
+            [1] = "256 bytes",
+            [2] = "512 bytes",
+            [3] = "1024 bytes",
+            [4] = "2048 bytes",
+            [5] = "4096 bytes"
         };
 
         const char *const aspm_names[] =
@@ -207,6 +258,30 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
             [5] = "16 μs to less than 32 μs",
             [6] = "32 μs to 64 μs",
             [7] = "More than 64 μs"
+        };
+
+        const char *const endpoint_l0s_acceptable_latency_names[] =
+        {
+            [0] = "Maximum of 64 ns",
+            [1] = "Maximum of 128 ns",
+            [2] = "Maximum of 256 ns",
+            [3] = "Maximum of 512 ns",
+            [4] = "Maximum of 1 μs",
+            [5] = "Maximum of 2 μs",
+            [6] = "Maximum of 4 μs",
+            [7] = "No limit"
+        };
+
+        const char *const endpoint_l1_acceptable_latency_names[] =
+        {
+            [0] = "Maximum of 1 μs",
+            [1] = "Maximum of 2 μs",
+            [2] = "Maximum of 4 μs",
+            [3] = "Maximum of 8 μs",
+            [4] = "Maximum of 16 μs",
+            [5] = "Maximum of 32 μs",
+            [6] = "Maximum of 64 μs",
+            [7] = "No limit"
         };
 
         const char *const aspm_control_names[] =
@@ -261,6 +336,32 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
         {
             printf ("Not implemented");
         }
+        printf ("\n");
+
+        /* Display device capabilities */
+        display_indent (indent_level);
+        printf ("    DevCap:");
+        printf (" MaxPayload ");
+        display_enumeration (NELEMENTS (max_payload_size_names), max_payload_size_names,
+                extract_field (device_capabilities, PCI_EXP_DEVCAP_PAYLOAD));
+        printf (" PhantFunc %u", extract_field (device_capabilities, PCI_EXP_DEVCAP_PHANTOM));
+        printf (" Latency L0s ");
+        display_enumeration (NELEMENTS (endpoint_l0s_acceptable_latency_names), endpoint_l0s_acceptable_latency_names,
+                extract_field (device_capabilities, PCI_EXP_DEVCAP_L0S));
+        printf (" L1 ");
+        display_enumeration (NELEMENTS (endpoint_l1_acceptable_latency_names), endpoint_l1_acceptable_latency_names,
+                extract_field (device_capabilities, PCI_EXP_DEVCAP_L1));
+        printf ("\n");
+        display_indent (indent_level);
+        printf ("           ");
+        display_flag ("ExtTag", device_capabilities, PCI_EXP_DEVCAP_EXT_TAG);
+        display_flag ("AttnBtn", device_capabilities, PCI_EXP_DEVCAP_ATN_BUT);
+        display_flag ("AttnInd", device_capabilities, PCI_EXP_DEVCAP_ATN_IND);
+        display_flag ("PwrInd", device_capabilities, PCI_EXP_DEVCAP_PWR_IND);
+        display_flag ("RBE", device_capabilities, PCI_EXP_DEVCAP_RBER);
+        display_flag ("FLReset", device_capabilities, PCI_EXP_DEVCAP_FLR);
+        printf (" SlotPowerLimit ");
+        display_slot_power_limit (device_capabilities, PCI_EXP_DEVCAP_PWR_VAL, PCI_EXP_DEVCAP_PWR_SCL);
         printf ("\n");
 
         /* Display device control */
@@ -331,6 +432,7 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
         display_flag ("Disabled", link_control, PCI_EXP_LNKCTL_LD);
         display_flag ("CommClk", link_control, PCI_EXP_LNKCTL_CCC);
         printf ("\n");
+        display_indent (indent_level);
         printf ("           ");
         display_flag ("ExtSynch", link_control, PCI_EXP_LNKCTL_ES);
         display_flag ("ClockPM", link_control, PCI_EXP_LNKCTL_CLKREQ_EN);
@@ -353,27 +455,6 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
         /* Display slot capabilities */
         if (slot_implemented)
         {
-            double slot_power_limit = (double) slot_power_limit_value * slot_power_limit_scales[slot_power_limit_scale];
-
-            if ((slot_power_limit_scale == 0) && (slot_power_limit_value > 0xef))
-            {
-                /* Handle special case of large slot power limit values which exceed the standard encoding */
-                switch (slot_power_limit_value)
-                {
-                case 0xF0:
-                    slot_power_limit = 250;
-                    break;
-
-                case 0xF1:
-                    slot_power_limit = 275;
-                    break;
-
-                default:
-                    slot_power_limit = 300;
-                    break;
-                }
-            }
-
             display_indent (indent_level);
             printf ("    SltCap:");
             display_flag ("AttnBtn", slot_capabilities, PCI_EXP_SLTCAP_ABP);
@@ -387,7 +468,8 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
             display_indent (indent_level);
             printf ("            ");
             printf ("Slot #%u", physical_slot_number);
-            printf (" PowerLimit %.3fW;", slot_power_limit);
+            printf (" PowerLimit ");
+            display_slot_power_limit (slot_capabilities, PCI_EXP_SLTCAP_SPLV, PCI_EXP_SLTCAP_SPLS);
             display_flag ("Interlock", slot_capabilities, PCI_EXP_SLTCAP_EIP);
             display_flag ("NoCompl", slot_capabilities, PCI_EXP_SLTCAP_NCCS);
             printf ("\n");

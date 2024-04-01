@@ -3787,3 +3787,201 @@ The message comes from the pcie_aspm_configure_common_clock() function in
         pci_info(parent, "ASPM: current common clock configuration is inconsistent, reconfiguring\n");
     }
 
+
+6.6. Investigations into PCIe link control / status
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Powered on the PC using the default TOSING_160T FPGA image in flash, and with the default Linux command line.
+
+Command line:
+$ cat /proc/cmdline 
+BOOT_IMAGE=(hd0,gpt2)/vmlinuz-4.18.0-513.18.1.el8_9.x86_64 root=/dev/mapper/almalinux-root ro crashkernel=auto resume=/dev/mapper/almalinux-swap rd.lvm.lv=almalinux/root rd.lvm.lv=almalinux/swap rhgb quiet
+
+Before had attempted to access the use the FPGA, had only negotiated at a speed of 2.5 GT/s:
+$ dump_info/dump_info_libpciaccess
+domain=0000 bus=01 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=10ee subdevice_id=0007
+  control: I/O- Mem- BusMaster- ParErr- SERR- DisINTx-
+  status: INTx- <ParErr- >TAbort- <TAbort- <MAbort- >SERR- DetParErr-
+  bar[0] base_addr=fe000000 size=100000 is_IO=0 is_prefetchable=0 is_64=0
+  bar[2] base_addr=fe100000 size=10000 is_IO=0 is_prefetchable=0 is_64=1
+  Capabilities: [40] Power Management
+  Capabilities: [48] Message Signaled Interrupts
+  Capabilities: [60] PCI Express v2 Express Endpoint, MSI 0
+    Link capabilities: Max speed 5.0 GT/s Max width x4
+    Negotiated link status: Current speed 2.5 GT/s Width x4
+    Link capabilities2: Not implemented
+    DevCap: MaxPayload 512 bytes PhantFunc 0 Latency L0s Maximum of 64 ns L1 No limit
+            ExtTag+ AttnBtn- AttnInd- PwrInd- RBE+ FLReset- SlotPowerLimit 0.000W
+    DevCtl: CorrErr- NonFatalErr- FatalErr- UnsupReq-
+            RlxdOrd- ExtTag+ PhantFunc- AuxPwr- NoSnoop+
+    DevSta: CorrErr- NonFatalErr- FatalErr- UnsupReq- AuxPwr- TransPend-
+    LnkCap: Port # 0 ASPM L0s
+            L0s Exit Latency More than 4 μs
+            L1 Exit Latency More than 64 μs
+            ClockPM- Surprise- LLActRep- BwNot- ASPMOptComp-
+    LnkCtl: ASPM Disabled RCB 64 bytes Disabled- CommClk+
+            ExtSynch- ClockPM- AutWidDis- BWInt- ABWMgmt-
+    LnkSta: TrErr- Train- SlotClk+ DLActive- BWMgmt- ABWMgmt-
+  domain=0000 bus=00 dev=01 func=00
+    vendor_id=8086 (Intel Corporation) device_id=0101 (Xeon E3-1200/2nd Generation Core Processor Family PCI Express Root Port) subvendor_id=8086 subdevice_id=2002
+    control: I/O+ Mem+ BusMaster+ ParErr- SERR- DisINTx+
+    status: INTx- <ParErr- >TAbort- <TAbort- <MAbort- >SERR- DetParErr-
+    Capabilities: [88] Bridge subsystem vendor/device ID
+    Capabilities: [80] Power Management
+    Capabilities: [90] Message Signaled Interrupts
+    Capabilities: [a0] PCI Express v2 Root Port, MSI 0
+      Link capabilities: Max speed 5.0 GT/s Max width x16
+      Negotiated link status: Current speed 2.5 GT/s Width x4
+      Link capabilities2: Not implemented
+      DevCap: MaxPayload 128 bytes PhantFunc 0 Latency L0s Maximum of 64 ns L1 Maximum of 1 μs
+              ExtTag- AttnBtn- AttnInd- PwrInd- RBE+ FLReset- SlotPowerLimit 0.000W
+      DevCtl: CorrErr- NonFatalErr- FatalErr- UnsupReq-
+              RlxdOrd- ExtTag- PhantFunc- AuxPwr- NoSnoop-
+      DevSta: CorrErr- NonFatalErr- FatalErr- UnsupReq- AuxPwr- TransPend-
+      LnkCap: Port # 2 ASPM L0s and L1
+              L0s Exit Latency 128 ns to less than 256 ns
+              L1 Exit Latency 2 μs to less than 4 μs
+              ClockPM- Surprise- LLActRep- BwNot+ ASPMOptComp-
+      LnkCtl: ASPM Disabled RCB 64 bytes Disabled- CommClk+
+              ExtSynch- ClockPM- AutWidDis- BWInt- ABWMgmt-
+      LnkSta: TrErr- Train- SlotClk+ DLActive- BWMgmt+ ABWMgmt-
+      SltCap: AttnBtn- PwrCtrl- MRL- AttnInd- PwrInd- HotPlug- Surprise-
+              Slot #0 PowerLimit 0.000W Interlock- NoCompl+
+
+The "Link Bandwidth Management Status" BWMgmt flag is set on the root port. The description of this status bit is:
+  This bit is Set by hardware to indicate that either of the following has occurred
+  without the Port transitioning through DL_Down status:
+  - A Link retraining has completed following a write of 1b to the Retrain Link bit.
+    Note: This bit is Set following any write of 1b to the Retrain Link bit, including when the Link is in the process of
+    retraining for some other reason.
+  - Hardware has changed Link speed or width to attempt to correct unreliable Link operation, either through an LTSSM
+    timeout or a higher level process. This bit must be set if the Physical Layer reports a speed or
+    width change was initiated by the Downstream component
+    that was not indicated as an autonomous change.
+
+While haven't done anything to trigger a retrain the "Common Clock Configuration" CommClk bit is set.
+The pcie_aspm_configure_common_clock() function on the Kernel causes a link retrain after changing CommClk.
+I.e. not sure if BWMgmt got set due to:
+a. Unreliable Link operation
+b. Link retrain following the Kernel setting CommClk.
+
+Also, LnkCtrl reports ASPM as Disabled, even though:
+a. No specific pcie_aspm Kernel command line option was used.
+b. The PCIe endpoint and root port both report ASPM capable in their link capability register.
+
+
+Added pcie_aspm=off to the command line:
+[mr_halfword@haswell-alma release]$ sudo grubby --info=DEFAULT
+index=3
+kernel="/boot/vmlinuz-4.18.0-513.18.1.el8_9.x86_64"
+args="ro crashkernel=auto resume=/dev/mapper/almalinux-swap rd.lvm.lv=almalinux/root rd.lvm.lv=almalinux/swap rhgb quiet $tuned_params"
+root="/dev/mapper/almalinux-root"
+initrd="/boot/initramfs-4.18.0-513.18.1.el8_9.x86_64.img $tuned_initrd"
+title="AlmaLinux (4.18.0-513.18.1.el8_9.x86_64) 8.9 (Midnight Oncilla)"
+id="9d2f49d60f7e49e0b06aaed533ddfcd8-4.18.0-513.18.1.el8_9.x86_64"
+[mr_halfword@haswell-alma release]$ sudo grubby --update-kernel=DEFAULT --args=pcie_aspm=off
+[mr_halfword@haswell-alma release]$ sudo grubby --info=DEFAULT
+index=3
+kernel="/boot/vmlinuz-4.18.0-513.18.1.el8_9.x86_64"
+args="ro crashkernel=auto resume=/dev/mapper/almalinux-swap rd.lvm.lv=almalinux/root rd.lvm.lv=almalinux/swap rhgb quiet $tuned_params pcie_aspm=off"
+root="/dev/mapper/almalinux-root"
+initrd="/boot/initramfs-4.18.0-513.18.1.el8_9.x86_64.img $tuned_initrd"
+title="AlmaLinux (4.18.0-513.18.1.el8_9.x86_64) 8.9 (Midnight Oncilla)"
+id="9d2f49d60f7e49e0b06aaed533ddfcd8-4.18.0-513.18.1.el8_9.x86_64"
+
+
+Power cycled the PC. After booting confirmed PCIe ASPM was reported as disabled:
+$ dmesg|grep -i aspm
+[    0.000000] Command line: BOOT_IMAGE=(hd0,gpt2)/vmlinuz-4.18.0-513.18.1.el8_9.x86_64 root=/dev/mapper/almalinux-root ro crashkernel=auto resume=/dev/mapper/almalinux-swap rd.lvm.lv=almalinux/root rd.lvm.lv=almalinux/swap rhgb quiet pcie_aspm=off
+[    0.000000] Kernel command line: BOOT_IMAGE=(hd0,gpt2)/vmlinuz-4.18.0-513.18.1.el8_9.x86_64 root=/dev/mapper/almalinux-root ro crashkernel=auto resume=/dev/mapper/almalinux-swap rd.lvm.lv=almalinux/root rd.lvm.lv=almalinux/swap rhgb quiet pcie_aspm=off
+[    0.000000] PCIe ASPM is disabled
+[    0.054622] acpi PNP0A08:00: _OSC: not requesting OS control; OS requires [ExtendedConfig ASPM ClockPM MSI]
+
+With the original FPGA booting from flash, still had the link speed at 2/5 GT/s and BWMgmt set in the root complex:
+$ dump_info/dump_info_libpciaccess
+domain=0000 bus=01 dev=00 func=00
+  vendor_id=10ee (Xilinx Corporation) device_id=7024 ((null)) subvendor_id=10ee subdevice_id=0007
+  control: I/O- Mem- BusMaster- ParErr- SERR- DisINTx-
+  status: INTx- <ParErr- >TAbort- <TAbort- <MAbort- >SERR- DetParErr-
+  bar[0] base_addr=fe000000 size=100000 is_IO=0 is_prefetchable=0 is_64=0
+  bar[2] base_addr=fe100000 size=10000 is_IO=0 is_prefetchable=0 is_64=1
+  Capabilities: [40] Power Management
+  Capabilities: [48] Message Signaled Interrupts
+  Capabilities: [60] PCI Express v2 Express Endpoint, MSI 0
+    Link capabilities: Max speed 5.0 GT/s Max width x4
+    Negotiated link status: Current speed 2.5 GT/s Width x4
+    Link capabilities2: Not implemented
+    DevCap: MaxPayload 512 bytes PhantFunc 0 Latency L0s Maximum of 64 ns L1 No limit
+            ExtTag+ AttnBtn- AttnInd- PwrInd- RBE+ FLReset- SlotPowerLimit 0.000W
+    DevCtl: CorrErr- NonFatalErr- FatalErr- UnsupReq-
+            RlxdOrd- ExtTag+ PhantFunc- AuxPwr- NoSnoop+
+    DevSta: CorrErr- NonFatalErr- FatalErr- UnsupReq- AuxPwr- TransPend-
+    LnkCap: Port # 0 ASPM L0s
+            L0s Exit Latency More than 4 μs
+            L1 Exit Latency More than 64 μs
+            ClockPM- Surprise- LLActRep- BwNot- ASPMOptComp-
+    LnkCtl: ASPM Disabled RCB 64 bytes Disabled- CommClk+
+            ExtSynch- ClockPM- AutWidDis- BWInt- ABWMgmt-
+    LnkSta: TrErr- Train- SlotClk+ DLActive- BWMgmt- ABWMgmt-
+  domain=0000 bus=00 dev=01 func=00
+    vendor_id=8086 (Intel Corporation) device_id=0101 (Xeon E3-1200/2nd Generation Core Processor Family PCI Express Root Port) subvendor_id=8086 subdevice_id=2002
+    control: I/O+ Mem+ BusMaster+ ParErr- SERR- DisINTx+
+    status: INTx- <ParErr- >TAbort- <TAbort- <MAbort- >SERR- DetParErr-
+    Capabilities: [88] Bridge subsystem vendor/device ID
+    Capabilities: [80] Power Management
+    Capabilities: [90] Message Signaled Interrupts
+    Capabilities: [a0] PCI Express v2 Root Port, MSI 0
+      Link capabilities: Max speed 5.0 GT/s Max width x16
+      Negotiated link status: Current speed 2.5 GT/s Width x4
+      Link capabilities2: Not implemented
+      DevCap: MaxPayload 128 bytes PhantFunc 0 Latency L0s Maximum of 64 ns L1 Maximum of 1 μs
+              ExtTag- AttnBtn- AttnInd- PwrInd- RBE+ FLReset- SlotPowerLimit 0.000W
+      DevCtl: CorrErr- NonFatalErr- FatalErr- UnsupReq-
+              RlxdOrd- ExtTag- PhantFunc- AuxPwr- NoSnoop-
+      DevSta: CorrErr- NonFatalErr- FatalErr- UnsupReq- AuxPwr- TransPend-
+      LnkCap: Port # 2 ASPM L0s and L1
+              L0s Exit Latency 128 ns to less than 256 ns
+              L1 Exit Latency 2 μs to less than 4 μs
+              ClockPM- Surprise- LLActRep- BwNot+ ASPMOptComp-
+      LnkCtl: ASPM Disabled RCB 64 bytes Disabled- CommClk+
+              ExtSynch- ClockPM- AutWidDis- BWInt- ABWMgmt-
+      LnkSta: TrErr- Train- SlotClk+ DLActive- BWMgmt+ ABWMgmt-
+      SltCap: AttnBtn- PwrCtrl- MRL- AttnInd- PwrInd- HotPlug- Surprise-
+              Slot #0 PowerLimit 0.000W Interlock- NoCompl+
+
+The CommClk bit is still set.
+
+
+Therefore, removed pcie_aspm=off from the command line:
+mr_halfword@haswell-alma release]$ sudo grubby --info=DEFAULT
+index=3
+kernel="/boot/vmlinuz-4.18.0-513.18.1.el8_9.x86_64"
+args="ro crashkernel=auto resume=/dev/mapper/almalinux-swap rd.lvm.lv=almalinux/root rd.lvm.lv=almalinux/swap rhgb quiet $tuned_params pcie_aspm=off"
+root="/dev/mapper/almalinux-root"
+initrd="/boot/initramfs-4.18.0-513.18.1.el8_9.x86_64.img $tuned_initrd"
+title="AlmaLinux (4.18.0-513.18.1.el8_9.x86_64) 8.9 (Midnight Oncilla)"
+id="9d2f49d60f7e49e0b06aaed533ddfcd8-4.18.0-513.18.1.el8_9.x86_64"
+[mr_halfword@haswell-alma release]$ sudo grubby --update-kernel=DEFAULT --remove-args=pcie_aspm=off
+[mr_halfword@haswell-alma release]$ sudo grubby --info=DEFAULT
+index=3
+kernel="/boot/vmlinuz-4.18.0-513.18.1.el8_9.x86_64"
+args="ro crashkernel=auto resume=/dev/mapper/almalinux-swap rd.lvm.lv=almalinux/root rd.lvm.lv=almalinux/swap rhgb quiet $tuned_params"
+root="/dev/mapper/almalinux-root"
+initrd="/boot/initramfs-4.18.0-513.18.1.el8_9.x86_64.img $tuned_initrd"
+title="AlmaLinux (4.18.0-513.18.1.el8_9.x86_64) 8.9 (Midnight Oncilla)"
+id="9d2f49d60f7e49e0b06aaed533ddfcd8-4.18.0-513.18.1.el8_9.x86_64"
+
+
+Running just display_identified_pcie_fpga_designs is sufficent to cause the link speed to drop to 2.5 GT/s
+Stepping display_identified_pcie_fpga_designs in the debugger shows the following cause the link speed to drop to 2.5 GT/s:
+    /* Open the device */
+    new_device->device_fd = ioctl (new_device->group_fd, VFIO_GROUP_GET_DEVICE_FD, new_device->device_name);
+
+        rc = close (vfio_device->device_fd);
+
+Think the above are when the PCIe device is reset. Since the Xilinx DMA bridge doesn't support a function level reset,
+think a hot reset is used which resets the PCIe link.
+
+For multi-process support does this mean only one process should open the device_fd which can be then be shared via
+Unix domain sockets?
