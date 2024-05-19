@@ -236,7 +236,9 @@ void free_vfio_buffer (vfio_buffer_t *const buffer)
 
     case VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A32:
     case VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A64:
+#ifdef HAVE_CMEM
         rc = cmem_drv_free (1, &buffer->cmem_host_buf_desc);
+#endif
         break;
     }
 
