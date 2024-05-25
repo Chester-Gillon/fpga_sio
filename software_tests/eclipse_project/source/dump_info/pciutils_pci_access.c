@@ -6,6 +6,7 @@
  */
 
 #include "generic_pci_access.h"
+#include "pci_sysfs_access.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -394,7 +395,7 @@ const char *generic_pci_access_text_property (generic_pci_access_device_p const 
 #ifdef PCI_FILL_IOMMU_GROUP
         property_text = fill_string_property (device, PCI_FILL_IOMMU_GROUP);
 #else
-        property_text = pci_sysfs_read_device_symlink_name (device->domain, device->bus, device->dev, device->func, "iommu_group");
+        property_text = pci_sysfs_read_device_symlink_name (((uint32_t) device->domain, device->bus, device->dev, device->func, "iommu_group");
 #endif
         break;
 
@@ -402,7 +403,7 @@ const char *generic_pci_access_text_property (generic_pci_access_device_p const 
 #ifdef PCI_FILL_DRIVER
         property_text = fill_string_property (device, PCI_FILL_DRIVER);
 #else
-        property_text = pci_sysfs_read_device_symlink_name (device->domain, device->bus, device->dev, device->func, "driver");
+        property_text = pci_sysfs_read_device_symlink_name ((uint32_t) device->domain, device->bus, device->dev, device->func, "driver");
 #endif
         break;
     }
