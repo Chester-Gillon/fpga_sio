@@ -54,7 +54,8 @@ platforms="debug release coverage"
 for platform in ${platforms}
 do
     # Requires cap_sys_admin capability to read PCIe capabilities regardless of if an IOMMU is in use
-    adjust_capabilities dump_info/dump_info_libpciaccess "cap_sys_admin=ep"
+    adjust_capabilities dump_info/dump_pci_info_libpciaccess "cap_sys_admin=ep"
+    adjust_capabilities dump_info/dump_pci_info_pciutils "cap_sys_admin=ep"
 
     # Adjust the capabilities for the executables which link to the vfio_access library since they can perform VFIO access.
     if [ ${noiommu_access_required} -eq 1 ]

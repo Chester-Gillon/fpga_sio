@@ -13,3 +13,5 @@ else()
 endif()
 
 add_library (transfer_timing "transfer_timing.c")
+
+add_library (pci_sysfs_access "pci_sysfs_access.c")

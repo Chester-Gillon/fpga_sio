@@ -787,7 +787,8 @@ int main (int argc, char *argv[])
             if ((sscanf (vfio_dir_entry->d_name, "%" SCNu32, &iommu_group) == 1) ||
                 (sscanf (vfio_dir_entry->d_name, "noiommu-%" SCNu32, &iommu_group) == 1))
             {
-                /* Attempt to open the group file, which can fail with EBUSY if already open by another program (e.g. DPDK). */
+                /* Attempt to open the group file, which can fail with EBUSY if already open by another program (e.g. DPDK).
+                 * EBUSY can happen with noiommu mode as well. */
                 printf ("\nIOMMU group %s:\n", vfio_dir_entry->d_name);
                 snprintf (group_pathname, sizeof (group_pathname), "%s%s", VFIO_ROOT_PATH, vfio_dir_entry->d_name);
                 errno = 0;

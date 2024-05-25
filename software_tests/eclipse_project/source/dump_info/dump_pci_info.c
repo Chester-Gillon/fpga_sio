@@ -1,18 +1,14 @@
 /*
- * @file dump_info_libpciaccess.c
- * @date Sep 5, 2021
+ * @file dump_pci_info.c
+ * @date 11 May 2024
  * @author Chester Gillon
- * @brief Test of using libpciaccess to dump information about a PCIe device, including some capabilities
  */
 
 #include <stdlib.h>
+#include <strings.h>
 #include <stdio.h>
-#include <stdbool.h>
-#include <string.h>
-#include <inttypes.h>
-#include <errno.h>
 
-#include <pciaccess.h>
+#include "generic_pci_access.h"
 
 #include "fpga_sio_pci_ids.h"
 
@@ -130,12 +126,12 @@ static void display_slot_power_limit (const uint32_t register_value,
  * @param[in] indent Amount of indentation at the start of each line of output
  * @param[in] device Device to read from
  * @param[in] capability_pointer Offset for the start of the capabilities to decode.
- * @return Returns zero on success or any other value to indicate a failure to read the capabilities
+ * @return Returns true on success or false to indicate a failure to read the capabilities
  */
-static int display_pci_express_capabilities (const uint32_t indent_level, struct pci_device *const device,
-                                             const uint8_t capability_pointer)
+static bool display_pci_express_capabilities (const uint32_t indent_level, generic_pci_access_device_p const device,
+                                              const uint8_t capability_pointer)
 {
-    int rc;
+    bool success;
     uint16_t flags;
     uint32_t device_capabilities;
     uint16_t device_control;
@@ -146,41 +142,17 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
     uint32_t link_capabilities2;
     uint32_t slot_capabilities;
 
-    rc = pci_device_cfg_read_u16 (device, &flags, capability_pointer + PCI_EXP_FLAGS);
-    if (rc == 0)
-    {
-        rc = pci_device_cfg_read_u32 (device, &device_capabilities, capability_pointer + PCI_EXP_DEVCAP);
-    }
-    if (rc == 0)
-    {
-        rc = pci_device_cfg_read_u16 (device, &device_control, capability_pointer + PCI_EXP_DEVCTL);
-    }
-    if (rc == 0)
-    {
-        rc = pci_device_cfg_read_u16 (device, &device_status, capability_pointer + PCI_EXP_DEVSTA);
-    }
-    if (rc == 0)
-    {
-        rc = pci_device_cfg_read_u32 (device, &link_capabilities, capability_pointer + PCI_EXP_LNKCAP);
-    }
-    if (rc == 0)
-    {
-        rc = pci_device_cfg_read_u16 (device, &link_control, capability_pointer + PCI_EXP_LNKCTL);
-    }
-    if (rc == 0)
-    {
-        rc = pci_device_cfg_read_u16 (device, &link_status, capability_pointer + PCI_EXP_LNKSTA);
-    }
-    if (rc == 0)
-    {
-        rc = pci_device_cfg_read_u32 (device, &link_capabilities2, capability_pointer + PCI_EXP_LNKCAP2);
-    }
-    if (rc == 0)
-    {
-        rc = pci_device_cfg_read_u32 (device, &slot_capabilities, capability_pointer + PCI_EXP_SLTCAP);
-    }
+    success = generic_pci_access_cfg_read_u16 (device, capability_pointer + PCI_EXP_FLAGS, &flags) &&
+              generic_pci_access_cfg_read_u32 (device, capability_pointer + PCI_EXP_DEVCAP, &device_capabilities) &&
+              generic_pci_access_cfg_read_u16 (device, capability_pointer + PCI_EXP_DEVCTL, &device_control) &&
+              generic_pci_access_cfg_read_u16 (device, capability_pointer + PCI_EXP_DEVSTA, &device_status) &&
+              generic_pci_access_cfg_read_u32 (device, capability_pointer + PCI_EXP_LNKCAP, &link_capabilities) &&
+              generic_pci_access_cfg_read_u16 (device, capability_pointer + PCI_EXP_LNKCTL, &link_control) &&
+              generic_pci_access_cfg_read_u16 (device, capability_pointer + PCI_EXP_LNKSTA, &link_status) &&
+              generic_pci_access_cfg_read_u32 (device, capability_pointer + PCI_EXP_LNKCAP2, &link_capabilities2) &&
+              generic_pci_access_cfg_read_u32 (device, capability_pointer + PCI_EXP_SLTCAP, &slot_capabilities);
 
-    if (rc == 0)
+    if (success)
     {
         const uint32_t capability_version = extract_field (flags, PCI_EXP_FLAGS_VERS);
         const uint32_t device_port_type = extract_field (flags, PCI_EXP_FLAGS_TYPE);
@@ -476,7 +448,7 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
         }
     }
 
-    return rc;
+    return success;
 }
 
 
@@ -486,11 +458,13 @@ static int display_pci_express_capabilities (const uint32_t indent_level, struct
  * @param[in] indent_level Amount of indentation at the start of each line of output
  * @param[in] device Device to read from
  */
-static void display_pci_capabilities (const uint32_t indent_level, struct pci_device *const device)
+static void display_pci_capabilities (const uint32_t indent_level, generic_pci_access_device_p const device)
 {
     const char *const capability_id_names[] =
     {
+#ifdef PCI_CAP_ID_NULL
         [PCI_CAP_ID_NULL   ] = "Null Capability",
+#endif
         [PCI_CAP_ID_PM     ] = "Power Management",
         [PCI_CAP_ID_AGP    ] = "Accelerated Graphics Port",
         [PCI_CAP_ID_VPD    ] = "Vital Product Data",
@@ -514,23 +488,22 @@ static void display_pci_capabilities (const uint32_t indent_level, struct pci_de
     };
 
     bool been_hear[256] = {false};
-    int rc;
+    bool success;
     uint16_t status_register;
-    errno = 0;
-    rc = pci_device_cfg_read_u16 (device, &status_register, PCI_STATUS);
+    success = generic_pci_access_cfg_read_u16 (device, PCI_STATUS, &status_register);
     uint8_t capability_pointer;
     uint8_t capability_id;
 
     /* Check for presence of PCI capabilities */
-    if ((rc == 0) && (status_register & PCI_STATUS_CAP_LIST) != 0)
+    if (success && (status_register & PCI_STATUS_CAP_LIST) != 0)
     {
         /* Iterate over all capabilities. been_hear[] used as protection against infinite loops due to malformed capability lists */
-        rc = pci_device_cfg_read_u8 (device, &capability_pointer, PCI_CAPABILITY_LIST);
-        while ((rc == 0) && (capability_pointer != 0) && (!been_hear[capability_pointer]))
+        success = generic_pci_access_cfg_read_u8 (device, PCI_CAPABILITY_LIST, &capability_pointer);
+        while (success && (capability_pointer != 0) && (!been_hear[capability_pointer]))
         {
-            rc = pci_device_cfg_read_u8 (device, &capability_id, capability_pointer + PCI_CAP_LIST_ID);
+            success = generic_pci_access_cfg_read_u8 (device, capability_pointer + PCI_CAP_LIST_ID, &capability_id);
 
-            if (rc == 0)
+            if (success)
             {
                 /* Display the capability identity */
                 display_indent (indent_level);
@@ -541,7 +514,7 @@ static void display_pci_capabilities (const uint32_t indent_level, struct pci_de
                 switch (capability_id)
                 {
                 case PCI_CAP_ID_EXP:
-                    rc = display_pci_express_capabilities (indent_level, device, capability_pointer);
+                    success = display_pci_express_capabilities (indent_level, device, capability_pointer);
                     break;
 
                 default:
@@ -549,20 +522,20 @@ static void display_pci_capabilities (const uint32_t indent_level, struct pci_de
                     break;
                 }
 
-                if (rc == 0)
+                if (success)
                 {
                     /* Advance to next capability */
                     been_hear[capability_pointer] = true;
-                    rc = pci_device_cfg_read_u8 (device, &capability_pointer, capability_pointer + PCI_CAP_LIST_NEXT);
+                    success = generic_pci_access_cfg_read_u8 (device, capability_pointer + PCI_CAP_LIST_NEXT, &capability_pointer);
                 }
             }
         }
     }
 
-    if (rc != 0)
+    if (!success)
     {
         display_indent (indent_level);
-        printf ("  PCI configuration read failed : rc=%d %s\n", rc, strerror (rc));
+        printf ("  PCI configuration read failed\n");
     }
 }
 
@@ -572,33 +545,60 @@ static void display_pci_capabilities (const uint32_t indent_level, struct pci_de
  * @param[in] device Device to display information for
  * @param[in] indent_level Amount of indentation at the start of each line of output
  */
-static void display_pci_device (struct pci_device *const device, const uint32_t indent_level)
+static void display_pci_device (generic_pci_access_device_p const device, const uint32_t indent_level)
 {
-    int rc;
-    uint16_t cmd;
-    uint16_t status;
+    uint32_t domain;
+    uint32_t bus;
+    uint32_t dev;
+    uint32_t func;
+    uint32_t vendor_id;
+    uint32_t device_id;
+    uint32_t subvendor_id;
+    uint32_t subdevice_id;
+    generic_pci_access_mem_region_t regions[PCI_STD_NUM_BARS];
+    const char *const iommu_group = generic_pci_access_text_property (device, GENERIC_PCI_ACCESS_IOMMU_GROUP);
+    const char *const driver = generic_pci_access_text_property (device, GENERIC_PCI_ACCESS_DRIVER);
 
-    rc = pci_device_probe (device);
-    if (rc == 0)
+    if (generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_DOMAIN, &domain) &&
+        generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_BUS, &bus) &&
+        generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_DEV, &dev) &&
+        generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_FUNC, &func) &&
+        generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_VENDOR_ID, &vendor_id) &&
+        generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_DEVICE_ID, &device_id))
     {
-        rc = pci_device_cfg_read_u16 (device, &cmd, PCI_COMMAND);
-        if (rc == 0)
+        display_indent (indent_level);
+        printf ("domain=%04x bus=%02x dev=%02x func=%02x\n",
+                domain, bus, dev, func);
+
+
+        display_indent (indent_level);
+        printf ("  vendor_id=%04x (%s) device_id=%04x (%s)",
+                vendor_id, generic_pci_access_text_property (device, GENERIC_PCI_ACCESS_VENDOR_NAME),
+                device_id, generic_pci_access_text_property (device, GENERIC_PCI_ACCESS_DEVICE_NAME));
+        if (generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_SUBVENDOR_ID, &subvendor_id) &&
+            generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_SUBDEVICE_ID, &subdevice_id))
         {
-            rc = pci_device_cfg_read_u16 (device, &status, PCI_STATUS);
+            /* Only defined for normal header type (i.e. not for a bridge) */
+            printf (" subvendor_id=%04x subdevice_id=%04x",
+                    subvendor_id, subdevice_id);
+        }
+        printf ("\n");
+
+        if (iommu_group != NULL)
+        {
+            display_indent (indent_level);
+            printf ("  iommu_group=%s\n", iommu_group);
         }
 
-        if (rc == 0)
+        if (driver != NULL)
         {
             display_indent (indent_level);
-            printf ("domain=%04x bus=%02x dev=%02x func=%02x\n",
-                    device->domain, device->bus, device->dev, device->func);
+            printf ("  driver=%s\n", driver);
+        }
 
-            display_indent (indent_level);
-            printf ("  vendor_id=%04x (%s) device_id=%04x (%s) subvendor_id=%04x subdevice_id=%04x\n",
-                    device->vendor_id, pci_device_get_vendor_name (device),
-                    device->device_id, pci_device_get_device_name (device),
-                    device->subvendor_id, device->subdevice_id);
-
+        uint16_t cmd;
+        if (generic_pci_access_cfg_read_u16 (device, PCI_COMMAND, &cmd))
+        {
             display_indent (indent_level);
             printf ("  control:");
             display_flag ("I/O", cmd, PCI_COMMAND_IO);
@@ -608,7 +608,11 @@ static void display_pci_device (struct pci_device *const device, const uint32_t 
             display_flag ("SERR", cmd, PCI_COMMAND_SERR);
             display_flag ("DisINTx", cmd, PCI_COMMAND_INTX_DISABLE);
             printf ("\n");
+        }
 
+        uint16_t status;
+        if (generic_pci_access_cfg_read_u16 (device, PCI_STATUS, &status))
+        {
             display_indent (indent_level);
             printf ("  status:");
             display_flag ("INTx", status, PCI_STATUS_INTERRUPT);
@@ -619,91 +623,79 @@ static void display_pci_device (struct pci_device *const device, const uint32_t 
             display_flag (">SERR", status, PCI_STATUS_SIG_SYSTEM_ERROR);
             display_flag ("DetParErr", status, PCI_STATUS_DETECTED_PARITY);
             printf ("\n");
-
-            for (unsigned bar_index = 0; bar_index < PCI_STD_NUM_BARS; bar_index++)
-            {
-                const struct pci_mem_region *const region = &device->regions[bar_index];
-
-                if (region->size > 0)
-                {
-                    display_indent (indent_level);
-                    printf ("  bar[%u] base_addr=%" PRIx64 " size=%" PRIx64 " is_IO=%u is_prefetchable=%u is_64=%u\n",
-                            bar_index, region->base_addr, region->size, region->is_IO, region->is_prefetchable, region->is_64);
-                }
-            }
-
-            display_pci_capabilities (indent_level, device);
         }
+
+        generic_pci_access_get_bars (device, regions);
+        for (unsigned bar_index = 0; bar_index < PCI_STD_NUM_BARS; bar_index++)
+        {
+            const generic_pci_access_mem_region_t *const region = &regions[bar_index];
+
+            if (region->size > 0)
+            {
+                display_indent (indent_level);
+                printf ("  bar[%u] base_addr=%" PRIx64 " size=%" PRIx64 " is_IO=%u is_prefetchable=%u is_64=%u\n",
+                        bar_index, region->base_address, region->size, region->is_IO, region->is_prefetchable, region->is_64);
+            }
+        }
+
+        display_pci_capabilities (indent_level, device);
     }
 }
 
 
 /**
  * @brief Display information about all PCI devices which match an identity
- * @param[in] vendor_id The vendor identity to match, or PCI_MATCH_ANY
- * @param[in] device_id The device identity to match, or PCI_MATCH_ANY
+ * @param[in] access_context The PCI access context to use.
+ * @param[in] vendor_id The vendor identity to match, or GENERIC_PCI_MATCH_ANY
+ * @param[in] device_id The device identity to match, or GENERIC_PCI_MATCH_ANY
  */
-static void display_pci_devices_by_id (const uint32_t vendor_id, const uint32_t device_id)
+static void display_pci_devices_by_id (generic_pci_access_context_p const access_context,
+                                       const uint32_t vendor_id, const uint32_t device_id)
 {
-    int rc;
-    struct pci_id_match match =
+    const generic_pci_access_filter_t filter =
     {
         .vendor_id = vendor_id,
-        .device_id = device_id,
-        .subvendor_id = PCI_MATCH_ANY,
-        .subdevice_id = PCI_MATCH_ANY,
-        .device_class = 0,
-        .device_class_mask = 0
+        .device_id = device_id
     };
 
-    struct pci_device_iterator *const device_iterator = pci_id_match_iterator_create (&match);
-    struct pci_device *device;
-    struct pci_device *parent_bridge;
+    generic_pci_access_iterator_p const device_iterator = generic_pci_access_iterator_create (access_context, &filter);
+    generic_pci_access_device_p device;
+    generic_pci_access_device_p parent_bridge;
     uint32_t indent_level;
 
-    device = pci_device_next (device_iterator);
+    device = generic_pci_access_iterator_next (device_iterator);
     while (device != NULL)
     {
-        rc = pci_device_probe (device);
-        if (rc == 0)
+        /* Display the device which matches the filter */
+        indent_level = 0;
+        display_pci_device (device, indent_level);
+
+        /* Display information about the tree of parent bridges to allow correlation of:
+         * a. The PCIe link capabilities up the bridges until the root port.
+         * b. Error reporting up the bridges until the root port. */
+        parent_bridge = generic_pci_access_get_parent_bridge (device);
+        while (parent_bridge != NULL)
         {
-            /* Display the device which matches the filter */
-            indent_level = 0;
-            display_pci_device (device, indent_level);
-
-            /* Display information about the tree of parent bridges to allow correlation of:
-             * a. The PCIe link capabilities up the bridges until the root port.
-             * b. Error reporting up the bridges until the root port. */
-            parent_bridge = pci_device_get_parent_bridge (device);
-            while (parent_bridge != NULL)
-            {
-                indent_level += 2;
-                display_pci_device (parent_bridge, indent_level);
-                parent_bridge = pci_device_get_parent_bridge (parent_bridge);
-            }
-
-            printf ("\n");
+            indent_level += 2;
+            display_pci_device (parent_bridge, indent_level);
+            parent_bridge = generic_pci_access_get_parent_bridge (parent_bridge);
         }
-        device = pci_device_next (device_iterator);
+
+        printf ("\n");
+        device = generic_pci_access_iterator_next (device_iterator);
     }
 
-    pci_iterator_destroy (device_iterator);
+    generic_pci_access_iterator_destroy (device_iterator);
 }
 
 
 int main (int argc, char *argv[])
 {
-    int rc;
     uint32_t vendor_id;
     uint32_t device_id;
     char junk;
 
-    rc = pci_system_init ();
-    if (rc != 0)
-    {
-        fprintf (stderr, "pci_system_init failed\n");
-        exit (EXIT_FAILURE);
-    }
+    generic_pci_access_context_p const access_context = generic_pci_access_initialise ();
 
     if (argc > 1)
     {
@@ -714,11 +706,11 @@ int main (int argc, char *argv[])
 
             if (sscanf (match_text, "%x:%x%c", &vendor_id, &device_id, &junk) == 2)
             {
-                display_pci_devices_by_id (vendor_id, device_id);
+                display_pci_devices_by_id (access_context, vendor_id, device_id);
             }
             else if (sscanf (match_text, "%x%c", &vendor_id, &junk) == 1)
             {
-                display_pci_devices_by_id (vendor_id, PCI_MATCH_ANY);
+                display_pci_devices_by_id (access_context, vendor_id, GENERIC_PCI_MATCH_ANY);
             }
             else
             {
@@ -730,10 +722,10 @@ int main (int argc, char *argv[])
     else
     {
         /* With no arguments display all Xilinx devices */
-        display_pci_devices_by_id (FPGA_SIO_VENDOR_ID, PCI_MATCH_ANY);
+        display_pci_devices_by_id (access_context, FPGA_SIO_VENDOR_ID, GENERIC_PCI_MATCH_ANY);
     }
 
-    pci_system_cleanup ();
+    generic_pci_access_finalise (access_context);
 
     return EXIT_SUCCESS;
 }
