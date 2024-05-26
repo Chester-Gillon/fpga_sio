@@ -395,7 +395,9 @@ static void display_pci_capabilities (const int device_fd)
 {
     const char *const capability_id_names[] =
     {
+#ifdef PCI_CAP_ID_NULL
         [PCI_CAP_ID_NULL   ] = "Null Capability",
+#endif
         [PCI_CAP_ID_PM     ] = "Power Management",
         [PCI_CAP_ID_AGP    ] = "Accelerated Graphics Port",
         [PCI_CAP_ID_VPD    ] = "Vital Product Data",
