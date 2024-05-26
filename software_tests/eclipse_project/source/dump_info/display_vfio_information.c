@@ -290,8 +290,8 @@ static void display_pci_express_capabilities (const int device_fd, const uint8_t
     const uint32_t negotiated_link_speed = link_status & PCI_EXP_LNKSTA_SPEED;
     const uint32_t negotiated_link_width = (link_status & PCI_EXP_LNKSTA_WIDTH) >> 4;
 
-    const uint32_t link_capabilities2 = read_pci_config_long (device_fd, capability_pointer + PCI_EXP_LNKCAP2);
 #ifdef PCI_EXP_LNKCAP2_SPEED
+    const uint32_t link_capabilities2 = read_pci_config_long (device_fd, capability_pointer + PCI_EXP_LNKCAP2);
     const uint32_t supported_link_speeds = PCI_EXP_LNKCAP2_SPEED (link_capabilities2);
 #endif
 

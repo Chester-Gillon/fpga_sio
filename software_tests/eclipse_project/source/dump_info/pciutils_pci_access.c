@@ -262,6 +262,7 @@ static bool fill_uint_property (struct pci_dev *const device, const int flag)
  * @return The value of the property when non-NULL.
  *         NULL means the property is not available
  */
+#ifdef HAVE_PCI_GET_STRING_PROPERTY
 static const char *fill_string_property (struct pci_dev *const device, const int flag)
 {
     const char *property_text = NULL;
@@ -274,6 +275,7 @@ static const char *fill_string_property (struct pci_dev *const device, const int
 
     return property_text;
 }
+#endif
 
 
 /**
@@ -395,7 +397,7 @@ const char *generic_pci_access_text_property (generic_pci_access_device_p const 
 #ifdef PCI_FILL_IOMMU_GROUP
         property_text = fill_string_property (device, PCI_FILL_IOMMU_GROUP);
 #else
-        property_text = pci_sysfs_read_device_symlink_name (((uint32_t) device->domain, device->bus, device->dev, device->func, "iommu_group");
+        property_text = pci_sysfs_read_device_symlink_name ((uint32_t) device->domain, device->bus, device->dev, device->func, "iommu_group");
 #endif
         break;
 

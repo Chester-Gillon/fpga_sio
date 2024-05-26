@@ -79,6 +79,13 @@ if (EXISTS ${PCIUTILS_ROOT})
     get_property(CMAKE_REQUIRED_INCLUDES DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
 endif()
 
+# Not available in all versions of pciutils
+set (CMAKE_REQUIRED_LIBRARIES pci)
+CHECK_SYMBOL_EXISTS ("pci_get_string_property" pci/pci.h HAVE_PCI_GET_STRING_PROPERTY)
+if (${HAVE_PCI_GET_STRING_PROPERTY})
+    add_definitions(-DHAVE_PCI_GET_STRING_PROPERTY)
+endif()
+
 # If there is a cmem_gdb_access directory in the home directory enable use of it for a physical memory allocator for
 # using DMA in noiommu mode
 set (CMEM_ROOT "$ENV{HOME}/cmem_gdb_access")
