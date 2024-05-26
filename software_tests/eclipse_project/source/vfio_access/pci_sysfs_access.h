@@ -11,7 +11,7 @@
 #include <stdint.h>
 
 
-const char *pci_sysfs_read_device_symlink_name (const uint32_t domain, const uint32_t bus, const uint32_t dev, const uint32_t func,
-                                                const char *const property_name);
+char *pci_sysfs_read_device_symlink_name (const uint32_t domain, const uint32_t bus, const uint32_t dev, const uint32_t func,
+                                          const char *const property_name);
 
 #endif /* SOURCE_VFIO_ACCESS_PCI_SYSFS_ACCESS_H_ */

@@ -16,6 +16,10 @@
 #define NELEMENTS(array) (sizeof(array) / sizeof(array[0]))
 
 
+/* Defined here as PCI_EXP_LNKCAP2_SPEED is not present in pciutils version 0x030506 under openSUSE */
+#define PCI_EXP_LNKCAP2_SUPPORTED_SPEEDS 0xfe
+
+
 /**
  * @brief Display one PCIe flag (a single bit) in a similar format to lspci
  * @param[in] field_name The name of the field displayed
@@ -165,7 +169,7 @@ static bool display_pci_express_capabilities (const uint32_t indent_level, gener
         const uint32_t negotiated_link_speed = extract_field (link_status, PCI_EXP_LNKSTA_SPEED);
         const uint32_t negotiated_link_width = extract_field (link_status, PCI_EXP_LNKSTA_WIDTH);
 
-        const uint32_t supported_link_speeds = PCI_EXP_LNKCAP2_SPEED (link_capabilities2);
+        const uint32_t supported_link_speeds = extract_field (link_capabilities2, PCI_EXP_LNKCAP2_SUPPORTED_SPEEDS);
 
         const uint32_t physical_slot_number = extract_field (slot_capabilities, PCI_EXP_SLTCAP_PSN);
 

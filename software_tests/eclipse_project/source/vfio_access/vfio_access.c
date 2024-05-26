@@ -10,6 +10,7 @@
  */
 
 #include "vfio_access.h"
+#include "pci_sysfs_access.h"
 
 #include <stdlib.h>
 #include <stdbool.h>
@@ -783,6 +784,32 @@ static bool get_type1_iommu_capabilities (vfio_devices_t *const vfio_devices)
 
 
 /**
+ * @brief Get the IOMMU group for a PCI device
+ * @details Uses conditional compilation to allow for the version of the pciutils library not supporting PCI_FILL_IOMMU_GROUP.
+ *          If pciutils doesn't support PCI_FILL_IOMMU_GROUP, then falls back to reading the Linux sysfs directly.
+ * @param[in/out] pci_dev The PCI device to get the IOMMU group for
+ * @return The IOMMU group as a numeric string if non-NULL, or NULL if the IOMMU group isn't defined
+ */
+static char *vfio_get_iommu_group (struct pci_dev *const pci_dev)
+{
+    char *iommu_group = NULL;
+#ifdef PCI_FILL_IOMMU_GROUP
+    const int known_fields = pci_fill_info (pci_dev, PCI_FILL_IOMMU_GROUP);
+
+    if ((known_fields & PCI_FILL_IOMMU_GROUP) == PCI_FILL_IOMMU_GROUP)
+    {
+        iommu_group = pci_get_string_property (pci_dev, PCI_FILL_IOMMU_GROUP);
+    }
+#else
+    iommu_group = pci_sysfs_read_device_symlink_name ((uint32_t) pci_dev->domain, pci_dev->bus, pci_dev->dev, pci_dev->func,
+            "iommu_group");
+#endif
+
+    return iommu_group;
+}
+
+
+/**
  * @brief Open an VFIO device, without mapping it's memory BARs.
  * @param[in/out] vfio_devices The list of vfio devices to append the opened device to.
  *                             If this function is successful vfio_devices->num_devices is incremented
@@ -801,7 +828,7 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
     /* Check the PCI device has an IOMMU group. */
     snprintf (new_device->device_name, sizeof (new_device->device_name), "%04x:%02x:%02x.%x",
             pci_dev->domain, pci_dev->bus, pci_dev->dev, pci_dev->func);
-    new_device->iommu_group = pci_get_string_property (pci_dev, PCI_FILL_IOMMU_GROUP);
+    new_device->iommu_group = vfio_get_iommu_group (pci_dev);
     if (new_device->iommu_group == NULL)
     {
         printf ("Skipping device %s (%04x:%04x) as no IOMMU group\n",
@@ -1113,7 +1140,7 @@ void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
     pci_scan_bus (vfio_devices->pacc);
 
     /* Open the PCI devices which match the filters and have an IOMMU group assigned */
-    const int required_fields = PCI_FILL_IDENT | PCI_FILL_IOMMU_GROUP;
+    const int required_fields = PCI_FILL_IDENT;
     for (dev = vfio_devices->pacc->devices; (dev != NULL) && (vfio_devices->num_devices < MAX_VFIO_DEVICES); dev = dev->next)
     {
         known_fields = pci_fill_info (dev, required_fields);
@@ -1286,7 +1313,7 @@ void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_dev
     pci_scan_bus (pacc);
 
     /* Display PCI devices which match the filters */
-    const int requested_fields = PCI_FILL_IDENT | PCI_FILL_IOMMU_GROUP | PCI_FILL_PHYS_SLOT;
+    const int requested_fields = PCI_FILL_IDENT | PCI_FILL_PHYS_SLOT;
     printf ("Scanning bus for %lu PCI device filters\n", num_filters);
     for (dev = pacc->devices; dev != NULL; dev = dev->next)
     {
@@ -1329,11 +1356,7 @@ void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_dev
 
             if (num_matches > 0)
             {
-                iommu_group = NULL;
-                if ((known_fields & PCI_FILL_IOMMU_GROUP) != 0)
-                {
-                    iommu_group = pci_get_string_property (dev, PCI_FILL_IOMMU_GROUP);
-                }
+                iommu_group = vfio_get_iommu_group (dev);
                 if (iommu_group != NULL)
                 {
                     printf ("  IOMMU group %s", iommu_group);

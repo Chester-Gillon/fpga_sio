@@ -15,3 +15,6 @@ endif()
 add_library (transfer_timing "transfer_timing.c")
 
 add_library (pci_sysfs_access "pci_sysfs_access.c")
+
+# Set dependent libraries to reduce duplication in target_link_libraries() of the executables
+target_link_libraries(vfio_access pci_sysfs_access pci rt)

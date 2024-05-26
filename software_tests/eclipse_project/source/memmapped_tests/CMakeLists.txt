@@ -6,9 +6,7 @@ add_executable (memmapped_persistence_libpciaccess "memmapped_persistence_libpci
 target_link_libraries (memmapped_persistence_libpciaccess pciaccess rt)
 
 add_executable (time_memmapped_libpciaccess "time_memmapped_libpciaccess.c")
-target_link_libraries (time_memmapped_libpciaccess vfio_access transfer_timing pciaccess pci rt)
+target_link_libraries (time_memmapped_libpciaccess vfio_access transfer_timing pciaccess)
 
-if (${HAVE_PCI_FILL_IOMMU_GROUP})
-    add_executable (memmapped_persistence_vfio "memmapped_persistence_vfio.c")
-    target_link_libraries (memmapped_persistence_vfio vfio_access pci rt)
-endif()
+add_executable (memmapped_persistence_vfio "memmapped_persistence_vfio.c")
+target_link_libraries (memmapped_persistence_vfio vfio_access)

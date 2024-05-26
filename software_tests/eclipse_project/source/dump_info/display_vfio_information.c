@@ -291,7 +291,9 @@ static void display_pci_express_capabilities (const int device_fd, const uint8_t
     const uint32_t negotiated_link_width = (link_status & PCI_EXP_LNKSTA_WIDTH) >> 4;
 
     const uint32_t link_capabilities2 = read_pci_config_long (device_fd, capability_pointer + PCI_EXP_LNKCAP2);
+#ifdef PCI_EXP_LNKCAP2_SPEED
     const uint32_t supported_link_speeds = PCI_EXP_LNKCAP2_SPEED (link_capabilities2);
+#endif
 
     const char *const device_port_type_names[] =
     {
@@ -352,6 +354,7 @@ static void display_pci_express_capabilities (const int device_fd, const uint8_t
     }
     printf (" Width x%u\n", negotiated_link_width);
 
+#ifdef PCI_EXP_LNKCAP2_SPEED
     /* Display supported link speeds */
     printf ("    Link capabilities2: ");
     if (link_capabilities2 != 0)
@@ -379,6 +382,7 @@ static void display_pci_express_capabilities (const int device_fd, const uint8_t
         printf ("Not implemented");
     }
     printf ("\n");
+#endif
 }
 
 
