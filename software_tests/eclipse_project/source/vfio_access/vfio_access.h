@@ -95,8 +95,10 @@ typedef struct
     int device_fd;
     /* The vfio device information */
     struct vfio_device_info device_info;
-    /* The vfio information about each PCI BAR. */
-    struct vfio_region_info regions_info[PCI_STD_NUM_BARS];
+    /* The vfio information about each possible PCI region. */
+    struct vfio_region_info regions_info[VFIO_PCI_NUM_REGIONS];
+    /* Set true when the corresponding entry in regions_info[] has been populated */
+    bool regions_info_populated[VFIO_PCI_NUM_REGIONS];
     /* For each BAR, if can be memory mapped then points at the mapping for the BAR.
      * Size of the mapping is given by the corresponding bars_info[].size.
      * NULL if the BAR is not present or doesn't support being mapped.
@@ -260,6 +262,7 @@ void create_vfio_buffer (vfio_buffer_t *const buffer,
 void free_vfio_buffer (vfio_buffer_t *const buffer);
 void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev,
                        const vfio_device_dma_capability_t dma_capability);
+void get_vfio_device_region (vfio_device_t *const vfio_device, const uint32_t region_index);
 void map_vfio_device_bar_before_use (vfio_device_t *const vfio_device, const uint32_t bar_index);
 uint8_t *map_vfio_registers_block (vfio_device_t *const vfio_device, const uint32_t bar_index,
                                    const size_t base_offset, const size_t frame_size);
@@ -279,11 +282,13 @@ void *vfio_dma_mapping_allocate_space (vfio_dma_mapping_t *const mapping,
                                        const size_t allocation_size, uint64_t *const allocated_iova);
 void vfio_dma_mapping_align_space (vfio_dma_mapping_t *const mapping);
 void free_vfio_dma_mapping (vfio_dma_mapping_t *const mapping);
-uint16_t vfio_read_pci_config_word (const vfio_device_t *const vfio_device, const uint32_t offset);
-uint32_t vfio_read_pci_config_long (const vfio_device_t *const vfio_device, const uint32_t offset);
-void vfio_write_pci_config_word (const vfio_device_t *const vfio_device, const uint32_t offset, const uint16_t config_word);
-void vfio_write_pci_config_long (const vfio_device_t *const vfio_device, const uint32_t offset, const uint32_t config_long);
-void vfio_display_pci_command (const vfio_device_t *const vfio_device);
+bool vfio_read_pci_config_u8 (vfio_device_t *const vfio_device, const uint32_t offset, uint8_t *const value);
+bool vfio_read_pci_config_u16 (vfio_device_t *const vfio_device, const uint32_t offset, uint16_t *const value);
+bool vfio_read_pci_config_u32 (vfio_device_t *const vfio_device, const uint32_t offset, uint32_t *const value);
+bool vfio_write_pci_config_u8 (vfio_device_t *const vfio_device, const uint32_t offset, const uint8_t value);
+bool vfio_write_pci_config_u16 (vfio_device_t *const vfio_device, const uint32_t offset, const uint16_t value);
+bool vfio_write_pci_config_u32 (vfio_device_t *const vfio_device, const uint32_t offset, const uint32_t value);
+void vfio_display_pci_command (vfio_device_t *const vfio_device);
 void vfio_display_fds (const vfio_devices_t *const vfio_devices);
 void vfio_launch_secondary_processes (vfio_devices_t *const vfio_devices,
                                       const uint32_t num_processes, vfio_secondary_process_t processes[const num_processes]);

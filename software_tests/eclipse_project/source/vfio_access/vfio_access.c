@@ -250,6 +250,38 @@ void free_vfio_buffer (vfio_buffer_t *const buffer)
 
 
 /**
+ * @brief Obtain the information for one region of a VFIO device
+ * @details This may be called multiple times for the same region, and and so effect if the region information has already
+ *          been obtained.
+ * @param[in/out] vfio_device The VFIO device to obtain the region information for
+ * @param[in] region_index Which region to obtain the information for
+ */
+void get_vfio_device_region (vfio_device_t *const vfio_device, const uint32_t region_index)
+{
+    int rc;
+
+    if (!vfio_device->regions_info_populated[region_index])
+    {
+        struct vfio_region_info *const region_info = &vfio_device->regions_info[region_index];
+
+        /* Get region information for PCI BAR, to determine if an implemented BAR which can be mapped */
+        memset (region_info, 0, sizeof (*region_info));
+        region_info->argsz = sizeof (*region_info);
+        region_info->index = region_index;
+        rc = ioctl (vfio_device->device_fd, VFIO_DEVICE_GET_REGION_INFO, region_info);
+        if (rc == 0)
+        {
+            vfio_device->regions_info_populated[region_index] = true;
+        }
+        else
+        {
+            printf ("VFIO_DEVICE_GET_REGION_INFO failed : %s\n", strerror (-rc));
+        }
+    }
+}
+
+
+/**
  * @brief Attempt to map a memory BAR for a VFIO device before use.
  * @details This may be called multiple times for the same BAR, and has no effect if the BAR is already mapped.
  *          On return vfio_device->mapped_bars[bar_index] is non-NULL if the BAR has been mapped into the virtual
@@ -260,40 +292,14 @@ void free_vfio_buffer (vfio_buffer_t *const buffer)
  */
 void map_vfio_device_bar_before_use (vfio_device_t *const vfio_device, const uint32_t bar_index)
 {
-    int rc;
     void *addr;
 
     if (vfio_device->mapped_bars[bar_index] == NULL)
     {
-        struct vfio_region_info *const region_info = &vfio_device->regions_info[bar_index];
-
-        /* Get the device information. As this program is written for a PCI device which has fixed enumerations for regions,
-         * the only use of the device information is a sanity check that VFIO reports a PCI device. */
-        memset (&vfio_device->device_info, 0, sizeof (vfio_device->device_info));
-        vfio_device->device_info.argsz = sizeof (vfio_device->device_info);
-        rc = ioctl (vfio_device->device_fd, VFIO_DEVICE_GET_INFO, &vfio_device->device_info);
-        if (rc != 0)
-        {
-            printf ("VFIO_DEVICE_GET_INFO failed : %s\n", strerror (-rc));
-            return;
-        }
-
-        if ((vfio_device->device_info.flags & VFIO_DEVICE_FLAGS_PCI) == 0)
-        {
-            printf ("VFIO_DEVICE_GET_INFO flags don't report a PCI device\n");
-            return;
-        }
-
         /* Get region information for PCI BAR, to determine if an implemented BAR which can be mapped */
-        memset (region_info, 0, sizeof (*region_info));
-        region_info->argsz = sizeof (*region_info);
-        region_info->index = bar_index;
-        rc = ioctl (vfio_device->device_fd, VFIO_DEVICE_GET_REGION_INFO, region_info);
-        if (rc != 0)
-        {
-            printf ("VFIO_DEVICE_GET_REGION_INFO failed : %s\n", strerror (-rc));
-            return;
-        }
+        get_vfio_device_region (vfio_device, bar_index);
+
+        struct vfio_region_info *const region_info = &vfio_device->regions_info[bar_index];
 
         if ((region_info->size > 0) && ((region_info->flags & VFIO_REGION_INFO_FLAG_MMAP) != 0))
         {
@@ -355,16 +361,7 @@ void reset_vfio_device (vfio_device_t *const vfio_device)
     int rc;
     int saved_errno;
 
-    /* Get the device information to determine if reset is support */
-    memset (&vfio_device->device_info, 0, sizeof (vfio_device->device_info));
-    vfio_device->device_info.argsz = sizeof (vfio_device->device_info);
-    rc = ioctl (vfio_device->device_fd, VFIO_DEVICE_GET_INFO, &vfio_device->device_info);
-    if (rc != 0)
-    {
-        printf ("VFIO_DEVICE_GET_INFO failed : %s\n", strerror (-rc));
-        return;
-    }
-
+    /* Check the device information to determine if reset is support */
     if ((vfio_device->device_info.flags & VFIO_DEVICE_FLAGS_RESET) != 0)
     {
         errno = 0;
@@ -1051,15 +1048,38 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
         return;
     }
 
+    /* Get the device information. As this program is written for a PCI device which has fixed enumerations for regions,
+     * the only use of the device information is a sanity check that VFIO reports a PCI device. */
+    memset (&new_device->device_info, 0, sizeof (new_device->device_info));
+    new_device->device_info.argsz = sizeof (new_device->device_info);
+    rc = ioctl (new_device->device_fd, VFIO_DEVICE_GET_INFO, &new_device->device_info);
+    if (rc != 0)
+    {
+        printf ("VFIO_DEVICE_GET_INFO failed : %s\n", strerror (-rc));
+        return;
+    }
+
+    if ((new_device->device_info.flags & VFIO_DEVICE_FLAGS_PCI) == 0)
+    {
+        printf ("VFIO_DEVICE_GET_INFO flags don't report a PCI device\n");
+        return;
+    }
+
     if (new_device->dma_capability != VFIO_DEVICE_DMA_CAPABILITY_NONE)
     {
         /* Ensure the VFIO device is enabled as a PCI bus master */
-        uint16_t command = vfio_read_pci_config_word (new_device, PCI_COMMAND);
-        if ((command & PCI_COMMAND_MASTER) == 0)
+        uint16_t command;
+
+        if (vfio_read_pci_config_u16 (new_device, PCI_COMMAND, &command))
         {
-            printf ("Enabling bus master for %s\n", new_device->device_name);
-            command |= PCI_COMMAND_MASTER;
-            vfio_write_pci_config_word (new_device, PCI_COMMAND, command);
+            if ((command & PCI_COMMAND_MASTER) == 0)
+            {
+                command |= PCI_COMMAND_MASTER;
+                if (vfio_write_pci_config_u16 (new_device, PCI_COMMAND, command))
+                {
+                    printf ("Enabled bus master for %s\n", new_device->device_name);
+                }
+            }
         }
     }
 
@@ -1270,6 +1290,7 @@ void close_vfio_devices (vfio_devices_t *const vfio_devices)
     if (vfio_devices->pacc != NULL)
     {
         pci_cleanup (vfio_devices->pacc);
+        vfio_devices->pacc = NULL;
     }
 }
 
@@ -1596,147 +1617,139 @@ void free_vfio_dma_mapping (vfio_dma_mapping_t *const mapping)
 /**
  * @brief Read a number of bytes from the PCI config space of a VFIO device
  * @details If an error occurs during the read displays diagnostic information and sets the returned bytes to 0xff.
- *          For simplicity looks up the PCI config region on the device for every call.
- * @param[in] vfio_device Device to read from
+ * @param[in/out] vfio_device Device to read from
  * @param[in] offset Offset into the configuration space to read
  * @param[in] num_bytes The number of bytes to read
  * @param[out] config_bytes The bytes which have been read.
+ * @return Returns true if the read was successful, or false otherwise.
  */
-static void vfio_read_pci_config_bytes (const vfio_device_t *const vfio_device,
+static bool vfio_read_pci_config_bytes (vfio_device_t *const vfio_device,
                                         const uint32_t offset, const size_t num_bytes, void *const config_bytes)
 {
-    int rc;
+    bool success = false;
     ssize_t num_read;
-    struct vfio_region_info region_info =
-    {
-        .argsz = sizeof (region_info),
-        .index = VFIO_PCI_CONFIG_REGION_INDEX
-    };
 
     memset (config_bytes, 0xff, num_bytes);
 
-    rc = ioctl (vfio_device->device_fd, VFIO_DEVICE_GET_REGION_INFO, &region_info);
-    if (rc != 0)
+    get_vfio_device_region (vfio_device, VFIO_PCI_CONFIG_REGION_INDEX);
+    if (vfio_device->regions_info_populated[VFIO_PCI_CONFIG_REGION_INDEX])
     {
-        printf ("  VFIO_DEVICE_GET_REGION_INFO failed : %s\n", strerror (-rc));
-        return;
+        num_read = pread (vfio_device->device_fd, config_bytes, num_bytes,
+                (off_t) (vfio_device->regions_info[VFIO_PCI_CONFIG_REGION_INDEX].offset + offset));
+        if (num_read == (ssize_t) num_bytes)
+        {
+            success = true;
+        }
+        else
+        {
+            printf ("  PCI config read of %zu bytes from offset %" PRIu32 " only read %zd bytes : %s\n",
+                    num_bytes, offset, num_read, strerror (errno));
+        }
     }
 
-    num_read = pread (vfio_device->device_fd, config_bytes, num_bytes, (off_t) (region_info.offset + offset));
-    if (num_read != (ssize_t) num_bytes)
-    {
-        printf ("  PCI config read of %zu bytes from offset %" PRIu32 " only read %zd bytes : %s\n",
-                num_bytes, offset, num_read, strerror (errno));
-        return;
-    }
+    return success;
 }
 
 
 /**
- * @brief Read a word from the PCI config space of a VFIO device
- * @param[in] vfio_device Device to read from
- * @param[in] offset Offset in the configuration space to read from
- * @return The word read from PCI config space, or all ones in the event of an error.
+ * @brief Read a 8-bit, 16-bit or 32-bit configuration value for a VFIO device
+ * @details Unlike pciutuils or lbipciaccess libraries, this can read PCIe capabilities without the process needing
+ *          CAP_SYS_ADMIN capability.
+ * @param[in/out] vfio_device The VFIO device to perform the configuration read for.
+ * @param[in] offset The byte offset for the configuration value to read
+ * @param[out] value The configuration value read.
+ *                   Will be all-ones if the configuration read fails
+ * @return Returns true if the configuration value was read.
  */
-uint16_t vfio_read_pci_config_word (const vfio_device_t *const vfio_device, const uint32_t offset)
+bool vfio_read_pci_config_u8 (vfio_device_t *const vfio_device, const uint32_t offset, uint8_t *const value)
 {
-    uint16_t config_word;
-
-    vfio_read_pci_config_bytes (vfio_device, offset, sizeof (config_word), &config_word);
-
-    return config_word;
+    return vfio_read_pci_config_bytes (vfio_device, offset, sizeof (*value), value);
 }
 
-
-/**
- * @brief Read a long word from the PCI config space of a VFIO device
- * @param[in] vfio_device Device to read from
- * @param[in] offset Offset in the configuration space to read from
- * @return The long word read from PCI config space, or all ones in the event of an error.
- */
-uint32_t vfio_read_pci_config_long (const vfio_device_t *const vfio_device, const uint32_t offset)
+bool vfio_read_pci_config_u16 (vfio_device_t *const vfio_device, const uint32_t offset, uint16_t *const value)
 {
-    uint32_t config_long;
+    return vfio_read_pci_config_bytes (vfio_device, offset, sizeof (*value), value);
+}
 
-    vfio_read_pci_config_bytes (vfio_device, offset, sizeof (config_long), &config_long);
-
-    return config_long;
+bool vfio_read_pci_config_u32 (vfio_device_t *const vfio_device, const uint32_t offset, uint32_t *const value)
+{
+    return vfio_read_pci_config_bytes (vfio_device, offset, sizeof (*value), value);
 }
 
 
 /**
  * @brief Write a number of bytes from the PCI config space of a VFIO device
  * @details If an error occurs during the read displays diagnostic information.
- *          For simplicity looks up the PCI config region on the device for every call.
- * @param[in] vfio_device Device to write to
+ * @param[in/out] vfio_device Device to write to
  * @param[in] offset Offset into the configuration space to write
  * @param[in] num_bytes The number of bytes to write
  * @param[in] config_bytes The bytes to write.
+ * @return Returns true if the write was successful, or false otherwise.
  */
-static void vfio_write_pci_config_bytes (const vfio_device_t *const vfio_device,
+static bool vfio_write_pci_config_bytes (vfio_device_t *const vfio_device,
                                          const uint32_t offset, const size_t num_bytes, const void *const config_bytes)
 {
-    int rc;
+    bool success = false;
     ssize_t num_written;
-    struct vfio_region_info region_info =
-    {
-        .argsz = sizeof (region_info),
-        .index = VFIO_PCI_CONFIG_REGION_INDEX
-    };
 
-    rc = ioctl (vfio_device->device_fd, VFIO_DEVICE_GET_REGION_INFO, &region_info);
-    if (rc != 0)
+    get_vfio_device_region (vfio_device, VFIO_PCI_CONFIG_REGION_INDEX);
+    if (vfio_device->regions_info_populated[VFIO_PCI_CONFIG_REGION_INDEX])
     {
-        printf ("  VFIO_DEVICE_GET_REGION_INFO failed : %s\n", strerror (-rc));
-        return;
+        num_written = pwrite (vfio_device->device_fd, config_bytes, num_bytes,
+                (off_t) (vfio_device->regions_info[VFIO_PCI_CONFIG_REGION_INDEX].offset + offset));
+        if (num_written == (ssize_t) num_bytes)
+        {
+            success = true;
+        }
+        else
+        {
+            printf ("  PCI config write of %zu bytes to offset %" PRIu32 " only wrote %zd bytes : %s\n",
+                    num_bytes, offset, num_written, strerror (errno));
+        }
     }
 
-    num_written = pwrite (vfio_device->device_fd, config_bytes, num_bytes, (off_t) (region_info.offset + offset));
-    if (num_written != (ssize_t) num_bytes)
-    {
-        printf ("  PCI config write of %zu bytes to offset %" PRIu32 " only wrote %zd bytes : %s\n",
-                num_bytes, offset, num_written, strerror (errno));
-        return;
-    }
+    return success;
 }
 
 
 /**
- * @brief Write a word to the PCI config space of a VFIO device
- * @param[in] vfio_device Device to write to
+ * @brief Write a 8-bit, 16-bit or 32-bit value to the PCI config space of a VFIO device
+ * @param[in/out] vfio_device Device to write to
  * @param[in] offset Offset in the configuration space to write to
  * @param[in] config_word Word value to write
+ * @return Returns true if the write was successful, or false otherwise.
  */
-void vfio_write_pci_config_word (const vfio_device_t *const vfio_device, const uint32_t offset, const uint16_t config_word)
+bool vfio_write_pci_config_u8 (vfio_device_t *const vfio_device, const uint32_t offset, const uint8_t value)
 {
-    vfio_write_pci_config_bytes (vfio_device, offset, sizeof (config_word), &config_word);
+    return vfio_write_pci_config_bytes (vfio_device, offset, sizeof (value), &value);
 }
 
-
-/**
- * @brief Write a long word to the PCI config space of a VFIO device
- * @param[in] vfio_device Device to write to
- * @param[in] offset Offset in the configuration space to write to
- * @param[in] config_long Long word value to write
- */
-void vfio_write_pci_config_long (const vfio_device_t *const vfio_device, const uint32_t offset, const uint32_t config_long)
+bool vfio_write_pci_config_u16 (vfio_device_t *const vfio_device, const uint32_t offset, const uint16_t value)
 {
-    vfio_write_pci_config_bytes (vfio_device, offset, sizeof (config_long), &config_long);
+    return vfio_write_pci_config_bytes (vfio_device, offset, sizeof (value), &value);
+}
+
+bool vfio_write_pci_config_u32 (vfio_device_t *const vfio_device, const uint32_t offset, const uint32_t value)
+{
+    return vfio_write_pci_config_bytes (vfio_device, offset, sizeof (value), &value);
 }
 
 
 /**
  * @brief Display the PCI control word for a VFIO device, for diagnostics
- * @param[in] vfio_device Device to display the PCI control word for
+ * @param[in/out] vfio_device Device to display the PCI control word for
  */
-void vfio_display_pci_command (const vfio_device_t *const vfio_device)
+void vfio_display_pci_command (vfio_device_t *const vfio_device)
 {
-    const uint16_t command = vfio_read_pci_config_word (vfio_device, PCI_COMMAND);
+    uint16_t command;
 
-    printf ("    control: I/O%s Mem%s BusMaster%s\n",
-            (command & PCI_COMMAND_IO) ? "+" : "-",
-            (command & PCI_COMMAND_MEMORY) ? "+" : "-",
-            (command & PCI_COMMAND_MASTER) ? "+" : "-");
+    if (vfio_read_pci_config_u16 (vfio_device, PCI_COMMAND, &command))
+    {
+        printf ("    control: I/O%s Mem%s BusMaster%s\n",
+                (command & PCI_COMMAND_IO) ? "+" : "-",
+                (command & PCI_COMMAND_MEMORY) ? "+" : "-",
+                (command & PCI_COMMAND_MASTER) ? "+" : "-");
+    }
 }
 
 
