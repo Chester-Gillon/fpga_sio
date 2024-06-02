@@ -237,7 +237,7 @@ bool generic_pci_access_uint_property (generic_pci_access_device_p const generic
  * @return The value of the property when non-NULL.
  *         NULL means the property is not available
  */
-#ifdef HAVE_PCI_GET_STRING_PROPERTY
+#ifdef PCI_FILL_DRIVER
 static const char *fill_string_property (struct pci_dev *const device, const int flag)
 {
     const char *property_text = NULL;
