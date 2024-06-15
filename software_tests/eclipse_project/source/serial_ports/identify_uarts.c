@@ -2,6 +2,15 @@
  * @file identify_uarts.c
  * @date 14 Jun 2024
  * @author Chester Gillon
+ * @brief Identify UARTs using VFIO
+ * @details
+ *   This was written to:
+ *   1. Demonstrate using VFIO to access BARs with IO space, as well as memory mapped space
+ *   2. Have two ways to identify UARTs on serial ports:
+ *      a. An auto-detection of the UART type, with the same logic as the Linux Kernel serial driver, but with a cut-down
+ *         set of UART types for those available in a PC to test.
+ *      b. The simple "dead port" detection test performed by GRUB, which just supports the lowest common denomination
+ *         of a 8250 UART.
  */
 
 #include "vfio_access.h"
@@ -53,19 +62,23 @@ typedef enum
     UART_16550,
     UART_16550A,
     UART_8250,
-    UART_16450
+    UART_16450,
+
+    /* Indicates the UART should be supported by GRUB, which just checks for a read/write test of the Scratch Regiser */
+    UART_GRUB_SUPPORTED
 } uart_type_t;
 
 static const char *const uart_names[] =
 {
-    [UART_UNKNOWN] = "UNKNOWN",
-    [UART_16C950 ] = "16C950",
-    [UART_XR16850] = "XR16850",
-    [UART_16750  ] = "16750",
-    [UART_16550  ] = "16550",
-    [UART_16550A ] = "16550A",
-    [UART_8250   ] = "8250",
-    [UART_16450  ] = "16450"
+    [UART_UNKNOWN       ] = "UNKNOWN",
+    [UART_16C950        ] = "16C950",
+    [UART_XR16850       ] = "XR16850",
+    [UART_16750         ] = "16750",
+    [UART_16550         ] = "16550",
+    [UART_16550A        ] = "16550A",
+    [UART_8250          ] = "8250",
+    [UART_16450         ] = "16450",
+    [UART_GRUB_SUPPORTED] = "GRUB_SUPPORTED"
 };
 
 
@@ -167,6 +180,10 @@ typedef struct
     /* The UART which has been identified */
     uart_type_t identified_uart;
 } uart_port_t;
+
+
+/* Command line argument to select which identification mechanism is performed */
+static bool arg_perform_grub_serial_dead_port_detection;
 
 
 /**
@@ -427,7 +444,7 @@ static void serial8250_clear_fifos (uart_port_t *const port)
  * @brief Perform an auto-detection sequence, on which should be an OX16C950 UART.
  * @details This is a cutdown sequence from the Linux Kernel 8250_core.c, excluding tests not applicable
  *          to the expected UARTs.
- * @param[in] port Which UART to auto-detect
+ * @param[in/out] port Which UART to auto-detect
  */
 static void autoconfig (uart_port_t *const port)
 {
@@ -510,6 +527,31 @@ static void autoconfig (uart_port_t *const port)
 
 
 /**
+ * @brief Determine if a serial port should be detected by GRUB, which performs a write/read test on the scratch register
+ * @param[in/out] port Which UART to test
+ */
+static void perform_grub_serial_dead_port_detection (uart_port_t *const port)
+{
+    uint8_t readback;
+
+    serial_out (port, UART_SCR, 0x5a);
+    readback = serial_in (port, UART_SCR);
+    if (readback != 0x5a)
+    {
+        return;
+    }
+    serial_out (port, UART_SCR, 0xa5);
+    readback = serial_in (port, UART_SCR);
+    if (readback != 0xa5)
+    {
+        return;
+    }
+
+    port->identified_uart = UART_GRUB_SUPPORTED;
+}
+
+
+/**
  * @brief Attempt to identify the UART for a serial port.
  * @details This is done by probing the UART registers, rather than relying upon the PCI vendor / device IDs
  * @param[in/out] vfio_device Provides access to the serial port registers
@@ -551,7 +593,14 @@ static void identify_serial_port_uart (vfio_device_t *const vfio_device, const s
         return;
     }
 
-    autoconfig (&port);
+    if (arg_perform_grub_serial_dead_port_detection)
+    {
+       perform_grub_serial_dead_port_detection (&port);
+    }
+    else
+    {
+        autoconfig (&port);
+    }
 
     printf ("  Identified UART: %s\n", uart_names[port.identified_uart]);
 }
@@ -563,7 +612,7 @@ static void identify_serial_port_uart (vfio_device_t *const vfio_device, const s
  */
 static void parse_command_line_arguments (int argc, char *argv[])
 {
-    const char *const optstring = "d:";
+    const char *const optstring = "d:g";
     int option;
 
     option = getopt (argc, argv, optstring);
@@ -575,9 +624,16 @@ static void parse_command_line_arguments (int argc, char *argv[])
             vfio_add_pci_device_location_filter (optarg);
             break;
 
+        case 'g':
+            arg_perform_grub_serial_dead_port_detection = true;
+            break;
+
         case '?':
         default:
-            printf ("Usage %s -d <pci_device_location>\n", argv[0]);
+            printf ("Usage %s [-d <pci_device_location>] [-g]\n", argv[0]);
+            printf ("  When -g is present performs GRUB serial dead port detection, otherwise\n");
+            printf ("  performs a UART type auto-detection which is based upon a subset of the\n");
+            printf ("  logic from the Linux Kernel serial port driver\n");
             exit (EXIT_FAILURE);
             break;
         }
