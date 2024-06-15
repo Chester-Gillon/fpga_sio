@@ -132,6 +132,7 @@ add_subdirectory ("${PROJECT_SOURCE_DIR}/probe_xilinx_ip")
 add_subdirectory ("${PROJECT_SOURCE_DIR}/nite_or_lite_fury_tests")
 add_subdirectory ("${PROJECT_SOURCE_DIR}/sealevel_serial_7205e")
 add_subdirectory ("${PROJECT_SOURCE_DIR}/micromemory_5425_nvram")
+add_subdirectory ("${PROJECT_SOURCE_DIR}/serial_ports")
 
 # Create a file listing all executables linking the vfio_access library, for use by set_exe_vfio_capabilities.sh
 report_all_targets("vfio_access")

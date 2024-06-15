@@ -1615,35 +1615,39 @@ void free_vfio_dma_mapping (vfio_dma_mapping_t *const mapping)
 
 
 /**
- * @brief Read a number of bytes from the PCI config space of a VFIO device
+ * @brief Read a number of bytes from a PCI region of a VFIO device
  * @details If an error occurs during the read displays diagnostic information and sets the returned bytes to 0xff.
+ *          This is for regions which can't be directly mapped:
+ *          - PCI configuration
+ *          - IO bars
  * @param[in/out] vfio_device Device to read from
+ * @param[in] region_index Which PCI region to read from
  * @param[in] offset Offset into the configuration space to read
  * @param[in] num_bytes The number of bytes to read
  * @param[out] config_bytes The bytes which have been read.
  * @return Returns true if the read was successful, or false otherwise.
  */
-static bool vfio_read_pci_config_bytes (vfio_device_t *const vfio_device,
-                                        const uint32_t offset, const size_t num_bytes, void *const config_bytes)
+bool vfio_read_pci_region_bytes (vfio_device_t *const vfio_device, const uint32_t region_index,
+                                 const uint32_t offset, const size_t num_bytes, void *const config_bytes)
 {
     bool success = false;
     ssize_t num_read;
 
     memset (config_bytes, 0xff, num_bytes);
 
-    get_vfio_device_region (vfio_device, VFIO_PCI_CONFIG_REGION_INDEX);
-    if (vfio_device->regions_info_populated[VFIO_PCI_CONFIG_REGION_INDEX])
+    get_vfio_device_region (vfio_device, region_index);
+    if (vfio_device->regions_info_populated[region_index])
     {
         num_read = pread (vfio_device->device_fd, config_bytes, num_bytes,
-                (off_t) (vfio_device->regions_info[VFIO_PCI_CONFIG_REGION_INDEX].offset + offset));
+                (off_t) (vfio_device->regions_info[region_index].offset + offset));
         if (num_read == (ssize_t) num_bytes)
         {
             success = true;
         }
         else
         {
-            printf ("  PCI config read of %zu bytes from offset %" PRIu32 " only read %zd bytes : %s\n",
-                    num_bytes, offset, num_read, strerror (errno));
+            printf ("  PCI region %u read of %zu bytes from offset %" PRIu32 " only read %zd bytes : %s\n",
+                    region_index, num_bytes, offset, num_read, strerror (errno));
         }
     }
 
@@ -1663,48 +1667,51 @@ static bool vfio_read_pci_config_bytes (vfio_device_t *const vfio_device,
  */
 bool vfio_read_pci_config_u8 (vfio_device_t *const vfio_device, const uint32_t offset, uint8_t *const value)
 {
-    return vfio_read_pci_config_bytes (vfio_device, offset, sizeof (*value), value);
+    return vfio_read_pci_region_bytes (vfio_device, VFIO_PCI_CONFIG_REGION_INDEX, offset, sizeof (*value), value);
 }
 
 bool vfio_read_pci_config_u16 (vfio_device_t *const vfio_device, const uint32_t offset, uint16_t *const value)
 {
-    return vfio_read_pci_config_bytes (vfio_device, offset, sizeof (*value), value);
+    return vfio_read_pci_region_bytes (vfio_device, VFIO_PCI_CONFIG_REGION_INDEX, offset, sizeof (*value), value);
 }
 
 bool vfio_read_pci_config_u32 (vfio_device_t *const vfio_device, const uint32_t offset, uint32_t *const value)
 {
-    return vfio_read_pci_config_bytes (vfio_device, offset, sizeof (*value), value);
+    return vfio_read_pci_region_bytes (vfio_device, VFIO_PCI_CONFIG_REGION_INDEX, offset, sizeof (*value), value);
 }
 
 
 /**
- * @brief Write a number of bytes from the PCI config space of a VFIO device
+ * @brief Write a number of bytes to a PCI region of a VFIO device
  * @details If an error occurs during the read displays diagnostic information.
+ *          This is for regions which can't be directly mapped:
+ *          - PCI configuration
+ *          - IO bars
  * @param[in/out] vfio_device Device to write to
  * @param[in] offset Offset into the configuration space to write
  * @param[in] num_bytes The number of bytes to write
  * @param[in] config_bytes The bytes to write.
  * @return Returns true if the write was successful, or false otherwise.
  */
-static bool vfio_write_pci_config_bytes (vfio_device_t *const vfio_device,
-                                         const uint32_t offset, const size_t num_bytes, const void *const config_bytes)
+bool vfio_write_pci_region_bytes (vfio_device_t *const vfio_device, const uint32_t region_index,
+                                  const uint32_t offset, const size_t num_bytes, const void *const config_bytes)
 {
     bool success = false;
     ssize_t num_written;
 
-    get_vfio_device_region (vfio_device, VFIO_PCI_CONFIG_REGION_INDEX);
-    if (vfio_device->regions_info_populated[VFIO_PCI_CONFIG_REGION_INDEX])
+    get_vfio_device_region (vfio_device, region_index);
+    if (vfio_device->regions_info_populated[region_index])
     {
         num_written = pwrite (vfio_device->device_fd, config_bytes, num_bytes,
-                (off_t) (vfio_device->regions_info[VFIO_PCI_CONFIG_REGION_INDEX].offset + offset));
+                (off_t) (vfio_device->regions_info[region_index].offset + offset));
         if (num_written == (ssize_t) num_bytes)
         {
             success = true;
         }
         else
         {
-            printf ("  PCI config write of %zu bytes to offset %" PRIu32 " only wrote %zd bytes : %s\n",
-                    num_bytes, offset, num_written, strerror (errno));
+            printf ("  PCI region %u write of %zu bytes to offset %" PRIu32 " only wrote %zd bytes : %s\n",
+                    region_index, num_bytes, offset, num_written, strerror (errno));
         }
     }
 
@@ -1721,17 +1728,17 @@ static bool vfio_write_pci_config_bytes (vfio_device_t *const vfio_device,
  */
 bool vfio_write_pci_config_u8 (vfio_device_t *const vfio_device, const uint32_t offset, const uint8_t value)
 {
-    return vfio_write_pci_config_bytes (vfio_device, offset, sizeof (value), &value);
+    return vfio_write_pci_region_bytes (vfio_device, VFIO_PCI_CONFIG_REGION_INDEX, offset, sizeof (value), &value);
 }
 
 bool vfio_write_pci_config_u16 (vfio_device_t *const vfio_device, const uint32_t offset, const uint16_t value)
 {
-    return vfio_write_pci_config_bytes (vfio_device, offset, sizeof (value), &value);
+    return vfio_write_pci_region_bytes (vfio_device, VFIO_PCI_CONFIG_REGION_INDEX, offset, sizeof (value), &value);
 }
 
 bool vfio_write_pci_config_u32 (vfio_device_t *const vfio_device, const uint32_t offset, const uint32_t value)
 {
-    return vfio_write_pci_config_bytes (vfio_device, offset, sizeof (value), &value);
+    return vfio_write_pci_region_bytes (vfio_device, VFIO_PCI_CONFIG_REGION_INDEX, offset, sizeof (value), &value);
 }
 
 

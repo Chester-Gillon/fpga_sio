@@ -20,9 +20,9 @@
 
 #include <time.h>
 #include <unistd.h>
+#include <linux/serial_reg.h>
 
 #include "vfio_access.h"
-#include "serial_reg.h"
 #include "transfer_timing.h"
 #include "pex8311.h"
 
@@ -389,7 +389,7 @@ static uint8_t serial_icr_read (uart_port_t *const port, const uint8_t offset)
  */
 static void serial_set_additional_status_read (uart_port_t *const port, const bool enable)
 {
-    serial_icr_write (port, UART_ACR, enable ? port->acr | UART_ACR_ASE : port->acr);
+    serial_icr_write (port, UART_ACR, enable ? port->acr | UART_ACR_ASREN : port->acr);
 }
 
 
