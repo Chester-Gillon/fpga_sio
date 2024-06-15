@@ -1,0 +1,239 @@
+1. Nanjing Qinheng Microelectronics Co., Ltd. CH352/CH382 PCI/PCIe Dual Port Serial Adapter
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This serial card fitted in a HP Z4 G4 PC with an AlmaLinux 8.9 4.18.0-513.24.1.el8_9.x86_64 Kernel
+
+Secure boot and the IOMMU are enabled
+
+At Linux boot the serial driver is bound:
+$ lspci -vv  -d 1c00:
+09:00.0 Serial controller: Nanjing Qinheng Microelectronics Co., Ltd. CH352/CH382 PCI/PCIe Dual Port Serial Adapter (rev 10) (prog-if 05 [16850])
+    Subsystem: Nanjing Qinheng Microelectronics Co., Ltd. CH352/CH382 PCI/PCIe Dual Port Serial Adapter
+    Control: I/O+ Mem+ BusMaster- SpecCycle- MemWINV- VGASnoop- ParErr+ Stepping- SERR+ FastB2B- DisINTx-
+    Status: Cap+ 66MHz- UDF- FastB2B- ParErr- DEVSEL=fast >TAbort- <TAbort- <MAbort- >SERR- <PERR- INTx-
+    Interrupt: pin A routed to IRQ 16
+    NUMA node: 0
+    IOMMU group: 30
+    Region 0: I/O ports at 2000 [size=256]
+    Region 1: Memory at 96100000 (32-bit, prefetchable) [size=32K]
+    Region 2: I/O ports at 2100 [size=4]
+    Expansion ROM at 90000000 [disabled] [size=32K]
+    Capabilities: <access denied>
+    Kernel driver in use: serial
+
+And the UARTs are identified as XR16850:
+$ sudo cat /proc/tty/driver/serial
+serinfo:1.0 driver revision:
+0: uart:XR16850 port:000020C0 irq:16 tx:0 rx:0
+1: uart:XR16850 port:000020C8 irq:16 tx:0 rx:0
+2: uart:unknown port:000003E8 irq:4
+3: uart:unknown port:000002E8 irq:3
+
+
+Unbind the serial driver:
+$ echo "0000:09:00.0" | sudo tee /sys/bus/pci/drivers/serial/unbind 
+[sudo] password for mr_halfword: 
+0000:09:00.0
+
+And can then bind the vfio-pci driver:
+$ ~/fpga_sio/software_tests/eclipse_project/bind_device_to_vfio.sh 1c00
+IOMMU devices present: dmar0  dmar1  dmar2  dmar3
+Loading vfio-pci module
+Bound vfio-pci driver to 0000:09:00.0 1c00:3253 [1c00:3253]
+Waiting for /dev/vfio/30 to be created
+Giving user permission to IOMMU group 30 for 0000:09:00.0 1c00:3253 [1c00:3253]
+
+The UARTs are identified as 16750 when using the Kernel based auto-detect logic:
+$ serial_ports/identify_uarts 
+Opening device 0000:09:00.0 (1c00:3253) with IOMMU group 30
+Probing port 0 on device 0000:09:00.0 using IO
+  Identified UART: 16750
+Probing port 1 on device 0000:09:00.0 using IO
+  Identified UART: 16750
+
+And the UARTs should be supported by grub:
+$ serial_ports/identify_uarts -g
+Opening device 0000:09:00.0 (1c00:3253) with IOMMU group 30
+Probing port 0 on device 0000:09:00.0 using IO
+  Identified UART: GRUB_SUPPORTED
+Probing port 1 on device 0000:09:00.0 using IO
+  Identified UART: GRUB_SUPPORTED
+
+
+2. Sealevel COMM+2.LPCIe board (7205e)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This serial card has been modified to place its UARTs in memory mapped BARs rather than IO space.
+
+At boot linux is not binding a driver to the card.
+
+The CPU doesn't support the IOMMU.
+
+The serial port card:
+$ lspci -vv -n -d 10b5:9056
+05:04.0 0680: 10b5:9056 (rev aa)
+    Subsystem: 10b5:3198
+    Control: I/O- Mem- BusMaster- SpecCycle- MemWINV- VGASnoop- ParErr- Stepping- SERR- FastB2B- DisINTx-
+    Status: Cap+ 66MHz+ UDF- FastB2B+ ParErr- DEVSEL=medium >TAbort- <TAbort- <MAbort- >SERR- <PERR- INTx-
+    Interrupt: pin A routed to IRQ 4
+    Region 0: Memory at fe302000 (32-bit, non-prefetchable) [disabled] [size=512]
+    Region 2: Memory at fe301000 (32-bit, non-prefetchable) [disabled] [size=16]
+    Region 3: Memory at fe300000 (32-bit, non-prefetchable) [disabled] [size=16]
+    Capabilities: <access denied>
+
+Bind the vfio-pci driver:
+Sealevel COMM+2.LPCIe board (7205e)
+
+The UARTs are identified as 16C950 when using the Kernel based auto-detect logic:
+$ serial_ports/identify_uarts 
+Opening device 0000:05:04.0 (10b5:9056) with IOMMU group 0
+Probing port 0 on device 0000:05:04.0 using memory mapping
+  Identified UART: 16C950
+Probing port 1 on device 0000:05:04.0 using memory mapping
+  Identified UART: 16C950
+
+The UARTs aren't supported by grub, due to the test on the Scratch Register failing:
+$ serial_ports/identify_uarts -g
+Opening device 0000:05:04.0 (10b5:9056) with IOMMU group 0
+Probing port 0 on device 0000:05:04.0 using memory mapping
+  Identified UART: UNKNOWN
+Probing port 1 on device 0000:05:04.0 using memory mapping
+  Identified UART: UNKNOWN
+
+And even if the Scratch Register test passed, since the UART registers have been changed to be memory mapped then grub
+couldn't use them anyway.
+
+
+3. Intel Corporation C610/X99 series chipset KT Controller
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This is the on-board serial port on a HP Z640 workstation, for which the external connector is not fitted.
+The PC is running Ubuntu 22.04.4 LTS with a 5.15.0-112-generic Kernel
+
+Secure boot is enabled.
+
+At Linux boot the serial driver is bound:
+$ lspci -v -d 8086:8d3d
+00:16.3 Serial controller: Intel Corporation C610/X99 series chipset KT Controller (rev 05) (prog-if 02 [16550])
+    Subsystem: Hewlett-Packard Company C610/X99 series chipset KT Controller
+    Flags: 66MHz, fast devsel, IRQ 17, NUMA node 0
+    I/O ports at 4070 [size=8]
+    Memory at f423b000 (32-bit, non-prefetchable) [size=4K]
+    Capabilities: <access denied>
+    Kernel driver in use: serial
+
+And the UART is identified as a 16550A:
+$ sudo cat /proc/tty/driver/serial
+serinfo:1.0 driver revision:
+0: uart:unknown port:000003F8 irq:4
+1: uart:unknown port:000002F8 irq:3
+2: uart:unknown port:000003E8 irq:4
+3: uart:unknown port:000002E8 irq:3
+4: uart:16550A port:00004070 irq:17 tx:18 rx:0 CTS|DSR|CD
+5: uart:unknown port:00000000 irq:0
+6: uart:unknown port:00000000 irq:0
+7: uart:unknown port:00000000 irq:0
+8: uart:unknown port:00000000 irq:0
+9: uart:unknown port:00000000 irq:0
+10: uart:unknown port:00000000 irq:0
+11: uart:unknown port:00000000 irq:0
+12: uart:unknown port:00000000 irq:0
+13: uart:unknown port:00000000 irq:0
+14: uart:unknown port:00000000 irq:0
+15: uart:unknown port:00000000 irq:0
+16: uart:unknown port:00000000 irq:0
+17: uart:unknown port:00000000 irq:0
+18: uart:unknown port:00000000 irq:0
+19: uart:unknown port:00000000 irq:0
+20: uart:unknown port:00000000 irq:0
+21: uart:unknown port:00000000 irq:0
+22: uart:unknown port:00000000 irq:0
+23: uart:unknown port:00000000 irq:0
+24: uart:unknown port:00000000 irq:0
+25: uart:unknown port:00000000 irq:0
+26: uart:unknown port:00000000 irq:0
+27: uart:unknown port:00000000 irq:0
+28: uart:unknown port:00000000 irq:0
+29: uart:unknown port:00000000 irq:0
+30: uart:unknown port:00000000 irq:0
+31: uart:unknown port:00000000 irq:0
+
+
+# 3.1. Can't bind vfio-pci driver when IOMMU is disabled
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The default Linux command line leaves the IOMMU disabled.
+
+Unbind the serial driver:
+$ echo "0000:00:16.3" | sudo tee /sys/bus/pci/drivers/serial/unbind
+0000:00:16.3
+
+However, attempting to bind the vfio-pci driver fails:
+$ ~/fpga_sio/software_tests/eclipse_project/bind_device_to_vfio.sh 8086 8d3d
+No IOMMUs present
+tee: /sys/bus/pci/drivers/vfio-pci/bind: Invalid argument
+Failed to bind vfio-pci driver to 0000:00:16.3 8086:8d3d [103c:212a]
+
+Haven't attempted to trace what causes the failure to bind. Since this UART is part of the C610/X99 series chipset,
+dump_pci_info_pciutils shows it doesn't have an parent PCIe root bridge. Not sure if that is related.
+
+
+# 3.2. Can bind vfio-pci driver when the IOMMU is enabled
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Rebooted the PC, and used grub to temporarily add intel_iommu=on to the command line.
+
+Unbind the serial driver:
+$ echo "0000:00:16.3" | sudo tee /sys/bus/pci/drivers/serial/unbind
+[sudo] password for mr_halfword: 
+0000:00:16.3
+
+This time, after enabling the IOMMU can bind the vfio-pci driver:
+$ ~/fpga_sio/software_tests/eclipse_project/bind_device_to_vfio.sh 8086 8d3d
+IOMMU devices present: dmar0  dmar1  dmar2
+Bound vfio-pci driver to 0000:00:16.3 8086:8d3d [103c:212a]
+Waiting for /dev/vfio/39 to be created
+Giving user permission to IOMMU group 39 for 0000:00:16.3 8086:8d3d [103c:212a]
+
+However, the IOMMU group containing the serial port is not viable:
+$ serial_ports/identify_uarts 
+Opening device 0000:00:16.3 (8086:8d3d) with IOMMU group 39
+group is not viable (ie, not all devices bound for vfio)
+
+The other device in the same IOMMU group is:
+$ lspci -vv -n -s 0000:00:16.0
+00:16.0 0780: 8086:8d3a (rev 05)
+    Subsystem: 103c:212a
+    Control: I/O- Mem+ BusMaster+ SpecCycle- MemWINV- VGASnoop- ParErr- Stepping- SERR- FastB2B- DisINTx+
+    Status: Cap+ 66MHz- UDF- FastB2B- ParErr- DEVSEL=fast >TAbort- <TAbort- <MAbort- >SERR- <PERR- INTx-
+    Latency: 0
+    Interrupt: pin A routed to IRQ 80
+    NUMA node: 0
+    IOMMU group: 39
+    Region 0: Memory at f4234000 (64-bit, non-prefetchable) [size=16]
+    Capabilities: <access denied>
+    Kernel driver in use: mei_me
+    Kernel modules: mei_me
+
+Unbind the mei_me driver:
+$ echo 0000:00:16.0 | sudo tee /sys/bus/pci/devices/0000:00:16.0/driver/unbind
+0000:00:16.0
+
+Bind the vfio-pci driver:
+$ ~/fpga_sio/software_tests/eclipse_project/bind_device_to_vfio.sh 8086 8086 8d3
+IOMMU devices present: dmar0  dmar1  dmar2
+Bound vfio-pci driver to 0000:00:16.0 8086:8d3a [103c:212a]
+Waiting for /dev/vfio/39 to be created
+Giving user permission to IOMMU group 39 for 0000:00:16.0 8086:8d3a [103c:212a]
+
+The identify_uarts program can now be run, and the UART is identified as a 16550A when using the Kernel based auto-detect logic:
+$ serial_ports/identify_uarts 
+Opening device 0000:00:16.3 (8086:8d3d) with IOMMU group 39
+Probing port 0 on device 0000:00:16.3 using IO
+  Identified UART: 16550A
+
+And the UART should be supported by grub:
+$ serial_ports/identify_uarts -g
+Opening device 0000:00:16.3 (8086:8d3d) with IOMMU group 39
+Probing port 0 on device 0000:00:16.3 using IO
+  Identified UART: GRUB_SUPPORTED
