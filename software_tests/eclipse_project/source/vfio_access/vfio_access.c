@@ -249,6 +249,134 @@ void free_vfio_buffer (vfio_buffer_t *const buffer)
 }
 
 
+/*
+ * @brief Scan a fd directory, reporting if any of the files references an absolute pathname
+ * @param[in] fd_dir_to_scan The directory to scan, which may be at either:
+ *            - /proc/pid/fd meaning scanning PIDs
+ *            - /proc/pid/task/tid/fd meaning scanning TIDs
+ * @param[in] pathname The absolute pathname to check if is referenced
+ * @returns Returns true if pathname if referenced within fd_dir_to_scan
+ */
+static bool scan_fd_dir_for_pathname_matches (const char *const fd_dir_to_scan, const char *const pathname)
+{
+    bool matched = false;
+    DIR *fd_dir;
+    struct dirent *fd_ent;
+    int rc;
+    char fd_symlnk[PATH_MAX];
+    char fd_target[PATH_MAX + 1];
+    ssize_t fd_target_len;
+
+    errno = 0;
+    fd_dir = opendir (fd_dir_to_scan);
+    if (fd_dir != NULL)
+    {
+        fd_ent = readdir (fd_dir);
+        while (!matched && (fd_ent != NULL))
+        {
+            if (fd_ent->d_type == DT_LNK)
+            {
+                snprintf (fd_symlnk, sizeof (fd_symlnk), "%s/%s", fd_dir_to_scan, fd_ent->d_name);
+                errno = 0;
+                fd_target_len = readlink (fd_symlnk, fd_target, sizeof (fd_target) - 1);
+                if (fd_target_len > 0)
+                {
+                    fd_target[fd_target_len] = '\0';
+                    matched = strcmp (fd_target, pathname) == 0;
+                }
+            }
+
+            fd_ent = readdir (fd_dir);
+        }
+
+        rc = closedir (fd_dir);
+        if (rc != 0)
+        {
+            printf ("closedir() failed\n");
+        }
+    }
+
+    return matched;
+}
+
+
+/**
+ * @brief Find which PID, if any, is using a specific pathname
+ * @details This is to report diagnostics in the event that unable to open an IOMMU group which is already open by a different
+ *          process. It only reports the first PID found which is using the pathname
+ * @param[in] pathname The absolute pathname to find references to
+ * @return Either:
+ *         - If -1 failed to find a PID using pathname, which may occur if the user running the program doesn't have permission
+ *           to open the fd directory. E.g. when the process with the fd directory is a different user.
+ *         - Otherwise the PID which is using pathname
+ */
+static pid_t find_pid_using_file (const char *const pathname)
+{
+    pid_t pid_using_file = -1;
+    DIR *proc_dir;
+    struct dirent *proc_ent;
+    DIR *task_dir;
+    struct dirent *task_ent;
+    int rc;
+    pid_t pid;
+    pid_t tid;
+    char task_dirname[PATH_MAX];
+    char fd_dir_to_scan[PATH_MAX];
+    char junk;
+    size_t num_chars;
+
+    proc_dir = opendir ("/proc");
+    if (proc_dir != NULL)
+    {
+        proc_ent = readdir (proc_dir);
+        while ((pid_using_file == -1) && (proc_ent != NULL))
+        {
+            if ((proc_ent->d_type == DT_DIR) && (sscanf (proc_ent->d_name, "%d%c", &pid, &junk) == 1))
+            {
+                snprintf (task_dirname, sizeof (task_dirname), "/proc/%s/task", proc_ent->d_name);
+                task_dir = opendir (task_dirname);
+                if (task_dir != NULL)
+                {
+                    task_ent = readdir (task_dir);
+                    while ((pid_using_file == -1) && (task_ent != NULL))
+                    {
+                        if ((task_ent->d_type == DT_DIR) && (sscanf (task_ent->d_name, "%d%c", &tid, &junk) == 1))
+                        {
+                            /* use of num_chars suppresses -Wformat-truncation, as suggested by
+                             * https://stackoverflow.com/a/70938456/4207678 */
+                            num_chars = sizeof (fd_dir_to_scan);
+                            snprintf (fd_dir_to_scan, num_chars, "%s/%s/fd", task_dirname, task_ent->d_name);
+                            if (scan_fd_dir_for_pathname_matches (fd_dir_to_scan, pathname))
+                            {
+                                pid_using_file = pid;
+                            }
+                        }
+
+                        task_ent = readdir (task_dir);
+                    }
+
+                    rc = closedir (task_dir);
+                    if (rc != 0)
+                    {
+                        printf ("closedir() failed\n");
+                    }
+                }
+            }
+
+            proc_ent = readdir (proc_dir);
+        }
+
+        rc = closedir (proc_dir);
+        if (rc != 0)
+        {
+            printf ("closedir() failed\n");
+        }
+    }
+
+    return pid_using_file;
+}
+
+
 /**
  * @brief Obtain the information for one region of a VFIO device
  * @details This may be called multiple times for the same region, and and so effect if the region information has already
@@ -844,7 +972,7 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
      * This is done before trying open the VFIO device to determine which type of IOMMU to use. */
     if (vfio_devices->container_fd == -1)
     {
-        /* Determine if we are a secondary process due to the contain already being opened by the primary */
+        /* Determine if we are a secondary process due to the container already being opened by the primary */
         vfio_devices->container_fd = find_fd_from_primary_process (VFIO_CONTAINER_PATH);
         vfio_devices->secondary_process = vfio_devices->container_fd != -1;
 
@@ -962,7 +1090,30 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
         saved_errno = errno;
         if (new_device->group_fd == -1)
         {
-            if ((saved_errno == EPERM) && (vfio_devices->iommu_type == VFIO_NOIOMMU_IOMMU))
+            const pid_t pid_using_file = find_pid_using_file (new_device->group_pathname);
+
+            if ((saved_errno == EBUSY) && (pid_using_file != -1))
+            {
+                /* If the IOMMU group is already open by another process display the process executable and PID for
+                 * diagnostic information. */
+                char pid_exe_symlink[PATH_MAX];
+                char exe_pathname[PATH_MAX];
+                ssize_t exe_pathname_len;
+
+                snprintf (pid_exe_symlink, sizeof (pid_exe_symlink), "/proc/%d/exe", pid_using_file);
+                exe_pathname_len = readlink (pid_exe_symlink, exe_pathname, sizeof (exe_pathname) - 1);
+                if (exe_pathname_len > 0)
+                {
+                    exe_pathname[exe_pathname_len] = '\0';
+                    printf ("Unable to open %s as is already open by %s PID %d\n",
+                            new_device->group_pathname, exe_pathname, pid_using_file);
+                }
+                else
+                {
+                    printf ("Unable to open %s as is already open by PID %d\n", new_device->group_pathname, pid_using_file);
+                }
+            }
+            else if ((saved_errno == EPERM) && (vfio_devices->iommu_type == VFIO_NOIOMMU_IOMMU))
             {
                 /* With a noiommu group permission on the group file isn't sufficient.
                  * Need to sys_rawio capability to open the group. */
@@ -1497,7 +1648,7 @@ void allocate_vfio_dma_mapping (vfio_device_t *const vfio_device,
         {
             mapping->iova = region.start;
 
-                    /* Create the buffer in the local process. As don't yet have multi-process support uses the PID to make the name unique */
+            /* Create the buffer in the local process. As don't yet have multi-process support uses the PID to make the name unique */
             snprintf (name_suffix, sizeof (name_suffix), "pid-%d_iova-%" PRIu64, getpid(), mapping->iova);
             create_vfio_buffer (&mapping->buffer, aligned_size, buffer_allocation, name_suffix);
 
