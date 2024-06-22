@@ -266,6 +266,7 @@ static bool scan_fd_dir_for_pathname_matches (const char *const fd_dir_to_scan, 
     char fd_symlnk[PATH_MAX];
     char fd_target[PATH_MAX + 1];
     ssize_t fd_target_len;
+    volatile size_t num_chars;
 
     errno = 0;
     fd_dir = opendir (fd_dir_to_scan);
@@ -276,7 +277,8 @@ static bool scan_fd_dir_for_pathname_matches (const char *const fd_dir_to_scan, 
         {
             if (fd_ent->d_type == DT_LNK)
             {
-                snprintf (fd_symlnk, sizeof (fd_symlnk), "%s/%s", fd_dir_to_scan, fd_ent->d_name);
+                num_chars = sizeof (fd_symlnk);
+                snprintf (fd_symlnk, num_chars, "%s/%s", fd_dir_to_scan, fd_ent->d_name);
                 errno = 0;
                 fd_target_len = readlink (fd_symlnk, fd_target, sizeof (fd_target) - 1);
                 if (fd_target_len > 0)
@@ -323,7 +325,7 @@ static pid_t find_pid_using_file (const char *const pathname)
     char task_dirname[PATH_MAX];
     char fd_dir_to_scan[PATH_MAX];
     char junk;
-    size_t num_chars;
+    volatile size_t num_chars;
 
     proc_dir = opendir ("/proc");
     if (proc_dir != NULL)

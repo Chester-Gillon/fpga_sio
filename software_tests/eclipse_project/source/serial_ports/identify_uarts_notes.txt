@@ -112,6 +112,8 @@ The PC is running Ubuntu 22.04.4 LTS with a 5.15.0-112-generic Kernel
 
 Secure boot is enabled.
 
+The vfio and vfio-pci modules are builtin (as reported by modinfo)
+
 At Linux boot the serial driver is bound:
 $ lspci -v -d 8086:8d3d
 00:16.3 Serial controller: Intel Corporation C610/X99 series chipset KT Controller (rev 05) (prog-if 02 [16550])
@@ -159,8 +161,8 @@ serinfo:1.0 driver revision:
 31: uart:unknown port:00000000 irq:0
 
 
-# 3.1. Can't bind vfio-pci driver when IOMMU is disabled
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# 3.1. Can bind vfio-pci driver when IOMMU is disabled
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The default Linux command line leaves the IOMMU disabled.
 
@@ -168,14 +170,26 @@ Unbind the serial driver:
 $ echo "0000:00:16.3" | sudo tee /sys/bus/pci/drivers/serial/unbind
 0000:00:16.3
 
-However, attempting to bind the vfio-pci driver fails:
+Can bind the vfio-pci driver:
 $ ~/fpga_sio/software_tests/eclipse_project/bind_device_to_vfio.sh 8086 8d3d
 No IOMMUs present
-tee: /sys/bus/pci/drivers/vfio-pci/bind: Invalid argument
-Failed to bind vfio-pci driver to 0000:00:16.3 8086:8d3d [103c:212a]
+Enabling NOIOMMU (this taints the Kernel)
+Y
+Bound vfio-pci driver to 0000:00:16.3 8086:8d3d [103c:212a]
+Waiting for /dev/vfio/noiommu-0 to be created
+Giving user permission to IOMMU group noiommu-0 for 0000:00:16.3 8086:8d3d [103c:212a]
 
-Haven't attempted to trace what causes the failure to bind. Since this UART is part of the C610/X99 series chipset,
-dump_pci_info_pciutils shows it doesn't have an parent PCIe root bridge. Not sure if that is related.
+The identify_uarts program can now be run, and the UART is identified as a 16550A when using the Kernel based auto-detect logic:
+$ serial_ports/identify_uarts 
+Opening device 0000:00:16.3 (8086:8d3d) with IOMMU group 0
+Probing port 0 on device 0000:00:16.3 using IO
+  Identified UART: 16550A
+
+And the UART should be supported by grub:
+$ serial_ports/identify_uarts -g
+Opening device 0000:00:16.3 (8086:8d3d) with IOMMU group 0
+Probing port 0 on device 0000:00:16.3 using IO
+  Identified UART: GRUB_SUPPORTED
 
 
 # 3.2. Can bind vfio-pci driver when the IOMMU is enabled
@@ -183,12 +197,15 @@ dump_pci_info_pciutils shows it doesn't have an parent PCIe root bridge. Not sur
 
 Rebooted the PC, and used grub to temporarily add intel_iommu=on to the command line.
 
+Full command line:
+$ cat /proc/cmdline 
+BOOT_IMAGE=/boot/vmlinuz-5.15.0-112-generic root=UUID=8c8bca5a-2e82-4bc6-b223-e5cb7e1b929d ro quiet splash vt.handoff=7 intel_iommu=on
+
 Unbind the serial driver:
 $ echo "0000:00:16.3" | sudo tee /sys/bus/pci/drivers/serial/unbind
-[sudo] password for mr_halfword: 
 0000:00:16.3
 
-This time, after enabling the IOMMU can bind the vfio-pci driver:
+Can bind the vfio-pci driver:
 $ ~/fpga_sio/software_tests/eclipse_project/bind_device_to_vfio.sh 8086 8d3d
 IOMMU devices present: dmar0  dmar1  dmar2
 Bound vfio-pci driver to 0000:00:16.3 8086:8d3d [103c:212a]
@@ -220,14 +237,14 @@ $ echo 0000:00:16.0 | sudo tee /sys/bus/pci/devices/0000:00:16.0/driver/unbind
 0000:00:16.0
 
 Bind the vfio-pci driver:
-$ ~/fpga_sio/software_tests/eclipse_project/bind_device_to_vfio.sh 8086 8086 8d3
+$ ~/fpga_sio/software_tests/eclipse_project/bind_device_to_vfio.sh 8086 8d3a
 IOMMU devices present: dmar0  dmar1  dmar2
 Bound vfio-pci driver to 0000:00:16.0 8086:8d3a [103c:212a]
 Waiting for /dev/vfio/39 to be created
 Giving user permission to IOMMU group 39 for 0000:00:16.0 8086:8d3a [103c:212a]
 
 The identify_uarts program can now be run, and the UART is identified as a 16550A when using the Kernel based auto-detect logic:
-$ serial_ports/identify_uarts 
+$ serial_ports/identify_uarts
 Opening device 0000:00:16.3 (8086:8d3d) with IOMMU group 39
 Probing port 0 on device 0000:00:16.3 using IO
   Identified UART: 16550A

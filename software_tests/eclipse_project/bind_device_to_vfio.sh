@@ -70,6 +70,18 @@ do
                 sudo modprobe vfio enable_unsafe_noiommu_mode=1
             fi
 
+            # Ensure NOIOMMU mode is enabled.
+            # This test is required if the vfio module is built-it, since the previous step won't have loaded the module
+            if [ -e /sys/module/vfio/parameters/enable_unsafe_noiommu_mode ]
+            then
+                existing_mode=$(< /sys/module/vfio/parameters/enable_unsafe_noiommu_mode)
+                if [ ${existing_mode} != "Y" ]
+                then
+                	echo "Enabling NOIOMMU (this taints the Kernel)"
+                    echo "Y" | sudo tee /sys/module/vfio/parameters/enable_unsafe_noiommu_mode
+            	fi
+            fi
+
             # Ensure the vfio-pci module is loaded
             if [ ! -d /sys/bus/pci/drivers/vfio-pci ]
             then
