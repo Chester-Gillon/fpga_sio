@@ -3985,3 +3985,42 @@ think a hot reset is used which resets the PCIe link.
 
 For multi-process support does this mean only one process should open the device_fd which can be then be shared via
 Unix domain sockets?
+
+
+# 7. Soak test with stream tests
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge_parallel_streams --stream_device 0000:15:00.0,0 --stream_device 0000:15:00.0,1
+<<snip>>
+  0000:15:00.0 0 -> 1 818.595 Mbytes/sec (8187281408 bytes in 10.001629 secs)
+  0000:15:00.0 1 -> 0 818.595 Mbytes/sec (8187281408 bytes in 10.001629 secs)
+
+^C  0000:15:00.0 0 -> 1 818.597 Mbytes/sec (2566914048 bytes in 3.135747 secs)
+  0000:15:00.0 1 -> 0 818.598 Mbytes/sec (2566914048 bytes in 3.135743 secs)
+
+Overall test statistics:
+  0000:15:00.0 0 -> 1 818.598 Mbytes/sec (31903302287360 bytes in 38973.117932 secs)
+  0000:15:00.0 1 -> 0 818.598 Mbytes/sec (31903302287360 bytes in 38973.117933 secs)
+
+0000:15:00.0 0 -> 1 Test pattern verified in 268435456 words
+0000:15:00.0 1 -> 0 Test pattern verified in 268435456 words
+
+Overall PASS
+
+
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge_parallel_streams --stream_device 0000:30:00.0,0 --stream_device 0000:30:00.0,1
+<<snip>>
+  0000:30:00.0 0 -> 1 818.595 Mbytes/sec (8187281408 bytes in 10.001629 secs)
+  0000:30:00.0 1 -> 0 818.595 Mbytes/sec (8187281408 bytes in 10.001630 secs)
+
+^C  0000:30:00.0 0 -> 1 818.596 Mbytes/sec (7918845952 bytes in 9.673692 secs)
+  0000:30:00.0 1 -> 0 818.596 Mbytes/sec (7918845952 bytes in 9.673689 secs)
+
+Overall test statistics:
+  0000:30:00.0 0 -> 1 818.597 Mbytes/sec (31867701035008 bytes in 38929.670119 secs)
+  0000:30:00.0 1 -> 0 818.597 Mbytes/sec (31867701035008 bytes in 38929.670120 secs)
+
+0000:30:00.0 0 -> 1 Test pattern verified in 268435456 words
+0000:30:00.0 1 -> 0 Test pattern verified in 268435456 words
+
+Overall PASS

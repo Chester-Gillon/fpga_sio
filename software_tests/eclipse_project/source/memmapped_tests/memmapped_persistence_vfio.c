@@ -72,7 +72,7 @@ static void test_memmapped_device (vfio_device_t *const dev)
     (void) ctime_r (&now.tv_sec, date_time_text);
     printf ("Now: %s\n", date_time_text);
 
-    printf ("Testing device %s in IOMMU group %s\n", dev->device_name, dev->iommu_group);
+    printf ("Testing device %s in IOMMU group %s\n", dev->device_name, dev->group->iommu_group_name);
 
     /* Test all possible BARs */
     for (uint32_t bar_index = 0; bar_index < PCI_STD_NUM_BARS; bar_index++)

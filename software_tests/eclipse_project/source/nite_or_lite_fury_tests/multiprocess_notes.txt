@@ -347,6 +347,7 @@ with a mutex.
 TBD if:
 a. Could re-try mmap() after failed with EBUSY.
 b. Need to synchronise multiple processes calling mmap() to map device registers.
+c. If opening the device_fd only in the primary process would help.
 
 The code currently opens the device_fd, used for the mmap(), in each secondary process rather than trying to share the
 file device file descriptors.

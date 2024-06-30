@@ -41,6 +41,13 @@ static vfio_pci_device_location_filter_t vfio_pci_device_location_filters[MAX_VF
 static uint32_t num_pci_device_location_filters;
 
 
+/* Controls how containers are allocated when multiple IOMMU groups are opened by the same process:
+ * - When false all IOMMU groups share the same container, and therefore can use the same IOVA allocations.
+ * - When true each IOMMU group is allocated a different container, and therefore can't share IOVA allocations.
+ */
+static bool vfio_isolate_iommu_groups;
+
+
 /**
  * @brief Add an optional PCI device location filter
  * @detail This may be called before open_vfio_devices_matching_filter() to only open using VFIO specific PCI devices
@@ -514,55 +521,6 @@ void reset_vfio_device (vfio_device_t *const vfio_device)
 
 
 /**
- * @brief Find a a file descriptor for a pathname is already open in the local process.
- * @details This is to support secondary VFIO processes:
- *          a. In the primary process open_vfio_device() doesn't use O_CLOEXEC when opening the container and group FDs.
- *          b. The secondary process can find the FDs by walking the /proc/self/fd
- *
- * @todo This doesn't allow obtaining the device FD so may not be sufficient if multiple processes need to use the same FD.
- *       A more robust solution would be to get the primary to pass the container, group and device FDs via Unix domain sockets
- * @param[in] pathname_to_find The pathname to search for an existing open file descriptor.
- * @return If >= 0 the existing open file descriptor for pathname_to_find.
- *         If -1 pathname_to_find is not already open in the process.
- */
-static int find_fd_from_primary_process (const char *const pathname_to_find)
-{
-    int existing_fd = -1;
-    const char *const fd_path = "/proc/self/fd";
-    DIR *fd_dir;
-    struct dirent *fd_ent;
-    char fd_ent_pathname[PATH_MAX];
-    char pathname_of_fd[PATH_MAX];
-    ssize_t link_num_bytes;
-
-    fd_dir = opendir (fd_path);
-    if (fd_dir != NULL)
-    {
-        fd_ent = readdir (fd_dir);
-        while ((fd_ent != NULL) && (existing_fd == -1))
-        {
-            if (fd_ent->d_type == DT_LNK)
-            {
-                snprintf (fd_ent_pathname, sizeof (fd_ent_pathname), "%s/%s", fd_path, fd_ent->d_name);
-
-                link_num_bytes = readlink (fd_ent_pathname, pathname_of_fd, sizeof (pathname_of_fd));
-                if ((link_num_bytes > 0) && (strncmp (pathname_to_find, pathname_of_fd, (size_t) link_num_bytes) == 0))
-                {
-                    existing_fd = atoi (fd_ent->d_name);
-                }
-            }
-
-            fd_ent = readdir (fd_dir);
-        }
-
-        closedir (fd_dir);
-    }
-
-    return existing_fd;
-}
-
-
-/**
  * @brief qsort comparison function for IOVA regions, which compares the start values
  */
 static int iova_region_compare (const void *const compare_a, const void *const compare_b)
@@ -588,20 +546,20 @@ static int iova_region_compare (const void *const compare_a, const void *const c
 /**
  * @brief Append a new IOVA region to the end of array.
  * @details This is a helper function which can leave the iova_regions[] un-sorted
- * @param[in/out] vfio_devices Contains the IOVA regions to modify
+ * @param[in/out] container Contains the IOVA regions to modify
  * @param[in] new_region The new IOVA region to append
  */
-static void append_iova_region (vfio_devices_t *const vfio_devices, const vfio_iova_region_t *const new_region)
+static void append_iova_region (vfio_iommu_container_t *const container, const vfio_iova_region_t *const new_region)
 {
     const uint32_t grow_length = 64;
 
     /* Increase the allocated length of the array to ensure has space for the region */
-    if (vfio_devices->num_iova_regions == vfio_devices->iova_regions_allocated_length)
+    if (container->num_iova_regions == container->iova_regions_allocated_length)
     {
-        vfio_devices->iova_regions_allocated_length += grow_length;
-        vfio_devices->iova_regions = realloc (vfio_devices->iova_regions,
-                vfio_devices->iova_regions_allocated_length * sizeof (vfio_devices->iova_regions[0]));
-        if (vfio_devices->iova_regions == NULL)
+        container->iova_regions_allocated_length += grow_length;
+        container->iova_regions = realloc (container->iova_regions,
+                container->iova_regions_allocated_length * sizeof (container->iova_regions[0]));
+        if (container->iova_regions == NULL)
         {
             fprintf (stderr, "Failed to allocate memory for iova_regions\n");
             exit (EXIT_FAILURE);
@@ -609,23 +567,23 @@ static void append_iova_region (vfio_devices_t *const vfio_devices, const vfio_i
     }
 
     /* Append the new region to the end of the array. May not be IOVA order, is sorted later */
-    vfio_devices->iova_regions[vfio_devices->num_iova_regions] = *new_region;
-    vfio_devices->num_iova_regions++;
+    container->iova_regions[container->num_iova_regions] = *new_region;
+    container->num_iova_regions++;
 }
 
 
 /**
  * @brief Remove one IOVA region, shuffling down the following entries in the array
- * @param[in/out] vfio_devices Contains the IOVA regions to modify
+ * @param[in/out] container Contains the IOVA regions to modify
  * @param[in] region_index Identifies which region to remove
  */
-static void remove_iova_region (vfio_devices_t *const vfio_devices, const uint32_t region_index)
+static void remove_iova_region (vfio_iommu_container_t *const container, const uint32_t region_index)
 {
-    const uint32_t num_regions_to_shuffle = vfio_devices->num_iova_regions - region_index;
+    const uint32_t num_regions_to_shuffle = container->num_iova_regions - region_index;
 
-    memmove (&vfio_devices->iova_regions[region_index], &vfio_devices->iova_regions[region_index + 1],
-            sizeof (vfio_devices->iova_regions[region_index]) * num_regions_to_shuffle);
-    vfio_devices->num_iova_regions--;
+    memmove (&container->iova_regions[region_index], &container->iova_regions[region_index + 1],
+            sizeof (container->iova_regions[region_index]) * num_regions_to_shuffle);
+    container->num_iova_regions--;
 }
 
 
@@ -635,24 +593,24 @@ static void remove_iova_region (vfio_devices_t *const vfio_devices, const uint32
  *        a. Add a free region at initialisation.
  *        b. Mark a region as allocated. This may split an existing free region.
  *        c. Free a previously allocated region. This may combine adjacent free regions.
- * @param[in/out] vfio_devices Contains the IOVA regions to update
+ * @param[in/out] container Contains the IOVA regions to update
  * @param[in] new_region Defines the new region
  */
-static void update_iova_regions (vfio_devices_t *const vfio_devices, const vfio_iova_region_t *const new_region)
+static void update_iova_regions (vfio_iommu_container_t *const container, const vfio_iova_region_t *const new_region)
 {
     bool new_region_processed = false;
     uint32_t region_index;
 
     /* Search for which existing region the region overlaps */
-    for (region_index = 0; !new_region_processed && (region_index < vfio_devices->num_iova_regions); region_index++)
+    for (region_index = 0; !new_region_processed && (region_index < container->num_iova_regions); region_index++)
     {
         /* Take a copy of the existing region, since append_iova_region() may change the pointers */
-        const vfio_iova_region_t existing_region = vfio_devices->iova_regions[region_index];
+        const vfio_iova_region_t existing_region = container->iova_regions[region_index];
 
         if ((new_region->start >= existing_region.start) && (new_region->end <= existing_region.end))
         {
             /* Remove the existing region */
-            remove_iova_region (vfio_devices, region_index);
+            remove_iova_region (container, region_index);
 
             /* If the new region doesn't start at the beginning of the existing region, then append a region
              * with the same allocated state as the existing region to fill up to the start of the new region */
@@ -665,11 +623,11 @@ static void update_iova_regions (vfio_devices_t *const vfio_devices, const vfio_
                     .allocated = existing_region.allocated
                 };
 
-                append_iova_region (vfio_devices, &before_region);
+                append_iova_region (container, &before_region);
             }
 
             /* Append the new region */
-            append_iova_region (vfio_devices, new_region);
+            append_iova_region (container, new_region);
 
             /* If the new region ends before that of the existing region, then append a region with the same
              * allocated state as the existing region to fill up to the end of the existing region */
@@ -682,7 +640,7 @@ static void update_iova_regions (vfio_devices_t *const vfio_devices, const vfio_
                     .allocated = existing_region.allocated
                 };
 
-                append_iova_region (vfio_devices, &after_region);
+                append_iova_region (container, &after_region);
             }
 
             new_region_processed = true;
@@ -692,24 +650,24 @@ static void update_iova_regions (vfio_devices_t *const vfio_devices, const vfio_
     if (!new_region_processed)
     {
         /* The new region doesn't overlap an existing region. Must be inserting free regions at initialisation */
-        append_iova_region (vfio_devices, new_region);
+        append_iova_region (container, new_region);
     }
 
     /* Sort the IOVA regions into ascending start order */
-    qsort (vfio_devices->iova_regions, vfio_devices->num_iova_regions, sizeof (vfio_devices->iova_regions[0]), iova_region_compare);
+    qsort (container->iova_regions, container->num_iova_regions, sizeof (container->iova_regions[0]), iova_region_compare);
 
     /* Combine adjacent IOVA regions which have the same allocated state */
     region_index = 0;
-    while ((region_index + 1) < vfio_devices->num_iova_regions)
+    while ((region_index + 1) < container->num_iova_regions)
     {
-        vfio_iova_region_t *const this_region = &vfio_devices->iova_regions[region_index];
+        vfio_iova_region_t *const this_region = &container->iova_regions[region_index];
         const uint32_t next_region_index = region_index + 1;
-        const vfio_iova_region_t *const next_region = &vfio_devices->iova_regions[next_region_index];
+        const vfio_iova_region_t *const next_region = &container->iova_regions[next_region_index];
 
         if (((this_region->end + 1) == next_region->start) && (this_region->allocated == next_region->allocated))
         {
             this_region->end = next_region->end;
-            remove_iova_region (vfio_devices, next_region_index);
+            remove_iova_region (container, next_region_index);
         }
         else if (this_region->end >= next_region->start)
         {
@@ -727,27 +685,28 @@ static void update_iova_regions (vfio_devices_t *const vfio_devices, const vfio_
 
 /**
  * @brief Attempt to perform an IOVA allocation, by searching the free IOVA regions
- * @param[in] vfio_device Which VFIO device the allocation is for, to determine if 64-bit IOVA capable
+ * @param[in] container The container to use for the IOVA allocation
+ * @param[in] dma_capability Indicates if the allocation is for a 64-bit IOVA capable device
  * @param[in] min_start Minimum start IOVA to use for the allocation.
  *                      May be non-zero to cause a 64-bit IOVA capable device to initially avoid the
  *                      first 4 GiB IOVA space.
  * @param[in] aligned_size The size of the IOVA allocation required
  * @param[out] region The allocated region. Success is indicated when allocated is true
  */
-static void attempt_iova_allocation (const vfio_device_t *const vfio_device,
+static void attempt_iova_allocation (const vfio_iommu_container_t *const container,
+                                     const vfio_device_dma_capability_t dma_capability,
                                      const uint64_t min_start, const size_t aligned_size,
                                      vfio_iova_region_t *const region)
 {
     const uint64_t max_a32_end = 0xffffffffUL;
-    vfio_devices_t *const vfio_devices = vfio_device->vfio_devices;
     size_t min_unused_space;
 
     /* Search for the smallest existing free region in which the aligned size will fit,
      * to try and reduce running out of IOVA addresses due to fragmentation. */
     min_unused_space = 0;
-    for (uint32_t region_index = 0; region_index < vfio_devices->num_iova_regions; region_index++)
+    for (uint32_t region_index = 0; region_index < container->num_iova_regions; region_index++)
     {
-        const vfio_iova_region_t *const existing_region = &vfio_devices->iova_regions[region_index];
+        const vfio_iova_region_t *const existing_region = &container->iova_regions[region_index];
 
         if (existing_region->allocated)
         {
@@ -757,7 +716,7 @@ static void attempt_iova_allocation (const vfio_device_t *const vfio_device,
         {
             /* Skip this region, as all of it is below the minimum start */
         }
-        else if ((vfio_device->dma_capability == VFIO_DEVICE_DMA_CAPABILITY_A32) && (existing_region->start > max_a32_end))
+        else if ((dma_capability == VFIO_DEVICE_DMA_CAPABILITY_A32) && (existing_region->start > max_a32_end))
         {
             /* Skip this region, as all of it is above what can be addressed the device which is only 32-bit capable */
         }
@@ -768,7 +727,7 @@ static void attempt_iova_allocation (const vfio_device_t *const vfio_device,
 
             /* When the device is only 32-bit IOVA capable limit the end to the first 4 GiB */
             const uint64_t usable_region_end =
-                    ((vfio_device->dma_capability == VFIO_DEVICE_DMA_CAPABILITY_A32) && (max_a32_end < existing_region->end)) ?
+                    ((dma_capability == VFIO_DEVICE_DMA_CAPABILITY_A32) && (max_a32_end < existing_region->end)) ?
                             max_a32_end : existing_region->end;
 
             const uint64_t usable_region_size = (usable_region_end + 1) - usable_region_start;
@@ -792,12 +751,13 @@ static void attempt_iova_allocation (const vfio_device_t *const vfio_device,
 
 /**
  * @brief Allocate a IOVA region for use by a DMA mapping for a device
- * @param[in/out] vfio_device Which VFIO device the allocation is for, to determine if 64-bit IOVA capable.
- *                            References the enclosing IOMMU contain used to track free IOVA values.
+ * @param[in/out] container The container to use for the IOVA allocation
+ * @param[in] dma_capability Indicates if the allocation is for a 64-bit IOVA capable device
  * @param[in] aligned_size The size of the IOVA allocation required
  * @param[out] region The allocated region. Success is indicated when allocated is true
  */
-static void allocate_iova_region (vfio_device_t *const vfio_device, const size_t aligned_size,
+static void allocate_iova_region (vfio_iommu_container_t *const container, const vfio_device_dma_capability_t dma_capability,
+                                  const size_t aligned_size,
                                   vfio_iova_region_t *const region)
 {
     /* Default to no allocation */
@@ -805,41 +765,41 @@ static void allocate_iova_region (vfio_device_t *const vfio_device, const size_t
     region->end = 0;
     region->allocated = false;
 
-    if (vfio_device->dma_capability == VFIO_DEVICE_DMA_CAPABILITY_A64)
+    if (dma_capability == VFIO_DEVICE_DMA_CAPABILITY_A64)
     {
         /* For 64-bit IOVA capable devices first attempt to allocate IOVA above the first 4 GiB,
          * to try and keep the first 4 GiB for devices which are only 32-bit IOVA capable. */
         const uint64_t a64_min_start = 0x100000000UL;
 
-        attempt_iova_allocation (vfio_device, a64_min_start, aligned_size, region);
+        attempt_iova_allocation (container, dma_capability, a64_min_start, aligned_size, region);
     }
 
     /* If allocation wasn't successful, or only a 32-bit IOVA capable device, try the allocation with no minimum start */
     if (!region->allocated)
     {
-        attempt_iova_allocation (vfio_device, 0, aligned_size, region);
+        attempt_iova_allocation (container, dma_capability, 0, aligned_size, region);
     }
 
     if (region->allocated)
     {
         /* Record the region as now allocated */
-        update_iova_regions (vfio_device->vfio_devices, region);
+        update_iova_regions (container, region);
     }
     else
     {
         /* Report a diagnostic message that the allocation failed */
         printf ("No free IOVA to allocate %zu bytes for %d bit IOVA capable device\n",
-                aligned_size, (vfio_device->dma_capability == VFIO_DEVICE_DMA_CAPABILITY_A64) ? 64 : 32);
+                aligned_size, (dma_capability == VFIO_DEVICE_DMA_CAPABILITY_A64) ? 64 : 32);
     }
 }
 
 
 /**
  * @brief Get the capabilities for a type 1 IOMMU, at the container level, to be used to perform IOVA allocations
- * @param[in/out] vfio_devices The list of VFIO devices being opened
+ * @param[in/out] container The container being opened
  * @return Returns true if have obtained the capabilities, or false upon error.
  */
-static bool get_type1_iommu_capabilities (vfio_devices_t *const vfio_devices)
+static bool get_type1_iommu_capabilities (vfio_iommu_container_t *const container)
 {
     int rc;
     struct vfio_iommu_type1_info iommu_info_get_size;
@@ -848,7 +808,7 @@ static bool get_type1_iommu_capabilities (vfio_devices_t *const vfio_devices)
      * This updates the argsz to indicate how much space is required. */
     memset (&iommu_info_get_size, 0, sizeof iommu_info_get_size);
     iommu_info_get_size.argsz = sizeof (iommu_info_get_size);
-    rc = ioctl (vfio_devices->container_fd, VFIO_IOMMU_GET_INFO, &iommu_info_get_size);
+    rc = ioctl (container->container_fd, VFIO_IOMMU_GET_INFO, &iommu_info_get_size);
     if (rc != 0)
     {
         printf ("VFIO_IOMMU_GET_INFO failed : %s\n", strerror (errno));
@@ -856,14 +816,14 @@ static bool get_type1_iommu_capabilities (vfio_devices_t *const vfio_devices)
     }
 
     /* Allocate a structure of the required size for the IOMMU information, and get it */
-    vfio_devices->iommu_info = calloc (iommu_info_get_size.argsz, 1);
-    if (vfio_devices->iommu_info == NULL)
+    container->iommu_info = calloc (iommu_info_get_size.argsz, 1);
+    if (container->iommu_info == NULL)
     {
         printf ("Failed to allocate %" PRIu32 " bytes for iommu_info\n", iommu_info_get_size.argsz);
         return false;
     }
-    vfio_devices->iommu_info->argsz = iommu_info_get_size.argsz;
-    rc = ioctl (vfio_devices->container_fd, VFIO_IOMMU_GET_INFO, vfio_devices->iommu_info);
+    container->iommu_info->argsz = iommu_info_get_size.argsz;
+    rc = ioctl (container->container_fd, VFIO_IOMMU_GET_INFO, container->iommu_info);
     if (rc != 0)
     {
         printf ("  VFIO_IOMMU_GET_INFO failed : %s\n", strerror (errno));
@@ -873,12 +833,12 @@ static bool get_type1_iommu_capabilities (vfio_devices_t *const vfio_devices)
     /* Initialise the free IOVA ranges to the valid IOVA ranges reported by the capabilities.
      * If VFIO_IOMMU_TYPE1_INFO_CAP_IOVA_RANGE isn't present, then any attempt to call allocate_vfio_dma_mapping()
      * will fail. */
-    if (((vfio_devices->iommu_info->flags & VFIO_IOMMU_INFO_CAPS) != 0) && (vfio_devices->iommu_info->cap_offset > 0))
+    if (((container->iommu_info->flags & VFIO_IOMMU_INFO_CAPS) != 0) && (container->iommu_info->cap_offset > 0))
     {
-        const char *const info_start = (const char *) vfio_devices->iommu_info;
-        __u32 cap_offset = vfio_devices->iommu_info->cap_offset;
+        const char *const info_start = (const char *) container->iommu_info;
+        __u32 cap_offset = container->iommu_info->cap_offset;
 
-        while ((cap_offset > 0) && (cap_offset < vfio_devices->iommu_info->argsz))
+        while ((cap_offset > 0) && (cap_offset < container->iommu_info->argsz))
         {
             const struct vfio_info_cap_header *const cap_header =
                     (const struct vfio_info_cap_header *) &info_start[cap_offset];
@@ -898,7 +858,7 @@ static bool get_type1_iommu_capabilities (vfio_devices_t *const vfio_devices)
                         .allocated = false
                     };
 
-                    update_iova_regions (vfio_devices, &new_region);
+                    update_iova_regions (container, &new_region);
                 }
             }
 
@@ -937,6 +897,295 @@ static char *vfio_get_iommu_group (struct pci_dev *const pci_dev)
 
 
 /**
+ * @brief Search for an IOMMU group which is already open
+ * @param[in] vfio_devices Contains the IOMMU groups which have already been opened.
+ * @param[in] iommu_group_name The name of the IOMMU group to find
+ * @return If non-NULL the existing opened IOMMU group
+ *         If NULL the IOMMU group is not already opened
+ */
+static vfio_iommu_group_t *find_open_iommu_group (vfio_devices_t *const vfio_devices, const char *const iommu_group_name)
+{
+    vfio_iommu_group_t *iommu_group = NULL;
+
+    for (uint32_t container_index = 0; (iommu_group == NULL) && (container_index < vfio_devices->num_containers); container_index++)
+    {
+        vfio_iommu_container_t *const container = &vfio_devices->containers[container_index];
+
+        for (uint32_t group_index = 0; (iommu_group == NULL) && (group_index < container->num_iommu_groups); group_index++)
+        {
+            if (strcmp (container->iommu_groups[group_index].iommu_group_name, iommu_group_name) == 0)
+            {
+                iommu_group = &container->iommu_groups[group_index];
+            }
+        }
+    }
+
+    return iommu_group;
+}
+
+
+/**
+ * @brief Create an IOMMU container, which has no IOMMU groups
+ * @param[in/out] vfio_devices The list of vfio devices to append the created container to.
+ * @return The IOMMU container which has been created, and append to vfio_devices
+ */
+static vfio_iommu_container_t *vfio_iommu_create_container (vfio_devices_t *const vfio_devices)
+{
+    int rc;
+    int saved_errno;
+    int api_version;
+
+    if (vfio_devices->num_containers == MAX_VFIO_DEVICES)
+    {
+        /* This shouldn't happen since the caller should have checked for exceeding the maximum number of devices */
+        fprintf (stderr, "No free containers\n");
+        exit (EXIT_FAILURE);
+    }
+
+    /* Initialise to an empty container */
+    vfio_iommu_container_t *const container = &vfio_devices->containers[vfio_devices->num_containers];
+    container->num_iommu_groups = 0;
+    container->num_iova_regions = 0;
+    container->iova_regions_allocated_length = 0;
+    container->iova_regions = NULL;
+    container->vfio_devices = vfio_devices;
+
+    /* Sanity check that the VFIO container path exists, and the user has access */
+    errno = 0;
+    rc = faccessat (0, VFIO_CONTAINER_PATH, R_OK | W_OK, AT_EACCESS);
+    saved_errno = errno;
+    if (rc != 0)
+    {
+        if (saved_errno == ENOENT)
+        {
+            fprintf (stderr, "%s doesn't exist, implying no VFIO support\n", VFIO_CONTAINER_PATH);
+            exit (EXIT_SUCCESS);
+        }
+        else if (saved_errno == EACCES)
+        {
+            /* The act of loading the vfio-pci driver should give user access to the VFIO container */
+            fprintf (stderr, "No permission on %s, implying no vfio-pci driver loaded\n", VFIO_CONTAINER_PATH);
+            exit (EXIT_FAILURE);
+        }
+        else
+        {
+            fprintf (stderr, "faccessat (%s) failed : %s\n", VFIO_CONTAINER_PATH, strerror (errno));
+            exit (EXIT_FAILURE);
+        }
+    }
+
+    container->container_fd = open (VFIO_CONTAINER_PATH, O_RDWR);
+    if (container->container_fd == -1)
+    {
+        fprintf (stderr, "open (%s) failed : %s\n", VFIO_CONTAINER_PATH, strerror (errno));
+        exit (EXIT_FAILURE);
+    }
+
+    api_version = ioctl (container->container_fd, VFIO_GET_API_VERSION);
+    if (api_version != VFIO_API_VERSION)
+    {
+        fprintf (stderr, "Got VFIO_API_VERSION %d, expected %d\n", api_version, VFIO_API_VERSION);
+        exit (EXIT_FAILURE);
+    }
+
+    /* Determine the type of IOMMU to use.
+     * If VFIO_NOIOMMU_IOMMU is supported use that, otherwise default to VFIO_TYPE1_IOMMU.
+     *
+     * While support for VFIO_TYPE1v2_IOMMU and VFIO_TYPE1_NESTING_IOMMU was indicated as available
+     * on the Intel Xeon W system tested, as for different IOMMU types:
+     * 1. DPDK uses VFIO_TYPE1_IOMMU if supported, otherwise VFIO_NOIOMMU_IOMMU.
+     * 2. In the Kernel drivers/vfio/vfio_iommu_type1.c using VFIO_TYPE1v2_IOMMU enabled v2 support which:
+     *    a. Enables pining or unpining of pages. This seems to be internal functionality not exposed in the VFIO API.
+     *    b. Enables VFIO_IOMMU_DIRTY_PAGES. This vfio_access library currently has no use for dirty page tracking.
+     *
+     *    Temporarily tried using VFIO_TYPE1v2_IOMMU and DMA could still be be successfully used.
+     * 3. In the Kernel drivers/vfio/vfio_iommu_type1.c using VFIO_TYPE1_NESTING_IOMMU:
+     *    a. Enables support for nesting.
+     *    b. Enables v2 support.
+     *
+     *    Temporarily tried using VFIO_TYPE1_NESTING_IOMMU but VFIO_SET_IOMMU failed with EPERM.
+     *    Didn't trace what caused EPERM.
+     */
+    const __u32 extension = VFIO_NOIOMMU_IOMMU;
+    const int extension_supported = ioctl (container->container_fd, VFIO_CHECK_EXTENSION, extension);
+    container->iommu_type = extension_supported ? VFIO_NOIOMMU_IOMMU : VFIO_TYPE1_IOMMU;
+
+    vfio_devices->num_containers++;
+
+    return container;
+}
+
+
+/**
+ * @brief Open an IOMMU group, storing it in the container.
+ * @details For the first IOMMU group in a container also sets the IOMMU type of the contain and obtained the IOMMU
+ *          capabilities.
+ * @param[in/out] container The container to place the opened IOMMU group in.
+ * @param[in] iommu_group_name The name of the IOMMU group to open
+ * @param[in] device_description Name of the device for which the IOMMU group is being opened for. Used to report diagnostic
+ *            information if unable to open the IOMMU group
+ * @return Indicates the status of opening the IOMMU group:
+ *         - When non-NULL the IOMMU group has been opened, and points at the IOMMU in the container
+ *         - When NULL were unable to open the IOMMU group, and a diagnostic message has been reported.
+ */
+static vfio_iommu_group_t *vfio_open_iommu_group (vfio_iommu_container_t *const container, char *const iommu_group_name,
+                                                  const char *const device_description)
+{
+    int rc;
+    int saved_errno;
+
+    if (container->num_iommu_groups == MAX_VFIO_DEVICES)
+    {
+        /* This shouldn't happen since the caller should have checked for exceeding the maximum number of devices */
+        printf ("Skipping %s as no free IOMMU groups\n", device_description);
+        return NULL;
+    }
+
+    vfio_iommu_group_t *const group = &container->iommu_groups[container->num_iommu_groups];
+    group->container = container;
+    group->iommu_group_name = iommu_group_name;
+
+    /* Sanity check that the IOMMU group file exists and the effective user ID has read/write permission before attempting
+     * to probe the device. This checks that a script been run to bind the vfio-pci driver
+     * (which creates the IOMMU group file) and has given the user permission. */
+    snprintf (group->group_pathname, sizeof (group->group_pathname), "%s%s%s",
+            VFIO_ROOT_PATH, (group->container->iommu_type == VFIO_NOIOMMU_IOMMU) ? "noiommu-" : "", group->iommu_group_name);
+    errno = 0;
+    rc = faccessat (0, group->group_pathname, R_OK | W_OK, AT_EACCESS);
+    saved_errno = errno;
+    if (rc != 0)
+    {
+        /* Sanity check failed, reported diagnostic message and return to skip the device */
+        if (saved_errno == ENOENT)
+        {
+            printf ("Skipping %s as %s doesn't exist implying vfio-pci driver not bound to the device\n",
+                    device_description, group->group_pathname);
+        }
+        else if (saved_errno == EACCES)
+        {
+            printf ("Skipping %s as %s doesn't have read/write permission\n", device_description, group->group_pathname);
+        }
+        else
+        {
+            printf ("Skipping %s as %s : %s\n", device_description, group->group_pathname, strerror (saved_errno));
+        }
+        return NULL;
+    }
+
+    /* Need to open the IOMMU group */
+    printf ("Opening %s with IOMMU group %s\n", device_description, group->iommu_group_name);
+    errno = 0;
+    group->group_fd = open (group->group_pathname, O_RDWR);
+    saved_errno = errno;
+    if (group->group_fd == -1)
+    {
+        const pid_t pid_using_file = find_pid_using_file (group->group_pathname);
+
+        if ((saved_errno == EBUSY) && (pid_using_file != -1))
+        {
+            /* If the IOMMU group is already open by another process display the process executable and PID for
+             * diagnostic information. */
+            char pid_exe_symlink[PATH_MAX];
+            char exe_pathname[PATH_MAX];
+            ssize_t exe_pathname_len;
+
+            snprintf (pid_exe_symlink, sizeof (pid_exe_symlink), "/proc/%d/exe", pid_using_file);
+            exe_pathname_len = readlink (pid_exe_symlink, exe_pathname, sizeof (exe_pathname) - 1);
+            if (exe_pathname_len > 0)
+            {
+                exe_pathname[exe_pathname_len] = '\0';
+                printf ("Unable to open %s as is already open by %s PID %d\n",
+                        group->group_pathname, exe_pathname, pid_using_file);
+            }
+            else
+            {
+                printf ("Unable to open %s as is already open by PID %d\n", group->group_pathname, pid_using_file);
+            }
+        }
+        else if ((saved_errno == EPERM) && (group->container->iommu_type == VFIO_NOIOMMU_IOMMU))
+        {
+            /* With a noiommu group permission on the group file isn't sufficient.
+             * Need to sys_rawio capability to open the group. */
+            char executable_path[PATH_MAX];
+            ssize_t executable_path_len;
+
+            executable_path_len = readlink ("/proc/self/exe", executable_path, sizeof (executable_path) - 1);
+            if (executable_path_len != -1)
+            {
+                executable_path[executable_path_len] = '\0';
+            }
+            else
+            {
+                snprintf (executable_path, sizeof (executable_path), "<executable>");
+            }
+            printf ("  No permission to open %s. Try:\nsudo setcap cap_sys_rawio=ep %s\n",
+                    group->group_pathname, executable_path);
+        }
+        else
+        {
+            printf ("open (%s) failed : %s\n", group->group_pathname, strerror (errno));
+        }
+        return NULL;
+    }
+
+    /* Get the status of the group and check that viable */
+    memset (&group->group_status, 0, sizeof (group->group_status));
+    group->group_status.argsz = sizeof (group->group_status);
+    rc = ioctl (group->group_fd, VFIO_GROUP_GET_STATUS, &group->group_status);
+    if (rc != 0)
+    {
+        printf ("FIO_GROUP_GET_STATUS failed : %s\n", strerror (-rc));
+        return NULL;
+    }
+
+    if ((group->group_status.flags & VFIO_GROUP_FLAGS_VIABLE) == 0)
+    {
+        printf ("group is not viable (ie, not all devices bound for vfio)\n");
+        return NULL;
+    }
+
+    /* Need to add the group to a container before further IOCTLs are possible */
+    if ((group->group_status.flags & VFIO_GROUP_FLAGS_CONTAINER_SET) == 0)
+    {
+        rc = ioctl (group->group_fd, VFIO_GROUP_SET_CONTAINER, &group->container->container_fd);
+        if (rc != 0)
+        {
+            printf ("VFIO_GROUP_SET_CONTAINER failed : %s\n", strerror (-rc));
+            return NULL;
+        }
+    }
+
+    /* Set the IOMMU type used for the container, before opening the first IOMMU group */
+    if (group->container->num_iommu_groups == 0)
+    {
+        rc = ioctl (group->container->container_fd, VFIO_SET_IOMMU, group->container->iommu_type);
+        if (rc != 0)
+        {
+            printf ("  VFIO_SET_IOMMU failed : %s\n", strerror (-rc));
+            return NULL;
+        }
+    }
+
+    if (group->container->num_iommu_groups == 0)
+    {
+        /* When using a type 1 IOMMU, get the capabilities */
+        group->container->iommu_info = NULL;
+        if (group->container->iommu_type == VFIO_TYPE1_IOMMU)
+        {
+            if (!get_type1_iommu_capabilities (group->container))
+            {
+                exit (EXIT_FAILURE);
+            }
+        }
+    }
+
+    group->container->num_iommu_groups++;
+
+    return group;
+}
+
+
+/**
  * @brief Open an VFIO device, without mapping it's memory BARs.
  * @param[in/out] vfio_devices The list of vfio devices to append the opened device to.
  *                             If this function is successful vfio_devices->num_devices is incremented
@@ -948,18 +1197,27 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
                        const vfio_device_dma_capability_t dma_capability)
 {
     int rc;
-    int saved_errno;
-    int api_version;
+    vfio_iommu_container_t *container = NULL;
     vfio_device_t *const new_device = &vfio_devices->devices[vfio_devices->num_devices];
 
     /* Check the PCI device has an IOMMU group. */
     snprintf (new_device->device_name, sizeof (new_device->device_name), "%04x:%02x:%02x.%x",
             pci_dev->domain, pci_dev->bus, pci_dev->dev, pci_dev->func);
-    new_device->iommu_group = vfio_get_iommu_group (pci_dev);
-    if (new_device->iommu_group == NULL)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wrestrict"
+    /* Supress warning of the form, which was seen with GCC 10.3.1 when compiling for teh release platform:
+     *   warning: 'snprintf' argument 4 may overlap destination object 'vfio_devices' [-Wrestrict]
+     *
+     * "Bug 102919 - spurious -Wrestrict warning for sprintf into the same member array as argument plus offset"
+     * https://gcc.gnu.org/bugzilla/show_bug.cgi?id=102919 suggests this is a spurious warning
+     */
+    snprintf (new_device->device_description, sizeof (new_device->device_description), "device %s (%04x:%04x)",
+            new_device->device_name, pci_dev->vendor_id, pci_dev->device_id);
+#pragma GCC diagnostic pop
+    char *const iommu_group_name = vfio_get_iommu_group (pci_dev);
+    if (iommu_group_name == NULL)
     {
-        printf ("Skipping device %s (%04x:%04x) as no IOMMU group\n",
-                new_device->device_name, pci_dev->vendor_id, pci_dev->device_id);
+        printf ("Skipping %s as no IOMMU group\n", new_device->device_description);
         return;
     }
 
@@ -968,233 +1226,35 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
     new_device->pci_subsystem_vendor_id = pci_read_word (pci_dev, PCI_SUBSYSTEM_VENDOR_ID);
     new_device->pci_subsystem_device_id = pci_read_word (pci_dev, PCI_SUBSYSTEM_ID);
     new_device->dma_capability = dma_capability;
-    new_device->vfio_devices = vfio_devices;
 
-    /* For the first VFIO device open a VFIO container, which is also used for subsequent devices.
-     * This is done before trying open the VFIO device to determine which type of IOMMU to use. */
-    if (vfio_devices->container_fd == -1)
+    /* If the IOMMU group has already been opened, use it */
+    new_device->group = find_open_iommu_group (vfio_devices, iommu_group_name);
+
+    if (new_device->group == NULL)
     {
-        /* Determine if we are a secondary process due to the container already being opened by the primary */
-        vfio_devices->container_fd = find_fd_from_primary_process (VFIO_CONTAINER_PATH);
-        vfio_devices->secondary_process = vfio_devices->container_fd != -1;
-
-        if (!vfio_devices->secondary_process)
+        /* The IOMMU group is not already open. First need to create a container.
+         * This is done before trying open the VFIO device to determine which type of IOMMU to use. */
+        if ((vfio_devices->num_containers > 0) && (!vfio_isolate_iommu_groups))
         {
-            /* Are the primary process. Sanity check that the VFIO container path exists, and the user has access */
-            errno = 0;
-            rc = faccessat (0, VFIO_CONTAINER_PATH, R_OK | W_OK, AT_EACCESS);
-            saved_errno = errno;
-            if (rc != 0)
-            {
-                if (saved_errno == ENOENT)
-                {
-                    fprintf (stderr, "%s doesn't exist, implying no VFIO support\n", VFIO_CONTAINER_PATH);
-                    exit (EXIT_SUCCESS);
-                }
-                else if (saved_errno == EACCES)
-                {
-                    /* The act of loading the vfio-pci driver should give user access to the VFIO container */
-                    fprintf (stderr, "No permission on %s, implying no vfio-pci driver loaded\n", VFIO_CONTAINER_PATH);
-                    exit (EXIT_FAILURE);
-                }
-                else
-                {
-                    fprintf (stderr, "faccessat (%s) failed : %s\n", VFIO_CONTAINER_PATH, strerror (errno));
-                    exit (EXIT_FAILURE);
-                }
-            }
-
-            vfio_devices->container_fd = open (VFIO_CONTAINER_PATH, O_RDWR);
-            if (vfio_devices->container_fd == -1)
-            {
-                fprintf (stderr, "open (%s) failed : %s\n", VFIO_CONTAINER_PATH, strerror (errno));
-                exit (EXIT_FAILURE);
-            }
-        }
-
-        api_version = ioctl (vfio_devices->container_fd, VFIO_GET_API_VERSION);
-        if (api_version != VFIO_API_VERSION)
-        {
-            fprintf (stderr, "Got VFIO_API_VERSION %d, expected %d\n", api_version, VFIO_API_VERSION);
-            exit (EXIT_FAILURE);
-        }
-
-        /* Determine the type of IOMMU to use.
-         * If VFIO_NOIOMMU_IOMMU is supported use that, otherwise default to VFIO_TYPE1_IOMMU.
-         *
-         * While support for VFIO_TYPE1v2_IOMMU and VFIO_TYPE1_NESTING_IOMMU was indicated as available
-         * on the Intel Xeon W system tested, as for different IOMMU types:
-         * 1. DPDK uses VFIO_TYPE1_IOMMU if supported, otherwise VFIO_NOIOMMU_IOMMU.
-         * 2. In the Kernel drivers/vfio/vfio_iommu_type1.c using VFIO_TYPE1v2_IOMMU enabled v2 support which:
-         *    a. Enables pining or unpining of pages. This seems to be internal functionality not exposed in the VFIO API.
-         *    b. Enables VFIO_IOMMU_DIRTY_PAGES. This vfio_access library currently has no use for dirty page tracking.
-         *
-         *    Temporarily tried using VFIO_TYPE1v2_IOMMU and DMA could still be be successfully used.
-         * 3. In the Kernel drivers/vfio/vfio_iommu_type1.c using VFIO_TYPE1_NESTING_IOMMU:
-         *    a. Enables support for nesting.
-         *    b. Enables v2 support.
-         *
-         *    Temporarily tried using VFIO_TYPE1_NESTING_IOMMU but VFIO_SET_IOMMU failed with EPERM.
-         *    Didn't trace what caused EPERM.
-         */
-        const __u32 extension = VFIO_NOIOMMU_IOMMU;
-        const int extension_supported = ioctl (vfio_devices->container_fd, VFIO_CHECK_EXTENSION, extension);
-        vfio_devices->iommu_type = extension_supported ? VFIO_NOIOMMU_IOMMU : VFIO_TYPE1_IOMMU;
-    }
-
-    /* Sanity check that the IOMMU group file exists and the effective user ID has read/write permission before attempting
-     * to probe the device. This checks that a script been run to bind the vfio-pci driver
-     * (which creates the IOMMU group file) and has given the user permission. */
-    snprintf (new_device->group_pathname, sizeof (new_device->group_pathname), "%s%s%s",
-            VFIO_ROOT_PATH, (vfio_devices->iommu_type == VFIO_NOIOMMU_IOMMU) ? "noiommu-" : "", new_device->iommu_group);
-    errno = 0;
-    rc = faccessat (0, new_device->group_pathname, R_OK | W_OK, AT_EACCESS);
-    saved_errno = errno;
-    if (rc != 0)
-    {
-        /* Sanity check failed, reported diagnostic message and return to skip the device */
-        if (saved_errno == ENOENT)
-        {
-            printf ("Skipping device %s (%04x:%04x) as %s doesn't exist implying vfio-pci driver not bound to the device\n",
-                    new_device->device_name, pci_dev->vendor_id, pci_dev->device_id, new_device->group_pathname);
-        }
-        else if (saved_errno == EACCES)
-        {
-            printf ("Skipping device %s (%04x:%04x) as %s doesn't have read/write permission\n",
-                    new_device->device_name, pci_dev->vendor_id, pci_dev->device_id, new_device->group_pathname);
+            /* Use an existing container */
+            container = &vfio_devices->containers[0];
         }
         else
         {
-            printf ("Skipping device %s (%04x:%04x) as %s : %s\n",
-                    new_device->device_name, pci_dev->vendor_id, pci_dev->device_id, new_device->group_pathname,
-                    strerror (saved_errno));
+            /* Create a new container */
+            container = vfio_iommu_create_container (vfio_devices);
         }
-        return;
-    }
 
-    printf ("Opening device %s (%04x:%04x) with IOMMU group %s\n",
-            new_device->device_name, pci_dev->vendor_id, pci_dev->device_id, new_device->iommu_group);
-    if (vfio_devices->secondary_process)
-    {
-        /* In a secondary process find the group FD which was opened in the primary process */
-        new_device->group_fd =  (find_fd_from_primary_process (new_device->group_pathname));
-        if (new_device->group_fd == -1)
+        new_device->group = vfio_open_iommu_group (container, iommu_group_name, new_device->device_description);
+        if (new_device->group == NULL)
         {
-            printf ("  Secondary process failed to find open fd for %s\n", new_device->group_pathname);
+            /* vfio_open_iommu_group() has reported a diagnostic message why the IOMMU group couldn't be opened */
             return;
-        }
-    }
-    else
-    {
-        /* In the primary process need to open the IOMMU group */
-        errno = 0;
-        new_device->group_fd = open (new_device->group_pathname, O_RDWR);
-        saved_errno = errno;
-        if (new_device->group_fd == -1)
-        {
-            const pid_t pid_using_file = find_pid_using_file (new_device->group_pathname);
-
-            if ((saved_errno == EBUSY) && (pid_using_file != -1))
-            {
-                /* If the IOMMU group is already open by another process display the process executable and PID for
-                 * diagnostic information. */
-                char pid_exe_symlink[PATH_MAX];
-                char exe_pathname[PATH_MAX];
-                ssize_t exe_pathname_len;
-
-                snprintf (pid_exe_symlink, sizeof (pid_exe_symlink), "/proc/%d/exe", pid_using_file);
-                exe_pathname_len = readlink (pid_exe_symlink, exe_pathname, sizeof (exe_pathname) - 1);
-                if (exe_pathname_len > 0)
-                {
-                    exe_pathname[exe_pathname_len] = '\0';
-                    printf ("Unable to open %s as is already open by %s PID %d\n",
-                            new_device->group_pathname, exe_pathname, pid_using_file);
-                }
-                else
-                {
-                    printf ("Unable to open %s as is already open by PID %d\n", new_device->group_pathname, pid_using_file);
-                }
-            }
-            else if ((saved_errno == EPERM) && (vfio_devices->iommu_type == VFIO_NOIOMMU_IOMMU))
-            {
-                /* With a noiommu group permission on the group file isn't sufficient.
-                 * Need to sys_rawio capability to open the group. */
-                char executable_path[PATH_MAX];
-                ssize_t executable_path_len;
-
-                executable_path_len = readlink ("/proc/self/exe", executable_path, sizeof (executable_path) - 1);
-                if (executable_path_len != -1)
-                {
-                    executable_path[executable_path_len] = '\0';
-                }
-                else
-                {
-                    snprintf (executable_path, sizeof (executable_path), "<executable>");
-                }
-                printf ("  No permission to open %s. Try:\nsudo setcap cap_sys_rawio=ep %s\n",
-                        new_device->group_pathname, executable_path);
-            }
-            else
-            {
-                printf ("open (%s) failed : %s\n", new_device->group_pathname, strerror (errno));
-            }
-            return;
-        }
-    }
-
-    /* Get the status of the group and check that viable */
-    memset (&new_device->group_status, 0, sizeof (new_device->group_status));
-    new_device->group_status.argsz = sizeof (new_device->group_status);
-    rc = ioctl (new_device->group_fd, VFIO_GROUP_GET_STATUS, &new_device->group_status);
-    if (rc != 0)
-    {
-        printf ("FIO_GROUP_GET_STATUS failed : %s\n", strerror (-rc));
-        return;
-    }
-
-    if ((new_device->group_status.flags & VFIO_GROUP_FLAGS_VIABLE) == 0)
-    {
-        printf ("group is not viable (ie, not all devices bound for vfio)\n");
-        return;
-    }
-
-    /* Need to add the group to a container before further IOCTLs are possible */
-    if ((new_device->group_status.flags & VFIO_GROUP_FLAGS_CONTAINER_SET) == 0)
-    {
-        rc = ioctl (new_device->group_fd, VFIO_GROUP_SET_CONTAINER, &vfio_devices->container_fd);
-        if (rc != 0)
-        {
-            printf ("VFIO_GROUP_SET_CONTAINER failed : %s\n", strerror (-rc));
-            return;
-        }
-    }
-
-    if ((vfio_devices->num_devices == 0) && (!vfio_devices->secondary_process))
-    {
-        /* In the primary process set the IOMMU type used */
-        rc = ioctl (vfio_devices->container_fd, VFIO_SET_IOMMU, vfio_devices->iommu_type);
-        if (rc != 0)
-        {
-            printf ("  VFIO_SET_IOMMU failed : %s\n", strerror (-rc));
-            return;
-        }
-    }
-
-    if (vfio_devices->num_devices == 0)
-    {
-        /* When using a type 1 IOMMU, get the capabilities */
-        vfio_devices->iommu_info = NULL;
-        if (vfio_devices->iommu_type == VFIO_TYPE1_IOMMU)
-        {
-            if (!get_type1_iommu_capabilities (vfio_devices))
-            {
-                exit (EXIT_FAILURE);
-            }
         }
     }
 
     /* Open the device */
-    new_device->device_fd = ioctl (new_device->group_fd, VFIO_GROUP_GET_DEVICE_FD, new_device->device_name);
+    new_device->device_fd = ioctl (new_device->group->group_fd, VFIO_GROUP_GET_DEVICE_FD, new_device->device_name);
     if (new_device->device_fd < 0)
     {
         fprintf (stderr, "VFIO_GROUP_GET_DEVICE_FD (%s) failed : %s\n", new_device->device_name, strerror (-new_device->device_fd));
@@ -1294,11 +1354,8 @@ void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
     vfio_device_dma_capability_t dma_capability;
 
     memset (vfio_devices, 0, sizeof (*vfio_devices));
-    vfio_devices->container_fd = -1;
+    vfio_devices->num_containers = 0;
     vfio_devices->cmem_usage = VFIO_CMEM_USAGE_NONE;
-    vfio_devices->iova_regions = NULL;
-    vfio_devices->num_iova_regions = 0;
-    vfio_devices->iova_regions_allocated_length = 0;
 
     /* Initialise PCI access using the defaults */
     vfio_devices->pacc = pci_alloc ();
@@ -1372,6 +1429,54 @@ void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
 
 
 /**
+ * @brief Cause each IOMMU group to use a separate IOMMU container, which isolates the IOVA allocations for each IOMMU group
+ * @details To have an effect, this must be called before an IOMMU group is opened by a call to
+ *          open_vfio_devices_matching_filter() or open_vfio_device().
+ */
+void vfio_enable_iommu_group_isolation (void)
+{
+    vfio_isolate_iommu_groups = true;
+}
+
+
+/**
+ * @brief Close an IOMMU container, including any IOMMU groups in the container
+ * @param[in/out] container The contains to close
+ */
+static void close_vfio_container (vfio_iommu_container_t *const container)
+{
+    int rc;
+
+    /* Close the IOMMU groups in the container */
+    for (uint32_t group_index = 0; group_index < container->num_iommu_groups; group_index++)
+    {
+        vfio_iommu_group_t *const group = &container->iommu_groups[group_index];
+
+        rc = close (group->group_fd);
+        if (rc != 0)
+        {
+            fprintf (stderr, "close (%s) failed : %s\n", group->group_pathname, strerror (errno));
+            exit (EXIT_FAILURE);
+        }
+        group->group_fd = -1;
+    }
+
+    /* Close the container */
+    container->num_iommu_groups = 0;
+    rc = close (container->container_fd);
+    if (rc != 0)
+    {
+        fprintf (stderr, "close (%s) failed : %s\n", VFIO_CONTAINER_PATH, strerror (errno));
+        exit (EXIT_FAILURE);
+    }
+    container->container_fd = -1;
+
+    free (container->iommu_info);
+    container->iommu_info = NULL;
+}
+
+
+/**
  * @brief Close all the open VFIO devices
  * @param[in/out] vfio_devices The VFIO devices to close
  */
@@ -1379,6 +1484,7 @@ void close_vfio_devices (vfio_devices_t *const vfio_devices)
 {
     int rc;
 
+    /* Close the VFIO devices, including unmapping their bars */
     for (uint32_t device_index = 0; device_index < vfio_devices->num_devices; device_index++)
     {
         vfio_device_t *const vfio_device = &vfio_devices->devices[device_index];
@@ -1405,27 +1511,14 @@ void close_vfio_devices (vfio_devices_t *const vfio_devices)
             exit (EXIT_FAILURE);
         }
         vfio_device->device_fd = -1;
-
-        rc = close (vfio_device->group_fd);
-        if (rc != 0)
-        {
-            fprintf (stderr, "close (%s) failed : %s\n", vfio_device->group_pathname, strerror (errno));
-            exit (EXIT_FAILURE);
-        }
-        vfio_device->group_fd = -1;
     }
 
-    /* Close the VFIO container if it was used */
-    if (vfio_devices->container_fd != -1)
+    /* Close the containers */
+    for (uint32_t container_index = 0; container_index < vfio_devices->num_containers; container_index++)
     {
-        rc = close (vfio_devices->container_fd);
-        if (rc != 0)
-        {
-            fprintf (stderr, "close (%s) failed : %s\n", VFIO_CONTAINER_PATH, strerror (errno));
-            exit (EXIT_FAILURE);
-        }
-        vfio_devices->container_fd = -1;
+        close_vfio_container (&vfio_devices->containers[container_index]);
     }
+    vfio_devices->num_containers = 0;
 
 #ifdef HAVE_CMEM
     /* Close the cmem driver if it has been opened */
@@ -1435,9 +1528,6 @@ void close_vfio_devices (vfio_devices_t *const vfio_devices)
         (void) cmem_drv_close ();
     }
 #endif
-
-    free (vfio_devices->iommu_info);
-    vfio_devices->iommu_info = NULL;
 
     /* Cleanup the PCI access, if was used */
     if (vfio_devices->pacc != NULL)
@@ -1568,45 +1658,38 @@ void allocate_vfio_dma_mapping (vfio_device_t *const vfio_device,
                                 const size_t requested_size, const uint32_t permission,
                                 const vfio_buffer_allocation_type_t buffer_allocation)
 {
-    vfio_devices_t *const vfio_devices = vfio_device->vfio_devices;
+    vfio_iommu_container_t *const container = vfio_device->group->container;
     int rc;
     size_t aligned_size = requested_size;
 
-    mapping->vfio_devices = vfio_devices;
+    mapping->container = container;
     mapping->num_allocated_bytes = 0;
-    if (vfio_devices->iommu_type == VFIO_NOIOMMU_IOMMU)
+    if (container->iommu_type == VFIO_NOIOMMU_IOMMU)
     {
         /* In NOIOMMU mode allocate IOVA using the contiguous physical memory cmem driver.
          * Open the cmem driver before first use. */
         mapping->buffer.vaddr = NULL;
-        if (vfio_devices->cmem_usage == VFIO_CMEM_USAGE_NONE)
+        if (container->vfio_devices->cmem_usage == VFIO_CMEM_USAGE_NONE)
         {
 #ifdef HAVE_CMEM
             rc = cmem_drv_open ();
             if (rc == 0)
             {
-                /* Free any physically contiguous buffers allocated by previous runs using the cmem driver.
-                 * Do this after opening the driver as the cmem driver doesn't currently support freeing individual buffers.
-                 * This does mean only one process can use the cmem driver at once. */
-                rc = cmem_drv_free (0, NULL);
-            }
-            if (rc == 0)
-            {
-                vfio_devices->cmem_usage = VFIO_CMEM_USAGE_DRIVER_OPEN;
+                container->vfio_devices->cmem_usage = VFIO_CMEM_USAGE_DRIVER_OPEN;
             }
             else
             {
                 printf ("VFIO DMA not supported as failed to open cmem driver\n");
-                vfio_devices->cmem_usage = VFIO_CMEM_USAGE_OPEN_FAILED;
+                container->vfio_devices->cmem_usage = VFIO_CMEM_USAGE_OPEN_FAILED;
             }
 #else
-            vfio_devices->cmem_usage = VFIO_CMEM_USAGE_SUPPORT_NOT_COMPILED;
+            container->vfio_devices->cmem_usage = VFIO_CMEM_USAGE_SUPPORT_NOT_COMPILED;
             printf ("VFIO DMA not supported as cmem support not compiled in\n");
 #endif
         }
 
 #ifdef HAVE_CMEM
-        if (vfio_devices->cmem_usage == VFIO_CMEM_USAGE_DRIVER_OPEN)
+        if (container->vfio_devices->cmem_usage == VFIO_CMEM_USAGE_DRIVER_OPEN)
         {
             const size_t page_size = (size_t) getpagesize ();
 
@@ -1638,14 +1721,14 @@ void allocate_vfio_dma_mapping (vfio_device_t *const vfio_device,
         /* Increase the requested size to be aligned to the smallest page size supported by the IOMMU */
         for (uint64_t page_size = 1; (!alignment_found) && (page_size != 0); page_size <<= 1)
         {
-            if ((vfio_devices->iommu_info->iova_pgsizes & page_size) == page_size)
+            if ((container->iommu_info->iova_pgsizes & page_size) == page_size)
             {
                 aligned_size = (requested_size + (page_size - 1)) & (~(page_size - 1));
                 alignment_found = true;
             }
         }
 
-        allocate_iova_region (vfio_device, aligned_size, &region);
+        allocate_iova_region (container, vfio_device->dma_capability, aligned_size, &region);
         if (region.allocated)
         {
             mapping->iova = region.start;
@@ -1663,7 +1746,7 @@ void allocate_vfio_dma_mapping (vfio_device_t *const vfio_device,
                 dma_map.vaddr = (uintptr_t) mapping->buffer.vaddr;
                 dma_map.iova = mapping->iova;
                 dma_map.size = mapping->buffer.size;
-                rc = ioctl (vfio_devices->container_fd, VFIO_IOMMU_MAP_DMA, &dma_map);
+                rc = ioctl (container->container_fd, VFIO_IOMMU_MAP_DMA, &dma_map);
                 if (rc != 0)
                 {
                     printf ("VFIO_IOMMU_MAP_DMA of size %zu failed : %s\n", mapping->buffer.size, strerror (-rc));
@@ -1725,7 +1808,6 @@ void vfio_dma_mapping_align_space (vfio_dma_mapping_t *const mapping)
  */
 void free_vfio_dma_mapping (vfio_dma_mapping_t *const mapping)
 {
-    vfio_devices_t *const vfio_devices = mapping->vfio_devices;
     int rc;
     struct vfio_iommu_type1_dma_unmap dma_unmap =
     {
@@ -1737,7 +1819,7 @@ void free_vfio_dma_mapping (vfio_dma_mapping_t *const mapping)
 
     if (mapping->buffer.vaddr != NULL)
     {
-        if (vfio_devices->iommu_type == VFIO_NOIOMMU_IOMMU)
+        if (mapping->container->iommu_type == VFIO_NOIOMMU_IOMMU)
         {
             /* Using NOIOMMU so just free the buffer */
             free_vfio_buffer (&mapping->buffer);
@@ -1745,7 +1827,7 @@ void free_vfio_dma_mapping (vfio_dma_mapping_t *const mapping)
         else
         {
             /* Using IOMMU so free the IOMMU DMA mapping and then the buffer */
-            rc = ioctl (vfio_devices->container_fd, VFIO_IOMMU_UNMAP_DMA, &dma_unmap);
+            rc = ioctl (mapping->container->container_fd, VFIO_IOMMU_UNMAP_DMA, &dma_unmap);
             if (rc == 0)
             {
                 vfio_iova_region_t free_region =
@@ -1755,7 +1837,7 @@ void free_vfio_dma_mapping (vfio_dma_mapping_t *const mapping)
                     .allocated = false
                 };
 
-                update_iova_regions (vfio_devices, &free_region);
+                update_iova_regions (mapping->container, &free_region);
                 free_vfio_buffer (&mapping->buffer);
             }
             else
@@ -1892,148 +1974,4 @@ bool vfio_write_pci_config_u16 (vfio_device_t *const vfio_device, const uint32_t
 bool vfio_write_pci_config_u32 (vfio_device_t *const vfio_device, const uint32_t offset, const uint32_t value)
 {
     return vfio_write_pci_region_bytes (vfio_device, VFIO_PCI_CONFIG_REGION_INDEX, offset, sizeof (value), &value);
-}
-
-
-/**
- * @brief Display the PCI control word for a VFIO device, for diagnostics
- * @param[in/out] vfio_device Device to display the PCI control word for
- */
-void vfio_display_pci_command (vfio_device_t *const vfio_device)
-{
-    uint16_t command;
-
-    if (vfio_read_pci_config_u16 (vfio_device, PCI_COMMAND, &command))
-    {
-        printf ("    control: I/O%s Mem%s BusMaster%s\n",
-                (command & PCI_COMMAND_IO) ? "+" : "-",
-                (command & PCI_COMMAND_MEMORY) ? "+" : "-",
-                (command & PCI_COMMAND_MASTER) ? "+" : "-");
-    }
-}
-
-
-/**
- * @brief A debugging aid for testing multiprocess VFIO support, by display the file descriptors for the VFIO devices
- * @param[in] vfio_devices The VFIO devices to display the file descriptors for
- */
-void vfio_display_fds (const vfio_devices_t *const vfio_devices)
-{
-    printf ("container_fd=%d\n", vfio_devices->container_fd);
-    for (uint32_t device_index = 0; device_index < vfio_devices->num_devices; device_index++)
-    {
-        const vfio_device_t *const vfio_device = &vfio_devices->devices[device_index];
-
-        printf ("  %s : group_fd=%d device_fd=%d\n", vfio_device->device_name, vfio_device->group_fd, vfio_device->device_fd);
-    }
-}
-
-
-/**
- * @details Called in the VFIO primary process to launch secondary process(s) which can use the VFIO devices and VFIO container
- *          opened by the primary process. This is because VFIO devices can only be opened by one process.
- *          This function uses UNIX domain sockets to pass the file descriptors for the VFIO devices and VFIO container
- *          to the launched secondary processes.
- * @param[in/out] vfio_devices The opened VFIO devices to pass to the secondary processes.
- * @param[in] num_processes The number of secondary processes to launch
- * @param[in/out] processes The secondary processes to launch.
- *                          On entry the executable and argv fields define the processes to launch.
- *                          On return the other fields are populated.
- */
-void vfio_launch_secondary_processes (vfio_devices_t *const vfio_devices,
-                                      const uint32_t num_processes, vfio_secondary_process_t processes[const num_processes])
-{
-    pid_t pid;
-
-    /* Cleanup the PCI access, to stop any open file descriptors being passed to the secondary processes */
-    if (vfio_devices->pacc != NULL)
-    {
-        pci_cleanup (vfio_devices->pacc);
-        vfio_devices->pacc = NULL;
-    }
-
-    for (uint32_t process_index = 0; process_index < num_processes; process_index++)
-    {
-        vfio_secondary_process_t *const process = &processes[process_index];
-
-        pid = fork ();
-        if (pid == 0)
-        {
-            /* In child */
-            (void) execv (process->executable, process->argv);
-
-            /* An error has occurred if execv returns */
-            fprintf (stderr, "execv (%s) failed : %s\n", process->executable, strerror (errno));
-            exit (EXIT_FAILURE);
-        }
-        else
-        {
-            /* In parent */
-            if (pid <= 0)
-            {
-                fprintf (stderr, "fork failed : %s\n", strerror (errno));
-                exit (EXIT_FAILURE);
-            }
-            process->pid = pid;
-            process->reaped = false;
-        }
-    }
-}
-
-
-/**
- * @brief Called on the VFIO primary process to wait for the secondary processes to exit
- * @param[in] num_processes The number of secondary processes
- * @param[in/out] processes The secondary processes, launched by a previous call to vfio_launch_secondary_processes()
- */
-void vfio_await_secondary_processes (const uint32_t num_processes, vfio_secondary_process_t processes[const num_processes])
-{
-    uint32_t num_active_processes = num_processes;
-    int rc;
-    siginfo_t info;
-    uint32_t process_index;
-    uint32_t num_failed_processes = 0;
-
-    while (num_active_processes > 0)
-    {
-        rc = waitid (P_ALL, 0, &info, WEXITED);
-        if (rc == 0)
-        {
-            for (process_index = 0; process_index < num_processes; process_index++)
-            {
-                vfio_secondary_process_t *const process = &processes[process_index];
-
-                if (!process->reaped && (info.si_pid == process->pid))
-                {
-                    switch (info.si_code)
-                    {
-                    case CLD_EXITED:
-                        if (info.si_status != EXIT_SUCCESS)
-                        {
-                            printf ("Secondary %s exited with status %d\n", process->executable, info.si_status);
-                            num_failed_processes++;
-                        }
-                        break;
-
-                    case CLD_KILLED:
-                    case CLD_DUMPED:
-                        printf ("Secondary %s killed with signal %d\n", process->executable, info.si_status);
-                        num_failed_processes++;
-                    }
-                    process->reaped = true;
-                    num_active_processes--;
-                }
-            }
-        }
-    }
-
-    if (num_failed_processes > 0)
-    {
-        printf ("%" PRIu32 " out of %" PRIu32 " child processes had non-successful exit\n",
-                num_failed_processes, num_processes);
-    }
-    else
-    {
-        printf ("All %" PRIu32 " child processed exited successfully\n", num_processes);
-    }
 }

@@ -175,7 +175,7 @@ int main (int argc, char *argv[])
             printf (" version 0x%x", design->board_version);
         }
         printf (":\n");
-        printf ("  PCI device %s IOMMU group %s\n", design->vfio_device->device_name, design->vfio_device->iommu_group);
+        printf ("  PCI device %s IOMMU group %s\n", design->vfio_device->device_name, design->vfio_device->group->iommu_group_name);
         if (design->dma_bridge_present)
         {
             display_dma_bridge (design);

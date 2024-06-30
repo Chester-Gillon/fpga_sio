@@ -20,6 +20,10 @@
 #endif
 
 
+/* The maximum number of VFIO devices this API can open. Also used to size other arrays which may be per device */
+#define MAX_VFIO_DEVICES 4
+
+
 /* Defines the option used to allocate a buffer used for VFIO DMA */
 typedef enum
 {
@@ -59,6 +63,73 @@ typedef struct
 } vfio_buffer_t;
 
 
+/* Defines once IOMMU group, which may have one or more devices in the group */
+typedef struct
+{
+    /* The IOMMU group for the device, read when scanning the PCI bus */
+    char *iommu_group_name;
+    /* The pathname for the vfio group character file */
+    char group_pathname[PATH_MAX];
+    /* The IOMMU group descriptor */
+    int group_fd;
+    /* The status of the IOMMU group, used to check that is viable */
+    struct vfio_group_status group_status;
+    /* Points at the IOMMU container this IOMMU group part of */
+    struct vfio_iommu_container_s *container;
+} vfio_iommu_group_t;
+
+
+/* Defines one region of IOVA, for consecutive addresses, for the purpose of allocating IOVA */
+typedef struct
+{
+    /* The start IOVA of the region */
+    uint64_t start;
+    /* The inclusive end IOVA of the region */
+    uint64_t end;
+    /* Defines if the region is in-use:
+     * - false means free for allocation
+     * - true means has been allocated */
+    bool allocated;
+} vfio_iova_region_t;
+
+
+/* Defines a vfio container for one or more IOMMU groups. This is used to make IOVA allocations.
+ * DMA mapping is done for the container, so having one container for multiple IOMMU groups should allow the DMA mappings
+ * to be used by multiple devices.
+ *
+ * The description of VFIO_GROUP_SET_CONTAINER contains:
+ *    "Containers may, at their discretion, support multiple groups."
+ *
+ * With the intel_iommu was able to add two devices in different /sys/class/iommu/dmar?/devices directory
+ * to the same container. */
+typedef struct vfio_iommu_container_s
+{
+    /* The file descriptor for the container */
+    int container_fd;
+    /* The IOMMU type which is used for the VFIO container */
+    __s32 iommu_type;
+    /* When non-NULL contains the information about the IOMMU to support IOVA allocations */
+    struct vfio_iommu_type1_info *iommu_info;
+    /* The number of IOMMU groups the container is used on */
+    uint32_t num_iommu_groups;
+    /* The IOMMU groups the container is used on */
+    vfio_iommu_group_t iommu_groups[MAX_VFIO_DEVICES];
+    /* Dynamically sized array of IOVA regions used to perform IOVA allocations in order to:
+     * a. Only allocate from valid region. I.e. excludes reserved regions.
+     * b. Support allocations for both VFIO_DEVICE_DMA_CAPABILITY_A32 and VFIO_DEVICE_DMA_CAPABILITY_A64
+     *
+     * Initialised to free regions reported by VFIO_IOMMU_TYPE1_INFO_CAP_IOVA_RANGE.
+     * Updated as allocate_vfio_dma_mapping() and free_vfio_dma_mapping() are called. */
+    vfio_iova_region_t *iova_regions;
+    /* The current number of valid entries in the iova_regions[] array */
+    uint32_t num_iova_regions;
+    /* The current allocated length of the iova_regions[] array, dynamically grown as required */
+    uint32_t iova_regions_allocated_length;
+    /* Points at the underlying VFIO devices for which this container is used on */
+    struct vfio_devices_s *vfio_devices;
+} vfio_iommu_container_t;
+
+
 /* Defines the DMA capability of a VFIO device */
 typedef enum
 {
@@ -81,16 +152,10 @@ typedef struct
     u16 pci_subsystem_device_id;
     /* The DMA capability of the device, which must be determined by the caller of this API */
     vfio_device_dma_capability_t dma_capability;
-    /* The IOMMU group for the device, read when scanning the PCI bus */
-    char *iommu_group;
-    /* The pathname for the vfio group character file */
-    char group_pathname[PATH_MAX];
     /* The PCI device name as <domain>:<bus>:<device>.<function> */
     char device_name[64];
-    /* The IOMMU group descriptor */
-    int group_fd;
-    /* The status of the IOMMU group, used to check that is viable */
-    struct vfio_group_status group_status;
+    /* Includes the device_name and identity */
+    char device_description[128];
     /* The vfio device descriptor */
     int device_fd;
     /* The vfio device information */
@@ -124,8 +189,8 @@ typedef struct
      *    in the application until the first access, which triggers a page fault. Haven't yet confirmed this by tracing
      *    page faults. */
     uint8_t *mapped_bars[PCI_STD_NUM_BARS];
-    /* Points the at the enclosing vfio_devices_t to obtain the IOMMU container for allocating mappings */
-    struct vfio_devices_s *vfio_devices;
+    /* The IOMMU group the device of part of. Used to obtain the container for allocating mappings */
+    vfio_iommu_group_t *group;
 } vfio_device_t;
 
 
@@ -136,67 +201,28 @@ typedef enum
     VFIO_CMEM_USAGE_NONE,
     /* The cmem driver has been successfully opened, following an attempt to use DMA in NOIOMMU mode */
     VFIO_CMEM_USAGE_DRIVER_OPEN,
-    /* an attempt was made to use DMA in NOIOMMU mode, but support for the cmem driver hasn't been compiled in */
+    /* An attempt was made to use DMA in NOIOMMU mode, but support for the cmem driver hasn't been compiled in */
     VFIO_CMEM_USAGE_SUPPORT_NOT_COMPILED,
     /* An attempt was made to use DMA in NOIOMMU mode, but the cmem driver open failed (probably no module loaded) */
     VFIO_CMEM_USAGE_OPEN_FAILED
 } vfio_cmem_usage_t;
 
 
-/* Defines one region of IOVA, for consecutive addresses, for the purpose of allocating IOVA */
-typedef struct
-{
-    /* The start IOVA of the region */
-    uint64_t start;
-    /* The inclusive end IOVA of the region */
-    uint64_t end;
-    /* Defines if the region is in-use:
-     * - false means free for allocation
-     * - true means has been allocated */
-    bool allocated;
-} vfio_iova_region_t;
-
-
 /* Contains all devices which have opened using vfio */
-#define MAX_VFIO_DEVICES 4
 typedef struct vfio_devices_s
 {
     /* If non-NULL used to search for PCI devices */
     struct pci_access *pacc;
-    /* Set true when running in a secondary process, meaning use the contain and group file descriptors opened from
-     * the primary process */
-    bool secondary_process;
-    /* The VFIO container used by all devices.
-     * DMA mapping is done for the container, so having one container for multiple devices should all the DMA mappings
-     * to be used by multiple devices.
-     *
-     * The description of VFIO_GROUP_SET_CONTAINER contains:
-     *    "Containers may, at their discretion, support multiple groups."
-     *
-     * With the intel_iommu was able to add two devices in different /sys/class/iommu/dmar?/devices directory
-     * to the same container. */
-    int container_fd;
-    /* The IOMMU type which is used for the VFIO container */
-    __s32 iommu_type;
-    /* When non-NULL contains the information about the IOMMU to support IOVA allocations */
-    struct vfio_iommu_type1_info *iommu_info;
     /* Used to track usage of the cmem driver */
     vfio_cmem_usage_t cmem_usage;
+    /* The number of IOMMU containers which have been created */
+    uint32_t num_containers;
+    /* The IOMMU containers which have been created */
+    vfio_iommu_container_t containers[MAX_VFIO_DEVICES];
     /* The number of devices which have been opened */
     uint32_t num_devices;
     /* The devices which have been opened */
     vfio_device_t devices[MAX_VFIO_DEVICES];
-    /* Dynamically sized array of IOVA regions used to perform IOVA allocations in order to:
-     * a. Only allocate from valid region. I.e. excludes reserved regions.
-     * b. Support allocations for both VFIO_DEVICE_DMA_CAPABILITY_A32 and VFIO_DEVICE_DMA_CAPABILITY_A64
-     *
-     * Initialised to free regions reported by VFIO_IOMMU_TYPE1_INFO_CAP_IOVA_RANGE.
-     * Updated as allocate_vfio_dma_mapping() and free_vfio_dma_mapping() are called. */
-    vfio_iova_region_t *iova_regions;
-    /* The current number of valid entries in the iova_regions[] array */
-    uint32_t num_iova_regions;
-    /* The current allocated length of the iova_regions[] array, dynamically grown as required */
-    uint32_t iova_regions_allocated_length;
 } vfio_devices_t;
 
 
@@ -235,24 +261,9 @@ typedef struct
     uint64_t iova;
     /* Allows the mapping to have its contents allocated for different uses */
     size_t num_allocated_bytes;
-    /* Points the at the enclosing vfio_devices_t to obtain the IOMMU container for freeing mappings */
-    vfio_devices_t *vfio_devices;
+    /* The IOMMU container for freeing mappings */
+    vfio_iommu_container_t *container;
 } vfio_dma_mapping_t;
-
-
-/* Defines one secondary process which is launched to access VFIO device(s) opened by the primary process */
-#define VFIO_SECONDARY_MAX_ARGC 16
-typedef struct
-{
-    /* Path to the executable to launch */
-    char executable[PATH_MAX];
-    /* null terminated list of arguments for the process */
-    char *argv[VFIO_SECONDARY_MAX_ARGC + 1];
-    /* The identity of the launched process */
-    pid_t pid;
-    /* Set true when the secondary process has been reaped by the primary process */
-    bool reaped;
-} vfio_secondary_process_t;
 
 
 void vfio_add_pci_device_location_filter (const char *const device_name);
@@ -271,6 +282,7 @@ bool vfio_device_pci_filter_match (const vfio_device_t *const vfio_device, const
 void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
                                         const size_t num_id_filters,
                                         const vfio_pci_device_identity_filter_t id_filters[const num_id_filters]);
+void vfio_enable_iommu_group_isolation (void);
 void close_vfio_devices (vfio_devices_t *const vfio_devices);
 void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_device_identity_filter_t filters[const num_filters],
                                     const char *const design_names[const num_filters]);
@@ -292,11 +304,6 @@ bool vfio_read_pci_config_u32 (vfio_device_t *const vfio_device, const uint32_t 
 bool vfio_write_pci_config_u8 (vfio_device_t *const vfio_device, const uint32_t offset, const uint8_t value);
 bool vfio_write_pci_config_u16 (vfio_device_t *const vfio_device, const uint32_t offset, const uint16_t value);
 bool vfio_write_pci_config_u32 (vfio_device_t *const vfio_device, const uint32_t offset, const uint32_t value);
-void vfio_display_pci_command (vfio_device_t *const vfio_device);
-void vfio_display_fds (const vfio_devices_t *const vfio_devices);
-void vfio_launch_secondary_processes (vfio_devices_t *const vfio_devices,
-                                      const uint32_t num_processes, vfio_secondary_process_t processes[const num_processes]);
-void vfio_await_secondary_processes (const uint32_t num_processes, vfio_secondary_process_t processes[const num_processes]);
 
 
 /* Intel processor cache line size */

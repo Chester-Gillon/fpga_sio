@@ -226,7 +226,7 @@ static void display_spi_flash_information (const fpga_design_t *const design)
     bool success;
 
     printf ("\nDisplaying information for SPI flash using %s design in PCI device %s IOMMU group %s\n",
-            fpga_design_names[design->design_id], design->vfio_device->device_name, design->vfio_device->iommu_group);
+            fpga_design_names[design->design_id], design->vfio_device->device_name, design->vfio_device->group->iommu_group_name);
     success = quad_spi_initialise_controller (&controller, design->quad_spi_regs);
     if (!success)
     {

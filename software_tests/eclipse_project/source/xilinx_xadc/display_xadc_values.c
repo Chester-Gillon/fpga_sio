@@ -60,7 +60,8 @@ int main (int argc, char *argv[])
         {
             read_xadc_samples (&collection, design->xadc_regs);
             printf ("Displaying XADC values for design %s in PCI device %s IOMMU group %s:\n",
-                    fpga_design_names[design->design_id], design->vfio_device->device_name, design->vfio_device->iommu_group);
+                    fpga_design_names[design->design_id], design->vfio_device->device_name,
+                    design->vfio_device->group->iommu_group_name);
             display_xadc_samples (&collection);
             printf ("\n");
         }

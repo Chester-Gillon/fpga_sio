@@ -74,6 +74,7 @@ static const struct option command_line_options[] =
     {"buffer_allocation", required_argument, NULL, 0},
     {"stream_mapping_size", required_argument, NULL, 0},
     {"stream_num_descriptors", required_argument, NULL, 0},
+    {"isolate_iommu_groups", no_argument, NULL, 0},
     {NULL, 0, NULL, 0}
 };
 
@@ -212,6 +213,8 @@ static void display_usage (void)
     printf ("  stream transfers.\n");
     printf ("--stream_num_descriptors <num_descriptors>\n");
     printf ("  Specifies the number of descriptors when performing AXI stream transfers.\n");
+    printf ("--isolate_iommu_groups\n");
+    printf ("  Causes each IOMMU group to use it's own container\n");
 
     exit (EXIT_FAILURE);
 }
@@ -340,6 +343,10 @@ static void parse_command_line_arguments (int argc, char *argv[])
                     printf ("Invalid %s %s\n", optdef->name, optarg);
                     exit (EXIT_FAILURE);
                 }
+            }
+            else if (strcmp (optdef->name, "isolate_iommu_groups") == 0)
+            {
+                vfio_enable_iommu_group_isolation ();
             }
             else
             {
@@ -922,7 +929,7 @@ int main (int argc, char *argv[])
                         stream_pair->c2h_channel_id = c2h_channel_id;
                         printf ("Selecting test of %s design PCI device %s IOMMU group %s H2C channel %u C2H channel %u\n",
                                 fpga_design_names[stream_pair->design->design_id],
-                                stream_pair->vfio_device->device_name, stream_pair->vfio_device->iommu_group,
+                                stream_pair->vfio_device->device_name, stream_pair->vfio_device->group->iommu_group_name,
                                 stream_pair->h2c_channel_id, stream_pair->c2h_channel_id);
 
                         context.num_stream_pairs++;

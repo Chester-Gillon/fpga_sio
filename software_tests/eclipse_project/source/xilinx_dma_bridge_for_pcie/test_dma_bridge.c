@@ -1679,7 +1679,8 @@ int main (int argc, char *argv[])
                                 printf (" version 0x%x", design->board_version);
                             }
                             printf (" with AXI stream\n");
-                            printf ("PCI device %s IOMMU group %s\n", design->vfio_device->device_name, design->vfio_device->iommu_group);
+                            printf ("PCI device %s IOMMU group %s\n", design->vfio_device->device_name,
+                                    design->vfio_device->group->iommu_group_name);
 
                             /* Test the pairs of streams cross-connected within the FPGA */
                             num_channel_combinations_tested = 0;
@@ -1709,7 +1710,8 @@ int main (int argc, char *argv[])
                                 printf (" version 0x%x", design->board_version);
                             }
                             printf (" with memory size 0x%zx\n", design->dma_bridge_memory_size_bytes);
-                            printf ("PCI device %s IOMMU group %s\n", design->vfio_device->device_name, design->vfio_device->iommu_group);
+                            printf ("PCI device %s IOMMU group %s\n", design->vfio_device->device_name,
+                                    design->vfio_device->group->iommu_group_name);
 
                             num_channel_combinations_tested = 0;
                             for (h2c_channel_id = 0;
@@ -1734,7 +1736,7 @@ int main (int argc, char *argv[])
             {
                 /* Have to skip a design which doesn't have channels in both directions */
                 printf ("Skipping design %s PCI device %s IOMMU group %s due to num_h2c_channels=%u num_c2h_channels=%u\n",
-                        fpga_design_names[design->design_id], vfio_device->device_name, vfio_device->iommu_group,
+                        fpga_design_names[design->design_id], vfio_device->device_name, vfio_device->group->iommu_group_name,
                         num_h2c_channels, num_c2h_channels);
             }
         }

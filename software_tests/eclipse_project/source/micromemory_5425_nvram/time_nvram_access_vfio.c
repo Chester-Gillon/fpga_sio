@@ -222,7 +222,7 @@ int main (int argc, char *argv[])
             const size_t nvram_size_bytes = get_nvram_size_bytes (csr);
 
             printf ("Testing NVRAM size 0x%zx for PCI device %s IOMMU group %s\n",
-                    nvram_size_bytes, vfio_device->device_name, vfio_device->iommu_group);
+                    nvram_size_bytes, vfio_device->device_name, vfio_device->group->iommu_group_name);
             if (nvram_size_bytes > 0)
             {
                 initialise_nvram_device (csr);

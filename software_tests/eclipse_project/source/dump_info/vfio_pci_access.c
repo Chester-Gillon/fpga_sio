@@ -266,6 +266,7 @@ const char *generic_pci_access_text_property (generic_pci_access_device_p const 
                                               const generic_pci_access_device_text_property_t property)
 {
     vfio_device_t *const vfio_device = (vfio_device_t *) generic_device;
+    struct pci_access *const pacc = vfio_device->group->container->vfio_devices->pacc;
     const char *property_text = NULL;
     char *name;
     const int max_name_len = 256;
@@ -274,24 +275,23 @@ const char *generic_pci_access_text_property (generic_pci_access_device_p const 
     {
     case GENERIC_PCI_ACCESS_VENDOR_NAME:
         name = calloc ((size_t) max_name_len, sizeof (char));
-        if ((vfio_device->vfio_devices->pacc != NULL) && (name != NULL))
+        if ((pacc != NULL) && (name != NULL))
         {
-            property_text = pci_lookup_name (vfio_device->vfio_devices->pacc, name, max_name_len,
-                    PCI_LOOKUP_VENDOR, vfio_device->pci_dev->vendor_id);
+            property_text = pci_lookup_name (pacc, name, max_name_len, PCI_LOOKUP_VENDOR, vfio_device->pci_dev->vendor_id);
         }
         break;
 
     case GENERIC_PCI_ACCESS_DEVICE_NAME:
         name = calloc ((size_t) max_name_len, sizeof (char));
-        if ((vfio_device->vfio_devices->pacc != NULL) && (name != NULL))
+        if ((pacc != NULL) && (name != NULL))
         {
-            property_text = pci_lookup_name (vfio_device->vfio_devices->pacc, name, max_name_len,
+            property_text = pci_lookup_name (pacc, name, max_name_len,
                     PCI_LOOKUP_DEVICE, vfio_device->pci_dev->vendor_id, vfio_device->pci_dev->device_id);
         }
         break;
 
     case GENERIC_PCI_ACCESS_IOMMU_GROUP:
-        property_text = vfio_device->iommu_group;
+        property_text = vfio_device->group->iommu_group_name;
         break;
 
     case GENERIC_PCI_ACCESS_DRIVER:

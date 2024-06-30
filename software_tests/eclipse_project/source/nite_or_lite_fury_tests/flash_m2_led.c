@@ -64,7 +64,7 @@ int main (int argc, char *argv[])
                 {
                     printf ("Testing %s board version 0x%x for PCI device %s IOMMU group %s\n",
                             fpga_design_names[design->design_id], design->board_version,
-                            design->vfio_device->device_name, design->vfio_device->iommu_group);
+                            design->vfio_device->device_name, design->vfio_device->group->iommu_group_name);
 
                     /* Set the M2 LED signal active, delay, and then back to inactive.
                      * Since the AXI GPIO IP doesn't support read-back of the current outputs, this may change
