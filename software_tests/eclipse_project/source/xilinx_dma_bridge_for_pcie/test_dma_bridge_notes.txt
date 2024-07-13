@@ -3987,8 +3987,8 @@ For multi-process support does this mean only one process should open the device
 Unix domain sockets?
 
 
-# 7. Soak test with stream tests
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+7. Soak test with stream tests
+==============================
 
 $ xilinx_dma_bridge_for_pcie/test_dma_bridge_parallel_streams --stream_device 0000:15:00.0,0 --stream_device 0000:15:00.0,1
 <<snip>>
@@ -4024,3 +4024,234 @@ Overall test statistics:
 0000:30:00.0 1 -> 0 Test pattern verified in 268435456 words
 
 Overall PASS
+
+
+8. Tests on IOMMU group isolation
+=================================
+
+Tests on running test_dma_bridge_parallel_streams on two devices, with combinations of arguments which control the
+number of IOMMU containers and which container is used to perform IOVA allocations.
+
+
+8.1. Test successful with single container
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+With no arguments related to container use:
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge_parallel_streams 
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Enabled bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Enabled bus master for 0000:30:00.0
+Using num_descriptors=64 bytes_per_buffer=0x1000000 data_mapping_size_words=0x10000000
+Selecting test of TEF1001_dma_stream_loopback design PCI device 0000:15:00.0 IOMMU group 41 H2C channel 0 C2H channel 1
+Selecting test of TEF1001_dma_stream_loopback design PCI device 0000:15:00.0 IOMMU group 41 H2C channel 1 C2H channel 0
+Selecting test of NiteFury_dma_stream_loopback design PCI device 0000:30:00.0 IOMMU group 89 H2C channel 0 C2H channel 1
+Selecting test of NiteFury_dma_stream_loopback design PCI device 0000:30:00.0 IOMMU group 89 H2C channel 1 C2H channel 0
+Press Ctrl-C to stop test
+  0000:15:00.0 0 -> 1 818.597 Mbytes/sec (8170504192 bytes in 9.981102 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8170504192 bytes in 9.981106 secs)
+  0000:30:00.0 0 -> 1 818.586 Mbytes/sec (8170504192 bytes in 9.981240 secs)
+  0000:30:00.0 1 -> 0 818.586 Mbytes/sec (8170504192 bytes in 9.981245 secs)
+
+  0000:15:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001601 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001601 secs)
+  0000:30:00.0 0 -> 1 818.595 Mbytes/sec (8187281408 bytes in 10.001621 secs)
+  0000:30:00.0 1 -> 0 818.595 Mbytes/sec (8187281408 bytes in 10.001621 secs)
+
+  0000:15:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001598 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001597 secs)
+  0000:30:00.0 0 -> 1 818.594 Mbytes/sec (8187281408 bytes in 10.001643 secs)
+  0000:30:00.0 1 -> 0 818.594 Mbytes/sec (8187281408 bytes in 10.001642 secs)
+
+  0000:15:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001598 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001597 secs)
+  0000:30:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001602 secs)
+  0000:30:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001602 secs)
+
+  0000:15:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001597 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001597 secs)
+  0000:30:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001606 secs)
+  0000:30:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001606 secs)
+
+  0000:15:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001598 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001597 secs)
+  0000:30:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001598 secs)
+  0000:30:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001598 secs)
+
+  0000:15:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001597 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001597 secs)
+  0000:30:00.0 0 -> 1 818.596 Mbytes/sec (8187281408 bytes in 10.001608 secs)
+  0000:30:00.0 1 -> 0 818.596 Mbytes/sec (8187281408 bytes in 10.001608 secs)
+
+  0000:15:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001597 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001597 secs)
+  0000:30:00.0 0 -> 1 818.596 Mbytes/sec (8187281408 bytes in 10.001609 secs)
+  0000:30:00.0 1 -> 0 818.596 Mbytes/sec (8187281408 bytes in 10.001609 secs)
+
+  0000:15:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001597 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001597 secs)
+  0000:30:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001605 secs)
+  0000:30:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001605 secs)
+
+  0000:15:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001597 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001597 secs)
+  0000:30:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001599 secs)
+  0000:30:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001599 secs)
+
+^C  0000:15:00.0 0 -> 1 818.598 Mbytes/sec (3238002688 bytes in 3.955548 secs)
+  0000:15:00.0 1 -> 0 818.598 Mbytes/sec (3238002688 bytes in 3.955545 secs)
+  0000:30:00.0 0 -> 1 818.598 Mbytes/sec (3238002688 bytes in 3.955549 secs)
+  0000:30:00.0 1 -> 0 818.598 Mbytes/sec (3238002688 bytes in 3.955545 secs)
+
+Overall test statistics:
+  0000:15:00.0 0 -> 1 818.598 Mbytes/sec (85094039552 bytes in 103.950935 secs)
+  0000:15:00.0 1 -> 0 818.598 Mbytes/sec (85094039552 bytes in 103.950935 secs)
+  0000:30:00.0 0 -> 1 818.596 Mbytes/sec (85094039552 bytes in 103.951182 secs)
+  0000:30:00.0 1 -> 0 818.596 Mbytes/sec (85094039552 bytes in 103.951183 secs)
+
+0000:15:00.0 0 -> 1 Test pattern verified in 268435456 words
+0000:15:00.0 1 -> 0 Test pattern verified in 268435456 words
+0000:30:00.0 0 -> 1 Test pattern verified in 268435456 words
+0000:30:00.0 1 -> 0 Test pattern verified in 268435456 words
+
+Overall PASS
+
+
+With a single container and the --use_one_device_for_mappings option which has no effect since only one container:
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge_parallel_streams --use_one_device_for_mappings
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Enabled bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Enabled bus master for 0000:30:00.0
+Using num_descriptors=64 bytes_per_buffer=0x1000000 data_mapping_size_words=0x10000000
+Selecting test of TEF1001_dma_stream_loopback design PCI device 0000:15:00.0 IOMMU group 41 H2C channel 0 C2H channel 1
+Selecting test of TEF1001_dma_stream_loopback design PCI device 0000:15:00.0 IOMMU group 41 H2C channel 1 C2H channel 0
+Selecting test of NiteFury_dma_stream_loopback design PCI device 0000:30:00.0 IOMMU group 89 H2C channel 0 C2H channel 1
+Selecting test of NiteFury_dma_stream_loopback design PCI device 0000:30:00.0 IOMMU group 89 H2C channel 1 C2H channel 0
+Press Ctrl-C to stop test
+  0000:15:00.0 0 -> 1 818.597 Mbytes/sec (8170504192 bytes in 9.981105 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8170504192 bytes in 9.981110 secs)
+  0000:30:00.0 0 -> 1 818.575 Mbytes/sec (8170504192 bytes in 9.981378 secs)
+  0000:30:00.0 1 -> 0 818.574 Mbytes/sec (8170504192 bytes in 9.981382 secs)
+
+  0000:15:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001603 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001602 secs)
+  0000:30:00.0 0 -> 1 818.591 Mbytes/sec (8187281408 bytes in 10.001679 secs)
+  0000:30:00.0 1 -> 0 818.591 Mbytes/sec (8187281408 bytes in 10.001678 secs)
+
+  0000:15:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001598 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001597 secs)
+  0000:30:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001600 secs)
+  0000:30:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001599 secs)
+
+  0000:15:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001598 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001597 secs)
+  0000:30:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001600 secs)
+  0000:30:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001600 secs)
+
+^C  0000:15:00.0 0 -> 1 818.598 Mbytes/sec (8019509248 bytes in 9.796644 secs)
+  0000:15:00.0 1 -> 0 818.598 Mbytes/sec (8019509248 bytes in 9.796640 secs)
+  0000:30:00.0 0 -> 1 818.597 Mbytes/sec (8019509248 bytes in 9.796648 secs)
+  0000:30:00.0 1 -> 0 818.598 Mbytes/sec (8019509248 bytes in 9.796644 secs)
+
+Overall test statistics:
+  0000:15:00.0 0 -> 1 818.598 Mbytes/sec (40751857664 bytes in 49.782507 secs)
+  0000:15:00.0 1 -> 0 818.598 Mbytes/sec (40751857664 bytes in 49.782509 secs)
+  0000:30:00.0 0 -> 1 818.592 Mbytes/sec (40751857664 bytes in 49.782865 secs)
+  0000:30:00.0 1 -> 0 818.592 Mbytes/sec (40751857664 bytes in 49.782866 secs)
+
+0000:15:00.0 0 -> 1 Test pattern verified in 268435456 words
+0000:15:00.0 1 -> 0 Test pattern verified in 268435456 words
+0000:30:00.0 0 -> 1 Test pattern verified in 268435456 words
+0000:30:00.0 1 -> 0 Test pattern verified in 268435456 words
+
+Overall PASS
+
+
+8.2. Test successful with two containers and IOVA allocations for each device using it's container
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge_parallel_streams --isolate_iommu_groups
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Enabled bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Enabled bus master for 0000:30:00.0
+Using num_descriptors=64 bytes_per_buffer=0x1000000 data_mapping_size_words=0x10000000
+Selecting test of TEF1001_dma_stream_loopback design PCI device 0000:15:00.0 IOMMU group 41 H2C channel 0 C2H channel 1
+Selecting test of TEF1001_dma_stream_loopback design PCI device 0000:15:00.0 IOMMU group 41 H2C channel 1 C2H channel 0
+Selecting test of NiteFury_dma_stream_loopback design PCI device 0000:30:00.0 IOMMU group 89 H2C channel 0 C2H channel 1
+Selecting test of NiteFury_dma_stream_loopback design PCI device 0000:30:00.0 IOMMU group 89 H2C channel 1 C2H channel 0
+Press Ctrl-C to stop test
+  0000:15:00.0 0 -> 1 818.598 Mbytes/sec (8170504192 bytes in 9.981101 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8170504192 bytes in 9.981107 secs)
+  0000:30:00.0 0 -> 1 818.565 Mbytes/sec (8170504192 bytes in 9.981492 secs)
+  0000:30:00.0 1 -> 0 818.565 Mbytes/sec (8170504192 bytes in 9.981496 secs)
+
+  0000:15:00.0 0 -> 1 818.597 Mbytes/sec (8187281408 bytes in 10.001598 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8187281408 bytes in 10.001598 secs)
+  0000:30:00.0 0 -> 1 818.583 Mbytes/sec (8187281408 bytes in 10.001767 secs)
+  0000:30:00.0 1 -> 0 818.584 Mbytes/sec (8187281408 bytes in 10.001767 secs)
+
+^C  0000:15:00.0 0 -> 1 818.598 Mbytes/sec (6895435776 bytes in 8.423472 secs)
+  0000:15:00.0 1 -> 0 818.598 Mbytes/sec (6895435776 bytes in 8.423467 secs)
+  0000:30:00.0 0 -> 1 818.594 Mbytes/sec (6895435776 bytes in 8.423509 secs)
+  0000:30:00.0 1 -> 0 818.595 Mbytes/sec (6895435776 bytes in 8.423505 secs)
+
+Overall test statistics:
+  0000:15:00.0 0 -> 1 818.598 Mbytes/sec (23253221376 bytes in 28.406150 secs)
+  0000:15:00.0 1 -> 0 818.598 Mbytes/sec (23253221376 bytes in 28.406152 secs)
+  0000:30:00.0 0 -> 1 818.581 Mbytes/sec (23253221376 bytes in 28.406747 secs)
+  0000:30:00.0 1 -> 0 818.581 Mbytes/sec (23253221376 bytes in 28.406748 secs)
+
+0000:15:00.0 0 -> 1 Test pattern verified in 268435456 words
+0000:15:00.0 1 -> 0 Test pattern verified in 268435456 words
+0000:30:00.0 0 -> 1 Test pattern verified in 268435456 words
+0000:30:00.0 1 -> 0 Test pattern verified in 268435456 words
+
+Overall PASS
+
+
+8.3. Test failure when two containers, and 2nd device attempting to use IOVA allocations from the 1st device
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The test on the 2nd device (0000:30:00.0) fails with a timeout:
+$ xilinx_dma_bridge_for_pcie/test_dma_bridge_parallel_streams --isolate_iommu_groups --use_one_device_for_mappings
+Opening device 0000:15:00.0 (10ee:7024) with IOMMU group 41
+Enabled bus master for 0000:15:00.0
+Opening device 0000:30:00.0 (10ee:7024) with IOMMU group 89
+Enabled bus master for 0000:30:00.0
+Using num_descriptors=64 bytes_per_buffer=0x1000000 data_mapping_size_words=0x10000000
+Selecting test of TEF1001_dma_stream_loopback design PCI device 0000:15:00.0 IOMMU group 41 H2C channel 0 C2H channel 1
+Selecting test of TEF1001_dma_stream_loopback design PCI device 0000:15:00.0 IOMMU group 41 H2C channel 1 C2H channel 0
+Selecting test of NiteFury_dma_stream_loopback design PCI device 0000:30:00.0 IOMMU group 89 H2C channel 0 C2H channel 1
+Selecting test of NiteFury_dma_stream_loopback design PCI device 0000:30:00.0 IOMMU group 89 H2C channel 1 C2H channel 0
+Press Ctrl-C to stop test
+  0000:15:00.0 0 -> 1 818.597 Mbytes/sec (8170504192 bytes in 9.981105 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8170504192 bytes in 9.981109 secs)
+  0000:30:00.0 0 -> 1 No completed transfers
+  0000:30:00.0 1 -> 0 No completed transfers
+
+  0000:15:00.0 0 -> 1 818.597 Mbytes/sec (8170504192 bytes in 9.981105 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8170504192 bytes in 9.981109 secs)
+  0000:30:00.0 0 -> 1 No completed transfers
+  0000:30:00.0 1 -> 0 No completed transfers
+
+Overall test statistics:
+  0000:15:00.0 0 -> 1 818.597 Mbytes/sec (8170504192 bytes in 9.981105 secs)
+  0000:15:00.0 1 -> 0 818.597 Mbytes/sec (8170504192 bytes in 9.981109 secs)
+  0000:30:00.0 0 -> 1 No completed transfers
+  0000:30:00.0 1 -> 0 No completed transfers
+
+0000:15:00.0 0 -> 1 Test pattern verified in 268435456 words
+0000:15:00.0 1 -> 0 Test pattern verified in 268435456 words
+  0000:30:00.0 C2H channel 1 failure : Timeout: channel_status=0x80010 num_descriptors_started=64 num_completed_descriptors=0 next_started_descriptor_index=0 next_completed_descriptor_index=0 channel_id=1 direction=C2H device=0000:30:00.0
+
+Overall FAIL
+
+
+dmesg reported the following DMAR errors, as a reault of the 30:00.0 device attempting to use IOVA allocations it didn't
+have permission for:
+[Jul13 20:34] DMAR: DRHD: handling fault status reg 2
+[  +0.000007] DMAR: [DMA Read NO_PASID] Request device [30:00.0] fault addr 0x200004000 [fault reason 0x06] PTE Read access is not set
+[  +0.000009] DMAR: DRHD: handling fault status reg 102
+[  +0.000002] DMAR: [DMA Read NO_PASID] Request device [30:00.0] fault addr 0x200004000 [fault reason 0x06] PTE Read access is not set
