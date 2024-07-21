@@ -63,11 +63,11 @@ typedef struct
 } vfio_buffer_t;
 
 
-/* Defines once IOMMU group, which may have one or more devices in the group */
+/* Defines one IOMMU group, which may have one or more devices in the group */
 typedef struct
 {
     /* The IOMMU group for the device, read when scanning the PCI bus */
-    char *iommu_group_name;
+    const char *iommu_group_name;
     /* The pathname for the vfio group character file */
     char group_pathname[PATH_MAX];
     /* The IOMMU group descriptor */
@@ -142,7 +142,7 @@ typedef enum
 } vfio_device_dma_capability_t;
 
 
-/* Defines one device which has been opened using vfio and has all its memory BARs mapped */
+/* Defines one device which has been opened using vfio and may have one or more memory BARs mapped */
 typedef struct
 {
     /* The PCI device */
@@ -156,7 +156,8 @@ typedef struct
     char device_name[64];
     /* Includes the device_name and identity */
     char device_description[128];
-    /* The vfio device descriptor */
+    /* The vfio device descriptor.
+     * For VFIO_DEVICES_USAGE_MANAGER will be -1 if the device is not currently open. */
     int device_fd;
     /* The vfio device information */
     struct vfio_device_info device_info;
@@ -208,6 +209,21 @@ typedef enum
 } vfio_cmem_usage_t;
 
 
+/* Defines the usage for all VFIO devices used by the local process */
+typedef enum
+{
+    /* The VFIO devices are opened directly in the local process, for access */
+    VFIO_DEVICES_USAGE_DIRECT_ACCESS,
+    /* The VFIO devices are opened by the manager process, and accessed by the local process.
+     * The local process communicates with the manager process to:
+     * a. Obtain the file descriptors for the device, IOMMU group and IOMMU container.
+     * b. Perform IOVA allocations. */
+    VFIO_DEVICES_USAGE_INDIRECT_ACCESS,
+    /* The VFIO devices are open in the manager process, and are not mapped for access */
+    VFIO_DEVICES_USAGE_MANAGER
+} vfio_devices_usage_t;
+
+
 /* Contains all devices which have opened using vfio */
 typedef struct vfio_devices_s
 {
@@ -219,6 +235,10 @@ typedef struct vfio_devices_s
     uint32_t num_containers;
     /* The IOMMU containers which have been created */
     vfio_iommu_container_t containers[MAX_VFIO_DEVICES];
+    /* How the devices are used by the local process */
+    vfio_devices_usage_t devices_usage;
+    /* For VFIO_DEVICES_USAGE_INDIRECT_ACCESS the socket file descriptor used to communicate with the manager */
+    int manager_client_socket_fd;
     /* The number of devices which have been opened */
     uint32_t num_devices;
     /* The devices which have been opened */
@@ -271,8 +291,6 @@ void create_vfio_buffer (vfio_buffer_t *const buffer,
                          const size_t size, const vfio_buffer_allocation_type_t buffer_allocation,
                          const char *const name_suffix);
 void free_vfio_buffer (vfio_buffer_t *const buffer);
-void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev,
-                       const vfio_device_dma_capability_t dma_capability);
 void get_vfio_device_region (vfio_device_t *const vfio_device, const uint32_t region_index);
 void map_vfio_device_bar_before_use (vfio_device_t *const vfio_device, const uint32_t bar_index);
 uint8_t *map_vfio_registers_block (vfio_device_t *const vfio_device, const uint32_t bar_index,

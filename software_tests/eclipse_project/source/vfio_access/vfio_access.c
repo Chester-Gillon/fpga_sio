@@ -10,9 +10,11 @@
  */
 
 #include "vfio_access.h"
+#include "vfio_access_private.h"
 #include "pci_sysfs_access.h"
 
 #include <stdlib.h>
+#include <stddef.h>
 #include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
@@ -26,13 +28,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <dirent.h>
-
-
-/*
- * Paths for the VFIO character devices
- */
-#define VFIO_ROOT_PATH "/dev/vfio/"
-#define VFIO_CONTAINER_PATH VFIO_ROOT_PATH "vfio"
+#include <sys/socket.h>
+#include <sys/un.h>
 
 
 /* Optional filters which may be set to only open by VFIO specific PCI device(s) by location.
@@ -383,6 +380,193 @@ static pid_t find_pid_using_file (const char *const pathname)
     }
 
     return pid_using_file;
+}
+
+
+/**
+ * @brief Receive a message exchanged between the VFIO multi process manager and a client
+ * @details This is a blocking call. Assumed to be only call when either:
+ *          a. In a client and are waiting for a reply to a request which has been sent.
+ *          b. In the manager are waiting for a request.
+ * @param[in] socket_fd The socket to receive the message on
+ * @param[out] rx_buffer The received messages
+ * @param[out] vfio_fds The VFIO device file descriptors received for VFIO_MANAGE_MSG_ID_OPEN_DEVICE_REPLY.
+ *                      May be NULL if the caller doesn't expect to receive a VFIO_MANAGE_MSG_ID_OPEN_DEVICE_REPLY
+ * @return Returns true if a valid message has been received, where the validation checks the message ID and length.
+ *         Returns false if either:
+ *         a. The remote end has closed the socket
+ *         b. An invalid message was received, in which case a diagnostic message has been displayed.
+ */
+bool vfio_receive_manage_message (const int socket_fd, vfio_manage_messages_t *const rx_buffer,
+                                  vfio_open_device_reply_fds_t *const vfio_fds)
+{
+    bool valid_message = false;
+    ssize_t num_rx_data_bytes;
+    struct iovec rx_iovec[1];
+    struct msghdr rx_msg = {0};
+    char rx_msg_control[1024];
+    int saved_errno;
+    struct cmsghdr *cmsg;
+
+    rx_iovec[0].iov_base = rx_buffer;
+    rx_iovec[0].iov_len = sizeof (*rx_buffer);
+    rx_msg.msg_iov = rx_iovec;
+    rx_msg.msg_iovlen = 1;
+    rx_msg.msg_name = NULL;
+    rx_msg.msg_namelen = 0;
+    if (vfio_fds != NULL)
+    {
+        /* Allow ancillary information to receive device file descriptors */
+        rx_msg.msg_control = rx_msg_control;
+        rx_msg.msg_controllen = sizeof (rx_msg_control);
+    }
+    else
+    {
+        /* No ancillary information is expected */
+        rx_msg.msg_control = NULL;
+        rx_msg.msg_controllen = 0;
+    }
+    rx_msg.msg_flags = 0;
+    errno = 0;
+    num_rx_data_bytes = recvmsg (socket_fd, &rx_msg, 0);
+    saved_errno = errno;
+    if (num_rx_data_bytes == 0)
+    {
+        /* The remote end closed the socket */
+        valid_message = false;
+    }
+    else if (num_rx_data_bytes < 0)
+    {
+        printf ("recvmsg() failed : %s\n", strerror (saved_errno));
+        valid_message = false;
+    }
+    else if (num_rx_data_bytes < sizeof (rx_buffer->msg_id))
+    {
+        printf ("Received message length %zd too short for msg_id\n", num_rx_data_bytes);
+        valid_message = false;
+    }
+    else
+    {
+       switch (rx_buffer->msg_id)
+       {
+       case VFIO_MANAGE_MSG_ID_OPEN_DEVICE_REQUEST:
+           valid_message = num_rx_data_bytes == sizeof (vfio_open_device_request_t);
+           break;
+
+       case VFIO_MANAGE_MSG_ID_OPEN_DEVICE_REPLY:
+           /* For an open device reply the message if success was reported in the reply then for the message to be considered
+            * valid also need to check that the VFIO file descriptors have been received in the ancillary information. */
+           valid_message = (num_rx_data_bytes == sizeof (vfio_open_device_reply_t)) && (vfio_fds != NULL);
+           if (valid_message && rx_buffer->open_device_reply.success)
+           {
+               bool found_fds = false;
+
+               vfio_fds->device_fd = -1;
+               vfio_fds->container_fd = -1;
+               for (cmsg = CMSG_FIRSTHDR (&rx_msg); !found_fds && (cmsg != NULL); cmsg = CMSG_NXTHDR (&rx_msg, cmsg))
+               {
+                   if ((cmsg->cmsg_level == SOL_SOCKET) && (cmsg->cmsg_type == SCM_RIGHTS))
+                   {
+                       const size_t num_ancillary_bytes = cmsg->cmsg_len - CMSG_LEN (0);
+                       const size_t num_fds_received = num_ancillary_bytes / sizeof (int);
+                       if ((num_fds_received == 1) || (num_fds_received == 2))
+                       {
+                           memcpy (vfio_fds, CMSG_DATA (cmsg), num_ancillary_bytes);
+                       }
+                       found_fds = true;
+                   }
+               }
+
+               if (!found_fds)
+               {
+                   valid_message = false;
+               }
+           }
+           break;
+
+       default:
+           valid_message = false;
+       }
+
+       if (!valid_message)
+       {
+           printf ("Invalid message ID %u size %zd bytes\n", rx_buffer->msg_id, num_rx_data_bytes);
+       }
+    }
+
+    return valid_message;
+}
+
+
+/**
+ * @brief Send a message exchanged between the VFIO multi process manager and a client
+ * @details If the send fails a diagnostic message is displayed, but there is no return status.
+ *          On the assumption that the send fails due to the remote end closed the socket after crashing, then the next
+ *          attempt to read the socket will cause the local end to detect the failure.
+ * @param[in] socket_fd The socket to send the message on
+ * @param[in] tx_buffer The populated message to send
+ * @param[in] vfio_fds When tx_buffer is VFIO_MANAGE_MSG_ID_OPEN_DEVICE_REPLY indicating success, contains the
+ *                     VFIO device file descriptors to send as ancillary information.
+ */
+void vfio_send_manage_message (const int socket_fd, vfio_manage_messages_t *const tx_buffer,
+                               vfio_open_device_reply_fds_t *const vfio_fds)
+{
+    struct iovec tx_iovec[1];
+    struct msghdr tx_msg = {0};
+    char tx_msg_control[1024];
+    int saved_errno;
+    struct cmsghdr *cmsg;
+    size_t cmsg_space;
+    ssize_t num_tx_data_bytes;
+
+    tx_iovec[0].iov_base = tx_buffer;
+    switch (tx_buffer->msg_id)
+    {
+    case VFIO_MANAGE_MSG_ID_OPEN_DEVICE_REQUEST:
+        tx_iovec[0].iov_len = sizeof (vfio_open_device_request_t);
+        break;
+
+    case VFIO_MANAGE_MSG_ID_OPEN_DEVICE_REPLY:
+        tx_iovec[0].iov_len = sizeof (vfio_open_device_reply_t);
+        break;
+    }
+    tx_msg.msg_iov = tx_iovec;
+    tx_msg.msg_iovlen = 1;
+    tx_msg.msg_name = NULL;
+    tx_msg.msg_namelen = 0;
+    if (vfio_fds != NULL)
+    {
+        /* The number of bytes for the file descriptors depends upon which are valid */
+        const size_t num_bytes_of_fds = (vfio_fds->container_fd != -1) ?
+                sizeof (*vfio_fds) : offsetof (vfio_open_device_reply_fds_t, container_fd);
+
+        /* Populate ancillary information with the device file descriptors to send */
+        tx_msg.msg_control = tx_msg_control;
+        tx_msg.msg_controllen = sizeof (tx_msg_control);
+        cmsg_space = 0;
+        cmsg = CMSG_FIRSTHDR (&tx_msg);
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SCM_RIGHTS;
+        cmsg->cmsg_len = CMSG_LEN (num_bytes_of_fds);
+        memcpy (CMSG_DATA (cmsg), vfio_fds, num_bytes_of_fds);
+        cmsg_space += CMSG_SPACE (num_bytes_of_fds);
+        tx_msg.msg_controllen = cmsg_space;
+    }
+    else
+    {
+        /* No ancillary information is sent */
+        tx_msg.msg_control = NULL;
+        tx_msg.msg_controllen = 0;
+    }
+    tx_msg.msg_flags = 0;
+
+    errno = 0;
+    num_tx_data_bytes = sendmsg (socket_fd, &tx_msg, 0);
+    saved_errno = errno;
+    if (num_tx_data_bytes != tx_iovec[0].iov_len)
+    {
+        printf ("sendmsg() only sent %zd out of %zu bytes : %s\n", num_tx_data_bytes, tx_iovec[0].iov_len, strerror (saved_errno));
+    }
 }
 
 
@@ -877,7 +1061,7 @@ static bool get_type1_iommu_capabilities (vfio_iommu_container_t *const containe
  * @param[in/out] pci_dev The PCI device to get the IOMMU group for
  * @return The IOMMU group as a numeric string if non-NULL, or NULL if the IOMMU group isn't defined
  */
-static char *vfio_get_iommu_group (struct pci_dev *const pci_dev)
+char *vfio_get_iommu_group (struct pci_dev *const pci_dev)
 {
     char *iommu_group = NULL;
 #ifdef PCI_FILL_IOMMU_GROUP
@@ -1028,7 +1212,7 @@ static vfio_iommu_container_t *vfio_iommu_create_container (vfio_devices_t *cons
  *         - When non-NULL the IOMMU group has been opened, and points at the IOMMU in the container
  *         - When NULL were unable to open the IOMMU group, and a diagnostic message has been reported.
  */
-static vfio_iommu_group_t *vfio_open_iommu_group (vfio_iommu_container_t *const container, char *const iommu_group_name,
+static vfio_iommu_group_t *vfio_open_iommu_group (vfio_iommu_container_t *const container, const char *const iommu_group_name,
                                                   const char *const device_description)
 {
     int rc;
@@ -1186,7 +1370,222 @@ static vfio_iommu_group_t *vfio_open_iommu_group (vfio_iommu_container_t *const 
 
 
 /**
+ * @brief If a VFIO device has DMA capability, ensure bus mastering is enabled
+ * @param[in/out] device The VFIO device being opened.
+ */
+void enable_bus_master_for_dma (vfio_device_t *const device)
+{
+    if (device->dma_capability != VFIO_DEVICE_DMA_CAPABILITY_NONE)
+    {
+        /* Ensure the VFIO device is enabled as a PCI bus master */
+        uint16_t command;
+
+        if (vfio_read_pci_config_u16 (device, PCI_COMMAND, &command))
+        {
+            if ((command & PCI_COMMAND_MASTER) == 0)
+            {
+                command |= PCI_COMMAND_MASTER;
+                if (vfio_write_pci_config_u16 (device, PCI_COMMAND, command))
+                {
+                    printf ("Enabled bus master for %s\n", device->device_name);
+                }
+            }
+        }
+    }
+}
+
+
+/**
+ * @brief Get the device information.
+ * @details As this program is written for a PCI device which has fixed enumerations for regions,
+ *          performs a sanity check that VFIO reports a PCI device.
+ * @param[in/out] new_device The VFIO device to get the information for.
+ * @return Returns true if the device information was obtained, or false if an error
+ */
+static bool get_vfio_device_info (vfio_device_t *const new_device)
+{
+    int rc;
+
+    memset (&new_device->device_info, 0, sizeof (new_device->device_info));
+    new_device->device_info.argsz = sizeof (new_device->device_info);
+    rc = ioctl (new_device->device_fd, VFIO_DEVICE_GET_INFO, &new_device->device_info);
+    if (rc != 0)
+    {
+        printf ("VFIO_DEVICE_GET_INFO failed : %s\n", strerror (-rc));
+        return false;
+    }
+
+    if ((new_device->device_info.flags & VFIO_DEVICE_FLAGS_PCI) == 0)
+    {
+        printf ("VFIO_DEVICE_GET_INFO flags don't report a PCI device\n");
+        return false;
+    }
+
+    return true;
+}
+
+
+/**
+ * @brief Open a VFIO device file descriptor, also enabling as a bus master if DMA capability is required
+ * @param[in/out] new_device The VFIO device being opened.
+ * @return Returns true if the VFIO device was opened, or false if an error
+ */
+bool open_vfio_device_fd (vfio_device_t *const new_device)
+{
+    /* Open the device */
+    new_device->device_fd = ioctl (new_device->group->group_fd, VFIO_GROUP_GET_DEVICE_FD, new_device->device_name);
+    if (new_device->device_fd < 0)
+    {
+        fprintf (stderr, "VFIO_GROUP_GET_DEVICE_FD (%s) failed : %s\n", new_device->device_name, strerror (-new_device->device_fd));
+        return false;
+    }
+
+    /* Get the device information.  */
+    if (!get_vfio_device_info (new_device))
+    {
+        return false;
+    }
+
+    enable_bus_master_for_dma (new_device);
+
+    return true;
+}
+
+
+/**
+ * @brief Ensure an IOMMU group is opened with direct access in the calling process, to access a VFIO device
+ * @details This:
+ *          a. Creates an IOMMU container if required.
+ *          b. When multiple devices are in the same IOMMU group can re-use an existing open IOMMU group.
+ * @param[in/out] vfio_devices The context for vfio devices which are being opened, used to create containers
+ * @param[in/out] new_device Which device to open the IOMMU group for
+ *                On return group will be:
+ *                - non-NULL if the IOMMU group was opened
+ *                - NULL if failed to open the IOMMU group, after reporting a diagnostic message
+ * @param[in] iommu_group_name The name of the IOMMU group to open
+ */
+static void open_group_with_direct_access (vfio_devices_t *const vfio_devices, vfio_device_t *const new_device,
+                                           const char *const iommu_group_name)
+{
+    vfio_iommu_container_t *container = NULL;
+
+    /* If the IOMMU group has already been opened, use it */
+    new_device->group = find_open_iommu_group (vfio_devices, iommu_group_name);
+
+    if (new_device->group == NULL)
+    {
+        /* The IOMMU group is not already open. First need to create a container.
+         * This is done before trying open the VFIO device to determine which type of IOMMU to use. */
+        if ((vfio_devices->num_containers > 0) && (!vfio_isolate_iommu_groups))
+        {
+            /* Use an existing container */
+            container = &vfio_devices->containers[0];
+        }
+        else
+        {
+            /* Create a new container */
+            container = vfio_iommu_create_container (vfio_devices);
+        }
+
+        new_device->group = vfio_open_iommu_group (container, iommu_group_name, new_device->device_description);
+    }
+}
+
+
+/**
+ * @brief Open a VFIO device for indirect access, by communicating with the VFIO multi process manager
+ * @param[in/out] vfio_devices The context for vfio devices which are being opened
+ * @param[in/out] new_device The VFIO device being opened
+ * @param[in] iommu_group_name The name of the IOMMU group used by the device
+ * @return Returns true if the VFIO device was opened, or false if an error
+ */
+static bool open_vfio_device_with_indirect_access (vfio_devices_t *const vfio_devices, vfio_device_t *const new_device,
+                                                   const char *const iommu_group_name)
+{
+    bool success;
+    vfio_manage_messages_t tx_buffer;
+    vfio_manage_messages_t rx_buffer;
+    vfio_open_device_reply_fds_t vfio_fds;
+
+    /* Determine if an IOMMU group and therefore container has been previously stored */
+    new_device->group = find_open_iommu_group (vfio_devices, iommu_group_name);
+
+    /* Send a request to the manager to open the VFIO device.
+     * Indicate the container_fd is required if no existing IOMMU group. */
+    tx_buffer.open_device_request.msg_id = VFIO_MANAGE_MSG_ID_OPEN_DEVICE_REQUEST;
+    tx_buffer.open_device_request.pci_domain = new_device->pci_dev->domain;
+    tx_buffer.open_device_request.pci_bus = new_device->pci_dev->bus;
+    tx_buffer.open_device_request.pci_dev = new_device->pci_dev->dev;
+    tx_buffer.open_device_request.pci_func = new_device->pci_dev->func;
+    tx_buffer.open_device_request.dma_capability = new_device->dma_capability;
+    tx_buffer.open_device_request.container_fd_required = new_device->group == NULL;
+    vfio_send_manage_message (vfio_devices->manager_client_socket_fd, &tx_buffer, NULL);
+
+    /* Wait to reply to the request */
+    success = vfio_receive_manage_message (vfio_devices->manager_client_socket_fd, &rx_buffer, &vfio_fds) &&
+            (rx_buffer.msg_id == VFIO_MANAGE_MSG_ID_OPEN_DEVICE_REPLY);
+    if (!success)
+    {
+        printf ("Failed to obtain VFIO_MANAGE_MSG_ID_OPEN_DEVICE_REPLY\n");
+    }
+
+    if (success)
+    {
+        success = rx_buffer.open_device_reply.success;
+        if (success)
+        {
+            if (tx_buffer.open_device_request.container_fd_required)
+            {
+                /* When requested a container_fd, store the received file descriptor and the IOMMU groups the container
+                 * is used on. This allows calls to find_open_iommu_group() for further opened devices to locate the information. */
+                if (vfio_devices->num_containers == MAX_VFIO_DEVICES)
+                {
+                    /* This shouldn't happen since the caller should have checked for exceeding the maximum number of devices */
+                    fprintf (stderr, "No free containers\n");
+                    exit (EXIT_FAILURE);
+                }
+
+                /* Set the minimum container and IOMM group information needed in the client for indirect access.
+                 *
+                 * For the IOMMU group only the name needs to be populated. */
+                vfio_iommu_container_t *const container = &vfio_devices->containers[vfio_devices->num_containers];
+                container->vfio_devices = vfio_devices;
+                container->iommu_type = rx_buffer.open_device_reply.iommu_type;
+                container->container_fd = vfio_fds.container_fd;
+                container->num_iommu_groups = rx_buffer.open_device_reply.num_iommu_groups;
+                for (uint32_t group_index = 0; group_index < container->num_iommu_groups; group_index++)
+                {
+                    vfio_iommu_group_t *const group = &container->iommu_groups[group_index];
+
+                    group->iommu_group_name = strdup (rx_buffer.open_device_reply.iommu_group_names[group_index]);
+                    group->group_fd = -1;
+                    group->container = container;
+                    if (strcmp (group->iommu_group_name, iommu_group_name) == 0)
+                    {
+                        new_device->group = group;
+                    }
+                }
+
+                vfio_devices->num_containers++;
+            }
+
+            /* Store the device file descriptor to access the device, and get the information */
+            new_device->device_fd = vfio_fds.device_fd;
+            success = get_vfio_device_info (new_device);
+        }
+        else
+        {
+            printf ("Manager failed to open device %s in IOMMU group %s\n", new_device->device_description, iommu_group_name);
+        }
+    }
+
+    return success;
+}
+
+
+/**
  * @brief Open an VFIO device, without mapping it's memory BARs.
+ * @details This handles the different action to open the VFIO device depending upon devices_usage
  * @param[in/out] vfio_devices The list of vfio devices to append the opened device to.
  *                             If this function is successful vfio_devices->num_devices is incremented
  * @param[in] pci_dev The PCI device to open using VFIO
@@ -1196,8 +1595,6 @@ static vfio_iommu_group_t *vfio_open_iommu_group (vfio_iommu_container_t *const 
 void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev,
                        const vfio_device_dma_capability_t dma_capability)
 {
-    int rc;
-    vfio_iommu_container_t *container = NULL;
     vfio_device_t *const new_device = &vfio_devices->devices[vfio_devices->num_devices];
 
     /* Check the PCI device has an IOMMU group. */
@@ -1205,7 +1602,7 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
             pci_dev->domain, pci_dev->bus, pci_dev->dev, pci_dev->func);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wrestrict"
-    /* Supress warning of the form, which was seen with GCC 10.3.1 when compiling for teh release platform:
+    /* Suppress warning of the form, which was seen with GCC 10.3.1 when compiling for the release platform:
      *   warning: 'snprintf' argument 4 may overlap destination object 'vfio_devices' [-Wrestrict]
      *
      * "Bug 102919 - spurious -Wrestrict warning for sprintf into the same member array as argument plus offset"
@@ -1227,73 +1624,41 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
     new_device->pci_subsystem_device_id = pci_read_word (pci_dev, PCI_SUBSYSTEM_ID);
     new_device->dma_capability = dma_capability;
 
-    /* If the IOMMU group has already been opened, use it */
-    new_device->group = find_open_iommu_group (vfio_devices, iommu_group_name);
-
-    if (new_device->group == NULL)
+    switch (vfio_devices->devices_usage)
     {
-        /* The IOMMU group is not already open. First need to create a container.
-         * This is done before trying open the VFIO device to determine which type of IOMMU to use. */
-        if ((vfio_devices->num_containers > 0) && (!vfio_isolate_iommu_groups))
-        {
-            /* Use an existing container */
-            container = &vfio_devices->containers[0];
-        }
-        else
-        {
-            /* Create a new container */
-            container = vfio_iommu_create_container (vfio_devices);
-        }
-
-        new_device->group = vfio_open_iommu_group (container, iommu_group_name, new_device->device_description);
+    case VFIO_DEVICES_USAGE_DIRECT_ACCESS:
+        open_group_with_direct_access (vfio_devices, new_device, iommu_group_name);
         if (new_device->group == NULL)
         {
-            /* vfio_open_iommu_group() has reported a diagnostic message why the IOMMU group couldn't be opened */
+            /* open_group_with_direct_access() has reported a diagnostic message why the IOMMU group couldn't be opened */
             return;
         }
-    }
 
-    /* Open the device */
-    new_device->device_fd = ioctl (new_device->group->group_fd, VFIO_GROUP_GET_DEVICE_FD, new_device->device_name);
-    if (new_device->device_fd < 0)
-    {
-        fprintf (stderr, "VFIO_GROUP_GET_DEVICE_FD (%s) failed : %s\n", new_device->device_name, strerror (-new_device->device_fd));
-        return;
-    }
-
-    /* Get the device information. As this program is written for a PCI device which has fixed enumerations for regions,
-     * the only use of the device information is a sanity check that VFIO reports a PCI device. */
-    memset (&new_device->device_info, 0, sizeof (new_device->device_info));
-    new_device->device_info.argsz = sizeof (new_device->device_info);
-    rc = ioctl (new_device->device_fd, VFIO_DEVICE_GET_INFO, &new_device->device_info);
-    if (rc != 0)
-    {
-        printf ("VFIO_DEVICE_GET_INFO failed : %s\n", strerror (-rc));
-        return;
-    }
-
-    if ((new_device->device_info.flags & VFIO_DEVICE_FLAGS_PCI) == 0)
-    {
-        printf ("VFIO_DEVICE_GET_INFO flags don't report a PCI device\n");
-        return;
-    }
-
-    if (new_device->dma_capability != VFIO_DEVICE_DMA_CAPABILITY_NONE)
-    {
-        /* Ensure the VFIO device is enabled as a PCI bus master */
-        uint16_t command;
-
-        if (vfio_read_pci_config_u16 (new_device, PCI_COMMAND, &command))
+        if (!open_vfio_device_fd (new_device))
         {
-            if ((command & PCI_COMMAND_MASTER) == 0)
-            {
-                command |= PCI_COMMAND_MASTER;
-                if (vfio_write_pci_config_u16 (new_device, PCI_COMMAND, command))
-                {
-                    printf ("Enabled bus master for %s\n", new_device->device_name);
-                }
-            }
+            /* open_vfio_device_fd() has reported a diagnostic message why the device couldn't be opened */
+            return;
         }
+        break;
+
+    case VFIO_DEVICES_USAGE_INDIRECT_ACCESS:
+        if (!open_vfio_device_with_indirect_access (vfio_devices, new_device, iommu_group_name))
+        {
+            return;
+        }
+        break;
+
+    case VFIO_DEVICES_USAGE_MANAGER:
+        open_group_with_direct_access (vfio_devices, new_device, iommu_group_name);
+        if (new_device->group == NULL)
+        {
+            /* open_group_with_direct_access() has reported a diagnostic message why the IOMMU group couldn't be opened */
+            return;
+        }
+
+        /* The VFIO device will be opened when the first client process requests access */
+        new_device->device_fd = -1;
+        break;
     }
 
     /* Record device successfully opened */
@@ -1329,6 +1694,60 @@ bool vfio_device_pci_filter_match (const vfio_device_t *const vfio_device, const
 
 
 /**
+ * @brief Detect if the VFIO multi process manager is running, by trying to connect to it.
+ * @details This sets the devices_usage option for programs which access VFIO devices
+ * @param[in/out] vfio_devices The VFIO devices being opened.
+ */
+static void vfio_detect_manager (vfio_devices_t *const vfio_devices)
+{
+    struct sockaddr_un manager_addr;
+    int rc;
+    int saved_errno;
+
+    vfio_devices->manager_client_socket_fd = socket (AF_UNIX, SOCK_SEQPACKET, 0);
+    if (vfio_devices->manager_client_socket_fd == -1)
+    {
+        fprintf (stderr, "socket() failed\n");
+        exit (EXIT_FAILURE);
+    }
+
+    memset (&manager_addr, 0, sizeof (manager_addr));
+    manager_addr.sun_family = AF_UNIX;
+    memcpy (manager_addr.sun_path, VFIO_MULTI_PROCESS_MANAGER_ABSTRACT_NAMESPACE,
+            sizeof (VFIO_MULTI_PROCESS_MANAGER_ABSTRACT_NAMESPACE));
+    const socklen_t socklen = offsetof(struct sockaddr_un, sun_path[1]) + (socklen_t) strlen (&manager_addr.sun_path[1]);
+    errno = 0;
+
+    errno = 0;
+    rc = connect (vfio_devices->manager_client_socket_fd, (const struct sockaddr *) &manager_addr, socklen);
+    saved_errno = errno;
+    if (rc == 0)
+    {
+        /* Connected to the VFIO multi process manager, so indicate the manager client socket needs to be used */
+        vfio_devices->devices_usage = VFIO_DEVICES_USAGE_INDIRECT_ACCESS;
+    }
+    else if (saved_errno == ECONNREFUSED)
+    {
+        /* The VFIO multi process manager isn't running, so close the client socket and indicate direct access needs to be used */
+        rc = close (vfio_devices->manager_client_socket_fd);
+        if (rc != 0)
+        {
+            fprintf (stderr, "close() failed\n");
+            exit (EXIT_FAILURE);
+        }
+        vfio_devices->manager_client_socket_fd = -1;
+        vfio_devices->devices_usage = VFIO_DEVICES_USAGE_DIRECT_ACCESS;
+    }
+    else
+    {
+        /* Unexpected error, so treat as a bug */
+        fprintf (stderr, "connect() failed : %s\n", strerror (saved_errno));
+        exit (EXIT_FAILURE);
+    }
+}
+
+
+/**
  * @brief Scan the PCI bus, attempting to open all devices using VFIO which match the filter.
  * @details If an error occurs attempting to open the VFIO device then a message is output to the console and the
  *          offending device isn't returned in vfio_devices.
@@ -1356,6 +1775,7 @@ void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
     memset (vfio_devices, 0, sizeof (*vfio_devices));
     vfio_devices->num_containers = 0;
     vfio_devices->cmem_usage = VFIO_CMEM_USAGE_NONE;
+    vfio_detect_manager (vfio_devices);
 
     /* Initialise PCI access using the defaults */
     vfio_devices->pacc = pci_alloc ();
@@ -1452,13 +1872,16 @@ static void close_vfio_container (vfio_iommu_container_t *const container)
     {
         vfio_iommu_group_t *const group = &container->iommu_groups[group_index];
 
-        rc = close (group->group_fd);
-        if (rc != 0)
+        if (group->group_fd != -1)
         {
-            fprintf (stderr, "close (%s) failed : %s\n", group->group_pathname, strerror (errno));
-            exit (EXIT_FAILURE);
+            rc = close (group->group_fd);
+            if (rc != 0)
+            {
+                fprintf (stderr, "close (%s) failed : %s\n", group->group_pathname, strerror (errno));
+                exit (EXIT_FAILURE);
+            }
+            group->group_fd = -1;
         }
-        group->group_fd = -1;
     }
 
     /* Close the container */
@@ -1504,13 +1927,16 @@ void close_vfio_devices (vfio_devices_t *const vfio_devices)
             }
         }
 
-        rc = close (vfio_device->device_fd);
-        if (rc != 0)
+        if (vfio_device->device_fd != -1)
         {
-            fprintf (stderr, "close (%s) failed : %s\n", vfio_device->device_name, strerror (errno));
-            exit (EXIT_FAILURE);
+            rc = close (vfio_device->device_fd);
+            if (rc != 0)
+            {
+                fprintf (stderr, "close (%s) failed : %s\n", vfio_device->device_name, strerror (errno));
+                exit (EXIT_FAILURE);
+            }
+            vfio_device->device_fd = -1;
         }
-        vfio_device->device_fd = -1;
     }
 
     /* Close the containers */
@@ -1534,6 +1960,17 @@ void close_vfio_devices (vfio_devices_t *const vfio_devices)
     {
         pci_cleanup (vfio_devices->pacc);
         vfio_devices->pacc = NULL;
+    }
+
+    if (vfio_devices->devices_usage == VFIO_DEVICES_USAGE_INDIRECT_ACCESS)
+    {
+        /* Close the connection to the VFIO multi process manager */
+        rc = close (vfio_devices->manager_client_socket_fd);
+        if (rc != 0)
+        {
+            printf ("close() failed\n");
+            exit (EXIT_FAILURE);
+        }
     }
 }
 
@@ -1642,7 +2079,7 @@ void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_dev
  * @brief Allocate a buffer, and create a DMA mapping for the allocated memory.
  * @param[in/out] vfio_device The VFIO device to create the DMA mapping for:
  *                a. The VFIO device is used to determine the DMA address capability to select a suitable IOVA value.
- *                b. The underlying IOMMU containing is used to the allocate the IOVA for the mapping.
+ *                b. The underlying IOMMU container is used to the allocate the IOVA for the mapping.
  * @param[out] mapping Contains the process memory and associated DMA mapping which has been allocated.
  *                     On failure, mapping->buffer.vaddr is NULL.
  *                     On success the buffer contents has been zeroed.

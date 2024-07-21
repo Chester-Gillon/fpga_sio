@@ -1,4 +1,4 @@
-# Build a library for performing device access using VFIO
+# Build libraries for performing device access using VFIO
 
 project (vfio_access C)
 
@@ -18,3 +18,6 @@ add_library (pci_sysfs_access "pci_sysfs_access.c")
 
 # Set dependent libraries to reduce duplication in target_link_libraries() of the executables
 target_link_libraries(vfio_access pci_sysfs_access pci rt)
+
+add_executable (vfio_multi_process_manager "vfio_multi_process_manager.c")
+target_link_libraries (vfio_multi_process_manager vfio_access)
