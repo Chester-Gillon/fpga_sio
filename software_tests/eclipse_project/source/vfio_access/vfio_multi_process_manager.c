@@ -368,7 +368,49 @@ static void accept_client_connection (vfio_manager_context_t *const context)
 
 
 /**
+ * @brief Close a device which was used by one client. The actual device is only closed once no longer used by any client.
+ * @param[in/out] context The manager context to close the device for
+ * @param[in] client_index Which client to close the device for
+ * @param[in] device_index Which device to close for the client
+ */
+static void close_device_for_client (vfio_manager_context_t *const context,
+                                     const uint32_t client_index, const uint32_t device_index)
+{
+    int rc;
+    int saved_errno;
+
+    /* Mark the client as no longer using the device */
+    context->devices_used_per_client[client_index][device_index] = false;
+
+    /* Determine if the device is still in use by any other clients */
+    bool device_still_used = false;
+    for (uint32_t scan_index = 0; !device_still_used && (scan_index < VFIO_MAX_CLIENTS); scan_index++)
+    {
+        device_still_used = context->devices_used_per_client[scan_index][device_index];
+    }
+
+    if (!device_still_used)
+    {
+        /* Once the device is no longer used by any client, then close the device */
+        vfio_device_t *const device = &context->vfio_devices.devices[device_index];
+
+        errno = 0;
+        rc = close (device->device_fd);
+        saved_errno = errno;
+        if (rc != 0)
+        {
+            fprintf (stderr, "close (%s) failed : %s\n", device->device_name, strerror (saved_errno));
+            exit (EXIT_FAILURE);
+        }
+        device->device_fd = -1;
+    }
+}
+
+
+/**
  * @brief Close the connection to a client
+ * @details This will close any devices still in used by the client, or free IOVA allocations, in case the client connection
+ *          has been closed following a client crash rather than a clean shutdown.
  * @param[in/out] context The manager context to close the client connection for
  * @param[in] client_index Identifies the client to close the connection for
  */
@@ -376,7 +418,18 @@ static void close_client_connection (vfio_manager_context_t *const context, cons
 {
     int rc;
 
-    /*@todo check for resources to free */
+    /* If the client didn't close the devices it opened, close them now */
+    for (uint32_t device_index = 0; device_index < context->vfio_devices.num_devices; device_index++)
+    {
+        if (context->devices_used_per_client[client_index][device_index])
+        {
+            printf ("Client still had device %s open at client connection close\n",
+                    context->vfio_devices.devices[device_index].device_name);
+            close_device_for_client (context, client_index, device_index);
+        }
+    }
+
+    /*@todo check for IOVA allocations to free */
 
     /* Close the socket for the client */
     rc = close (context->client_socket_fds[client_index]);
@@ -390,15 +443,48 @@ static void close_client_connection (vfio_manager_context_t *const context, cons
 
 
 /**
+ * @brief Find a VFIO device being managed, by a PCI identity received from a client
+ * @param[in] context The manager context used to find the requested device
+ * @param[in] device_id The device the client has requested
+ * @param[out] device_index The index for the found device, used to track which clients use the device.
+ * @return A pointer to the device found in the context, or NULL if not found
+ */
+static vfio_device_t *find_client_requested_device (vfio_manager_context_t *const context,
+                                                    const vfio_device_identity_t *const device_id,
+                                                    uint32_t *const device_index)
+{
+    for (*device_index = 0; (*device_index < context->vfio_devices.num_devices); (*device_index)++)
+    {
+        vfio_device_t *const candidate_device = &context->vfio_devices.devices[*device_index];
+
+        if ((candidate_device->pci_dev->domain == device_id->domain) &&
+            (candidate_device->pci_dev->bus    == device_id->bus   ) &&
+            (candidate_device->pci_dev->dev    == device_id->dev   ) &&
+            (candidate_device->pci_dev->func   == device_id->func  )   )
+        {
+            return candidate_device;
+        }
+    }
+
+    printf ("Client requested device %04x:%02x:%02x.%x which isn't being managed\n",
+            device_id->domain, device_id->bus, device_id->dev, device_id->func);
+
+    *device_index = 0;
+    return NULL;
+}
+
+
+/**
  * @brief Process a request from a connected client to open a VFIO device, sending a reply
  * @details This opens the VFIO device on the first client which requests it, and has the effect of VFIO reseting the device
  * @param[in/out] context The manager context to update with the request
  * @param[in] client_index Identifies which client sent the request, to update the list of in use devices
- * @param[in] request The request received from the client, which contains the VFIO devide to open
+ * @param[in] request The request received from the client, which contains the VFIO device to open
  */
 static void process_open_device_request (vfio_manager_context_t *const context, const uint32_t client_index,
                                          const vfio_open_device_request_t *const request)
 {
+    uint32_t device_index;
     vfio_manage_messages_t tx_buffer = {0};
     vfio_open_device_reply_fds_t vfio_fds =
     {
@@ -411,56 +497,47 @@ static void process_open_device_request (vfio_manager_context_t *const context, 
 
     /* Search for the requested device known to the manager.
      * This could potentially fail if a new VFIO device was bound after the manager initialised, and before a client was started. */
-    for (uint32_t device_index = 0;
-         !tx_buffer.open_device_reply.success && (device_index < context->vfio_devices.num_devices);
-         device_index++)
+    vfio_device_t *const device = find_client_requested_device (context, &request->device_id, &device_index);
+    if (device != NULL)
     {
-        vfio_device_t *const candidate_device = &context->vfio_devices.devices[device_index];
-
-        if ((candidate_device->pci_dev->domain == request->pci_domain) &&
-            (candidate_device->pci_dev->bus    == request->pci_bus   ) &&
-            (candidate_device->pci_dev->dev    == request->pci_dev   ) &&
-            (candidate_device->pci_dev->func   == request->pci_func  )   )
+        /* The VFIO device is known to the manager */
+        if (device->device_fd < 0)
         {
-            /* The VFIO device is known to the manager */
-            if (candidate_device->device_fd < 0)
+            /* The VFIO device is not already open. Need to open it, using the dma_capability requested by the client */
+            device->dma_capability = request->dma_capability;
+            tx_buffer.open_device_reply.success = open_vfio_device_fd (device);
+        }
+        else
+        {
+            /* The VFIO device is already open. Different clients may not need DMA capability for the same device,
+             * so update the DMA capability and enable bus master as required.
+             * A32 only DMA capability takes precedence. */
+            if (request->dma_capability == VFIO_DEVICE_DMA_CAPABILITY_A32)
             {
-                /* The VFIO device is not already open. Need to open it, using the dma_capability requested by the client */
-                candidate_device->dma_capability = request->dma_capability;
-                tx_buffer.open_device_reply.success = open_vfio_device_fd (candidate_device);
+                device->dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A32;
             }
-            else
+            else if (device->dma_capability == VFIO_DEVICE_DMA_CAPABILITY_NONE)
             {
-                /* The VFIO device is already open. Different clients may not need DMA capability for the same device,
-                 * so update the DMA capability and enable bus master as required.
-                 * A32 only DMA capability takes precedence. */
-                if (request->dma_capability == VFIO_DEVICE_DMA_CAPABILITY_A32)
-                {
-                    candidate_device->dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A32;
-                }
-                else if (candidate_device->dma_capability == VFIO_DEVICE_DMA_CAPABILITY_NONE)
-                {
-                    candidate_device->dma_capability = request->dma_capability;
-                }
-                enable_bus_master_for_dma (candidate_device);
-                tx_buffer.open_device_reply.success = true;
+                device->dma_capability = request->dma_capability;
             }
+            enable_bus_master_for_dma (device);
+            tx_buffer.open_device_reply.success = true;
+        }
 
-            if (tx_buffer.open_device_reply.success)
+        if (tx_buffer.open_device_reply.success)
+        {
+            /* On success complete the reply and indicate the client is using the device */
+            tx_buffer.open_device_reply.iommu_type = device->group->container->iommu_type;
+            tx_buffer.open_device_reply.num_iommu_groups = device->group->container->num_iommu_groups;
+            for (uint32_t group_index = 0; group_index < device->group->container->num_iommu_groups; group_index++)
             {
-                /* On success complete the reply and indicate the client is using the device */
-                tx_buffer.open_device_reply.iommu_type = candidate_device->group->container->iommu_type;
-                tx_buffer.open_device_reply.num_iommu_groups = candidate_device->group->container->num_iommu_groups;
-                for (uint32_t group_index = 0; group_index < candidate_device->group->container->num_iommu_groups; group_index++)
-                {
-                    snprintf (tx_buffer.open_device_reply.iommu_group_names[group_index],
-                            sizeof (tx_buffer.open_device_reply.iommu_group_names[group_index]),
-                            "%s", candidate_device->group->container->iommu_groups[group_index].iommu_group_name);
-                }
-                vfio_fds.device_fd = candidate_device->device_fd;
-                vfio_fds.container_fd = request->container_fd_required ? candidate_device->group->container->container_fd : -1;
-                context->devices_used_per_client[client_index][device_index] = true;
+                snprintf (tx_buffer.open_device_reply.iommu_group_names[group_index],
+                        sizeof (tx_buffer.open_device_reply.iommu_group_names[group_index]),
+                        "%s", device->group->container->iommu_groups[group_index].iommu_group_name);
             }
+            vfio_fds.device_fd = device->device_fd;
+            vfio_fds.container_fd = request->container_fd_required ? device->group->container->container_fd : -1;
+            context->devices_used_per_client[client_index][device_index] = true;
         }
     }
 
@@ -474,6 +551,38 @@ static void process_open_device_request (vfio_manager_context_t *const context, 
         /* Send failure reply, without ancillary information */
         vfio_send_manage_message (context->client_socket_fds[client_index], &tx_buffer, NULL);
     }
+}
+
+
+/**
+ * @brief Process a request from a connected client to close a VFIO device, sending a reply
+ * @param[in/out] context The manager context to update with the request
+ * @param[in] client_index Identifies which client sent the request, to update the list of in use devices
+ * @param[in] request The request received from the client, which contains the VFIO device to close
+ */
+static void process_close_device_request (vfio_manager_context_t *const context, const uint32_t client_index,
+                                          const vfio_close_device_request_t *const request)
+{
+    uint32_t device_index;
+    vfio_manage_messages_t tx_buffer = {0};
+
+    tx_buffer.close_device_reply.msg_id = VFIO_MANAGE_MSG_ID_CLOSE_DEVICE_REPLY;
+    tx_buffer.close_device_reply.success = false;
+    vfio_device_t *const device = find_client_requested_device (context, &request->device_id, &device_index);
+    if (device != NULL)
+    {
+        if (context->devices_used_per_client[client_index][device_index])
+        {
+            close_device_for_client (context, client_index, device_index);
+            tx_buffer.close_device_reply.success = true;
+        }
+        else
+        {
+            printf ("Request for client to close a device which the client isn't using\n");
+        }
+    }
+
+    vfio_send_manage_message (context->client_socket_fds[client_index], &tx_buffer, NULL);
 }
 
 
@@ -545,6 +654,10 @@ static void run_vfio_manager (vfio_manager_context_t *const context)
                             {
                             case VFIO_MANAGE_MSG_ID_OPEN_DEVICE_REQUEST:
                                 process_open_device_request (context, client_index, &rx_buffer.open_device_request);
+                                break;
+
+                            case VFIO_MANAGE_MSG_ID_CLOSE_DEVICE_REQUEST:
+                                process_close_device_request (context, client_index, &rx_buffer.close_device_request);
                                 break;
 
                             default:

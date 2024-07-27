@@ -2,7 +2,7 @@
  * @file vfio_access_private.h
  * @date 20 Jul 2024
  * @author Chester Gillon
- * @brief Contains private definitions for the VFIO access library which are for use by the manager process
+ * @brief Contains private definitions for the VFIO access library which are also for use by the manager process
  */
 
 #ifndef SOURCE_VFIO_ACCESS_VFIO_ACCESS_PRIVATE_H_
@@ -22,7 +22,7 @@
  *
  * Uses the abstract namespace so that automatically disappears when all open references are closed.
  *
- * Is of type SOCK_SEQPACKET:
+ * Is of type SOCK_SEQPACKET since:
  * a. Preserving message boundaries makes the code simpler.
  * b. Connection oriented means the manager can detect when a client exits uncleanly, and free up resources.
  */
@@ -35,8 +35,22 @@ typedef enum
     /* A request from a client to open a VFIO device */
     VFIO_MANAGE_MSG_ID_OPEN_DEVICE_REQUEST,
     /* The response from the manager for a VFIO_MANAGE_MSG_ID_OPEN_DEVICE_REQUEST */
-    VFIO_MANAGE_MSG_ID_OPEN_DEVICE_REPLY
+    VFIO_MANAGE_MSG_ID_OPEN_DEVICE_REPLY,
+    /* A request from a client to close a VFIO device */
+    VFIO_MANAGE_MSG_ID_CLOSE_DEVICE_REQUEST,
+    /* The response from the manager for a VFIO_MANAGE_MSG_ID_CLOSE_DEVICE_REQUEST */
+    VFIO_MANAGE_MSG_ID_CLOSE_DEVICE_REPLY
 } vfio_manager_msg_id_t;
+
+
+/* Used by a client to identify a VFIO device in a request, as the PCI location */
+typedef struct
+{
+    int domain;
+    uint8_t bus;
+    uint8_t dev;
+    uint8_t func;
+} vfio_device_identity_t;
 
 
 /* The message body for a VFIO_MANAGE_MSG_ID_OPEN_DEVICE_REQUEST */
@@ -44,11 +58,8 @@ typedef struct
 {
     /* Common placement of message identification */
     vfio_manager_msg_id_t msg_id;
-    /* Identifies the VFIO device which the client is requesting to be opened, as the PCI location */
-    int pci_domain;
-    uint8_t pci_bus;
-    uint8_t pci_dev;
-    uint8_t pci_func;
+    /* Identifies the VFIO device which the client is requesting to be opened */
+    vfio_device_identity_t device_id;
     /* The DMA capability the client requires */
     vfio_device_dma_capability_t dma_capability;
     /* Set true if the container_fd needs to be sent in the reply */
@@ -73,6 +84,26 @@ typedef struct
 } vfio_open_device_reply_t;
 
 
+/* The message body for a VFIO_MANAGE_MSG_ID_CLOSE_DEVICE_REQUEST */
+typedef struct
+{
+    /* Common placement of message identification */
+    vfio_manager_msg_id_t msg_id;
+    /* Identifies the VFIO device which the client is requesting to be closed */
+    vfio_device_identity_t device_id;
+} vfio_close_device_request_t;
+
+
+/* The message body for a VFIO_MANAGE_MSG_ID_CLOSE_DEVICE_REPLY */
+typedef struct
+{
+    /* Common placement of message identification */
+    vfio_manager_msg_id_t msg_id;
+    /* If true the device close succeeded, otherwise failed */
+    bool success;
+} vfio_close_device_reply_t;
+
+
 /* Contents of the SCM_RIGHTS ancillary data sent with VFIO_MANAGE_MSG_ID_OPEN_DEVICE_REPLY to contain the file descriptors
  * which the client needs to use. The group_fd isn't needed by the client for VFIO_DEVICES_USAGE_INDIRECT_ACCESS. */
 typedef struct
@@ -92,8 +123,10 @@ typedef union
     /* Common placement of message identification */
     vfio_manager_msg_id_t msg_id;
     /* Message type specific structures */
-    vfio_open_device_request_t open_device_request;
-    vfio_open_device_reply_t open_device_reply;
+    vfio_open_device_request_t  open_device_request;
+    vfio_open_device_reply_t    open_device_reply;
+    vfio_close_device_request_t close_device_request;
+    vfio_close_device_reply_t   close_device_reply;
 } vfio_manage_messages_t;
 
 
