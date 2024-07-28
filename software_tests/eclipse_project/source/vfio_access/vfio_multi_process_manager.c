@@ -24,6 +24,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <poll.h>
+#include <sys/ioctl.h>
 
 
 /* The maximum number of client, assuming 4 bi-directional channels on each device.
@@ -205,7 +206,9 @@ static bool initialise_vfio_manager (vfio_manager_context_t *const context)
                     known_fields = pci_fill_info (dev, required_fields);
                     if ((known_fields & required_fields) == required_fields)
                     {
-                        if (strcmp (iommu_group_text, vfio_get_iommu_group (dev)) == 0)
+                        const char *const iommu_group = vfio_get_iommu_group (dev);
+
+                        if ((iommu_group != NULL) && (strcmp (iommu_group_text, iommu_group) == 0))
                         {
                             num_expected_vfio_devices++;
                             if (context->vfio_devices.num_devices < MAX_VFIO_DEVICES)
@@ -403,6 +406,7 @@ static void close_device_for_client (vfio_manager_context_t *const context,
             exit (EXIT_FAILURE);
         }
         device->device_fd = -1;
+        device->dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE;
     }
 }
 
@@ -418,6 +422,59 @@ static void close_client_connection (vfio_manager_context_t *const context, cons
 {
     int rc;
 
+    /* If the client didn't free all the IOVA allocations it made, attempt to free them now */
+    uint32_t num_freed_regions = 0;
+    size_t num_freed_bytes = 0;
+    bool region_freed;
+    for (uint32_t container_index = 0; container_index < context->vfio_devices.num_containers; container_index++)
+    {
+        vfio_iommu_container_t *const container = &context->vfio_devices.containers[container_index];
+
+        do
+        {
+            region_freed = false;
+            for (uint32_t region_index = 0; !region_freed && (region_index < container->num_iova_regions); region_index++)
+            {
+                vfio_iova_region_t region = container->iova_regions[region_index];
+                const size_t region_size = (region.end + 1) - region.start;
+
+                if (region.allocated && (client_index == region.allocating_client_id))
+                {
+                    struct vfio_iommu_type1_dma_unmap dma_unmap =
+                    {
+                        .argsz = sizeof (dma_unmap),
+                        .flags = 0,
+                        .iova = region.start,
+                        .size = region_size
+                    };
+
+                    /* Attempt to unmap the region:
+                     * a. If the unmap succeeds can free the IOVA region to allow reuse.
+                     * b. Otherwise, have to leave the IOVA region as in use. */
+                    rc = ioctl (container->container_fd, VFIO_IOMMU_UNMAP_DMA, &dma_unmap);
+                    if (rc == 0)
+                    {
+                        region.allocated = false;
+                        region.allocating_client_id = 0;
+                        update_iova_regions (container, &region);
+                        num_freed_regions++;
+                        num_freed_bytes += region_size;
+                        region_freed = true;
+                    }
+                    else
+                    {
+                        printf ("VFIO_IOMMU_UNMAP_DMA of size %zu failed : %s\n", region_size, strerror (-rc));
+                    }
+                }
+            }
+        } while (region_freed);
+    }
+    if (num_freed_regions > 0)
+    {
+        printf ("Client still had %u IOVA regions with %zu bytes allocated at client connection close\n",
+                num_freed_regions, num_freed_bytes);
+    }
+
     /* If the client didn't close the devices it opened, close them now */
     for (uint32_t device_index = 0; device_index < context->vfio_devices.num_devices; device_index++)
     {
@@ -428,8 +485,6 @@ static void close_client_connection (vfio_manager_context_t *const context, cons
             close_device_for_client (context, client_index, device_index);
         }
     }
-
-    /*@todo check for IOVA allocations to free */
 
     /* Close the socket for the client */
     rc = close (context->client_socket_fds[client_index]);
@@ -471,6 +526,27 @@ static vfio_device_t *find_client_requested_device (vfio_manager_context_t *cons
 
     *device_index = 0;
     return NULL;
+}
+
+
+/**
+ * @brief Find a container being managed, but an identity received from a client
+ * @param[in] context The manager context used to find the requested container
+ * @param[in] container_id Identifies the container requested by the client
+ * @return A pointer to the container found in the context, or NULL if not found
+ */
+static vfio_iommu_container_t *find_client_requested_container (vfio_manager_context_t *const context,
+                                                                const uint32_t container_id)
+{
+    if (container_id < context->vfio_devices.num_containers)
+    {
+        return &context->vfio_devices.containers[container_id];
+    }
+    else
+    {
+        printf ("Out of range client_id %u received\n", container_id);
+        return NULL;
+    }
 }
 
 
@@ -587,6 +663,89 @@ static void process_close_device_request (vfio_manager_context_t *const context,
 
 
 /**
+ * @brief Process a request from a connected client to perform an IOVA allocation, sending a reply
+ * @param[in/out] context The manager context to update with the request
+ * @param[in] client_index Identifies which client sent the request, to track the allocations from the client
+ * @param[in] request The request received from the client, which contains the requested size of the allocation
+ */
+static void process_allocate_iova_request (vfio_manager_context_t *const context, const uint32_t client_index,
+                                           const vfio_allocate_iova_request_t *const request)
+{
+    vfio_manage_messages_t tx_buffer = {0};
+    vfio_iova_region_t region;
+
+    tx_buffer.allocate_iova_reply.msg_id = VFIO_MANAGE_MSG_ID_ALLOCATE_IOVA_REPLY;
+    tx_buffer.allocate_iova_reply.success = false;
+    vfio_iommu_container_t *const container = find_client_requested_container (context, request->container_id);
+    if (container != NULL)
+    {
+        allocate_iova_region_direct (container, request->dma_capability, request->requested_size,
+                client_index, &region);
+        tx_buffer.allocate_iova_reply.start = region.start;
+        tx_buffer.allocate_iova_reply.end = region.end;
+        tx_buffer.allocate_iova_reply.success = region.allocated;
+    }
+
+    vfio_send_manage_message (context->client_socket_fds[client_index], &tx_buffer, NULL);
+}
+
+
+/**
+ * @brief Process a request from a connect client to free an IOVA region, sending a reply
+ * @param[in/out] context The manager context to update with the request
+ * @param[in] client_index Identifies which client sent the request, to validate the request
+ * @param[in] request The request received from the client, which contains the VFIO region to free
+ */
+static void process_free_iova_request (vfio_manager_context_t *const context, const uint32_t client_index,
+                                       const vfio_free_iova_request_t *const request)
+
+{
+    vfio_manage_messages_t tx_buffer = {0};
+
+    tx_buffer.free_iova_reply.msg_id = VFIO_MANAGE_MSG_ID_FREE_IOVA_REPLY;
+    tx_buffer.free_iova_reply.success = false;
+    vfio_iommu_container_t *const container = find_client_requested_container (context, request->container_id);
+    if (container != NULL)
+    {
+        bool region_to_free_exists = false;
+
+        /* Verify that the IOVA region the client is requesting to free is within one region the client has allocated */
+        for (uint32_t region_index = 0; !region_to_free_exists && (region_index < container->num_iova_regions); region_index++)
+        {
+            const vfio_iova_region_t *const existing_region = &container->iova_regions[region_index];
+
+            region_to_free_exists = existing_region->allocated &&
+                    (existing_region->allocating_client_id == client_index) &&
+                    (request->start >= existing_region->start) &&
+                    (request->end <= existing_region->end);
+        }
+
+        if (region_to_free_exists)
+        {
+            /* Free the requested region */
+            vfio_iova_region_t free_region =
+            {
+                .start = request->start,
+                .end = request->end,
+                .allocating_client_id = 0,
+                .allocated = false
+            };
+
+            update_iova_regions (container, &free_region);
+            tx_buffer.free_iova_reply.success = true;
+        }
+        else
+        {
+            printf ("Client attempted to free VFIO region start=%zu end=%zu which isn't covered by its existing allocations\n",
+                    request->start, request->end);
+        }
+    }
+
+    vfio_send_manage_message (context->client_socket_fds[client_index], &tx_buffer, NULL);
+}
+
+
+/**
  * @brief The run loop for the VFIO manager
  * @param[in/out] context The initialised context to manage.
  *                        On entry the IOMMU groups have been created and the listening socket created
@@ -658,6 +817,14 @@ static void run_vfio_manager (vfio_manager_context_t *const context)
 
                             case VFIO_MANAGE_MSG_ID_CLOSE_DEVICE_REQUEST:
                                 process_close_device_request (context, client_index, &rx_buffer.close_device_request);
+                                break;
+
+                            case VFIO_MANAGE_MSG_ID_ALLOCATE_IOVA_REQUEST:
+                                process_allocate_iova_request (context, client_index, &rx_buffer.allocate_iova_request);
+                                break;
+
+                            case VFIO_MANAGE_MSG_ID_FREE_IOVA_REQUEST:
+                                process_free_iova_request (context, client_index, &rx_buffer.free_iova_request);
                                 break;
 
                             default:

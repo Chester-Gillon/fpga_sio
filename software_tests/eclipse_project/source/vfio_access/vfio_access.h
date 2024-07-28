@@ -90,6 +90,9 @@ typedef struct
      * - false means free for allocation
      * - true means has been allocated */
     bool allocated;
+    /* For VFIO_DEVICES_USAGE_MANAGER identifies which client performed the allocation, to allow allocations to be freed
+     * if the client doesn't shut down cleanly. */
+    uint32_t allocating_client_id;
 } vfio_iova_region_t;
 
 
@@ -106,6 +109,12 @@ typedef struct vfio_iommu_container_s
 {
     /* The file descriptor for the container */
     int container_fd;
+    /* The identity of the container. This is to support indirect IOVA allocations:
+     * a. For VFIO_DEVICES_USAGE_DIRECT_ACCESS or VFIO_DEVICES_USAGE_MANAGER this is the index into the
+     *    local vfio_devices->container[] array.
+     * b. For VFIO_DEVICES_USAGE_INDIRECT_ACCESS this is index into the containers[] array on the manager.
+     *    This client might not be use all possible containers. */
+    uint32_t container_id;
     /* The IOMMU type which is used for the VFIO container */
     __s32 iommu_type;
     /* When non-NULL contains the information about the IOMMU to support IOVA allocations */
@@ -119,7 +128,7 @@ typedef struct vfio_iommu_container_s
      * b. Support allocations for both VFIO_DEVICE_DMA_CAPABILITY_A32 and VFIO_DEVICE_DMA_CAPABILITY_A64
      *
      * Initialised to free regions reported by VFIO_IOMMU_TYPE1_INFO_CAP_IOVA_RANGE.
-     * Updated as allocate_vfio_dma_mapping() and free_vfio_dma_mapping() are called. */
+     * Updated as allocate_vfio_container_dma_mapping() and free_vfio_dma_mapping() are called. */
     vfio_iova_region_t *iova_regions;
     /* The current number of valid entries in the iova_regions[] array */
     uint32_t num_iova_regions;
@@ -304,6 +313,10 @@ void vfio_enable_iommu_group_isolation (void);
 void close_vfio_devices (vfio_devices_t *const vfio_devices);
 void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_device_identity_filter_t filters[const num_filters],
                                     const char *const design_names[const num_filters]);
+void allocate_vfio_container_dma_mapping (vfio_iommu_container_t *const container, vfio_device_dma_capability_t dma_capability,
+                                          vfio_dma_mapping_t *const mapping,
+                                          const size_t requested_size, const uint32_t permission,
+                                          const vfio_buffer_allocation_type_t buffer_allocation);
 void allocate_vfio_dma_mapping (vfio_device_t *const vfio_device,
                                 vfio_dma_mapping_t *const mapping,
                                 const size_t requested_size, const uint32_t permission,

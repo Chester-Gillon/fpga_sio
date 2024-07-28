@@ -39,7 +39,15 @@ typedef enum
     /* A request from a client to close a VFIO device */
     VFIO_MANAGE_MSG_ID_CLOSE_DEVICE_REQUEST,
     /* The response from the manager for a VFIO_MANAGE_MSG_ID_CLOSE_DEVICE_REQUEST */
-    VFIO_MANAGE_MSG_ID_CLOSE_DEVICE_REPLY
+    VFIO_MANAGE_MSG_ID_CLOSE_DEVICE_REPLY,
+    /* A request from a client to allocate an IOVA region */
+    VFIO_MANAGE_MSG_ID_ALLOCATE_IOVA_REQUEST,
+    /* The response from the manager for a VFIO_MANAGE_MSG_ID_ALLOCATE_IOVA_REQUEST */
+    VFIO_MANAGE_MSG_ID_ALLOCATE_IOVA_REPLY,
+    /* A request from a client to free an IOVA region */
+    VFIO_MANAGE_MSG_ID_FREE_IOVA_REQUEST,
+    /* The response from the manager for a VFIO_MANAGE_MSG_ID_FREE_IOVA_REQUEST */
+    VFIO_MANAGE_MSG_ID_FREE_IOVA_REPLY
 } vfio_manager_msg_id_t;
 
 
@@ -81,7 +89,22 @@ typedef struct
     /* The names of the IOMMU groups in the container. This is used by the client to determine which IOMMU groups are used
      * by which container. */
     char iommu_group_names[MAX_VFIO_DEVICES][32];
+    /* The identity of the container, which is used by the client to allocate / free IOVA regions */
+    uint32_t container_id;
 } vfio_open_device_reply_t;
+
+
+/* Contents of the SCM_RIGHTS ancillary data sent with VFIO_MANAGE_MSG_ID_OPEN_DEVICE_REPLY to contain the file descriptors
+ * which the client needs to use. The group_fd isn't needed by the client for VFIO_DEVICES_USAGE_INDIRECT_ACCESS. */
+typedef struct
+{
+    /* The vfio device descriptor. Needed to map BARs, access configuration space or reset the device.
+     * Always sent. */
+    int device_fd;
+    /* The file descriptor for the container. Needed for VFIO_IOMMU_MAP_DMA.
+     * Only sent when container_fd_required was set in the request. */
+    int container_fd;
+} vfio_open_device_reply_fds_t;
 
 
 /* The message body for a VFIO_MANAGE_MSG_ID_CLOSE_DEVICE_REQUEST */
@@ -104,17 +127,57 @@ typedef struct
 } vfio_close_device_reply_t;
 
 
-/* Contents of the SCM_RIGHTS ancillary data sent with VFIO_MANAGE_MSG_ID_OPEN_DEVICE_REPLY to contain the file descriptors
- * which the client needs to use. The group_fd isn't needed by the client for VFIO_DEVICES_USAGE_INDIRECT_ACCESS. */
+/* The message body for a VFIO_MANAGE_MSG_ID_ALLOCATE_IOVA_REQUEST */
 typedef struct
 {
-    /* The vfio device descriptor. Needed to map BARs, access configuration space or reset the device.
-     * Always sent. */
-    int device_fd;
-    /* The file descriptor for the container. Needed for VFIO_IOMMU_MAP_DMA.
-     * Only sent when container_fd_required was set in the request. */
-    int container_fd;
-} vfio_open_device_reply_fds_t;
+    /* Common placement of message identification */
+    vfio_manager_msg_id_t msg_id;
+    /* Indicates if the allocation is for a 64-bit IOVA capable device */
+    vfio_device_dma_capability_t dma_capability;
+    /* Identifies which container to use for the IOVA allocation */
+    uint32_t container_id;
+    /* The requested IOVA size in bytes */
+    size_t requested_size;
+} vfio_allocate_iova_request_t;
+
+
+/* The message body for a VFIO_MANAGE_MSG_ID_ALLOCATE_IOVA_REPLY.
+ * The size of the allocation, compared to the requested size, has been rounded up to be a multiple of the IOVA page size. */
+typedef struct
+{
+    /* Common placement of message identification */
+    vfio_manager_msg_id_t msg_id;
+    /* If true the IOVA allocation close succeeded, otherwise failed */
+    bool success;
+    /* The start IOVA of the allocated region */
+    uint64_t start;
+    /* The inclusive end IOVA of the allocated region */
+    uint64_t end;
+} vfio_allocate_iova_reply_t;
+
+
+/* The message body for a VFIO_MANAGE_MSG_ID_FREE_IOVA_REQUEST */
+typedef struct
+{
+    /* Common placement of message identification */
+    vfio_manager_msg_id_t msg_id;
+    /* Identifies which container are freeing the IOVA allocation for */
+    uint32_t container_id;
+    /* The start IOVA of the region to free */
+    uint64_t start;
+    /* The inclusive end IOVA of the region to free */
+    uint64_t end;
+} vfio_free_iova_request_t;
+
+
+/* The message body for a VFIO_MANAGE_MSG_ID_FREE_IOVA_REPLY */
+typedef struct
+{
+    /* Common placement of message identification */
+    vfio_manager_msg_id_t msg_id;
+    /* If true the freeing of the IOVA region succeeded, otherwise failed */
+    bool success;
+} vfio_free_iova_reply_t;
 
 
 /* Used to allocate a buffer to receive different messages */
@@ -123,10 +186,14 @@ typedef union
     /* Common placement of message identification */
     vfio_manager_msg_id_t msg_id;
     /* Message type specific structures */
-    vfio_open_device_request_t  open_device_request;
-    vfio_open_device_reply_t    open_device_reply;
-    vfio_close_device_request_t close_device_request;
-    vfio_close_device_reply_t   close_device_reply;
+    vfio_open_device_request_t   open_device_request;
+    vfio_open_device_reply_t     open_device_reply;
+    vfio_close_device_request_t  close_device_request;
+    vfio_close_device_reply_t    close_device_reply;
+    vfio_allocate_iova_request_t allocate_iova_request;
+    vfio_allocate_iova_reply_t   allocate_iova_reply;
+    vfio_free_iova_request_t     free_iova_request;
+    vfio_free_iova_reply_t       free_iova_reply;
 } vfio_manage_messages_t;
 
 
@@ -135,6 +202,12 @@ void enable_bus_master_for_dma (vfio_device_t *const device);
 bool open_vfio_device_fd (vfio_device_t *const new_device);
 void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev,
                        const vfio_device_dma_capability_t dma_capability);
+void update_iova_regions (vfio_iommu_container_t *const container, const vfio_iova_region_t *const new_region);
+void allocate_iova_region_direct (vfio_iommu_container_t *const container,
+                                  const vfio_device_dma_capability_t dma_capability,
+                                  const size_t requested_size,
+                                  const uint32_t allocating_client_id,
+                                  vfio_iova_region_t *const region);
 bool vfio_receive_manage_message (const int socket_fd, vfio_manage_messages_t *const rx_buffer,
                                   vfio_open_device_reply_fds_t *const vfio_fds);
 void vfio_send_manage_message (const int socket_fd, vfio_manage_messages_t *const tx_buffer,

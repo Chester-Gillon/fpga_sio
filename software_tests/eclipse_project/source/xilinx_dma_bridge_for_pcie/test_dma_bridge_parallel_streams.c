@@ -51,8 +51,8 @@ static size_t arg_stream_mapping_size = 0x40000000;
 static uint32_t arg_stream_num_descriptors = 64;
 
 
-/* Command line argument which causes the first VFIO device, and thus container, to be used for all DMA mappings. */
-static bool arg_use_one_device_for_mappings;
+/* Command line argument which causes the first container, to be used for all DMA mappings. */
+static bool arg_use_one_container_for_mappings;
 
 
 /* Command line arguments to specify which stream pairs on which devices to perform the test on.
@@ -79,7 +79,7 @@ static const struct option command_line_options[] =
     {"stream_mapping_size", required_argument, NULL, 0},
     {"stream_num_descriptors", required_argument, NULL, 0},
     {"isolate_iommu_groups", no_argument, NULL, 0},
-    {"use_one_device_for_mappings", no_argument, NULL, 0},
+    {"use_one_container_for_mappings", no_argument, NULL, 0},
     {NULL, 0, NULL, 0}
 };
 
@@ -220,8 +220,8 @@ static void display_usage (void)
     printf ("  Specifies the number of descriptors when performing AXI stream transfers.\n");
     printf ("--isolate_iommu_groups\n");
     printf ("  Causes each IOMMU group to use it's own container\n");
-    printf ("--use_one_device_for_mappings\n");
-    printf ("  Causes the first VFIO device, and thus container, to be used for all DMA\n");
+    printf ("--use_one_container_for_mappings\n");
+    printf ("  Causes the first container to be used for all DMA mappings\n");
     printf ("  mappings.\n");
 
     exit (EXIT_FAILURE);
@@ -356,9 +356,9 @@ static void parse_command_line_arguments (int argc, char *argv[])
             {
                 vfio_enable_iommu_group_isolation ();
             }
-            else if (strcmp (optdef->name, "use_one_device_for_mappings") == 0)
+            else if (strcmp (optdef->name, "use_one_container_for_mappings") == 0)
             {
-                arg_use_one_device_for_mappings = true;
+                arg_use_one_container_for_mappings = true;
             }
             else
             {
@@ -385,11 +385,11 @@ static void initialise_parallel_streams (stream_test_contexts_t *const context)
     {
         stream_test_context_t *const stream_pair = &context->stream_pairs[pair_index];
 
-        /* Use command line option to control if attempt to use one device, and therefore its container for all
-         * mappings. This is to test the effect of the isolate_iommu_groups command line option when the stream pairs
+        /* Use command line option to control if attempt to use one container for all mappings.
+         * This is to test the effect of the isolate_iommu_groups command line option when the stream pairs
          * are across more than IOMMU group. */
-        vfio_device_t *const vfio_device_for_mapping = arg_use_one_device_for_mappings ?
-                context->stream_pairs[0].vfio_device : stream_pair->vfio_device;
+        vfio_iommu_container_t *const vfio_container_for_mapping = arg_use_one_container_for_mappings ?
+                context->stream_pairs[0].vfio_device->group->container : stream_pair->vfio_device->group->container;
 
         /* Populate the transfer configurations to be used, selecting use of fixed size buffers */
         const x2x_transfer_configuration_t h2c_transfer_configuration =
@@ -433,15 +433,18 @@ static void initialise_parallel_streams (stream_test_contexts_t *const context)
         /* Create read/write mapping for DMA descriptors */
         const size_t descriptors_allocation_size = x2x_get_descriptor_allocation_size (&h2c_transfer_configuration) +
                 x2x_get_descriptor_allocation_size (&c2h_transfer_configuration);
-        allocate_vfio_dma_mapping (vfio_device_for_mapping, &stream_pair->descriptors_mapping, descriptors_allocation_size,
+        allocate_vfio_container_dma_mapping (vfio_container_for_mapping, stream_pair->vfio_device->dma_capability,
+                &stream_pair->descriptors_mapping, descriptors_allocation_size,
                 VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
 
         /* Read mapping used by device, for the entire card memory */
-        allocate_vfio_dma_mapping (vfio_device_for_mapping, &stream_pair->h2c_data_mapping, arg_stream_mapping_size,
+        allocate_vfio_container_dma_mapping (vfio_container_for_mapping, stream_pair->vfio_device->dma_capability,
+                &stream_pair->h2c_data_mapping, arg_stream_mapping_size,
                 VFIO_DMA_MAP_FLAG_READ, arg_buffer_allocation);
 
         /* Write mapping used by device, for the entire card memory */
-        allocate_vfio_dma_mapping (vfio_device_for_mapping, &stream_pair->c2h_data_mapping, arg_stream_mapping_size,
+        allocate_vfio_container_dma_mapping (vfio_container_for_mapping, stream_pair->vfio_device->dma_capability,
+                &stream_pair->c2h_data_mapping, arg_stream_mapping_size,
                 VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
 
         context->overall_success = (stream_pair->descriptors_mapping.buffer.vaddr != NULL) &&
@@ -461,7 +464,7 @@ static void initialise_parallel_streams (stream_test_contexts_t *const context)
             uint32_t *const tx_words = stream_pair->h2c_data_mapping.buffer.vaddr;
 
             /* Populate the transmit test pattern.
-             * The receive buffer is left at the zero filled value set by allocate_vfio_dma_mapping() and so won't
+             * The receive buffer is left at the zero filled value set by allocate_vfio_container_dma_mapping() and so won't
              * match the expected pattern unless the receive is successful. */
             stream_pair->rx_test_pattern = tx_test_pattern;
             for (word_index = 0; word_index < context->data_mapping_size_words; word_index++)

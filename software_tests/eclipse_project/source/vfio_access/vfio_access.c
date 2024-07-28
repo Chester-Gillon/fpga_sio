@@ -492,6 +492,22 @@ bool vfio_receive_manage_message (const int socket_fd, vfio_manage_messages_t *c
            valid_message = num_rx_data_bytes == sizeof (vfio_close_device_reply_t);
            break;
 
+       case VFIO_MANAGE_MSG_ID_ALLOCATE_IOVA_REQUEST:
+           valid_message = num_rx_data_bytes == sizeof (vfio_allocate_iova_request_t);
+           break;
+
+       case VFIO_MANAGE_MSG_ID_ALLOCATE_IOVA_REPLY:
+           valid_message = num_rx_data_bytes == sizeof (vfio_allocate_iova_reply_t);
+           break;
+
+       case VFIO_MANAGE_MSG_ID_FREE_IOVA_REQUEST:
+           valid_message = num_rx_data_bytes == sizeof (vfio_free_iova_request_t);
+           break;
+
+       case VFIO_MANAGE_MSG_ID_FREE_IOVA_REPLY:
+           valid_message = num_rx_data_bytes == sizeof (vfio_free_iova_reply_t);
+           break;
+
        default:
            valid_message = false;
        }
@@ -567,6 +583,22 @@ void vfio_send_manage_message (const int socket_fd, vfio_manage_messages_t *cons
 
     case VFIO_MANAGE_MSG_ID_CLOSE_DEVICE_REPLY:
         tx_iovec[0].iov_len = sizeof (vfio_close_device_reply_t);
+        break;
+
+    case VFIO_MANAGE_MSG_ID_ALLOCATE_IOVA_REQUEST:
+        tx_iovec[0].iov_len = sizeof (vfio_allocate_iova_request_t);
+        break;
+
+    case VFIO_MANAGE_MSG_ID_ALLOCATE_IOVA_REPLY:
+        tx_iovec[0].iov_len = sizeof (vfio_allocate_iova_reply_t);
+        break;
+
+    case VFIO_MANAGE_MSG_ID_FREE_IOVA_REQUEST:
+        tx_iovec[0].iov_len = sizeof (vfio_free_iova_request_t);
+        break;
+
+    case VFIO_MANAGE_MSG_ID_FREE_IOVA_REPLY:
+        tx_iovec[0].iov_len = sizeof (vfio_free_iova_reply_t);
         break;
     }
     tx_msg.msg_iov = tx_iovec;
@@ -819,7 +851,7 @@ static void remove_iova_region (vfio_iommu_container_t *const container, const u
  * @param[in/out] container Contains the IOVA regions to update
  * @param[in] new_region Defines the new region
  */
-static void update_iova_regions (vfio_iommu_container_t *const container, const vfio_iova_region_t *const new_region)
+void update_iova_regions (vfio_iommu_container_t *const container, const vfio_iova_region_t *const new_region)
 {
     bool new_region_processed = false;
     uint32_t region_index;
@@ -843,7 +875,8 @@ static void update_iova_regions (vfio_iommu_container_t *const container, const 
                 {
                     .start = existing_region.start,
                     .end = new_region->start - 1,
-                    .allocated = existing_region.allocated
+                    .allocated = existing_region.allocated,
+                    .allocating_client_id = existing_region.allocating_client_id
                 };
 
                 append_iova_region (container, &before_region);
@@ -860,7 +893,8 @@ static void update_iova_regions (vfio_iommu_container_t *const container, const 
                 {
                     .start = new_region->end + 1,
                     .end = existing_region.end,
-                    .allocated = existing_region.allocated
+                    .allocated = existing_region.allocated,
+                    .allocating_client_id = existing_region.allocating_client_id
                 };
 
                 append_iova_region (container, &after_region);
@@ -886,8 +920,18 @@ static void update_iova_regions (vfio_iommu_container_t *const container, const 
         vfio_iova_region_t *const this_region = &container->iova_regions[region_index];
         const uint32_t next_region_index = region_index + 1;
         const vfio_iova_region_t *const next_region = &container->iova_regions[next_region_index];
+        const bool compare_client_id = this_region->allocated &&
+                (container->vfio_devices->devices_usage == VFIO_DEVICES_USAGE_MANAGER);
+        bool regions_can_be_combined =
+                ((this_region->end + 1) == next_region->start) && (this_region->allocated == next_region->allocated);
 
-        if (((this_region->end + 1) == next_region->start) && (this_region->allocated == next_region->allocated))
+        if (compare_client_id)
+        {
+            regions_can_be_combined = regions_can_be_combined &&
+                    (this_region->allocating_client_id == next_region->allocating_client_id);
+        }
+
+        if (regions_can_be_combined)
         {
             this_region->end = next_region->end;
             remove_iova_region (container, next_region_index);
@@ -914,11 +958,13 @@ static void update_iova_regions (vfio_iommu_container_t *const container, const 
  *                      May be non-zero to cause a 64-bit IOVA capable device to initially avoid the
  *                      first 4 GiB IOVA space.
  * @param[in] aligned_size The size of the IOVA allocation required
+ * @param[in] allocating_client_id For the manager used to identify which client is performing the allocation
  * @param[out] region The allocated region. Success is indicated when allocated is true
  */
 static void attempt_iova_allocation (const vfio_iommu_container_t *const container,
                                      const vfio_device_dma_capability_t dma_capability,
                                      const uint64_t min_start, const size_t aligned_size,
+                                     const uint32_t allocating_client_id,
                                      vfio_iova_region_t *const region)
 {
     const uint64_t max_a32_end = 0xffffffffUL;
@@ -963,6 +1009,7 @@ static void attempt_iova_allocation (const vfio_iommu_container_t *const contain
                 {
                     region->start = usable_region_start;
                     region->end = region->start + (aligned_size - 1);
+                    region->allocating_client_id = allocating_client_id;
                     region->allocated = true;
                     min_unused_space = region_unused_space;
                 }
@@ -973,20 +1020,37 @@ static void attempt_iova_allocation (const vfio_iommu_container_t *const contain
 
 
 /**
- * @brief Allocate a IOVA region for use by a DMA mapping for a device
+ * @brief Allocate a IOVA region for use by a DMA mapping for a device, where the local process directly performs the allocation.
  * @param[in/out] container The container to use for the IOVA allocation
  * @param[in] dma_capability Indicates if the allocation is for a 64-bit IOVA capable device
- * @param[in] aligned_size The size of the IOVA allocation required
+ * @param[in] requested_size The requested size in bytes to allocate.
+ *                           The actual size allocated may be increased to allow for the supported IOVA page sizes.
+ * @param[in] allocating_client_id For the manager used to identify which client is performing the allocation
  * @param[out] region The allocated region. Success is indicated when allocated is true
  */
-static void allocate_iova_region (vfio_iommu_container_t *const container, const vfio_device_dma_capability_t dma_capability,
-                                  const size_t aligned_size,
+void allocate_iova_region_direct (vfio_iommu_container_t *const container,
+                                  const vfio_device_dma_capability_t dma_capability,
+                                  const size_t requested_size,
+                                  const uint32_t allocating_client_id,
                                   vfio_iova_region_t *const region)
 {
     /* Default to no allocation */
     region->start = 0;
     region->end = 0;
+    region->allocating_client_id = 0;
     region->allocated = false;
+
+    /* Increase the requested size to be aligned to the smallest page size supported by the IOMMU */
+    bool alignment_found = false;
+    size_t aligned_size = requested_size;
+    for (uint64_t page_size = 1; (!alignment_found) && (page_size != 0); page_size <<= 1)
+    {
+        if ((container->iommu_info->iova_pgsizes & page_size) == page_size)
+        {
+            aligned_size = (requested_size + (page_size - 1)) & (~(page_size - 1));
+            alignment_found = true;
+        }
+    }
 
     if (dma_capability == VFIO_DEVICE_DMA_CAPABILITY_A64)
     {
@@ -994,13 +1058,13 @@ static void allocate_iova_region (vfio_iommu_container_t *const container, const
          * to try and keep the first 4 GiB for devices which are only 32-bit IOVA capable. */
         const uint64_t a64_min_start = 0x100000000UL;
 
-        attempt_iova_allocation (container, dma_capability, a64_min_start, aligned_size, region);
+        attempt_iova_allocation (container, dma_capability, a64_min_start, aligned_size, allocating_client_id, region);
     }
 
     /* If allocation wasn't successful, or only a 32-bit IOVA capable device, try the allocation with no minimum start */
     if (!region->allocated)
     {
-        attempt_iova_allocation (container, dma_capability, 0, aligned_size, region);
+        attempt_iova_allocation (container, dma_capability, 0, aligned_size, allocating_client_id, region);
     }
 
     if (region->allocated)
@@ -1014,6 +1078,39 @@ static void allocate_iova_region (vfio_iommu_container_t *const container, const
         printf ("No free IOVA to allocate %zu bytes for %d bit IOVA capable device\n",
                 aligned_size, (dma_capability == VFIO_DEVICE_DMA_CAPABILITY_A64) ? 64 : 32);
     }
+}
+
+
+/**
+ * @brief Allocate a IOVA region for use by a DMA mapping for a device, where communicates with the manager to make the allocation
+ * @param[in] container The container to use for the IOVA allocation
+ * @param[in] dma_capability Indicates if the allocation is for a 64-bit IOVA capable device
+ * @param[in] requested_size The requested size in bytes to allocate.
+ *                           The actual size allocated may be increased to allow for the supported IOVA page sizes.
+ * @param[out] region The allocated region. Success is indicated when allocated is true
+ */
+static void allocate_iova_region_indirect (const vfio_iommu_container_t *const container,
+                                           const vfio_device_dma_capability_t dma_capability,
+                                           const size_t requested_size,
+                                           vfio_iova_region_t *const region)
+{
+    vfio_manage_messages_t tx_buffer;
+    vfio_manage_messages_t rx_buffer;
+
+    /* Send the request */
+    tx_buffer.allocate_iova_request.msg_id = VFIO_MANAGE_MSG_ID_ALLOCATE_IOVA_REQUEST;
+    tx_buffer.allocate_iova_request.dma_capability = dma_capability;
+    tx_buffer.allocate_iova_request.container_id = container->container_id;
+    tx_buffer.allocate_iova_request.requested_size = requested_size;
+    vfio_send_manage_message (container->vfio_devices->manager_client_socket_fd, &tx_buffer, NULL);
+
+    /* Wait for the reply */
+    vfio_receive_manage_reply (container->vfio_devices->manager_client_socket_fd, &rx_buffer, NULL,
+            VFIO_MANAGE_MSG_ID_ALLOCATE_IOVA_REPLY);
+    region->allocated = rx_buffer.allocate_iova_reply.success;
+    region->start = rx_buffer.allocate_iova_reply.start;
+    region->end = rx_buffer.allocate_iova_reply.end;
+    region->allocating_client_id = 0;
 }
 
 
@@ -1054,7 +1151,7 @@ static bool get_type1_iommu_capabilities (vfio_iommu_container_t *const containe
     }
 
     /* Initialise the free IOVA ranges to the valid IOVA ranges reported by the capabilities.
-     * If VFIO_IOMMU_TYPE1_INFO_CAP_IOVA_RANGE isn't present, then any attempt to call allocate_vfio_dma_mapping()
+     * If VFIO_IOMMU_TYPE1_INFO_CAP_IOVA_RANGE isn't present, then any attempt to call allocate_vfio_container_dma_mapping()
      * will fail. */
     if (((container->iommu_info->flags & VFIO_IOMMU_INFO_CAPS) != 0) && (container->iommu_info->cap_offset > 0))
     {
@@ -1078,6 +1175,7 @@ static bool get_type1_iommu_capabilities (vfio_iommu_container_t *const containe
                     {
                         .start = iova_range->start,
                         .end = iova_range->end,
+                        .allocating_client_id = 0,
                         .allocated = false
                     };
 
@@ -1167,6 +1265,7 @@ static vfio_iommu_container_t *vfio_iommu_create_container (vfio_devices_t *cons
 
     /* Initialise to an empty container */
     vfio_iommu_container_t *const container = &vfio_devices->containers[vfio_devices->num_containers];
+    container->container_id = vfio_devices->num_containers;
     container->num_iommu_groups = 0;
     container->num_iova_regions = 0;
     container->iova_regions_allocated_length = 0;
@@ -1583,6 +1682,7 @@ static bool open_vfio_device_with_indirect_access (vfio_devices_t *const vfio_de
             vfio_iommu_container_t *const container = &vfio_devices->containers[vfio_devices->num_containers];
             container->vfio_devices = vfio_devices;
             container->iommu_type = rx_buffer.open_device_reply.iommu_type;
+            container->container_id = rx_buffer.open_device_reply.container_id;
             container->container_fd = vfio_fds.container_fd;
             container->num_iommu_groups = rx_buffer.open_device_reply.num_iommu_groups;
             for (uint32_t group_index = 0; group_index < container->num_iommu_groups; group_index++)
@@ -2131,10 +2231,9 @@ void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_dev
 
 
 /**
- * @brief Allocate a buffer, and create a DMA mapping for the allocated memory.
- * @param[in/out] vfio_device The VFIO device to create the DMA mapping for:
- *                a. The VFIO device is used to determine the DMA address capability to select a suitable IOVA value.
- *                b. The underlying IOMMU container is used to the allocate the IOVA for the mapping.
+ * @brief Allocate a buffer, and create a DMA mapping for the allocated memory using a specified container.
+ * @param[in/out] container The underlying container to use to perform the IOVA allocation.
+ * @param[in] dma_capability Determines if the allocation is for a A32 or A64 capable DMA device.
  * @param[out] mapping Contains the process memory and associated DMA mapping which has been allocated.
  *                     On failure, mapping->buffer.vaddr is NULL.
  *                     On success the buffer contents has been zeroed.
@@ -2145,12 +2244,11 @@ void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_dev
  *                       Not used when using the cmem driver.
  * @param[in] buffer_allocation Controls how the buffer for the process is allocated
  */
-void allocate_vfio_dma_mapping (vfio_device_t *const vfio_device,
-                                vfio_dma_mapping_t *const mapping,
-                                const size_t requested_size, const uint32_t permission,
-                                const vfio_buffer_allocation_type_t buffer_allocation)
+void allocate_vfio_container_dma_mapping (vfio_iommu_container_t *const container, vfio_device_dma_capability_t dma_capability,
+                                          vfio_dma_mapping_t *const mapping,
+                                          const size_t requested_size, const uint32_t permission,
+                                          const vfio_buffer_allocation_type_t buffer_allocation)
 {
-    vfio_iommu_container_t *const container = vfio_device->group->container;
     int rc;
     size_t aligned_size = requested_size;
 
@@ -2192,7 +2290,7 @@ void allocate_vfio_dma_mapping (vfio_device_t *const vfio_device,
             /* cmem driver is open, so attempt the allocation and use the allocated physical memory address as the IOVA
              * to be used for DMA. */
             create_vfio_buffer (&mapping->buffer, aligned_size,
-                    (vfio_device->dma_capability == VFIO_DEVICE_DMA_CAPABILITY_A64) ?
+                    (dma_capability == VFIO_DEVICE_DMA_CAPABILITY_A64) ?
                             VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A64 : VFIO_BUFFER_ALLOCATION_PHYSICAL_MEMORY_A32, NULL);
             mapping->iova = mapping->buffer.cmem_host_buf_desc.physAddr;
             if (mapping->buffer.vaddr != NULL)
@@ -2208,24 +2306,23 @@ void allocate_vfio_dma_mapping (vfio_device_t *const vfio_device,
         struct vfio_iommu_type1_dma_map dma_map;
         char name_suffix[PATH_MAX];
         vfio_iova_region_t region;
-        bool alignment_found = false;
 
-        /* Increase the requested size to be aligned to the smallest page size supported by the IOMMU */
-        for (uint64_t page_size = 1; (!alignment_found) && (page_size != 0); page_size <<= 1)
+        if (container->vfio_devices->devices_usage == VFIO_DEVICES_USAGE_INDIRECT_ACCESS)
         {
-            if ((container->iommu_info->iova_pgsizes & page_size) == page_size)
-            {
-                aligned_size = (requested_size + (page_size - 1)) & (~(page_size - 1));
-                alignment_found = true;
-            }
+            allocate_iova_region_indirect (container, dma_capability, requested_size, &region);
         }
-
-        allocate_iova_region (container, vfio_device->dma_capability, aligned_size, &region);
+        else
+        {
+            const uint32_t unused_client_id = 0;
+            allocate_iova_region_direct (container, dma_capability, requested_size, unused_client_id, &region);
+        }
+        aligned_size = (region.end + 1) - region.start;
         if (region.allocated)
         {
             mapping->iova = region.start;
 
-            /* Create the buffer in the local process. As don't yet have multi-process support uses the PID to make the name unique */
+            /* Create the buffer in the local process.
+             * Since multiple containers may be in use, prepends the PID to make the name unique */
             snprintf (name_suffix, sizeof (name_suffix), "pid-%d_iova-%" PRIu64, getpid(), mapping->iova);
             create_vfio_buffer (&mapping->buffer, aligned_size, buffer_allocation, name_suffix);
 
@@ -2253,6 +2350,31 @@ void allocate_vfio_dma_mapping (vfio_device_t *const vfio_device,
             printf ("Failed to allocate %zu bytes for VFIO DMA mapping\n", aligned_size);
         }
     }
+}
+
+
+/**
+ * @brief Allocate a buffer, and create a DMA mapping for the allocated memory using a specified device
+ * @param[in/out] vfio_device The VFIO device to create the DMA mapping for:
+ *                a. The VFIO device is used to determine the DMA address capability to select a suitable IOVA value.
+ *                b. The underlying IOMMU container is used to the allocate the IOVA for the mapping.
+ * @param[out] mapping Contains the process memory and associated DMA mapping which has been allocated.
+ *                     On failure, mapping->buffer.vaddr is NULL.
+ *                     On success the buffer contents has been zeroed.
+ * @param[in] requested_size The requested size in bytes to allocate.
+ *                           The actual size allocated may be increased to allow for the supported IOVA page sizes.
+ * @param[in] permission Bitwise OR VFIO_DMA_MAP_FLAG_READ / VFIO_DMA_MAP_FLAG_WRITE flags to define
+ *                       the device access to the DMA mapping.
+ *                       Not used when using the cmem driver.
+ * @param[in] buffer_allocation Controls how the buffer for the process is allocated
+ */
+void allocate_vfio_dma_mapping (vfio_device_t *const vfio_device,
+                                vfio_dma_mapping_t *const mapping,
+                                const size_t requested_size, const uint32_t permission,
+                                const vfio_buffer_allocation_type_t buffer_allocation)
+{
+    allocate_vfio_container_dma_mapping (vfio_device->group->container, vfio_device->dma_capability,
+            mapping, requested_size, permission, buffer_allocation);
 }
 
 
@@ -2295,6 +2417,34 @@ void vfio_dma_mapping_align_space (vfio_dma_mapping_t *const mapping)
 
 
 /**
+ * @brief Free an IOVA region by communicating with the manager
+ * @param[in] container The container which was used to allocate the IOVA region
+ * @param[in] free_region The IOVA region to free
+ */
+static void free_vfio_region_indirect (const vfio_iommu_container_t *const container, const vfio_iova_region_t *const free_region)
+{
+    vfio_manage_messages_t tx_buffer;
+    vfio_manage_messages_t rx_buffer;
+
+    /* Send the request */
+    tx_buffer.free_iova_request.msg_id = VFIO_MANAGE_MSG_ID_FREE_IOVA_REQUEST;
+    tx_buffer.free_iova_request.container_id = container->container_id;
+    tx_buffer.free_iova_request.start = free_region->start;
+    tx_buffer.free_iova_request.end = free_region->end;
+    vfio_send_manage_message (container->vfio_devices->manager_client_socket_fd, &tx_buffer, NULL);
+
+    /* Wait for the reply */
+    vfio_receive_manage_reply (container->vfio_devices->manager_client_socket_fd, &rx_buffer, NULL,
+            VFIO_MANAGE_MSG_ID_FREE_IOVA_REPLY);
+    if (!rx_buffer.free_iova_reply.success)
+    {
+        printf ("Indirect freeing of IOVA failed\n");
+        exit (EXIT_FAILURE);
+    }
+}
+
+
+/**
  * @brief Free a DMA mapping, and the associated process virtual memory
  * @param[in/out] mapping The DMA mapping to free.
  */
@@ -2326,10 +2476,18 @@ void free_vfio_dma_mapping (vfio_dma_mapping_t *const mapping)
                 {
                     .start = mapping->iova,
                     .end = mapping->iova + (mapping->buffer.size - 1),
+                    .allocating_client_id = 0,
                     .allocated = false
                 };
 
-                update_iova_regions (mapping->container, &free_region);
+                if (mapping->container->vfio_devices->devices_usage == VFIO_DEVICES_USAGE_INDIRECT_ACCESS)
+                {
+                    free_vfio_region_indirect (mapping->container, &free_region);
+                }
+                else
+                {
+                    update_iova_regions (mapping->container, &free_region);
+                }
                 free_vfio_buffer (&mapping->buffer);
             }
             else
