@@ -920,15 +920,22 @@ void update_iova_regions (vfio_iommu_container_t *const container, const vfio_io
         vfio_iova_region_t *const this_region = &container->iova_regions[region_index];
         const uint32_t next_region_index = region_index + 1;
         const vfio_iova_region_t *const next_region = &container->iova_regions[next_region_index];
-        const bool compare_client_id = this_region->allocated &&
-                (container->vfio_devices->devices_usage == VFIO_DEVICES_USAGE_MANAGER);
         bool regions_can_be_combined =
                 ((this_region->end + 1) == next_region->start) && (this_region->allocated == next_region->allocated);
 
-        if (compare_client_id)
+        if ((container->vfio_devices->devices_usage == VFIO_DEVICES_USAGE_MANAGER) && this_region->allocated)
         {
-            regions_can_be_combined = regions_can_be_combined &&
-                    (this_region->allocating_client_id == next_region->allocating_client_id);
+            /* In the manager don't combine IOVA regions which are allocated.
+             * This is so that the manager can attempt to use VFIO_IOMMU_UNMAP_DMA on each allocated region in the case of an
+             * unclean client shutdown.
+             *
+             * The description of VFIO_IOMMU_UNMAP_DMA contains the following, which implies the manager needs to try
+             * and unmap the IOVA regions with the starting IOVA and size as the original mappings, rather than a single
+             * combined region:
+             *   "No guarantee is made to the user that arbitrary unmaps of iova or size different from those used in the
+             *    original mapping call will succeed."
+             * */
+            regions_can_be_combined = false;
         }
 
         if (regions_can_be_combined)
@@ -2470,7 +2477,7 @@ void free_vfio_dma_mapping (vfio_dma_mapping_t *const mapping)
         {
             /* Using IOMMU so free the IOMMU DMA mapping and then the buffer */
             rc = ioctl (mapping->container->container_fd, VFIO_IOMMU_UNMAP_DMA, &dma_unmap);
-            if (rc == 0)
+            if ((rc == 0) && (dma_unmap.size == mapping->buffer.size))
             {
                 vfio_iova_region_t free_region =
                 {
@@ -2492,7 +2499,8 @@ void free_vfio_dma_mapping (vfio_dma_mapping_t *const mapping)
             }
             else
             {
-                printf ("VFIO_IOMMU_UNMAP_DMA of size %zu failed : %s\n", mapping->buffer.size, strerror (-rc));
+                printf ("VFIO_IOMMU_UNMAP_DMA of size %zu failed, unmapped %llu bytes with status %s\n",
+                        mapping->buffer.size, dma_unmap.size, strerror (-rc));
             }
         }
     }

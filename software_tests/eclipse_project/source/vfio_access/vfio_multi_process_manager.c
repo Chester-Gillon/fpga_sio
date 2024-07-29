@@ -413,8 +413,20 @@ static void close_device_for_client (vfio_manager_context_t *const context,
 
 /**
  * @brief Close the connection to a client
- * @details This will close any devices still in used by the client, or free IOVA allocations, in case the client connection
- *          has been closed following a client crash rather than a clean shutdown.
+ * @details This will close any devices still in used by the client, and attempt to free IOVA allocations, in case the
+ *          client connection has been closed following a client crash rather than a clean shutdown.
+ * @todo Initially only checked the return status from ioctl() for VFIO_IOMMU_UNMAP_DMA which lead to the sequence:
+ *       a. Terminate a client which had performed VFIO_IOMMU_MAP_DMA on multiple regions and was performing DMA when the
+ *          client was terminated.
+ *       b. ioctl (VFIO_IOMMU_UNMAP_DMA) in this function returned success and the IOVA allocation was freed.
+ *       c. The IOVA allocation which had been freed following the client unclean shutdown was given to a new client, but in
+ *          the new client the VFIO_IOMMU_MAP_DMA failed with EPERM.
+ *
+ *       The addition of a check for the dma_unmap.size returned by VFIO_IOMMU_UNMAP_DMA in this function detected that
+ *       attempting a VFIO_IOMMU_UNMAP_DMA failed, which causes the IOVA region to be left as allocated and therefore not
+ *       allocated to a new client. Having the ability to destroy a container when no longer in use by any client may
+ *       prevent the IOVA allocation growing over time in the event of unclean shutdowns.
+ *       Using VFIO_GROUP_UNSET_CONTAINER might be a way to avoid having to fully destroy the container.
  * @param[in/out] context The manager context to close the client connection for
  * @param[in] client_index Identifies the client to close the connection for
  */
@@ -423,17 +435,17 @@ static void close_client_connection (vfio_manager_context_t *const context, cons
     int rc;
 
     /* If the client didn't free all the IOVA allocations it made, attempt to free them now */
-    uint32_t num_freed_regions = 0;
-    size_t num_freed_bytes = 0;
-    bool region_freed;
+    uint32_t num_outstanding_regions = 0;
+    size_t num_outstanding_bytes = 0;
+    bool region_outstanding;
     for (uint32_t container_index = 0; container_index < context->vfio_devices.num_containers; container_index++)
     {
         vfio_iommu_container_t *const container = &context->vfio_devices.containers[container_index];
 
         do
         {
-            region_freed = false;
-            for (uint32_t region_index = 0; !region_freed && (region_index < container->num_iova_regions); region_index++)
+            region_outstanding = false;
+            for (uint32_t region_index = 0; !region_outstanding && (region_index < container->num_iova_regions); region_index++)
             {
                 vfio_iova_region_t region = container->iova_regions[region_index];
                 const size_t region_size = (region.end + 1) - region.start;
@@ -452,27 +464,33 @@ static void close_client_connection (vfio_manager_context_t *const context, cons
                      * a. If the unmap succeeds can free the IOVA region to allow reuse.
                      * b. Otherwise, have to leave the IOVA region as in use. */
                     rc = ioctl (container->container_fd, VFIO_IOMMU_UNMAP_DMA, &dma_unmap);
-                    if (rc == 0)
+                    if ((rc == 0) && (dma_unmap.size == region_size))
                     {
                         region.allocated = false;
                         region.allocating_client_id = 0;
                         update_iova_regions (container, &region);
-                        num_freed_regions++;
-                        num_freed_bytes += region_size;
-                        region_freed = true;
+                        region_outstanding = true;
                     }
                     else
                     {
-                        printf ("VFIO_IOMMU_UNMAP_DMA of size %zu failed : %s\n", region_size, strerror (-rc));
+                        printf ("VFIO_IOMMU_UNMAP_DMA of size %zu failed, unmapped %llu bytes with status %s\n",
+                                region_size, dma_unmap.size, strerror (-rc));
+
+                        /* Failed to unmap the region. Leave the IOVA region as allocated so that won't attempt to be re-used
+                         * by another client. Set the client ID which performed the allocation to an invalid value, so
+                         * that if the same client ID is re-used then this function won't attempt to free the region again. */
+                        container->iova_regions[region_index].allocating_client_id = UINT32_MAX;
                     }
+                    num_outstanding_regions++;
+                    num_outstanding_bytes += region_size;
                 }
             }
-        } while (region_freed);
+        } while (region_outstanding);
     }
-    if (num_freed_regions > 0)
+    if (num_outstanding_regions > 0)
     {
         printf ("Client still had %u IOVA regions with %zu bytes allocated at client connection close\n",
-                num_freed_regions, num_freed_bytes);
+                num_outstanding_regions, num_outstanding_bytes);
     }
 
     /* If the client didn't close the devices it opened, close them now */
@@ -709,15 +727,15 @@ static void process_free_iova_request (vfio_manager_context_t *const context, co
     {
         bool region_to_free_exists = false;
 
-        /* Verify that the IOVA region the client is requesting to free is within one region the client has allocated */
+        /* Verify that the IOVA region the client is requesting to free matches a region the client has allocated */
         for (uint32_t region_index = 0; !region_to_free_exists && (region_index < container->num_iova_regions); region_index++)
         {
             const vfio_iova_region_t *const existing_region = &container->iova_regions[region_index];
 
             region_to_free_exists = existing_region->allocated &&
                     (existing_region->allocating_client_id == client_index) &&
-                    (request->start >= existing_region->start) &&
-                    (request->end <= existing_region->end);
+                    (request->start == existing_region->start) &&
+                    (request->end == existing_region->end);
         }
 
         if (region_to_free_exists)
