@@ -43,6 +43,7 @@
 static const struct option command_line_options[] =
 {
     {"isolate_iommu_groups", no_argument, NULL, 0},
+    {"once", no_argument, NULL, 0},
     {NULL, 0, NULL, 0}
 };
 
@@ -73,6 +74,10 @@ typedef struct
 } vfio_manager_context_t;
 
 
+/* Command line argument which specified to shutdown the first time the number of connected clients drops to zero */
+static bool arg_once;
+
+
 /* Set from a signal handle to record a request to shutdown the manager */
 static volatile bool shutdown_requested;
 
@@ -95,6 +100,8 @@ static void display_usage (void)
     printf ("Usage:\n");
     printf ("--isolate_iommu_groups\n");
     printf ("  Causes each IOMMU group to use it's own container\n");
+    printf ("--once\n");
+    printf ("  Shutdown the first time the number of connected clients drop to zero\n");
 
     exit (EXIT_FAILURE);
 }
@@ -129,6 +136,10 @@ static void parse_command_line_arguments (int argc, char *argv[])
             {
                 vfio_enable_iommu_group_isolation ();
             }
+            else if (strcmp (optdef->name, "once") == 0)
+            {
+                arg_once = true;
+            }
             else
             {
                 /* This is a program error, and shouldn't be triggered by the command line options */
@@ -141,7 +152,9 @@ static void parse_command_line_arguments (int argc, char *argv[])
 
 
 /**
- * @brief Update the maximum_used_clients
+ * @brief Update the maximum_used_clients.
+ * @details Also is the point at which can trigger a pending shutdown when the "once" command line has been used and
+ *          after the first client has connected.
  * @param[in/out] context The context to update
  */
 static void update_maximum_used_clients (vfio_manager_context_t *const context)
@@ -153,6 +166,11 @@ static void update_maximum_used_clients (vfio_manager_context_t *const context)
         {
             context->maximum_used_clients = client_index + 1;
         }
+    }
+
+    if (arg_once && !context->shutdown_pending && (context->maximum_used_clients > 0))
+    {
+        context->shutdown_pending = true;
     }
 }
 
