@@ -7,6 +7,8 @@
  *
  */
 
+#define _GNU_SOURCE /* For ppoll() */
+
 #include "vfio_access.h"
 #include "vfio_access_private.h"
 
@@ -25,6 +27,7 @@
 #include <sys/un.h>
 #include <poll.h>
 #include <sys/ioctl.h>
+#include <signal.h>
 
 
 /* The maximum number of client, assuming 4 bi-directional channels on each device.
@@ -61,7 +64,27 @@ typedef struct
      * a. Open a device when the first client requests access.
      * b. Close a device once no clients require access. */
     bool devices_used_per_client[VFIO_MAX_CLIENTS][MAX_VFIO_DEVICES];
+    /* Used to unblock SIGINT only during ppoll() and not other blocking calls */
+    sigset_t signal_mask_during_ppoll;
+    /* When true the manager is still running */
+    bool running;
+    /* When true the manager is pending shutdown once there are no more connected clients */
+    bool shutdown_pending;
 } vfio_manager_context_t;
+
+
+/* Set from a signal handle to record a request to shutdown the manager */
+static volatile bool shutdown_requested;
+
+
+/**
+ * @brief Signal handler to request the manager exits
+ * @param[in] sig Not used
+ */
+static void shutdown_request_handler (int signum)
+{
+    shutdown_requested = true;
+}
 
 
 /**
@@ -770,7 +793,6 @@ static void process_free_iova_request (vfio_manager_context_t *const context, co
  */
 static void run_vfio_manager (vfio_manager_context_t *const context)
 {
-    bool running = true;
     struct pollfd poll_fds[VFIO_MAX_FDS] = {0};
     uint32_t num_fds;
     uint32_t client_index;
@@ -780,7 +802,10 @@ static void run_vfio_manager (vfio_manager_context_t *const context)
     bool valid_message;
     bool close_connection;
 
-    while (running)
+    /* Run servicing requests from clients, until requested to shutdown */
+    context->shutdown_pending = false;
+    context->running = true;
+    while (context->running)
     {
         /* Create the list of fds to poll as the listening socket and all currently connected clients.
          * client_socket_fds[] might be sparse, but entries for unconnected clients have a value of -1 and poll()
@@ -798,7 +823,7 @@ static void run_vfio_manager (vfio_manager_context_t *const context)
 
         /* Wait for a socket to be readable with no timeout */
         errno = 0;
-        num_ready_fds = poll (poll_fds, num_fds, -1);
+        num_ready_fds = ppoll (poll_fds, num_fds, NULL, &context->signal_mask_during_ppoll);
         saved_errno = errno;
         if ((num_ready_fds <= 0) && (saved_errno != EINTR) && (saved_errno != EAGAIN))
         {
@@ -867,6 +892,80 @@ static void run_vfio_manager (vfio_manager_context_t *const context)
                 }
             }
         }
+
+        if (shutdown_requested && !context->shutdown_pending)
+        {
+            context->shutdown_pending = true;
+            if (context->maximum_used_clients > 0)
+            {
+                printf ("\nManager will shutdown once there are no connected clients\n");
+            }
+        }
+
+        if (context->shutdown_pending && (context->maximum_used_clients == 0))
+        {
+            context->running = false;
+        }
+    }
+
+    printf ("\nShutting down\n");
+}
+
+
+/**
+ * @brief Install a Ctrl-C signal handler, used to request the manager is shutdown
+ * @details We want the signal to interrupt up the process when blocked in a ppoll() call waiting for a socket to be readable,
+ *          but not any other blocking calls.
+ *
+ *          To achieve this:
+ *          a. Ensure SIGINT is unblocked.
+ *          b. Block SIGINT, saving the original signal mask in context->signal_mask_during_ppoll
+ *          c. Don't set the SA_RESTART flag when installing the signal handler.
+ *          d. Use context->signal_mask_during_ppoll to unblock SIGINT during ppoll(), so SIGINT will cause ppoll() to return
+ *             with EINTR to allow the shutdown request to be seen.
+ * @param[in/out] context The manager context
+ */
+static void install_shutdown_signal_handler (vfio_manager_context_t *const context)
+{
+    sigset_t sigint_set;
+    struct sigaction action;
+    int rc;
+
+    rc = sigemptyset (&sigint_set);
+    if (rc != 0)
+    {
+        printf ("sigemptyset failed\n");
+        exit (EXIT_FAILURE);
+    }
+    rc = sigaddset (&sigint_set, SIGINT);
+    if (rc != 0)
+    {
+        printf ("sigaddset failed\n");
+        exit (EXIT_FAILURE);
+    }
+
+    rc = sigprocmask (SIG_UNBLOCK, &sigint_set, NULL);
+    if (rc != 0)
+    {
+        printf ("sigprocmask failed\n");
+        exit (EXIT_FAILURE);
+    }
+
+    rc = sigprocmask (SIG_BLOCK, &sigint_set, &context->signal_mask_during_ppoll);
+    if (rc != 0)
+    {
+        printf ("sigprocmask failed\n");
+        exit (EXIT_FAILURE);
+    }
+
+    memset (&action, 0, sizeof (action));
+    action.sa_handler = shutdown_request_handler;
+    action.sa_flags = 0;
+    rc = sigaction (SIGINT, &action, NULL);
+    if (rc != 0)
+    {
+        printf ("sigaction failed\n");
+        exit (EXIT_FAILURE);
     }
 }
 
@@ -880,6 +979,8 @@ int main (int argc, char *argv[])
     success = initialise_vfio_manager (&context);
     if (success)
     {
+        /* Install signal handler, used to request the manager is shutdown */
+        install_shutdown_signal_handler (&context);
         run_vfio_manager (&context);
     }
 
