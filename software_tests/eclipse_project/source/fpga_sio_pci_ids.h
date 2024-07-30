@@ -74,4 +74,10 @@
  * c. Access the XADC (internal sensors only) */
 #define FPGA_SIO_SUBDEVICE_ID_TOSING_160T_DMA_STREAM_LOOPBACK 0x0009
 
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Loopback four AXI streams.
+ * b. Access a Quad SPI connected to the FPGA configuration flash.
+ * c. Access the SYSMON (internal sensors only) */
+#define FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_DMA_STREAM_LOOPBACK 0x000A
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

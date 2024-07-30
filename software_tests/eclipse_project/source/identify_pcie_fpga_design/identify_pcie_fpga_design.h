@@ -95,6 +95,13 @@ typedef enum
      */
     FPGA_DESIGN_TOSING_160T_DMA_STREAM_LOOPBACK,
 
+    /* fpga_tests/XCKU5P_DUAL_QSFP_dma_stream_loopback which contains:
+     * a. DMA/Bridge Subsystem loopback of four AXI streams.
+     * b. Quad SPI connected to the configuration flash.
+     * c. XADC
+     */
+    FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_LOOPBACK,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 
