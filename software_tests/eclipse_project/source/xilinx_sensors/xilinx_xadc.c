@@ -191,9 +191,14 @@ static void read_xadc_channel (xadc_sample_collection_t *const collection, const
     const xadc_channel_register_offsets_t *register_offsets = &xadc_channel_register_offsets[channel];
     xadc_channel_sample_t *const sample = &collection->samples[channel];
 
-    sample->measurement.raw_value = read_xadc_raw_adc_value (xadc_regs, register_offsets->measurement_register_offset);
-    sample->measurement.defined = true;
-    scale_xadc_sample (collection, channel, &sample->measurement);
+    /* Check check of if the measurement register offset is defined is due to the calibration channel being available
+     * in the sequencer, but not having any actual measurement register */
+    if (register_offsets->measurement_register_offset != 0)
+    {
+        sample->measurement.raw_value = read_xadc_raw_adc_value (xadc_regs, register_offsets->measurement_register_offset);
+        sample->measurement.defined = true;
+        scale_xadc_sample (collection, channel, &sample->measurement);
+    }
 
     if (register_offsets->min_register_offset != 0)
     {
