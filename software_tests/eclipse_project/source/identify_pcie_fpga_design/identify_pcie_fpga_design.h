@@ -129,6 +129,8 @@ typedef struct
     uint8_t *quad_spi_regs;
     /* When non-NULL the base of the mapped registers for the XADC IP present in the design */
     uint8_t *xadc_regs;
+    /* When non-NULL the base of the mapped registers for the SYSMON IP present in the design */
+    uint8_t *sysmon_regs;
     /* When non-NULL the base of the mapped registers for the Xilinx AXI IIC IP present in the design */
     uint8_t *iic_regs;
     /* When non-NULL the base of the mapped register which contains the user access (AXSS register) which

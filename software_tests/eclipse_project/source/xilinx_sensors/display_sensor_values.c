@@ -1,11 +1,19 @@
 /*
- * @file display_xadc_values.c
+ * @file display_sensor_values.c
  * @date 16 Sep 2023
  * @author Chester Gillon
- * @brief Display the current Xilinx "Analog-to-Digital Converter (XADC)" values for supported designs
+ * @brief Display the current FPGA sensor values for supported designs
+ * @details
+ *  Can display sensor values for either:
+ *  a. Xilinx "Analog-to-Digital Converter (XADC)"
+ *  b. Xilinx "UltraScale Architecture System Monitor (SYSMON)"
+ *
+ *  This was originally created to just support XADC, with SYSMON support added later. Even though there is some overlap
+ *  between XADC and SYSMON there are separate implementations of the code to read and display the samples.
  */
 
 #include "xilinx_xadc.h"
+#include "xilinx_sysmon.h"
 #include "identify_pcie_fpga_design.h"
 
 #include <stdlib.h>
@@ -46,7 +54,8 @@ static void parse_command_line_arguments (int argc, char *argv[])
 int main (int argc, char *argv[])
 {
     fpga_designs_t designs;
-    xadc_sample_collection_t collection;
+    xadc_sample_collection_t xadc_collection;
+    sysmon_sample_collection_t sysmon_collection;
 
     parse_command_line_arguments (argc, argv);
 
@@ -58,11 +67,21 @@ int main (int argc, char *argv[])
 
         if (design->xadc_regs != NULL)
         {
-            read_xadc_samples (&collection, design->xadc_regs);
+            read_xadc_samples (&xadc_collection, design->xadc_regs);
             printf ("Displaying XADC values for design %s in PCI device %s IOMMU group %s:\n",
                     fpga_design_names[design->design_id], design->vfio_device->device_name,
                     design->vfio_device->group->iommu_group_name);
-            display_xadc_samples (&collection);
+            display_xadc_samples (&xadc_collection);
+            printf ("\n");
+        }
+
+        if (design->sysmon_regs != NULL)
+        {
+            read_sysmon_samples (&sysmon_collection, design->sysmon_regs);
+            printf ("Displaying SYSMON values for design %s in PCI device %s IOMMU group %s:\n",
+                    fpga_design_names[design->design_id], design->vfio_device->device_name,
+                    design->vfio_device->group->iommu_group_name);
+            display_sysmon_samples (&sysmon_collection);
             printf ("\n");
         }
     }

@@ -191,6 +191,7 @@ int main (int argc, char *argv[])
 
         display_design_present_peripheral (design, "Quad SPI", design->quad_spi_regs);
         display_design_present_peripheral (design, "XADC", design->xadc_regs);
+        display_design_present_peripheral (design, "SYSMON", design->sysmon_regs);
         display_design_present_peripheral (design, "IIC", design->iic_regs);
         display_design_present_peripheral (design, "bit-banged I2C GPIO", design->bit_banged_i2c_gpio_regs);
     }
