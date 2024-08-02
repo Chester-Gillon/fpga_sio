@@ -209,6 +209,9 @@ static void x2x_initialise_transfer_register_mapping (x2x_transfer_context_t *co
  *
  *          The dma_bridge_memory_size_bytes parameter is required, as used to determine the expected identification values
  *          depending upon if the channels are configured for memory access or AXI streams.
+ *
+ *          Only reads the channel ID registers, so safe to be called if a the DMA channels are already actively performing
+ *          transfers.
  * @param[in/out] vfio_device Used to obtain access to the memory mapped BAR containing the DMA control registers
  * @param[in] bar_index Which BAR in the vfio_device contains the DMA control registers
  * @param[in] dma_bridge_memory_size_bytes The amount of memory addressed by the DMA/Bridge Subsystem:

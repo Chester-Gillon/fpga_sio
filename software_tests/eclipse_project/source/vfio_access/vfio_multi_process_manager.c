@@ -412,6 +412,127 @@ static void accept_client_connection (vfio_manager_context_t *const context)
 
 
 /**
+ * @brief Check the groups on a container, and unset them from the container if there are no open devices in the group.
+ * @details Unsetting the group from a container is what triggers the IOMMU to be disabled.
+ * @param[in/out[ container The container to check for inactive groups on
+ * @return The number of groups in the container which are still active
+ */
+static uint32_t unset_container_on_inactive_groups (vfio_iommu_container_t *const container)
+{
+    uint32_t num_active_groups;
+    uint32_t num_devices_open_in_group;
+    int rc;
+
+    num_active_groups = 0;
+    for (uint32_t group_index = 0; group_index < container->num_iommu_groups; group_index++)
+    {
+        vfio_iommu_group_t *const group = &container->iommu_groups[group_index];
+
+        /* Count the number of devices currently open in the group */
+        num_devices_open_in_group = 0;
+        for (uint32_t device_index = 0; device_index < container->vfio_devices->num_devices; device_index++)
+        {
+            if ((container->vfio_devices->devices[device_index].group == group) &&
+                (container->vfio_devices->devices[device_index].device_fd >= 0))
+            {
+                num_devices_open_in_group++;
+            }
+        }
+
+        if (num_devices_open_in_group == 0)
+        {
+            /* When no devices are open, check if the group has a container set */
+            group->group_status.argsz = sizeof (group->group_status);
+            rc = ioctl (group->group_fd, VFIO_GROUP_GET_STATUS, &group->group_status);
+            if (rc != 0)
+            {
+                printf ("FIO_GROUP_GET_STATUS failed : %s\n", strerror (-rc));
+                exit (EXIT_FAILURE);
+            }
+
+            /* If the group has a container set, unset it. When the final container in the group is unset
+             * the IOMMU will be disabled. */
+            if ((group->group_status.flags & VFIO_GROUP_FLAGS_CONTAINER_SET) != 0)
+            {
+                rc = ioctl (group->group_fd, VFIO_GROUP_UNSET_CONTAINER);
+                if (rc != 0)
+                {
+                    printf ("VFIO_GROUP_UNSET_CONTAINER failed : %s\n", strerror (-rc));
+                    exit (EXIT_FAILURE);
+                }
+            }
+        }
+        else
+        {
+            num_active_groups++;
+        }
+    }
+
+    return num_active_groups;
+}
+
+
+/**
+ * @brief Called after a device is closed to disable IOMMU containers which are no longer needed.
+ * @details
+ *   Disabling the IOMMU containers will free any IOVA allocations which were left behind following an unclean shutdown
+ *   of a client.
+ * @param[in/out] context The manager context to disable unused containers for
+ */
+static void disable_unused_containers (vfio_manager_context_t *const context)
+{
+    uint32_t num_active_groups;
+    uint32_t num_allocated_regions;
+    size_t num_allocated_bytes;
+
+    /* Iterate over all containers */
+    for (uint32_t container_index = 0; container_index < context->vfio_devices.num_containers; container_index++)
+    {
+        vfio_iommu_container_t *const container = &context->vfio_devices.containers[container_index];
+
+        /* Check any containers which are currently enabled */
+        if (container->container_enabled)
+        {
+            /* Determine which groups in the container are active, in that have one of more device still open */
+            num_active_groups = unset_container_on_inactive_groups (container);
+
+            if (num_active_groups == 0)
+            {
+                /* The container is no longer used by any groups.
+                 * If all IOVA allocations were freed by the clients there should be no allocations so report diagnostics
+                 * if still some outstanding allocations. */
+                num_allocated_regions = 0;
+                num_allocated_bytes = 0;
+                for (uint32_t region_index = 0; region_index < container->num_iova_regions; region_index++)
+                {
+                    const vfio_iova_region_t *const region = &container->iova_regions[region_index];
+
+                    if (region->allocated)
+                    {
+                        num_allocated_regions++;
+                        num_allocated_bytes += (region->end + 1) - region->start;
+                    }
+                }
+
+                if (num_allocated_regions > 0)
+                {
+                    printf ("Disabling container is freeing %u IOVA regions of %zu bytes\n",
+                            num_allocated_regions, num_allocated_bytes);
+                }
+
+                /* The container is now disabled as has been unset from all groups. Clear the list of regions and free the
+                 * iommu_info since are no longer needed. If the container is required by a further client, it will be re-enabled. */
+                container->num_iova_regions = 0;
+                free (container->iommu_info);
+                container->iommu_info = NULL;
+                container->container_enabled = false;
+            }
+        }
+    }
+}
+
+
+/**
  * @brief Close a device which was used by one client. The actual device is only closed once no longer used by any client.
  * @param[in/out] context The manager context to close the device for
  * @param[in] client_index Which client to close the device for
@@ -456,18 +577,6 @@ static void close_device_for_client (vfio_manager_context_t *const context,
  * @brief Close the connection to a client
  * @details This will close any devices still in used by the client, and attempt to free IOVA allocations, in case the
  *          client connection has been closed following a client crash rather than a clean shutdown.
- * @todo Initially only checked the return status from ioctl() for VFIO_IOMMU_UNMAP_DMA which lead to the sequence:
- *       a. Terminate a client which had performed VFIO_IOMMU_MAP_DMA on multiple regions and was performing DMA when the
- *          client was terminated.
- *       b. ioctl (VFIO_IOMMU_UNMAP_DMA) in this function returned success and the IOVA allocation was freed.
- *       c. The IOVA allocation which had been freed following the client unclean shutdown was given to a new client, but in
- *          the new client the VFIO_IOMMU_MAP_DMA failed with EPERM.
- *
- *       The addition of a check for the dma_unmap.size returned by VFIO_IOMMU_UNMAP_DMA in this function detected that
- *       attempting a VFIO_IOMMU_UNMAP_DMA failed, which causes the IOVA region to be left as allocated and therefore not
- *       allocated to a new client. Having the ability to destroy a container when no longer in use by any client may
- *       prevent the IOVA allocation growing over time in the event of unclean shutdowns.
- *       Using VFIO_GROUP_UNSET_CONTAINER might be a way to avoid having to fully destroy the container.
  * @param[in/out] context The manager context to close the client connection for
  * @param[in] client_index Identifies the client to close the connection for
  */
@@ -475,7 +584,14 @@ static void close_client_connection (vfio_manager_context_t *const context, cons
 {
     int rc;
 
-    /* If the client didn't free all the IOVA allocations it made, attempt to free them now */
+    /* If the client didn't free all the IOVA allocations it made then:
+     * a. Report diagnostics.
+     * b. The manager is unable to call VFIO_IOMMU_UNMAP_DMA, the ioctl() returns success but the dma_unmap.size returned
+     *    is zero meaning failed to unmap the DMA created by the client process.
+     * c. Can't clear the IOVA regions which were allocated for the client, since if a new client attempts to map them
+     *    the VFIO_IOMMU_MAP_DMA fails with EPERM.
+     * d. disable_unused_containers() will free the outstanding IOVA allocations once the container is no longer used
+     *    by any IOMMU groups. */
     uint32_t num_outstanding_regions = 0;
     size_t num_outstanding_bytes = 0;
     bool region_outstanding;
@@ -493,35 +609,10 @@ static void close_client_connection (vfio_manager_context_t *const context, cons
 
                 if (region.allocated && (client_index == region.allocating_client_id))
                 {
-                    struct vfio_iommu_type1_dma_unmap dma_unmap =
-                    {
-                        .argsz = sizeof (dma_unmap),
-                        .flags = 0,
-                        .iova = region.start,
-                        .size = region_size
-                    };
-
-                    /* Attempt to unmap the region:
-                     * a. If the unmap succeeds can free the IOVA region to allow reuse.
-                     * b. Otherwise, have to leave the IOVA region as in use. */
-                    rc = ioctl (container->container_fd, VFIO_IOMMU_UNMAP_DMA, &dma_unmap);
-                    if ((rc == 0) && (dma_unmap.size == region_size))
-                    {
-                        region.allocated = false;
-                        region.allocating_client_id = 0;
-                        update_iova_regions (container, &region);
-                        region_outstanding = true;
-                    }
-                    else
-                    {
-                        printf ("VFIO_IOMMU_UNMAP_DMA of size %zu failed, unmapped %llu bytes with status %s\n",
-                                region_size, dma_unmap.size, strerror (-rc));
-
-                        /* Failed to unmap the region. Leave the IOVA region as allocated so that won't attempt to be re-used
-                         * by another client. Set the client ID which performed the allocation to an invalid value, so
-                         * that if the same client ID is re-used then this function won't attempt to free the region again. */
-                        container->iova_regions[region_index].allocating_client_id = UINT32_MAX;
-                    }
+                    /* Leave the IOVA region as allocated, but set the client ID which performed the allocation to an
+                     * invalid value. This is so that if the same client ID is re-used this function won't re-report
+                     * the same IOVA regions.  */
+                    container->iova_regions[region_index].allocating_client_id = UINT32_MAX;
                     num_outstanding_regions++;
                     num_outstanding_bytes += region_size;
                 }
@@ -544,6 +635,8 @@ static void close_client_connection (vfio_manager_context_t *const context, cons
             close_device_for_client (context, client_index, device_index);
         }
     }
+
+    disable_unused_containers (context);
 
     /* Close the socket for the client */
     rc = close (context->client_socket_fds[client_index]);
@@ -620,6 +713,7 @@ static void process_open_device_request (vfio_manager_context_t *const context, 
                                          const vfio_open_device_request_t *const request)
 {
     uint32_t device_index;
+    uint32_t group_index;
     vfio_manage_messages_t tx_buffer = {0};
     vfio_open_device_reply_fds_t vfio_fds =
     {
@@ -638,9 +732,21 @@ static void process_open_device_request (vfio_manager_context_t *const context, 
         /* The VFIO device is known to the manager */
         if (device->device_fd < 0)
         {
+            /* Ensure the IOMMU groups have a container set, which can happen when re-opening a device */
+            tx_buffer.open_device_reply.success = true;
+            for (group_index = 0;
+                 tx_buffer.open_device_reply.success && (group_index < device->group->container->num_iommu_groups);
+                 group_index++)
+            {
+                tx_buffer.open_device_reply.success = vfio_ensure_iommu_container_set_for_group (device->group);
+            }
+
             /* The VFIO device is not already open. Need to open it, using the dma_capability requested by the client */
-            device->dma_capability = request->dma_capability;
-            tx_buffer.open_device_reply.success = open_vfio_device_fd (device);
+            if (tx_buffer.open_device_reply.success)
+            {
+                device->dma_capability = request->dma_capability;
+                tx_buffer.open_device_reply.success = open_vfio_device_fd (device);
+            }
         }
         else
         {
@@ -664,7 +770,7 @@ static void process_open_device_request (vfio_manager_context_t *const context, 
             /* On success complete the reply and indicate the client is using the device */
             tx_buffer.open_device_reply.iommu_type = device->group->container->iommu_type;
             tx_buffer.open_device_reply.num_iommu_groups = device->group->container->num_iommu_groups;
-            for (uint32_t group_index = 0; group_index < device->group->container->num_iommu_groups; group_index++)
+            for (group_index = 0; group_index < device->group->container->num_iommu_groups; group_index++)
             {
                 snprintf (tx_buffer.open_device_reply.iommu_group_names[group_index],
                         sizeof (tx_buffer.open_device_reply.iommu_group_names[group_index]),
@@ -716,6 +822,8 @@ static void process_close_device_request (vfio_manager_context_t *const context,
             printf ("Request for client to close a device which the client isn't using\n");
         }
     }
+
+    disable_unused_containers (context);
 
     vfio_send_manage_message (context->client_socket_fds[client_index], &tx_buffer, NULL);
 }

@@ -115,6 +115,9 @@ typedef struct vfio_iommu_container_s
      * b. For VFIO_DEVICES_USAGE_INDIRECT_ACCESS this is index into the containers[] array on the manager.
      *    This client might not be use all possible containers. */
     uint32_t container_id;
+    /* When true the container is enabled by being set to at least one group. This is to allow the container and IOMMU to be
+     * disabled when no longer in use by any client and then re-enabled when needed by a client. */
+    bool container_enabled;
     /* The IOMMU type which is used for the VFIO container */
     __s32 iommu_type;
     /* When non-NULL contains the information about the IOMMU to support IOVA allocations */

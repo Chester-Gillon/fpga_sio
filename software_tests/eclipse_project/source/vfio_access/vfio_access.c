@@ -1131,6 +1131,8 @@ static bool get_type1_iommu_capabilities (vfio_iommu_container_t *const containe
     int rc;
     struct vfio_iommu_type1_info iommu_info_get_size;
 
+    container->num_iova_regions = 0;
+
     /* Determine the size required to get the capabilities for the IOMMU.
      * This updates the argsz to indicate how much space is required. */
     memset (&iommu_info_get_size, 0, sizeof iommu_info_get_size);
@@ -1278,6 +1280,7 @@ static vfio_iommu_container_t *vfio_iommu_create_container (vfio_devices_t *cons
     container->iova_regions_allocated_length = 0;
     container->iova_regions = NULL;
     container->vfio_devices = vfio_devices;
+    container->container_enabled = false;
 
     /* Sanity check that the VFIO container path exists, and the user has access */
     errno = 0;
@@ -1342,6 +1345,70 @@ static vfio_iommu_container_t *vfio_iommu_create_container (vfio_devices_t *cons
     vfio_devices->num_containers++;
 
     return container;
+}
+
+
+/**
+ * @brief Ensure an IOMMU container is set for a group. This will also enable the IOMMU container before first use
+ * @param[in/out] group The IOMMU group to enable a container for
+ * @return true Returns true on success, and false on failure
+ */
+bool vfio_ensure_iommu_container_set_for_group (vfio_iommu_group_t *const group)
+{
+    int rc;
+
+    /* Get the status of the group and check that viable */
+    memset (&group->group_status, 0, sizeof (group->group_status));
+    group->group_status.argsz = sizeof (group->group_status);
+    rc = ioctl (group->group_fd, VFIO_GROUP_GET_STATUS, &group->group_status);
+    if (rc != 0)
+    {
+        printf ("FIO_GROUP_GET_STATUS failed : %s\n", strerror (-rc));
+        return false;
+    }
+
+    if ((group->group_status.flags & VFIO_GROUP_FLAGS_VIABLE) == 0)
+    {
+        printf ("group is not viable (ie, not all devices bound for vfio)\n");
+        return false;
+    }
+
+    /* Need to add the group to its container before further IOCTLs are possible */
+    if ((group->group_status.flags & VFIO_GROUP_FLAGS_CONTAINER_SET) == 0)
+    {
+        rc = ioctl (group->group_fd, VFIO_GROUP_SET_CONTAINER, &group->container->container_fd);
+        if (rc != 0)
+        {
+            printf ("VFIO_GROUP_SET_CONTAINER failed : %s\n", strerror (-rc));
+            return false;
+        }
+    }
+
+    /* Enable the IOMMU in the container before use */
+    if (!group->container->container_enabled)
+    {
+        /* Set the IOMMU type used for the container, to enable the IOMMU interfaces */
+        rc = ioctl (group->container->container_fd, VFIO_SET_IOMMU, group->container->iommu_type);
+        if (rc != 0)
+        {
+            printf ("  VFIO_SET_IOMMU failed : %s\n", strerror (-rc));
+            return false;
+        }
+
+        /* When using a type 1 IOMMU, get the capabilities */
+        group->container->iommu_info = NULL;
+        if (group->container->iommu_type == VFIO_TYPE1_IOMMU)
+        {
+            if (!get_type1_iommu_capabilities (group->container))
+            {
+                return false;
+            }
+        }
+
+        group->container->container_enabled = true;
+    }
+
+    return true;
 }
 
 
@@ -1457,55 +1524,10 @@ static vfio_iommu_group_t *vfio_open_iommu_group (vfio_iommu_container_t *const 
         return NULL;
     }
 
-    /* Get the status of the group and check that viable */
-    memset (&group->group_status, 0, sizeof (group->group_status));
-    group->group_status.argsz = sizeof (group->group_status);
-    rc = ioctl (group->group_fd, VFIO_GROUP_GET_STATUS, &group->group_status);
-    if (rc != 0)
+    /* Set an IOMMU container to make the IOMMU interfaces available */
+    if (!vfio_ensure_iommu_container_set_for_group (group))
     {
-        printf ("FIO_GROUP_GET_STATUS failed : %s\n", strerror (-rc));
         return NULL;
-    }
-
-    if ((group->group_status.flags & VFIO_GROUP_FLAGS_VIABLE) == 0)
-    {
-        printf ("group is not viable (ie, not all devices bound for vfio)\n");
-        return NULL;
-    }
-
-    /* Need to add the group to a container before further IOCTLs are possible */
-    if ((group->group_status.flags & VFIO_GROUP_FLAGS_CONTAINER_SET) == 0)
-    {
-        rc = ioctl (group->group_fd, VFIO_GROUP_SET_CONTAINER, &group->container->container_fd);
-        if (rc != 0)
-        {
-            printf ("VFIO_GROUP_SET_CONTAINER failed : %s\n", strerror (-rc));
-            return NULL;
-        }
-    }
-
-    /* Set the IOMMU type used for the container, before opening the first IOMMU group */
-    if (group->container->num_iommu_groups == 0)
-    {
-        rc = ioctl (group->container->container_fd, VFIO_SET_IOMMU, group->container->iommu_type);
-        if (rc != 0)
-        {
-            printf ("  VFIO_SET_IOMMU failed : %s\n", strerror (-rc));
-            return NULL;
-        }
-    }
-
-    if (group->container->num_iommu_groups == 0)
-    {
-        /* When using a type 1 IOMMU, get the capabilities */
-        group->container->iommu_info = NULL;
-        if (group->container->iommu_type == VFIO_TYPE1_IOMMU)
-        {
-            if (!get_type1_iommu_capabilities (group->container))
-            {
-                exit (EXIT_FAILURE);
-            }
-        }
     }
 
     group->container->num_iommu_groups++;
@@ -1692,6 +1714,7 @@ static bool open_vfio_device_with_indirect_access (vfio_devices_t *const vfio_de
             container->container_id = rx_buffer.open_device_reply.container_id;
             container->container_fd = vfio_fds.container_fd;
             container->num_iommu_groups = rx_buffer.open_device_reply.num_iommu_groups;
+            container->container_enabled = false;
             for (uint32_t group_index = 0; group_index < container->num_iommu_groups; group_index++)
             {
                 vfio_iommu_group_t *const group = &container->iommu_groups[group_index];
