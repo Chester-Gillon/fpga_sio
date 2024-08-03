@@ -924,6 +924,35 @@ static void process_free_iova_request (vfio_manager_context_t *const context, co
     vfio_send_manage_message (context->client_socket_fds[client_index], &tx_buffer, NULL);
 }
 
+/**
+ * @brief Process a request from a client to obtain exclusive access to VFIO
+ * @details This only returns when the client has completed the exclusive access, which is what means the manager
+ *          doesn't attempt to service any other clients during the interval of exclusive access.
+ * @param[in/out] context The manager context. Is only changed if have to close the client connection if the client
+ *                        crashes during the exclusive access.
+ * @param[in] client_index Identifies which client sent the request
+ */
+static void process_exclusive_access_request (vfio_manager_context_t *const context, const uint32_t client_index)
+{
+    vfio_manage_messages_t tx_buffer = {0};
+    vfio_manage_messages_t rx_buffer;
+    bool valid_message;
+
+    /* Tell the client it has exclusive access */
+    tx_buffer.msg_id = VFIO_MANAGE_MSG_ID_EXCLUSIVE_ACCESS_ALLOWED;
+    vfio_send_manage_message (context->client_socket_fds[client_index], &tx_buffer, NULL);
+
+    /* Block waiting for the client to indicate it has completed the exclusive access.
+     * While waiting the manager won't attempt to process messages from other clients. */
+    valid_message = vfio_receive_manage_message (context->client_socket_fds[client_index], &rx_buffer, NULL) &&
+            (rx_buffer.msg_id == VFIO_MANAGE_MSG_ID_EXCLUSIVE_ACCESS_COMPLETED);
+    if (!valid_message)
+    {
+        /* The client sent an unexpected message, or has crashed */
+        close_client_connection (context, client_index);
+    }
+}
+
 
 /**
  * @brief The run loop for the VFIO manager
@@ -1007,6 +1036,10 @@ static void run_vfio_manager (vfio_manager_context_t *const context)
 
                             case VFIO_MANAGE_MSG_ID_FREE_IOVA_REQUEST:
                                 process_free_iova_request (context, client_index, &rx_buffer.free_iova_request);
+                                break;
+
+                            case VFIO_MANAGE_MSG_ID_EXCLUSIVE_ACCESS_REQUEST:
+                                process_exclusive_access_request (context, client_index);
                                 break;
 
                             default:

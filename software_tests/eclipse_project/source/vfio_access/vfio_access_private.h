@@ -47,7 +47,13 @@ typedef enum
     /* A request from a client to free an IOVA region */
     VFIO_MANAGE_MSG_ID_FREE_IOVA_REQUEST,
     /* The response from the manager for a VFIO_MANAGE_MSG_ID_FREE_IOVA_REQUEST */
-    VFIO_MANAGE_MSG_ID_FREE_IOVA_REPLY
+    VFIO_MANAGE_MSG_ID_FREE_IOVA_REPLY,
+    /* Message ID only from client to request exclusive access */
+    VFIO_MANAGE_MSG_ID_EXCLUSIVE_ACCESS_REQUEST,
+    /* Message ID only from manager to client that exclusive access is allowed */
+    VFIO_MANAGE_MSG_ID_EXCLUSIVE_ACCESS_ALLOWED,
+    /* Message ID only sent from client to indicate the exclusive access has been completed */
+    VFIO_MANAGE_MSG_ID_EXCLUSIVE_ACCESS_COMPLETED
 } vfio_manager_msg_id_t;
 
 

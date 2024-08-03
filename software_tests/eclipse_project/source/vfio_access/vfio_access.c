@@ -508,6 +508,14 @@ bool vfio_receive_manage_message (const int socket_fd, vfio_manage_messages_t *c
            valid_message = num_rx_data_bytes == sizeof (vfio_free_iova_reply_t);
            break;
 
+
+       case VFIO_MANAGE_MSG_ID_EXCLUSIVE_ACCESS_REQUEST:
+       case VFIO_MANAGE_MSG_ID_EXCLUSIVE_ACCESS_ALLOWED:
+       case VFIO_MANAGE_MSG_ID_EXCLUSIVE_ACCESS_COMPLETED:
+           /* These messages only contain a message identity field */
+           valid_message = num_rx_data_bytes == sizeof (rx_buffer->msg_id);
+           break;
+
        default:
            valid_message = false;
        }
@@ -600,6 +608,13 @@ void vfio_send_manage_message (const int socket_fd, vfio_manage_messages_t *cons
     case VFIO_MANAGE_MSG_ID_FREE_IOVA_REPLY:
         tx_iovec[0].iov_len = sizeof (vfio_free_iova_reply_t);
         break;
+
+    case VFIO_MANAGE_MSG_ID_EXCLUSIVE_ACCESS_REQUEST:
+    case VFIO_MANAGE_MSG_ID_EXCLUSIVE_ACCESS_ALLOWED:
+    case VFIO_MANAGE_MSG_ID_EXCLUSIVE_ACCESS_COMPLETED:
+        /* These messages only contain a message identity field */
+        tx_iovec[0].iov_len = sizeof (tx_buffer->msg_id);
+        break;
     }
     tx_msg.msg_iov = tx_iovec;
     tx_msg.msg_iovlen = 1;
@@ -637,6 +652,47 @@ void vfio_send_manage_message (const int socket_fd, vfio_manage_messages_t *cons
     if (num_tx_data_bytes != tx_iovec[0].iov_len)
     {
         printf ("sendmsg() only sent %zd out of %zu bytes : %s\n", num_tx_data_bytes, tx_iovec[0].iov_len, strerror (saved_errno));
+    }
+}
+
+
+/**
+ * @brief When a client is performing indirect VFIO access obtain exclusive access
+ * @details This is for VFIO driver operations which might fail due to a race condition where multiple processes operate
+ *          on the same VFIO device "in parallel".
+ * @param[in/out] vfio_devices The context for vfio devices which are being opened
+ */
+static void vfio_obtain_exclusive_access (vfio_devices_t *const vfio_devices)
+{
+    vfio_manage_messages_t tx_buffer;
+    vfio_manage_messages_t rx_buffer;
+
+    if (vfio_devices->devices_usage == VFIO_DEVICES_USAGE_INDIRECT_ACCESS)
+    {
+        /* Request exclusive access */
+        tx_buffer.msg_id = VFIO_MANAGE_MSG_ID_EXCLUSIVE_ACCESS_REQUEST;
+        vfio_send_manage_message (vfio_devices->manager_client_socket_fd, &tx_buffer, NULL);
+
+        /* Wait for the reply which indicates exclusive access is allowed */
+        vfio_receive_manage_reply (vfio_devices->manager_client_socket_fd, &rx_buffer, NULL,
+                VFIO_MANAGE_MSG_ID_EXCLUSIVE_ACCESS_ALLOWED);
+    }
+}
+
+
+/**
+ * @brief Release the exclusive access obtained by a previous call to vfio_obtain_exclusive_access()
+ * @param[in/out] vfio_devices The context for vfio devices which are being opened
+ */
+static void vfio_release_exclusive_access (vfio_devices_t *const vfio_devices)
+{
+    vfio_manage_messages_t tx_buffer;
+
+    if (vfio_devices->devices_usage == VFIO_DEVICES_USAGE_INDIRECT_ACCESS)
+    {
+        /* Send a message indicating the exclusive access has completed. There is no reply */
+        tx_buffer.msg_id = VFIO_MANAGE_MSG_ID_EXCLUSIVE_ACCESS_COMPLETED;
+        vfio_send_manage_message (vfio_devices->manager_client_socket_fd, &tx_buffer, NULL);
     }
 }
 
@@ -695,8 +751,23 @@ void map_vfio_device_bar_before_use (vfio_device_t *const vfio_device, const uin
 
         if ((region_info->size > 0) && ((region_info->flags & VFIO_REGION_INFO_FLAG_MMAP) != 0))
         {
-            /* Map the entire BAR */
+            /* Map the entire BAR.
+             *
+             * The mmap() call is performed as an exclusive access to VFIO by this client since as of Kernel
+             * 4.18.0-553.8.1.el8_10.x86_64 without that mmap() could sometimes fail with an errno of EBUSY.
+             *
+             * The race condition was that mmap() calls from processes for the same BAR performed "in parallel" could
+             * cause the vfio_pci_mmap() function in the vfio-pci driver to call pci_request_selected_regions() more than
+             * once for the same BAR. Where the 2nd and subsequent calls to pci_request_selected_regions() would fail
+             * resulting in mmap() failing with EBUSY.
+             *
+             * The vfio-pci driver has vdev->barmap[] state for each device which is only supposed to call
+             * pci_request_selected_regions() once for each BAR for an opened device. The race-condition is that the
+             * vdev->barmap[] state doesn't appear to be protected by a mutex in the driver, and allows a 2nd mmap()
+             * call to try and map a BAR when a 1st mmap() call is part way through. */
+            vfio_obtain_exclusive_access (vfio_device->group->container->vfio_devices);
             addr = mmap (NULL, region_info->size, PROT_READ | PROT_WRITE, MAP_SHARED, vfio_device->device_fd, (off_t) region_info->offset);
+            vfio_release_exclusive_access (vfio_device->group->container->vfio_devices);
             if (addr == MAP_FAILED)
             {
                 printf ("mmap() failed : %s\n", strerror (errno));

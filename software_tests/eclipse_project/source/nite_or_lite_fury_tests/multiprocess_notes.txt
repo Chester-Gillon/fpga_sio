@@ -1275,3 +1275,75 @@ Results across multiple runs using the coverage platform and the dma_blkram and 
 10: 2 "mmap() failed : Device or resource busy"
     [Aug 3 09:52] vfio-pci 0000:30:00.0: BAR 0: can't reserve [mem 0x38ffff100000-0x38ffff11ffff 64bit pref]
     [  +0.000003] vfio-pci 0000:30:00.0: BAR 0: can't reserve [mem 0x38ffff100000-0x38ffff11ffff 64bit pref]
+
+
+6.2. Source of "can't reserve" warning in dmesg
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This based upon the contents of installing kernel-debuginfo for the running Kernel 4.18.0-553.8.1.el8_10.x86_64
+
+Searching the Kernel source for "can't reserve" the only match is in drivers/pci/pci.c in the
+__pci_request_region function:
+err_out:
+    pci_warn(pdev, "BAR %d: can't reserve %pR\n", bar,
+         &pdev->resource[bar]);
+    return -EBUSY;
+
+This error occurs when __request_mem_region() reports a failure.
+
+This has the EBUSY errno which gets reported by mmap()
+
+Tracing the probably call chain:
+  drivers/vfio/pci/vfio_pci.c:vfio_pci_mmap()
+    drivers/pci/pci.c:pci_request_selected_regions()
+      drivers/pci/pci.c:__pci_request_selected_regions()
+        drivers/pci/pci.c:__pci_request_region()
+
+vfio_pci_mmap() only sets a single bar in the bars bitmask passed to pci_request_selected_regions()
+
+The vfio_pci_device structure has the following array which is used to only attempt to reserve each bar once:
+    void __iomem        *barmap[PCI_STD_NUM_BARS];
+
+With the following block in vfio_pci_mmap():
+    /*
+     * Even though we don't make use of the barmap for the mmap,
+     * we need to request the region and the barmap tracks that.
+     */
+    if (!vdev->barmap[index]) {
+        ret = pci_request_selected_regions(pdev,
+                           1 << index, "vfio-pci");
+        if (ret)
+            return ret;
+
+        vdev->barmap[index] = pci_iomap(pdev, index, 0);
+        if (!vdev->barmap[index]) {
+            pci_release_selected_regions(pdev, 1 << index);
+            return -ENOMEM;
+        }
+    }
+
+vfio_pci_disable() in vfio_pci.c calls pci_release_selected_regions() for barmap[] entry with a non-NULL value.
+I.e. the BARs on the device which have been mapped. The PCI regions for the BARs are only released just before
+the PCI device is disabled, and therefore won't be triggered when munmap() is called on a BAR.
+
+From the documentation in https://www.kernel.org/doc/html/next/driver-api/pci/pci.html pci_request_selected_regions()
+is designed to give only one driver access to a range of physical PCI addresses.
+
+The race condition with the vfio-pci driver for multiple mmap() calls to the same BAR could be explained by:
+1. The device is opened, and the barmap[] entry is NULL.
+2. The 1st process calls mmap(). The vfio-pci driver completes the pci_request_selected_regions() call and enters pci_iomap()
+   At this point the barmap[] entry remains NULL.
+3. The 2nd process calls mmap() for the same BAR. The barmap[] entry is NULL, so pci_request_selected_regions() is called
+   again for the same BAR. pci_request_selected_regions() returns NULL since the region is already in use by the vfio-pci
+   driver. This results in the mmap() call in the 2nd process failing with EBUSY.
+4. The pci_iomap() completes for the 1st process. barmap[] is set to a non-NULL value. This means mmap() calls from futher
+   processes will no longer attempt to call pci_request_selected_regions()
+
+6.3. Exclusive VFIO access has stopped the failures
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The vfio_access library was changed so that in multi-process mode the each client obtains exclusive access to VFIO,
+via communication with the manager, before the client call mmap() to map a BAR. Following that change repeated the
+above test 10 times with no failures.
+
+TBD if other interfaces to the vfio-pci driver used by the vfio_access library could have similar race conditions.
