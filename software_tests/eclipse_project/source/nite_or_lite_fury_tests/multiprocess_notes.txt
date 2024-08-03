@@ -1235,3 +1235,43 @@ f. Noticed that when mmap() fails an error is reported in dmesg. Seen either:
 
    Where those are the physical addesses allocated to BARs which are trying to be mapped.
    Can't remember checking dmesg which first noticed mmap() fail with EBUSY during multi-process development.
+
+
+6.1. test_multi_process_vfio.sh results
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The test_multi_process_vfio.sh script was created to run 5 different VFIO test programs in parallel.
+
+Results across multiple runs using the coverage platform and the dma_blkram and Nitefury Project-0 FPGA images:
+1: 1 "mmap() failed : Device or resource busy"
+   [Aug 3 09:33] vfio-pci 0000:30:00.0: BAR 0: can't reserve [mem 0x38ffff100000-0x38ffff11ffff 64bit pref]
+
+2: 2 "mmap() failed : Device or resource busy"
+   [Aug 3 09:43] vfio-pci 0000:30:00.0: BAR 0: can't reserve [mem 0x38ffff100000-0x38ffff11ffff 64bit pref]
+   [  +0.000001] vfio-pci 0000:30:00.0: BAR 0: can't reserve [mem 0x38ffff100000-0x38ffff11ffff 64bit pref]
+
+3: 1 "mmap() failed : Device or resource busy"
+   [Aug 3 09:45] vfio-pci 0000:30:00.0: BAR 0: can't reserve [mem 0x38ffff100000-0x38ffff11ffff 64bit pref]
+
+4: No failures
+
+5: 1 "mmap() failed : Device or resource busy"
+   [Aug 3 09:46] vfio-pci 0000:15:00.0: BAR 0: can't reserve [mem 0x96800000-0x9680ffff 64bit]
+
+6: 2 "mmap() failed : Device or resource busy"
+   [Aug 3 09:47] vfio-pci 0000:30:00.0: BAR 0: can't reserve [mem 0x38ffff100000-0x38ffff11ffff 64bit pref]
+   [  +0.000003] vfio-pci 0000:30:00.0: BAR 0: can't reserve [mem 0x38ffff100000-0x38ffff11ffff 64bit pref]
+
+7: 2 "mmap() failed : Device or resource busy"
+   [Aug 3 09:48] vfio-pci 0000:30:00.0: BAR 0: can't reserve [mem 0x38ffff100000-0x38ffff11ffff 64bit pref]
+   [  +0.000003] vfio-pci 0000:30:00.0: BAR 0: can't reserve [mem 0x38ffff100000-0x38ffff11ffff 64bit pref]
+
+8: 2 "mmap() failed : Device or resource busy"
+   [Aug 3 09:49] vfio-pci 0000:30:00.0: BAR 0: can't reserve [mem 0x38ffff100000-0x38ffff11ffff 64bit pref]
+   [  +0.000201] vfio-pci 0000:15:00.0: BAR 0: can't reserve [mem 0x96800000-0x9680ffff 64bit]
+
+9: No failures
+
+10: 2 "mmap() failed : Device or resource busy"
+    [Aug 3 09:52] vfio-pci 0000:30:00.0: BAR 0: can't reserve [mem 0x38ffff100000-0x38ffff11ffff 64bit pref]
+    [  +0.000003] vfio-pci 0000:30:00.0: BAR 0: can't reserve [mem 0x38ffff100000-0x38ffff11ffff 64bit pref]

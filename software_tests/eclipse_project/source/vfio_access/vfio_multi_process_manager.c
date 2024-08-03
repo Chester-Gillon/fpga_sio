@@ -44,6 +44,7 @@ static const struct option command_line_options[] =
 {
     {"isolate_iommu_groups", no_argument, NULL, 0},
     {"once", no_argument, NULL, 0},
+    {"daemon", no_argument, NULL, 0},
     {NULL, 0, NULL, 0}
 };
 
@@ -74,8 +75,12 @@ typedef struct
 } vfio_manager_context_t;
 
 
-/* Command line argument which specified to shutdown the first time the number of connected clients drops to zero */
+/* Command line argument which specifies to shutdown the first time the number of connected clients drops to zero */
 static bool arg_once;
+
+
+/* Command line argument which specifies to run the manager as a daemon */
+static bool arg_run_as_daemon;
 
 
 /* Set from a signal handle to record a request to shutdown the manager */
@@ -102,6 +107,10 @@ static void display_usage (void)
     printf ("  Causes each IOMMU group to use it's own container\n");
     printf ("--once\n");
     printf ("  Shutdown the first time the number of connected clients drop to zero\n");
+    printf ("--daemon\n");
+    printf ("  Run in the background as a daemon. The manager initialisation completes\n");
+    printf ("  before the daemon in spawned, so by the time returns the manager is ready\n");
+    printf ("  to accept clients.\n");
 
     exit (EXIT_FAILURE);
 }
@@ -139,6 +148,10 @@ static void parse_command_line_arguments (int argc, char *argv[])
             else if (strcmp (optdef->name, "once") == 0)
             {
                 arg_once = true;
+            }
+            else if (strcmp (optdef->name, "daemon") == 0)
+            {
+                arg_run_as_daemon = true;
             }
             else
             {
@@ -1100,11 +1113,32 @@ int main (int argc, char *argv[])
 {
     vfio_manager_context_t context;
     bool success;
+    int rc;
 
     parse_command_line_arguments (argc, argv);
     success = initialise_vfio_manager (&context);
     if (success)
     {
+        if (arg_run_as_daemon)
+        {
+            /* When requested by a command line argument, now that the manager has successfully initialised
+             * run the manager as a daemon.
+             *
+             * The daemon respects the once command line argument or SIGINT to request a shutdown.
+             * There is no SIGHUP handler as no configuration file to re-load. */
+            const int nochdir = 0;
+            const int noclose = 1;
+            rc = daemon (nochdir, noclose);
+            if (rc != 0)
+            {
+                if (rc != 0)
+                {
+                    printf ("daemon() failed\n");
+                    exit (EXIT_FAILURE);
+                }
+            }
+        }
+
         /* Install signal handler, used to request the manager is shutdown */
         install_shutdown_signal_handler (&context);
         run_vfio_manager (&context);
