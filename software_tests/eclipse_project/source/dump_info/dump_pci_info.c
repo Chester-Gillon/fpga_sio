@@ -5,7 +5,8 @@
  */
 
 #include <stdlib.h>
-#include <strings.h>
+#include <string.h>
+#include <inttypes.h>
 #include <stdio.h>
 
 #include "generic_pci_access.h"
@@ -29,20 +30,6 @@
 static inline void display_flag (const char *const field_name, const uint32_t register_value, const uint32_t field_mask)
 {
     printf (" %s%s", field_name, ((register_value & field_mask) != 0) ? "+" : "-");
-}
-
-
-/**
- * @brief Extract a field which spans multiple consecutive bits
- * @param[in] register_value The register containing the field
- * @param[in] field_mask The mask for the field to extract
- * @return The extracted field value, shifted to the least significant bits
- */
-static inline uint32_t extract_field (const uint32_t register_value, const uint32_t field_mask)
-{
-    const int field_shift = ffs ((int) field_mask) - 1; /* ffs returns the least significant bit as zero */
-
-    return (register_value & field_mask) >> field_shift;
 }
 
 
@@ -88,8 +75,8 @@ static void display_enumeration (const size_t enums_array_size, const char *cons
 static void display_slot_power_limit (const uint32_t register_value,
                                       const uint32_t power_value_mask, const uint32_t power_scale_mask)
 {
-    const uint32_t slot_power_limit_value = extract_field (register_value, power_value_mask);
-    const uint32_t slot_power_limit_scale = extract_field (register_value, power_scale_mask);
+    const uint32_t slot_power_limit_value = generic_pci_access_extract_field (register_value, power_value_mask);
+    const uint32_t slot_power_limit_scale = generic_pci_access_extract_field (register_value, power_scale_mask);
 
     const double slot_power_limit_scales[] =
     {
@@ -158,20 +145,20 @@ static bool display_pci_express_capabilities (const uint32_t indent_level, gener
 
     if (success)
     {
-        const uint32_t capability_version = extract_field (flags, PCI_EXP_FLAGS_VERS);
-        const uint32_t device_port_type = extract_field (flags, PCI_EXP_FLAGS_TYPE);
-        const uint32_t interrupt_message_number =  extract_field (flags, PCI_EXP_FLAGS_IRQ);
+        const uint32_t capability_version = generic_pci_access_extract_field (flags, PCI_EXP_FLAGS_VERS);
+        const uint32_t device_port_type = generic_pci_access_extract_field (flags, PCI_EXP_FLAGS_TYPE);
+        const uint32_t interrupt_message_number =  generic_pci_access_extract_field (flags, PCI_EXP_FLAGS_IRQ);
         const bool slot_implemented = (flags & PCI_EXP_FLAGS_SLOT) != 0;
 
-        const uint32_t max_link_speed = extract_field (link_capabilities, PCI_EXP_LNKCAP_SPEED);
-        const uint32_t max_link_width = extract_field (link_capabilities, PCI_EXP_LNKCAP_WIDTH);
+        const uint32_t max_link_speed = generic_pci_access_extract_field (link_capabilities, PCI_EXP_LNKCAP_SPEED);
+        const uint32_t max_link_width = generic_pci_access_extract_field (link_capabilities, PCI_EXP_LNKCAP_WIDTH);
 
-        const uint32_t negotiated_link_speed = extract_field (link_status, PCI_EXP_LNKSTA_SPEED);
-        const uint32_t negotiated_link_width = extract_field (link_status, PCI_EXP_LNKSTA_WIDTH);
+        const uint32_t negotiated_link_speed = generic_pci_access_extract_field (link_status, PCI_EXP_LNKSTA_SPEED);
+        const uint32_t negotiated_link_width = generic_pci_access_extract_field (link_status, PCI_EXP_LNKSTA_WIDTH);
 
-        const uint32_t supported_link_speeds = extract_field (link_capabilities2, PCI_EXP_LNKCAP2_SUPPORTED_SPEEDS);
+        const uint32_t supported_link_speeds = generic_pci_access_extract_field (link_capabilities2, PCI_EXP_LNKCAP2_SUPPORTED_SPEEDS);
 
-        const uint32_t physical_slot_number = extract_field (slot_capabilities, PCI_EXP_SLTCAP_PSN);
+        const uint32_t physical_slot_number = generic_pci_access_extract_field (slot_capabilities, PCI_EXP_SLTCAP_PSN);
 
         const char *const device_port_type_names[] =
         {
@@ -319,14 +306,14 @@ static bool display_pci_express_capabilities (const uint32_t indent_level, gener
         printf ("    DevCap:");
         printf (" MaxPayload ");
         display_enumeration (NELEMENTS (max_payload_size_names), max_payload_size_names,
-                extract_field (device_capabilities, PCI_EXP_DEVCAP_PAYLOAD));
-        printf (" PhantFunc %u", extract_field (device_capabilities, PCI_EXP_DEVCAP_PHANTOM));
+                generic_pci_access_extract_field (device_capabilities, PCI_EXP_DEVCAP_PAYLOAD));
+        printf (" PhantFunc %u", generic_pci_access_extract_field (device_capabilities, PCI_EXP_DEVCAP_PHANTOM));
         printf (" Latency L0s ");
         display_enumeration (NELEMENTS (endpoint_l0s_acceptable_latency_names), endpoint_l0s_acceptable_latency_names,
-                extract_field (device_capabilities, PCI_EXP_DEVCAP_L0S));
+                generic_pci_access_extract_field (device_capabilities, PCI_EXP_DEVCAP_L0S));
         printf (" L1 ");
         display_enumeration (NELEMENTS (endpoint_l1_acceptable_latency_names), endpoint_l1_acceptable_latency_names,
-                extract_field (device_capabilities, PCI_EXP_DEVCAP_L1));
+                generic_pci_access_extract_field (device_capabilities, PCI_EXP_DEVCAP_L1));
         printf ("\n");
         display_indent (indent_level);
         printf ("           ");
@@ -371,19 +358,19 @@ static bool display_pci_express_capabilities (const uint32_t indent_level, gener
         /* Display link capabilities (excluding width and speed displayed above) */
         display_indent (indent_level);
         printf ("    LnkCap:");
-        printf (" Port # %u", extract_field (link_capabilities, PCI_EXP_LNKCAP_PN));
+        printf (" Port # %u", generic_pci_access_extract_field (link_capabilities, PCI_EXP_LNKCAP_PN));
         printf (" ASPM ");
-        display_enumeration (NELEMENTS (aspm_names), aspm_names, extract_field (link_capabilities, PCI_EXP_LNKCAP_ASPMS));
+        display_enumeration (NELEMENTS (aspm_names), aspm_names, generic_pci_access_extract_field (link_capabilities, PCI_EXP_LNKCAP_ASPMS));
         printf ("\n");
         display_indent (indent_level);
         printf ("            L0s Exit Latency ");
         display_enumeration (NELEMENTS (l0s_exit_latency_names), l0s_exit_latency_names,
-                extract_field (link_capabilities, PCI_EXP_LNKCAP_L0SEL));
+                generic_pci_access_extract_field (link_capabilities, PCI_EXP_LNKCAP_L0SEL));
         printf ("\n");
         display_indent (indent_level);
         printf ("            L1 Exit Latency ");
         display_enumeration (NELEMENTS (l1_exit_latency_names), l1_exit_latency_names,
-                extract_field (link_capabilities, PCI_EXP_LNKCAP_L1EL));
+                generic_pci_access_extract_field (link_capabilities, PCI_EXP_LNKCAP_L1EL));
         printf ("\n");
         display_indent (indent_level);
         printf ("           ");
@@ -403,7 +390,7 @@ static bool display_pci_express_capabilities (const uint32_t indent_level, gener
         printf ("    LnkCtl:");
         printf (" ASPM ");
         display_enumeration (NELEMENTS (aspm_control_names), aspm_control_names,
-                extract_field (link_control, PCI_EXP_LNKCTL_ASPMC));
+                generic_pci_access_extract_field (link_control, PCI_EXP_LNKCTL_ASPMC));
         printf (" RCB %u bytes", (link_control & PCI_EXP_LNKCTL_RCB) != 0 ? 128 : 64);
         display_flag ("Disabled", link_control, PCI_EXP_LNKCTL_LD);
         display_flag ("CommClk", link_control, PCI_EXP_LNKCTL_CCC);
@@ -648,21 +635,15 @@ static void display_pci_device (generic_pci_access_device_p const device, const 
 
 
 /**
- * @brief Display information about all PCI devices which match an identity
+ * @brief Display information about all PCI devices which match a filter
  * @param[in] access_context The PCI access context to use.
- * @param[in] vendor_id The vendor identity to match, or GENERIC_PCI_MATCH_ANY
- * @param[in] device_id The device identity to match, or GENERIC_PCI_MATCH_ANY
+ * @param[in] filter The filter used to find matching PCI devices
  */
-static void display_pci_devices_by_id (generic_pci_access_context_p const access_context,
-                                       const uint32_t vendor_id, const uint32_t device_id)
+static void display_pci_devices_by_filter (generic_pci_access_context_p const access_context,
+                                           const generic_pci_access_filter_t *const filter)
 {
-    const generic_pci_access_filter_t filter =
-    {
-        .vendor_id = vendor_id,
-        .device_id = device_id
-    };
 
-    generic_pci_access_iterator_p const device_iterator = generic_pci_access_iterator_create (access_context, &filter);
+    generic_pci_access_iterator_p const device_iterator = generic_pci_access_iterator_create (access_context, filter);
     generic_pci_access_device_p device;
     generic_pci_access_device_p parent_bridge;
     uint32_t indent_level;
@@ -695,26 +676,39 @@ static void display_pci_devices_by_id (generic_pci_access_context_p const access
 
 int main (int argc, char *argv[])
 {
-    uint32_t vendor_id;
-    uint32_t device_id;
     char junk;
+    generic_pci_access_filter_t filter;
 
     generic_pci_access_context_p const access_context = generic_pci_access_initialise ();
 
     if (argc > 1)
     {
-        /* Each command line argument is the <vendor_id> or <vendor_id>:<device_id> of PCI devices to display information for */
+        /* Each command line argument is one PCI device filter to display information for.
+         * Is a different series of hex values and delimiters:
+         *   <domain>:<bus>:<device>.<func> PCI bus location of device
+         *   <vendor_id>:<device_id>        Vendor and devices IDs
+         *   <vendor_id>                    Vendor ID only */
         for (int arg_index = 1; arg_index < argc; arg_index++)
         {
             const char *const match_text = argv[arg_index];
 
-            if (sscanf (match_text, "%x:%x%c", &vendor_id, &device_id, &junk) == 2)
+            memset (&filter, 0, sizeof (filter));
+            if (sscanf (match_text, "%x:%" SCNx8 ":%" SCNx8 ".%" SCNx8 "%c",
+                    &filter.domain, &filter.bus, &filter.func, &filter.dev, &junk) == 4)
             {
-                display_pci_devices_by_id (access_context, vendor_id, device_id);
+                filter.filter_type = GENERIC_PCI_ACCESS_FILTER_LOCATION;
+                display_pci_devices_by_filter (access_context, &filter);
             }
-            else if (sscanf (match_text, "%x%c", &vendor_id, &junk) == 1)
+            else if (sscanf (match_text, "%x:%x%c", &filter.vendor_id, &filter.device_id, &junk) == 2)
             {
-                display_pci_devices_by_id (access_context, vendor_id, GENERIC_PCI_MATCH_ANY);
+                filter.filter_type = GENERIC_PCI_ACCESS_FILTER_ID;
+                display_pci_devices_by_filter (access_context, &filter);
+            }
+            else if (sscanf (match_text, "%x%c", &filter.vendor_id, &junk) == 1)
+            {
+                filter.filter_type = GENERIC_PCI_ACCESS_FILTER_ID;
+                filter.device_id = GENERIC_PCI_MATCH_ANY;
+                display_pci_devices_by_filter (access_context, &filter);
             }
             else
             {
@@ -726,7 +720,11 @@ int main (int argc, char *argv[])
     else
     {
         /* With no arguments display all Xilinx devices */
-        display_pci_devices_by_id (access_context, FPGA_SIO_VENDOR_ID, GENERIC_PCI_MATCH_ANY);
+        memset (&filter, 0, sizeof (filter));
+        filter.filter_type = GENERIC_PCI_ACCESS_FILTER_ID;
+        filter.vendor_id = FPGA_SIO_VENDOR_ID;
+        filter.device_id = GENERIC_PCI_MATCH_ANY;
+        display_pci_devices_by_filter (access_context, &filter);
     }
 
     generic_pci_access_finalise (access_context);
