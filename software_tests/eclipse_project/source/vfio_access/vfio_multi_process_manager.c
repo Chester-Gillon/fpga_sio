@@ -269,7 +269,7 @@ static bool initialise_vfio_manager (vfio_manager_context_t *const context)
                             {
                                 /* The device is initialised to not being DMA capable, may be changed when a client requests
                                  * the device is opened. */
-                                open_vfio_device (&context->vfio_devices, dev, VFIO_DEVICE_DMA_CAPABILITY_NONE);
+                                (void) open_vfio_device (&context->vfio_devices, dev, VFIO_DEVICE_DMA_CAPABILITY_NONE);
                             }
                         }
                     }

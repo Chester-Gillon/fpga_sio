@@ -14,6 +14,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <strings.h>
 
 
 /* Used to match any value in a PCI filter */
@@ -30,11 +31,30 @@ typedef struct generic_pci_access_iterator_s *generic_pci_access_iterator_p;
 /* Opaque PCI device which can be searched for using a filter */
 typedef struct generic_pci_access_device_s *generic_pci_access_device_p;
 
-/* Filter to match PCI devices. Any field can be be GENERIC_PCI_MATCH_ANY */
+
+/* The type of filter to match PCI devices */
+typedef enum
+{
+    /* Match using the device identity */
+    GENERIC_PCI_ACCESS_FILTER_ID,
+    /* Match using the device location on the PCI bus */
+    GENERIC_PCI_ACCESS_FILTER_LOCATION
+} generic_pci_access_filter_type_t;
+
+
+/* Filter to match PCI devices */
 typedef struct
 {
+    /* How the filter is applied */
+    generic_pci_access_filter_type_t filter_type;
+    /* Used for GENERIC_PCI_ACCESS_FILTER_ID. Either field can be be GENERIC_PCI_MATCH_ANY */
     uint32_t vendor_id;
     uint32_t device_id;
+    /* Used for GENERIC_PCI_ACCESS_FILTER_LOCATION */
+    uint32_t domain;
+    uint8_t bus;
+    uint8_t dev;
+    uint8_t func;
 } generic_pci_access_filter_t;
 
 /* The possible unsigned integer property values which can be obtained for a device */
@@ -78,6 +98,20 @@ typedef struct
 } generic_pci_access_mem_region_t;
 
 
+/**
+ * @brief Extract a field which spans multiple consecutive bits
+ * @param[in] register_value The register containing the field
+ * @param[in] field_mask The mask for the field to extract
+ * @return The extracted field value, shifted to the least significant bits
+ */
+static inline uint32_t generic_pci_access_extract_field (const uint32_t register_value, const uint32_t field_mask)
+{
+    const int field_shift = ffs ((int) field_mask) - 1; /* ffs returns the least significant bit as zero */
+
+    return (register_value & field_mask) >> field_shift;
+}
+
+
 generic_pci_access_context_p generic_pci_access_initialise (void);
 void generic_pci_access_finalise (generic_pci_access_context_p const context);
 generic_pci_access_iterator_p generic_pci_access_iterator_create (generic_pci_access_context_p const context,
@@ -92,6 +126,13 @@ bool generic_pci_access_cfg_read_u16 (generic_pci_access_device_p const generic_
                                       const uint32_t offset, uint16_t *const value);
 bool generic_pci_access_cfg_read_u32 (generic_pci_access_device_p const generic_device,
                                       const uint32_t offset, uint32_t *const value);
+
+bool generic_pci_access_cfg_write_u8 (generic_pci_access_device_p const generic_device,
+                                      const uint32_t offset, const uint8_t value);
+bool generic_pci_access_cfg_write_u16 (generic_pci_access_device_p const generic_device,
+                                       const uint32_t offset, const uint16_t value);
+bool generic_pci_access_cfg_write_u32 (generic_pci_access_device_p const generic_device,
+                                       const uint32_t offset, const uint32_t value);
 
 bool generic_pci_access_uint_property (generic_pci_access_device_p const generic_device,
                                        const generic_pci_access_device_uint_property_t property, uint32_t *const value);

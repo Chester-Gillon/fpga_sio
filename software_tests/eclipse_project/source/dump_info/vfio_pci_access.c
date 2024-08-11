@@ -26,6 +26,8 @@ typedef struct generic_pci_access_context_s
 /* Defines an iterator for finding matching PCI devices */
 typedef struct generic_pci_access_iterator_s
 {
+    /* Filter used to find matching PCI devices */
+    struct pci_filter filter;
     /* Contains the open VFIO devices which match the filter */
     vfio_devices_t vfio_devices;
     /* The number of opened devices in vfio_devices which have been returned by generic_pci_access_iterator_next().
@@ -60,27 +62,49 @@ void generic_pci_access_finalise (generic_pci_access_context_p const context)
 /**
  * @brief Create an iterator to find PCI devices matching a filter
  * @param[in/out] context The context to use for the iterator.
- * @param[in] filter
+ * @param[in] filter The filter used to find matching PCI devices
  */
 generic_pci_access_iterator_p generic_pci_access_iterator_create (generic_pci_access_context_p const context,
                                                                   const generic_pci_access_filter_t *const filter)
 {
     vfio_pci_access_iterator_t *const iterator = calloc (1, sizeof (*iterator));
 
-    /* Create a vifo_access filter which can filter on the vendor / and or device identity passed to this function.
-     * No DMA capability is specified, as this library doesn't perform DMA and therefore no need to enable bus master
-     * on the device. */
-    const vfio_pci_device_identity_filter_t vfio_device_filter =
+    initialise_empty_vfio_devices (&iterator->vfio_devices);
+
+    /* Initialise the filter used by pciutils */
+    pci_filter_init (iterator->vfio_devices.pacc, &iterator->filter);
+    switch (filter->filter_type)
     {
-        .vendor_id = (filter->vendor_id == GENERIC_PCI_MATCH_ANY) ? VFIO_PCI_DEVICE_FILTER_ANY : (int) filter->vendor_id,
-        .device_id = (filter->device_id == GENERIC_PCI_MATCH_ANY) ? VFIO_PCI_DEVICE_FILTER_ANY : (int) filter->device_id,
-        .subsystem_vendor_id = VFIO_PCI_DEVICE_FILTER_ANY,
-        .subsystem_device_id = VFIO_PCI_DEVICE_FILTER_ANY,
-        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE
-    };
+    case GENERIC_PCI_ACCESS_FILTER_ID:
+        if (filter->vendor_id != GENERIC_PCI_MATCH_ANY)
+        {
+            iterator->filter.vendor = (int) filter->vendor_id;
+        }
+        if (filter->vendor_id != GENERIC_PCI_MATCH_ANY)
+        {
+            iterator->filter.device = (int) filter->device_id;
+        }
+        break;
+
+    case GENERIC_PCI_ACCESS_FILTER_LOCATION:
+        iterator->filter.domain = (int) filter->domain;
+        iterator->filter.bus = filter->bus;
+        iterator->filter.slot = filter->dev;
+        iterator->filter.func = filter->func;
+        break;
+    }
 
     /* Open devices matching the filter using VFIO */
-    open_vfio_devices_matching_filter (&iterator->vfio_devices, 1, &vfio_device_filter);
+    struct pci_dev *current_device = iterator->vfio_devices.pacc->devices;
+    while (current_device != NULL)
+    {
+        if (pci_filter_match (&iterator->filter, current_device))
+        {
+            append_vfio_device (&iterator->vfio_devices, current_device, VFIO_DEVICE_DMA_CAPABILITY_NONE);
+        }
+
+        current_device = current_device->next;
+    }
 
     /* Indicate the iterator hasn't returned any matching devices yet */
     iterator->num_devices_returned = 0;
@@ -165,6 +189,40 @@ bool generic_pci_access_cfg_read_u32 (generic_pci_access_device_p const generic_
     vfio_device_t *const vfio_device = (vfio_device_t *) generic_device;
 
     return vfio_read_pci_config_u32 (vfio_device, offset, value);
+}
+
+
+/**
+ * @brief Write a 8-bit, 16-bit or 32-bit configuration value for a device
+ * @details The Kernel source file drivers/vfio/pci/vfio_pci_config.c may virtualise or deny write permission
+ *          to some configuration fields.
+ * @param[in/out] generic_device The device to perform the configuration write for.
+ * @param[in] offset The byte offset for the configuration value to write
+ * @param[out] value The configuration value to write.
+ * @return Returns true if the configuration value was written, or false if an error
+ */
+bool generic_pci_access_cfg_write_u8 (generic_pci_access_device_p const generic_device,
+                                      const uint32_t offset, const uint8_t value)
+{
+    vfio_device_t *const vfio_device = (vfio_device_t *) generic_device;
+
+    return vfio_write_pci_config_u8 (vfio_device, offset, value);
+}
+
+bool generic_pci_access_cfg_write_u16 (generic_pci_access_device_p const generic_device,
+                                       const uint32_t offset, const uint16_t value)
+{
+    vfio_device_t *const vfio_device = (vfio_device_t *) generic_device;
+
+    return vfio_write_pci_config_u16 (vfio_device, offset, value);
+}
+
+bool generic_pci_access_cfg_write_u32 (generic_pci_access_device_p const generic_device,
+                                       const uint32_t offset, const uint32_t value)
+{
+    vfio_device_t *const vfio_device = (vfio_device_t *) generic_device;
+
+    return vfio_write_pci_config_u32 (vfio_device, offset, value);
 }
 
 

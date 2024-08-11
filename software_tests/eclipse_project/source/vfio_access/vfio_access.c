@@ -1823,9 +1823,10 @@ static bool open_vfio_device_with_indirect_access (vfio_devices_t *const vfio_de
  * @param[in] pci_dev The PCI device to open using VFIO
  * @param[in] dma_capability Used by this function to determine if to enable the device as a bus master for DMA.
  *                           Stored for later use in allocation IOVA according to the addressing capabilities of the DMA engine.
+ * @return Returns a pointer to the opened device, or NULL if were unable to open the device
  */
-void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev,
-                       const vfio_device_dma_capability_t dma_capability)
+vfio_device_t *open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev,
+                                 const vfio_device_dma_capability_t dma_capability)
 {
     vfio_device_t *const new_device = &vfio_devices->devices[vfio_devices->num_devices];
 
@@ -1847,7 +1848,7 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
     if (iommu_group_name == NULL)
     {
         printf ("Skipping %s as no IOMMU group\n", new_device->device_description);
-        return;
+        return NULL;
     }
 
     /* Save PCI device identification */
@@ -1863,20 +1864,20 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
         if (new_device->group == NULL)
         {
             /* open_group_with_direct_access() has reported a diagnostic message why the IOMMU group couldn't be opened */
-            return;
+            return NULL;
         }
 
         if (!open_vfio_device_fd (new_device))
         {
             /* open_vfio_device_fd() has reported a diagnostic message why the device couldn't be opened */
-            return;
+            return NULL;
         }
         break;
 
     case VFIO_DEVICES_USAGE_INDIRECT_ACCESS:
         if (!open_vfio_device_with_indirect_access (vfio_devices, new_device, iommu_group_name))
         {
-            return;
+            return NULL;
         }
         break;
 
@@ -1885,7 +1886,7 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
         if (new_device->group == NULL)
         {
             /* open_group_with_direct_access() has reported a diagnostic message why the IOMMU group couldn't be opened */
-            return;
+            return NULL;
         }
 
         /* The VFIO device will be opened when the first client process requests access */
@@ -1895,6 +1896,7 @@ void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const
 
     /* Record device successfully opened */
     vfio_devices->num_devices++;
+    return new_device;
 }
 
 
@@ -1980,6 +1982,35 @@ static void vfio_detect_manager (vfio_devices_t *const vfio_devices)
 
 
 /**
+ * @brief Initialise a structure of VFIO devices to be initially empty
+ * @details This allows append_vfio_device() to be called later to open specific VFIO devices when required.
+ *          It performs the following initialisation which is common to all devices:
+ *          a. Detect if need to communicate with the VFIO manager.
+ *          n. Scans the PCI bus
+ * @param[out] vfio_devices The initialised list which contains no VFIO devices.
+ */
+void initialise_empty_vfio_devices (vfio_devices_t *const vfio_devices)
+{
+    memset (vfio_devices, 0, sizeof (*vfio_devices));
+    vfio_devices->num_containers = 0;
+    vfio_devices->cmem_usage = VFIO_CMEM_USAGE_NONE;
+    vfio_detect_manager (vfio_devices);
+
+    /* Initialise PCI access using the defaults */
+    vfio_devices->pacc = pci_alloc ();
+    if (vfio_devices->pacc == NULL)
+    {
+        fprintf (stderr, "pci_alloc() failed\n");
+        exit (EXIT_FAILURE);
+    }
+    pci_init (vfio_devices->pacc);
+
+    /* Scan the entire bus */
+    pci_scan_bus (vfio_devices->pacc);
+}
+
+
+/**
  * @brief Scan the PCI bus, attempting to open all devices using VFIO which match the filter.
  * @details If an error occurs attempting to open the VFIO device then a message is output to the console and the
  *          offending device isn't returned in vfio_devices.
@@ -2004,22 +2035,7 @@ void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
     bool pci_device_matches_location_filter;
     vfio_device_dma_capability_t dma_capability;
 
-    memset (vfio_devices, 0, sizeof (*vfio_devices));
-    vfio_devices->num_containers = 0;
-    vfio_devices->cmem_usage = VFIO_CMEM_USAGE_NONE;
-    vfio_detect_manager (vfio_devices);
-
-    /* Initialise PCI access using the defaults */
-    vfio_devices->pacc = pci_alloc ();
-    if (vfio_devices->pacc == NULL)
-    {
-        fprintf (stderr, "pci_alloc() failed\n");
-        exit (EXIT_FAILURE);
-    }
-    pci_init (vfio_devices->pacc);
-
-    /* Scan the entire bus */
-    pci_scan_bus (vfio_devices->pacc);
+    initialise_empty_vfio_devices (vfio_devices);
 
     /* Open the PCI devices which match the filters and have an IOMMU group assigned */
     const int required_fields = PCI_FILL_IDENT;
@@ -2073,10 +2089,46 @@ void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
 
             if (pci_device_matches_identity_filter && pci_device_matches_location_filter)
             {
-                open_vfio_device (vfio_devices, dev, dma_capability);
+                (void) open_vfio_device (vfio_devices, dev, dma_capability);
             }
         }
     }
+}
+
+
+/**
+ * @brief Append a VFIO device to the list of opened VFIO devices.
+ * @details Attempt to open the VFIO device if it hasn't already been opened, otherwise takes no action
+ * @param[in/out] vfio_devices The list of vfio devices to append the opened device to.
+ * @param[in] pci_dev The PCI device to open using VFIO
+ * @param[in] dma_capability Used by this function to determine if to enable the device as a bus master for DMA.
+ *                           Stored for later use in allocation IOVA according to the addressing capabilities of the DMA engine.
+ * @return Returns a pointer to the opened device, or NULL if were unable to open the device
+ */
+vfio_device_t *append_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev,
+                                   const vfio_device_dma_capability_t dma_capability)
+{
+    vfio_device_t *opened_device = NULL;
+
+    /* Search for the requested device already have been opened */
+    for (uint32_t device_index = 0; (opened_device == NULL) && (device_index < vfio_devices->num_devices); device_index++)
+    {
+        vfio_device_t *const existing_device = &vfio_devices->devices[device_index];
+
+        if ((pci_dev->domain == existing_device->pci_dev->domain) && (pci_dev->bus == existing_device->pci_dev->bus) &&
+            (pci_dev->dev == existing_device->pci_dev->dev) && (pci_dev->func == existing_device->pci_dev->func))
+        {
+            opened_device = existing_device;
+        }
+    }
+
+    if ((opened_device == NULL) && (vfio_devices->num_devices < MAX_VFIO_DEVICES))
+    {
+        /* Device not already open, so attempt to open it */
+        opened_device = open_vfio_device (vfio_devices, pci_dev, dma_capability);
+    }
+
+    return opened_device;
 }
 
 

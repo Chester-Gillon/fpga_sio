@@ -309,9 +309,12 @@ uint8_t *map_vfio_registers_block (vfio_device_t *const vfio_device, const uint3
                                    const size_t base_offset, const size_t frame_size);
 void reset_vfio_device (vfio_device_t *const vfio_device);
 bool vfio_device_pci_filter_match (const vfio_device_t *const vfio_device, const vfio_pci_device_identity_filter_t *const filter);
+void initialise_empty_vfio_devices (vfio_devices_t *const vfio_devices);
 void open_vfio_devices_matching_filter (vfio_devices_t *const vfio_devices,
                                         const size_t num_id_filters,
                                         const vfio_pci_device_identity_filter_t id_filters[const num_id_filters]);
+vfio_device_t *append_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev,
+                                   const vfio_device_dma_capability_t dma_capability);
 void vfio_enable_iommu_group_isolation (void);
 void close_vfio_devices (vfio_devices_t *const vfio_devices);
 void display_possible_vfio_devices (const size_t num_filters, const vfio_pci_device_identity_filter_t filters[const num_filters],

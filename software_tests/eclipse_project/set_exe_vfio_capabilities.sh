@@ -57,6 +57,10 @@ do
     adjust_capabilities dump_info/dump_pci_info_libpciaccess "cap_sys_admin=ep"
     adjust_capabilities dump_info/dump_pci_info_pciutils "cap_sys_admin=ep"
 
+    # Requires cap_sys_admin capability to perform PCIe configuration writes
+    adjust_capabilities dump_info/pcie_set_speed_pciutils "cap_sys_admin=ep"
+    adjust_capabilities dump_info/pcie_set_speed_libpciaccess "cap_sys_admin=ep"
+
     # Adjust the capabilities for the executables which link to the vfio_access library since they can perform VFIO access.
     if [ ${noiommu_access_required} -eq 1 ]
     then

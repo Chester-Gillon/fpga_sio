@@ -30,8 +30,10 @@ typedef struct generic_pci_access_context_s
 /* Defines an iterator for finding matching PCI devices */
 typedef struct generic_pci_access_iterator_s
 {
-    /* Filter used to find matching PCI devices */
-    struct pci_id_match match;
+    /* Filter used to find matching PCI devices by identity */
+    struct pci_id_match id_match;
+    /* Filter used to find matching PCI devices by location */
+    struct pci_slot_match slot_match;
     /* The iterator used to find the matching PCI devices */
     struct pci_device_iterator *device_iterator;
 } libpciaccess_pci_access_iterator_t;
@@ -72,24 +74,41 @@ void generic_pci_access_finalise (generic_pci_access_context_p const context)
 /**
  * @brief Create an iterator to find PCI devices matching a filter
  * @param[in/out] context The context to use for the iterator.
- * @param[in] filter
+ * @param[in] filter The filter used to find matching PCI devices
  */
 generic_pci_access_iterator_p generic_pci_access_iterator_create (generic_pci_access_context_p const context,
                                                                   const generic_pci_access_filter_t *const filter)
 {
     libpciaccess_pci_access_iterator_t *const iterator = calloc (1, sizeof (*iterator));
 
-    /* Initialise the match filter used by libpciaccess */
-    iterator->match.vendor_id = (filter->vendor_id != GENERIC_PCI_MATCH_ANY) ? filter->vendor_id : PCI_MATCH_ANY;
-    iterator->match.device_id = (filter->device_id != GENERIC_PCI_MATCH_ANY) ? filter->device_id : PCI_MATCH_ANY;
-    iterator->match.subvendor_id = PCI_MATCH_ANY;
-    iterator->match.subdevice_id = PCI_MATCH_ANY;
-    iterator->match.device_class = 0;
-    iterator->match.device_class_mask = 0;
-    iterator->match.match_data = 0;
+    switch (filter->filter_type)
+    {
+    case GENERIC_PCI_ACCESS_FILTER_ID:
+        /* Initialise the match device filter used by libpciaccess */
+        iterator->id_match.vendor_id = (filter->vendor_id != GENERIC_PCI_MATCH_ANY) ? filter->vendor_id : PCI_MATCH_ANY;
+        iterator->id_match.device_id = (filter->device_id != GENERIC_PCI_MATCH_ANY) ? filter->device_id : PCI_MATCH_ANY;
+        iterator->id_match.subvendor_id = PCI_MATCH_ANY;
+        iterator->id_match.subdevice_id = PCI_MATCH_ANY;
+        iterator->id_match.device_class = 0;
+        iterator->id_match.device_class_mask = 0;
+        iterator->id_match.match_data = 0;
 
-    /* Create the iterator */
-    iterator->device_iterator = pci_id_match_iterator_create (&iterator->match);
+        /* Create the iterator */
+        iterator->device_iterator = pci_id_match_iterator_create (&iterator->id_match);
+        break;
+
+    case GENERIC_PCI_ACCESS_FILTER_LOCATION:
+        /* Initialise the match location (slot) filter used by libpciaccess */
+        iterator->slot_match.domain = filter->domain;
+        iterator->slot_match.bus = filter->bus;
+        iterator->slot_match.dev = filter->dev;
+        iterator->slot_match.func = filter->func;
+        iterator->slot_match.match_data = 0;
+
+        /* Create the iterator */
+        iterator->device_iterator = pci_slot_match_iterator_create (&iterator->slot_match);
+        break;
+    }
 
     return iterator;
 }
@@ -234,6 +253,53 @@ bool generic_pci_access_cfg_read_u32 (generic_pci_access_device_p const generic_
 
 
 /**
+ * @brief Write a 8-bit, 16-bit or 32-bit configuration value for a device
+ * @param[in/out] generic_device The device to perform the configuration write for.
+ * @param[in] offset The byte offset for the configuration value to write
+ * @param[out] value The configuration value to write.
+ * @return Returns true if the configuration value was written, or false if an error
+ */
+bool generic_pci_access_cfg_write_u8 (generic_pci_access_device_p const generic_device,
+                                      const uint32_t offset, const uint8_t value)
+{
+    bool success;
+    struct pci_device *const device = (struct pci_device *) generic_device;
+    int rc;
+
+    rc = pci_device_cfg_write_u8 (device, value, offset);
+    success = rc == 0;
+
+    return success;
+}
+
+bool generic_pci_access_cfg_write_u16 (generic_pci_access_device_p const generic_device,
+                                       const uint32_t offset, const uint16_t value)
+{
+    bool success;
+    struct pci_device *const device = (struct pci_device *) generic_device;
+    int rc;
+
+    rc = pci_device_cfg_write_u16 (device, value, offset);
+    success = rc == 0;
+
+    return success;
+}
+
+bool generic_pci_access_cfg_write_u32 (generic_pci_access_device_p const generic_device,
+                                       const uint32_t offset, const uint32_t value)
+{
+    bool success;
+    struct pci_device *const device = (struct pci_device *) generic_device;
+    int rc;
+
+    rc = pci_device_cfg_write_u32 (device, value, offset);
+    success = rc == 0;
+
+    return success;
+}
+
+
+/**
  * @brief Get an unsigned integer property for a device
  * @param[in/out] generic_device Which device to get the property for
  * @param[in] property The property value to get
@@ -254,7 +320,7 @@ bool generic_pci_access_uint_property (generic_pci_access_device_p const generic
     {
     case GENERIC_PCI_ACCESS_DOMAIN:
         available = true;
-        *value = (uint32_t) device->domain;
+        *value = device->domain;
         break;
 
     case GENERIC_PCI_ACCESS_BUS:

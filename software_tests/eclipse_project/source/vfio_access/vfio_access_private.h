@@ -206,8 +206,8 @@ typedef union
 char *vfio_get_iommu_group (struct pci_dev *const pci_dev);
 void enable_bus_master_for_dma (vfio_device_t *const device);
 bool open_vfio_device_fd (vfio_device_t *const new_device);
-void open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev,
-                       const vfio_device_dma_capability_t dma_capability);
+vfio_device_t *open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_dev *const pci_dev,
+                                 const vfio_device_dma_capability_t dma_capability);
 void update_iova_regions (vfio_iommu_container_t *const container, const vfio_iova_region_t *const new_region);
 bool vfio_ensure_iommu_container_set_for_group (vfio_iommu_group_t *const group);
 void allocate_iova_region_direct (vfio_iommu_container_t *const container,
