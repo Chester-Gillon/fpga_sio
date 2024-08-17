@@ -102,6 +102,12 @@ typedef enum
      */
     FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_LOOPBACK,
 
+    /* fpga_tests/XCKU5P_DUAL_QSFP_dma_ram which contains:
+     * a. DMA/Bridge Subsystem to access 2MB of URAM.
+     * b. Access a Quad SPI connected to the FPGA configuration flash.
+     * c. Access the SYSMON (internal sensors only) */
+    FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_RAM,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 
