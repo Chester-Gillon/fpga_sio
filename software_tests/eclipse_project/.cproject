@@ -14,7 +14,7 @@
 				</extensions>
 			</storageModule>
 			<storageModule moduleId="cdtBuildSystem" version="4.0.0">
-				<configuration buildProperties="" description="" id="cdt.managedbuild.toolchain.gnu.base.1374531700" name="debug" parent="org.eclipse.cdt.build.core.emptycfg">
+				<configuration artifactName="${ProjName}" buildProperties="" description="" id="cdt.managedbuild.toolchain.gnu.base.1374531700" name="debug" parent="org.eclipse.cdt.build.core.emptycfg">
 					<folderInfo id="cdt.managedbuild.toolchain.gnu.base.1374531700.1189126948" name="/" resourcePath="">
 						<toolChain id="cdt.managedbuild.toolchain.gnu.base.1784323878" name="Linux GCC" superClass="cdt.managedbuild.toolchain.gnu.base">
 							<targetPlatform archList="all" binaryParser="org.eclipse.cdt.core.GNU_ELF" id="cdt.managedbuild.target.gnu.platform.base.549617997" name="Debug Platform" osList="linux,hpux,aix,qnx" superClass="cdt.managedbuild.target.gnu.platform.base"/>
@@ -24,6 +24,7 @@
 								<option id="gnu.cpp.compiler.option.preprocessor.def.1767696045" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="HAVE_CMEM=1"/>
 									<listOptionValue builtIn="false" value="HAVE_XILINX_EMBEDDEDSW=1"/>
+									<listOptionValue builtIn="false" value="_GNU_SOURCE=1"/>
 								</option>
 								<option id="gnu.cpp.compiler.option.include.paths.1056090079" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${HOME}/cmem_gdb_access&quot;"/>
@@ -37,6 +38,7 @@
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.931819346" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="HAVE_CMEM=1"/>
 									<listOptionValue builtIn="false" value="HAVE_XILINX_EMBEDDEDSW=1"/>
+									<listOptionValue builtIn="false" value="_GNU_SOURCE=1"/>
 								</option>
 								<option id="gnu.c.compiler.option.include.paths.2140603702" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${HOME}/cmem_gdb_access/cmem_test&quot;"/>
@@ -90,6 +92,7 @@
 								<option id="gnu.cpp.compiler.option.preprocessor.def.628601" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="HAVE_CMEM=1"/>
 									<listOptionValue builtIn="false" value="HAVE_XILINX_EMBEDDEDSW=1"/>
+									<listOptionValue builtIn="false" value="_GNU_SOURCE=1"/>
 								</option>
 								<option id="gnu.cpp.compiler.option.include.paths.1877463409" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${HOME}/cmem_gdb_access&quot;"/>
@@ -103,6 +106,7 @@
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.1893404680" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="HAVE_CMEM=1"/>
 									<listOptionValue builtIn="false" value="HAVE_XILINX_EMBEDDEDSW=1"/>
+									<listOptionValue builtIn="false" value="_GNU_SOURCE=1"/>
 								</option>
 								<option id="gnu.c.compiler.option.include.paths.1393476489" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${HOME}/cmem_gdb_access&quot;"/>
@@ -157,6 +161,7 @@
 								<option id="gnu.cpp.compiler.option.preprocessor.def.2048108412" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="HAVE_CMEM=1"/>
 									<listOptionValue builtIn="false" value="HAVE_XILINX_EMBEDDEDSW=1"/>
+									<listOptionValue builtIn="false" value="_GNU_SOURCE=1"/>
 								</option>
 								<option id="gnu.cpp.compiler.option.include.paths.63664334" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${HOME}/cmem_gdb_access&quot;"/>
@@ -170,6 +175,7 @@
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.715148241" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="HAVE_CMEM=1"/>
 									<listOptionValue builtIn="false" value="HAVE_XILINX_EMBEDDEDSW=1"/>
+									<listOptionValue builtIn="false" value="_GNU_SOURCE=1"/>
 								</option>
 								<option id="gnu.c.compiler.option.include.paths.133151362" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${HOME}/cmem_gdb_access&quot;"/>
@@ -242,4 +248,5 @@
 			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
 		</scannerConfigBuildInfo>
 	</storageModule>
+	<storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
 </cproject>

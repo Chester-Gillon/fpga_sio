@@ -49,23 +49,40 @@ static const struct option command_line_options[] =
 };
 
 
+/* Contains data about one client */
+typedef struct
+{
+    /* Set true when the client is connected, and the other fields are defined */
+    bool connected;
+    /* The socket file descriptor for the client */
+    int client_socket_fd;
+    /* Indicates which devices are in used by the client. This is used to:
+     * a. Open a device when the first client requests access.
+     * b. Close a device once no clients require access. */
+    bool devices_used[MAX_VFIO_DEVICES];
+    /* Contains the PID of the client, for reporting diagnostics */
+    bool credentials_valid;
+    struct ucred credentials;
+    /* Contains the executable of the client, for reporting diagnostics */
+    bool exe_pathname_valid;
+    char exe_pathname[PATH_MAX];
+    /* A string combining the PID and exe_pathname, when known, used to describe the client in diagnostic messages */
+    char description[10 + PATH_MAX];
+} vfio_client_data_t;
+
+
 /* Defines the content for the manager process */
 typedef struct
 {
     /* File descriptor used a listening socket to accept client connections */
     int listening_socket_fd;
-    /* Socket file descriptors for the connected clients. Unused entries are set to -1.
-     * This index into this array is used to identify the clients in other arrays. */
-    int client_socket_fds[VFIO_MAX_CLIENTS];
-    /* One more than the highest index in client_socket_fds[] for a connected client. Used to limit how many
+    /* Data for each connected client. The index into this array is used identify the client */
+    vfio_client_data_t clients[VFIO_MAX_CLIENTS];
+    /* One more than the highest index in clients[] for a connected client. Used to limit how many
      * clients have to be iterated over. */
     uint32_t maximum_used_clients;
     /* Contains the open IOMMU groups, IOMMU containers and VFIO devices */
     vfio_devices_t vfio_devices;
-    /* For each client indicates which devices are in use. This is used to:
-     * a. Open a device when the first client requests access.
-     * b. Close a device once no clients require access. */
-    bool devices_used_per_client[VFIO_MAX_CLIENTS][MAX_VFIO_DEVICES];
     /* Used to unblock SIGINT only during ppoll() and not other blocking calls */
     sigset_t signal_mask_during_ppoll;
     /* When true the manager is still running */
@@ -175,7 +192,7 @@ static void update_maximum_used_clients (vfio_manager_context_t *const context)
     context->maximum_used_clients = 0;
     for (uint32_t client_index = 0; client_index < VFIO_MAX_CLIENTS; client_index++)
     {
-        if (context->client_socket_fds[client_index] != -1)
+        if (context->clients[client_index].connected)
         {
             context->maximum_used_clients = client_index + 1;
         }
@@ -214,11 +231,8 @@ static bool initialise_vfio_manager (vfio_manager_context_t *const context)
     context->listening_socket_fd = -1;
     for (uint32_t client_index = 0; client_index < VFIO_MAX_CLIENTS; client_index++)
     {
-        context->client_socket_fds[client_index] = -1;
-        for (uint32_t device_index = 0; device_index < MAX_VFIO_DEVICES; device_index++)
-        {
-            context->devices_used_per_client[client_index][device_index] = false;
-        }
+        context->clients[client_index].connected = false;
+        context->clients[client_index].client_socket_fd = -1;
     }
     update_maximum_used_clients (context);
 
@@ -396,9 +410,50 @@ static void accept_client_connection (vfio_manager_context_t *const context)
 
             for (uint32_t client_index = 0; !client_added && (client_index < VFIO_MAX_CLIENTS); client_index++)
             {
-                if (context->client_socket_fds[client_index] == -1)
+                if (!context->clients[client_index].connected)
                 {
-                    context->client_socket_fds[client_index] = new_client_fd;
+                    vfio_client_data_t *const client = &context->clients[client_index];
+
+                    client->connected = true;
+                    client->client_socket_fd = new_client_fd;
+                    for (uint32_t device_index = 0; device_index < MAX_VFIO_DEVICES; device_index++)
+                    {
+                        client->devices_used[device_index] = false;
+                    }
+
+                    /* Attempt to obtain identity information of the connected client, for reporting diagnostic information.
+                     * Failure to obtain the identity isn't considered an error, in case lack of permissions. */
+                    socklen_t sock_len = sizeof (client->credentials);
+
+                    memset (client->description, 0, sizeof (client->description));
+                    rc = getsockopt (new_client_fd, SOL_SOCKET, SO_PEERCRED, &client->credentials, &sock_len);
+                    client->credentials_valid = rc == 0;
+                    client->exe_pathname_valid = false;
+                    if (client->credentials_valid)
+                    {
+                        char pid_exe_symlink[PATH_MAX];
+                        ssize_t exe_pathname_len;
+
+                        snprintf (client->description, sizeof (client->description), " PID %d", client->credentials.pid);
+                        snprintf (pid_exe_symlink, sizeof (pid_exe_symlink), "/proc/%d/exe", client->credentials.pid);
+                        exe_pathname_len = readlink (pid_exe_symlink, client->exe_pathname, sizeof (client->exe_pathname) - 1);
+                        if (exe_pathname_len > 0)
+                        {
+                            client->exe_pathname[exe_pathname_len] = '\0';
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wrestrict"
+                            /* Suppress warning of the form, which was seen with GCC 10.3.1 when compiling for the release platform:
+                             *   warning: 'snprintf' argument 5 may overlap destination object 'context' [-Wrestrict]
+                             *
+                             * "Bug 102919 - spurious -Wrestrict warning for sprintf into the same member array as argument plus offset"
+                             * https://gcc.gnu.org/bugzilla/show_bug.cgi?id=102919 suggests this is a spurious warning
+                             */
+                            snprintf (client->description, sizeof (client->description),
+                                    " PID %d %s", client->credentials.pid, client->exe_pathname);
+#pragma GCC diagnostic pop
+                            client->exe_pathname_valid = true;
+                        }
+                    }
                     update_maximum_used_clients (context);
                     client_added = true;
                 }
@@ -556,15 +611,16 @@ static void close_device_for_client (vfio_manager_context_t *const context,
 {
     int rc;
     int saved_errno;
+    vfio_client_data_t *const client = &context->clients[client_index];
 
     /* Mark the client as no longer using the device */
-    context->devices_used_per_client[client_index][device_index] = false;
+    client->devices_used[device_index] = false;
 
     /* Determine if the device is still in use by any other clients */
     bool device_still_used = false;
     for (uint32_t scan_index = 0; !device_still_used && (scan_index < VFIO_MAX_CLIENTS); scan_index++)
     {
-        device_still_used = context->devices_used_per_client[scan_index][device_index];
+        device_still_used = context->clients[scan_index].devices_used[device_index];
     }
 
     if (!device_still_used)
@@ -595,6 +651,7 @@ static void close_device_for_client (vfio_manager_context_t *const context,
  */
 static void close_client_connection (vfio_manager_context_t *const context, const uint32_t client_index)
 {
+    vfio_client_data_t *const client = &context->clients[client_index];
     int rc;
 
     /* If the client didn't free all the IOVA allocations it made then:
@@ -634,17 +691,17 @@ static void close_client_connection (vfio_manager_context_t *const context, cons
     }
     if (num_outstanding_regions > 0)
     {
-        printf ("Client still had %u IOVA regions with %zu bytes allocated at client connection close\n",
-                num_outstanding_regions, num_outstanding_bytes);
+        printf ("Client%s still had %u IOVA regions with %zu bytes allocated at client connection close\n",
+                client->description, num_outstanding_regions, num_outstanding_bytes);
     }
 
     /* If the client didn't close the devices it opened, close them now */
     for (uint32_t device_index = 0; device_index < context->vfio_devices.num_devices; device_index++)
     {
-        if (context->devices_used_per_client[client_index][device_index])
+        if (client->devices_used[device_index])
         {
-            printf ("Client still had device %s open at client connection close\n",
-                    context->vfio_devices.devices[device_index].device_name);
+            printf ("Client%s still had device %s open at client connection close\n",
+                    client->description, context->vfio_devices.devices[device_index].device_name);
             close_device_for_client (context, client_index, device_index);
         }
     }
@@ -652,12 +709,13 @@ static void close_client_connection (vfio_manager_context_t *const context, cons
     disable_unused_containers (context);
 
     /* Close the socket for the client */
-    rc = close (context->client_socket_fds[client_index]);
+    rc = close (client->client_socket_fd);
     if (rc != 0)
     {
         printf ("close() failed\n");
     }
-    context->client_socket_fds[client_index] = -1;
+    client->client_socket_fd = -1;
+    client->connected = false;
     update_maximum_used_clients (context);
 }
 
@@ -709,7 +767,7 @@ static vfio_iommu_container_t *find_client_requested_container (vfio_manager_con
     }
     else
     {
-        printf ("Out of range client_id %u received\n", container_id);
+        printf ("Out of range container_id %u received\n", container_id);
         return NULL;
     }
 }
@@ -725,6 +783,7 @@ static vfio_iommu_container_t *find_client_requested_container (vfio_manager_con
 static void process_open_device_request (vfio_manager_context_t *const context, const uint32_t client_index,
                                          const vfio_open_device_request_t *const request)
 {
+    vfio_client_data_t *const client = &context->clients[client_index];
     uint32_t device_index;
     uint32_t group_index;
     vfio_manage_messages_t tx_buffer = {0};
@@ -791,19 +850,19 @@ static void process_open_device_request (vfio_manager_context_t *const context, 
             }
             vfio_fds.device_fd = device->device_fd;
             vfio_fds.container_fd = request->container_fd_required ? device->group->container->container_fd : -1;
-            context->devices_used_per_client[client_index][device_index] = true;
+            client->devices_used[device_index] = true;
         }
     }
 
     if (tx_buffer.open_device_reply.success)
     {
         /* Send successful reply, which includes the file descriptors as ancillary information */
-        vfio_send_manage_message (context->client_socket_fds[client_index], &tx_buffer, &vfio_fds);
+        vfio_send_manage_message (client->client_socket_fd, &tx_buffer, &vfio_fds);
     }
     else
     {
         /* Send failure reply, without ancillary information */
-        vfio_send_manage_message (context->client_socket_fds[client_index], &tx_buffer, NULL);
+        vfio_send_manage_message (client->client_socket_fd, &tx_buffer, NULL);
     }
 }
 
@@ -817,6 +876,7 @@ static void process_open_device_request (vfio_manager_context_t *const context, 
 static void process_close_device_request (vfio_manager_context_t *const context, const uint32_t client_index,
                                           const vfio_close_device_request_t *const request)
 {
+    vfio_client_data_t *const client = &context->clients[client_index];
     uint32_t device_index;
     vfio_manage_messages_t tx_buffer = {0};
 
@@ -825,7 +885,7 @@ static void process_close_device_request (vfio_manager_context_t *const context,
     vfio_device_t *const device = find_client_requested_device (context, &request->device_id, &device_index);
     if (device != NULL)
     {
-        if (context->devices_used_per_client[client_index][device_index])
+        if (client->devices_used[device_index])
         {
             close_device_for_client (context, client_index, device_index);
             tx_buffer.close_device_reply.success = true;
@@ -838,7 +898,7 @@ static void process_close_device_request (vfio_manager_context_t *const context,
 
     disable_unused_containers (context);
 
-    vfio_send_manage_message (context->client_socket_fds[client_index], &tx_buffer, NULL);
+    vfio_send_manage_message (client->client_socket_fd, &tx_buffer, NULL);
 }
 
 
@@ -851,6 +911,7 @@ static void process_close_device_request (vfio_manager_context_t *const context,
 static void process_allocate_iova_request (vfio_manager_context_t *const context, const uint32_t client_index,
                                            const vfio_allocate_iova_request_t *const request)
 {
+    vfio_client_data_t *const client = &context->clients[client_index];
     vfio_manage_messages_t tx_buffer = {0};
     vfio_iova_region_t region;
 
@@ -866,7 +927,7 @@ static void process_allocate_iova_request (vfio_manager_context_t *const context
         tx_buffer.allocate_iova_reply.success = region.allocated;
     }
 
-    vfio_send_manage_message (context->client_socket_fds[client_index], &tx_buffer, NULL);
+    vfio_send_manage_message (client->client_socket_fd, &tx_buffer, NULL);
 }
 
 
@@ -880,6 +941,7 @@ static void process_free_iova_request (vfio_manager_context_t *const context, co
                                        const vfio_free_iova_request_t *const request)
 
 {
+    vfio_client_data_t *const client = &context->clients[client_index];
     vfio_manage_messages_t tx_buffer = {0};
 
     tx_buffer.free_iova_reply.msg_id = VFIO_MANAGE_MSG_ID_FREE_IOVA_REPLY;
@@ -921,7 +983,7 @@ static void process_free_iova_request (vfio_manager_context_t *const context, co
         }
     }
 
-    vfio_send_manage_message (context->client_socket_fds[client_index], &tx_buffer, NULL);
+    vfio_send_manage_message (client->client_socket_fd, &tx_buffer, NULL);
 }
 
 /**
@@ -934,17 +996,18 @@ static void process_free_iova_request (vfio_manager_context_t *const context, co
  */
 static void process_exclusive_access_request (vfio_manager_context_t *const context, const uint32_t client_index)
 {
+    vfio_client_data_t *const client = &context->clients[client_index];
     vfio_manage_messages_t tx_buffer = {0};
     vfio_manage_messages_t rx_buffer;
     bool valid_message;
 
     /* Tell the client it has exclusive access */
     tx_buffer.msg_id = VFIO_MANAGE_MSG_ID_EXCLUSIVE_ACCESS_ALLOWED;
-    vfio_send_manage_message (context->client_socket_fds[client_index], &tx_buffer, NULL);
+    vfio_send_manage_message (client->client_socket_fd, &tx_buffer, NULL);
 
     /* Block waiting for the client to indicate it has completed the exclusive access.
      * While waiting the manager won't attempt to process messages from other clients. */
-    valid_message = vfio_receive_manage_message (context->client_socket_fds[client_index], &rx_buffer, NULL) &&
+    valid_message = vfio_receive_manage_message (client->client_socket_fd, &rx_buffer, NULL) &&
             (rx_buffer.msg_id == VFIO_MANAGE_MSG_ID_EXCLUSIVE_ACCESS_COMPLETED);
     if (!valid_message)
     {
@@ -976,7 +1039,7 @@ static void run_vfio_manager (vfio_manager_context_t *const context)
     while (context->running)
     {
         /* Create the list of fds to poll as the listening socket and all currently connected clients.
-         * client_socket_fds[] might be sparse, but entries for unconnected clients have a value of -1 and poll()
+         * clients[] might be sparse, but entries for unconnected clients have a value of -1 and poll()
          * ignores any fds with a negative value. */
         num_fds = 0;
         poll_fds[num_fds].fd = context->listening_socket_fd;
@@ -984,7 +1047,9 @@ static void run_vfio_manager (vfio_manager_context_t *const context)
         num_fds++;
         for (client_index = 0; client_index < context->maximum_used_clients; client_index++)
         {
-            poll_fds[num_fds].fd = context->client_socket_fds[client_index];
+            const vfio_client_data_t *const client = &context->clients[client_index];
+
+            poll_fds[num_fds].fd = client->connected ? client->client_socket_fd : -1;
             poll_fds[num_fds].events = POLLIN;
             num_fds++;
         }
