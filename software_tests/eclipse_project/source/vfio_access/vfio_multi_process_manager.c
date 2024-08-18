@@ -848,6 +848,7 @@ static void process_open_device_request (vfio_manager_context_t *const context, 
                         sizeof (tx_buffer.open_device_reply.iommu_group_names[group_index]),
                         "%s", device->group->container->iommu_groups[group_index].iommu_group_name);
             }
+            tx_buffer.open_device_reply.container_id = device->group->container->container_id;
             vfio_fds.device_fd = device->device_fd;
             vfio_fds.container_fd = request->container_fd_required ? device->group->container->container_fd : -1;
             client->devices_used[device_index] = true;
