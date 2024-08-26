@@ -2,6 +2,37 @@
  * @file dump_pci_info.c
  * @date 11 May 2024
  * @author Chester Gillon
+ * @brief Test of using the generic PCI access mechanism to dump information about a PCI device
+ * @details
+ *   The output format is similar to that produced by lspci. Differences are:
+ *   1. Only a subset of the lspci information is displayed.
+ *   2. Displays information about the tree of parent bridges to allow correlation of:
+ *      a. The PCIe link capabilities up the bridges until the root port.
+ *      b. Error reporting up the bridges until the root port.
+ *
+ *   Differences between the PCI access mechanisms:
+ *   a. libpciacess and pciutils need CAP_SYS_ADMIN capability to read PCIe capabilities, whereas vfio doesn't.
+ *
+ *      libpciacess and pciutils use /sys/bus/pci/devices to access PCI configuration registers.
+ *      As of Kernel 4.18.0-553.8.1.el8_10.x86_64 the drivers/pci/proc.c source file has the following in the proc_bus_pci_read()
+ *      function:
+ *
+ *        // Normal users can read only the standardized portion of the
+ *        // configuration space as several chips lock up when trying to read
+ *        // undefined locations (think of Intel PIIX4 as a typical example).
+ *
+ *       if (capable(CAP_SYS_ADMIN))
+ *           size = dev->cfg_size;
+ *       else if (dev->hdr_type == PCI_HEADER_TYPE_CARDBUS)
+ *           size = 128;
+ *       else
+ *           size = 64;
+ *
+ *      Which restricts the maximum read offset without the CAP_SYS_ADMIN capability.
+ *
+ *   b. vfio can only operate on PCI devices to which the vfio-pci driver is bound.
+ *      Since the vfio-pci driver can only be bound to endpoints, the vfio access mechanism is unable to display
+ *      any information for the parent bridges.
  */
 
 #include <stdlib.h>
@@ -176,9 +207,11 @@ static bool display_pci_express_capabilities (const uint32_t indent_level, gener
         const char *const link_speed_names[] =
         {
             [1] = "2.5 GT/s",
-            [2] = "5.0 GT/s",
-            [3] = "8.0 GT/s",
-            [4] = "16.0 GT/s"
+            [2] = "5 GT/s",
+            [3] = "8 GT/s",
+            [4] = "16 GT/s",
+            [5] = "32 GT/s",
+            [6] = "64 GT/s"
         };
 
         const char *const max_payload_size_names[] =

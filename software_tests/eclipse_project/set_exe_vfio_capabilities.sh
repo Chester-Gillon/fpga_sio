@@ -57,7 +57,9 @@ do
     adjust_capabilities dump_info/dump_pci_info_libpciaccess "cap_sys_admin=ep"
     adjust_capabilities dump_info/dump_pci_info_pciutils "cap_sys_admin=ep"
 
-    # Requires cap_sys_admin capability to perform PCIe configuration writes
+    # Requires cap_sys_admin capability to read PCIe capabilities regardless of if an IOMMU is in use.
+    # The capability isn't sufficient to perform a write, since by default only root has write permission to the
+    # /sys/bus/pci/devices/<device>/config files
     adjust_capabilities dump_info/pcie_set_speed_pciutils "cap_sys_admin=ep"
     adjust_capabilities dump_info/pcie_set_speed_libpciaccess "cap_sys_admin=ep"
 

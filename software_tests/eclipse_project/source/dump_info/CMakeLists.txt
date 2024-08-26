@@ -17,6 +17,17 @@ target_link_libraries (dump_pci_info_libpciaccess libpciaccess_pci_access pci_sy
 add_executable (dump_pci_info_vfio $<TARGET_OBJECTS:dump_pci_info>)
 target_link_libraries (dump_pci_info_vfio vfio_pci_access vfio_access)
 
+add_library (pcie_set_speed OBJECT "pcie_set_speed.c")
+
+add_executable (pcie_set_speed_pciutils $<TARGET_OBJECTS:pcie_set_speed>)
+target_link_libraries (pcie_set_speed_pciutils pciutils_pci_access pci_sysfs_access pci)
+
+add_executable (pcie_set_speed_libpciaccess $<TARGET_OBJECTS:pcie_set_speed>)
+target_link_libraries (pcie_set_speed_libpciaccess libpciaccess_pci_access pci_sysfs_access pciaccess)
+
+add_executable (pcie_set_speed_vfio $<TARGET_OBJECTS:pcie_set_speed>)
+target_link_libraries (pcie_set_speed_vfio vfio_pci_access vfio_access)
+
 add_executable (display_physical_slots "display_physical_slots.c")
 target_link_libraries (display_physical_slots pci)
 
