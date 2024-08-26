@@ -108,6 +108,20 @@ typedef enum
      * c. Access the SYSMON (internal sensors only) */
     FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_RAM,
 
+    /* fpga_tests/XCKU5P_DUAL_QSFP_qdma_ram which contains:
+     * a. Access 2MB of internal memory connected to the QDMA. The QDMA registers are in BAR 0 on all physical functions.
+     * c. Each of the 4 physical functions is assigned a different subdevice ID and can access different peripherals.
+     *    The assigned peripherals on BAR 2 are
+     *    PF0 : Quad SPI connected to the FPGA configuration flash
+     *    PF1 : SYSMON (internal sensors only)
+     *    PF2 : GPIO input to read user access FPGA build times
+     *    PF3 : 16550 UART, which has internal loopback
+     */
+    FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_QUAD_SPI,    /* PF0 */
+    FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_SYSMON,      /* PF1 */
+    FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_USER_ACCESS, /* PF2 */
+    FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_UART,        /* PF3 */
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 

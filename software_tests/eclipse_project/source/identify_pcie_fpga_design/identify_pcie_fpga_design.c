@@ -35,7 +35,11 @@ const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE] =
     [FPGA_DESIGN_NITEFURY_DMA_STREAM_LOOPBACK] = "NiteFury_dma_stream_loopback",
     [FPGA_DESIGN_TOSING_160T_DMA_STREAM_LOOPBACK] = "TOSING_160T_dma_stream_loopback",
     [FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_LOOPBACK] = "XCKU5P_DUAL_QSFP_dma_stream_loopback",
-    [FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_RAM] = "XCKU5P_DUAL_QSFP_dma_ram"
+    [FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_RAM] = "XCKU5P_DUAL_QSFP_dma_ram",
+    [FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_QUAD_SPI] = "XCKU5P_DUAL_QSFP_qdma_ram (quad SPI)",
+    [FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_SYSMON] = "XCKU5P_DUAL_QSFP_qdma_ram (SYSMON)",
+    [FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_USER_ACCESS] = "XCKU5P_DUAL_QSFP_qdma_ram (user access)",
+    [FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_UART] = "XCKU5P_DUAL_QSFP_qdma_ram (UART)"
 };
 
 
@@ -130,6 +134,38 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_DMA_RAM,
         .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
+    },
+    [FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_QUAD_SPI] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_QDMA_RAM_QUAD_SPI,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE
+    },
+    [FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_SYSMON] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_QDMA_RAM_SYSMON,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE
+    },
+    [FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_USER_ACCESS] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_QDMA_RAM_USER_ACCESS,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE
+    },
+    [FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_UART] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_QDMA_RAM_UART,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE
     }
 };
 
@@ -490,6 +526,52 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     candidate_design->user_access =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                     user_access_base_offset, user_access_frame_size);
+                    design_identified = true;
+                }
+                break;
+
+                case FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_QUAD_SPI:
+                {
+                    const uint32_t peripherals_bar_index = 2;
+                    const size_t quad_spi_base_offset    = 0x0000;
+                    const size_t quad_spi_frame_size     = 0x1000;
+
+                    candidate_design->quad_spi_regs =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                    quad_spi_base_offset, quad_spi_frame_size);
+                    design_identified = true;
+                }
+                break;
+
+                case FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_SYSMON:
+                {
+                    const uint32_t peripherals_bar_index = 2;
+                    const size_t sysmon_base_offset      = 0x0000;
+                    const size_t sysmon_frame_size       = 0x1000;
+
+                    candidate_design->sysmon_regs =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index, sysmon_base_offset, sysmon_frame_size);
+                    design_identified = true;
+                }
+                break;
+
+                case FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_USER_ACCESS:
+                {
+                    const uint32_t peripherals_bar_index = 2;
+                    const size_t user_access_base_offset = 0x0000;
+                    const size_t user_access_frame_size  = 0x1000;
+
+                    candidate_design->user_access =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                    user_access_base_offset, user_access_frame_size);
+                    design_identified = true;
+                }
+                break;
+
+                case FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_UART:
+                {
+                    /* The only peripheral on this design is a UART, which isn't supported as part of the identification.
+                     * This design identification is a placeholder until QDMA support is added */
                     design_identified = true;
                 }
                 break;

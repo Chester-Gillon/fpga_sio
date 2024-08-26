@@ -14,6 +14,7 @@
  */
 
 #include "vfio_access.h"
+#include "fpga_sio_pci_ids.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -31,6 +32,8 @@ typedef enum
     SERIAL_CARD_X99_KT,
     /* Sealevel COMM+2.LPCIe board (7205e), which has been modified to place the BARs in as memory mapped rather than I/O */
     SERIAL_CARD_SEALEVEL_7205E,
+    /* 16550 UART IP within a Xilinx FPGA */
+    SERIAL_CARD_XCKU5P_DUAL_QSFP_QDMA_RAM_UART,
 
     SERIAL_CARD_ARRAY_SIZE
 } serial_cards_t;
@@ -89,6 +92,10 @@ typedef struct
     uint32_t bar_index;
     /* The byte offset within the BAR to the base of the registers for the UART */
     uint32_t base_offset;
+    /* Number of bytes between each UART register:
+     * - Standard UARTs have byte registers one byte apart.
+     * - Whereas the Xilinx 16550 IP has each register as 32-bits and only the least significant bits defined */
+    uint32_t register_spacing;
 } serial_port_definition_t;
 
 
@@ -98,6 +105,8 @@ typedef struct
 {
     /* The PCI device identity, used to open the serial card using VFIO */
     vfio_pci_device_identity_filter_t filter;
+    /* Number of bytes between each UART register */
+    uint32_t register_spacing;
     /* The number of serial ports on the card */
     uint32_t num_serial_ports;
     /* The definition of each serial port */
@@ -117,6 +126,7 @@ static const serial_card_definition_t serial_card_definitions[SERIAL_CARD_ARRAY_
              .subsystem_device_id = VFIO_PCI_DEVICE_FILTER_ANY,
              .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE
          },
+         .register_spacing = 1,
          .num_serial_ports = 2,
          .port_definitions =
          {
@@ -134,6 +144,7 @@ static const serial_card_definition_t serial_card_definitions[SERIAL_CARD_ARRAY_
              .subsystem_device_id = VFIO_PCI_DEVICE_FILTER_ANY,
              .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE
          },
+         .register_spacing = 1,
          .num_serial_ports = 1,
          .port_definitions =
          {
@@ -150,11 +161,29 @@ static const serial_card_definition_t serial_card_definitions[SERIAL_CARD_ARRAY_
              .subsystem_device_id = 0x3198,
              .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE
          },
+         .register_spacing = 1,
          .num_serial_ports = 2,
          .port_definitions =
          {
              [0] = {.bar_index = 2, .base_offset = 0},
              [1] = {.bar_index = 3, .base_offset = 0}
+         }
+     },
+     [SERIAL_CARD_XCKU5P_DUAL_QSFP_QDMA_RAM_UART] =
+     {
+         .filter =
+         {
+             .vendor_id = FPGA_SIO_VENDOR_ID,
+             .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+             .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+             .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_QDMA_RAM_UART,
+             .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE
+         },
+         .register_spacing = 4,
+         .num_serial_ports = 1,
+         .port_definitions =
+         {
+             [0] = {.bar_index = 2, .base_offset = 0}
          }
      }
 };
@@ -171,6 +200,8 @@ typedef struct
     uint32_t bar_index;
     /* The byte offset within the BAR to the base of the registers for the UART */
     uint32_t base_offset;
+    /* Number of bytes between each UART register */
+    uint32_t register_spacing;
     /* When non-NULL the memory mapped access to the BAR containing the registers for the UART.
      * When NULL IO access is used. */
     uint8_t *bar_mapping;
@@ -194,7 +225,7 @@ static bool arg_perform_grub_serial_dead_port_detection;
  */
 static void serial_out (uart_port_t *const port, const uint32_t register_offset, const uint8_t value)
 {
-    const uint32_t offset = port->base_offset + register_offset;
+    const uint32_t offset = port->base_offset + (port->register_spacing * register_offset);
 
     if (port->bar_mapping != NULL)
     {
@@ -221,7 +252,7 @@ static void serial_out (uart_port_t *const port, const uint32_t register_offset,
  */
 static uint8_t serial_in (uart_port_t *const port, const uint32_t register_offset)
 {
-    const uint32_t offset = port->base_offset + register_offset;
+    const uint32_t offset = port->base_offset + (port->register_spacing * register_offset);
     uint8_t value;
 
     if (port->bar_mapping != NULL)
@@ -568,6 +599,7 @@ static void identify_serial_port_uart (vfio_device_t *const vfio_device, const s
     {
         .port_index = port_index,
         .vfio_device = vfio_device,
+        .register_spacing = card_definition->register_spacing,
         .bar_index = card_definition->port_definitions[port_index].bar_index,
         .base_offset = card_definition->port_definitions[port_index].base_offset,
         .identified_uart = UART_UNKNOWN

@@ -86,4 +86,19 @@
  * c. Access the SYSMON (internal sensors only) */
 #define FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_DMA_RAM 0x000B
 
+/* The FPGA which uses the Queue DMA Subsystem for PCI Express to:
+ * a. Implement 4 physical functions.
+ * b. Access 2MB of internal memory connected to the QDMA. The QDMA registers are in BAR 0 on all physical functions.
+ * c. Each of the 4 physical functions is assigned a different subdevice ID and can access different peripherals.
+ *    The assigned peripherals on BAR 2 are
+ *    PF0 : Quad SPI connected to the FPGA configuration flash
+ *    PF1 : SYSMON (internal sensors only)
+ *    PF2 : GPIO input to read user access FPGA build times
+ *    PF3 : 16550 UART, which has internal loopback
+ */
+#define FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_QDMA_RAM_QUAD_SPI    0x000C /* PF0 */
+#define FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_QDMA_RAM_SYSMON      0x000D /* PF1 */
+#define FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_QDMA_RAM_USER_ACCESS 0x000E /* PF2 */
+#define FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_QDMA_RAM_UART        0x000F /* PF3 */
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

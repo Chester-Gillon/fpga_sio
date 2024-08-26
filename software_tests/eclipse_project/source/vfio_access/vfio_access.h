@@ -21,7 +21,7 @@
 
 
 /* The maximum number of VFIO devices this API can open. Also used to size other arrays which may be per device */
-#define MAX_VFIO_DEVICES 4
+#define MAX_VFIO_DEVICES 8
 
 
 /* Defines the option used to allocate a buffer used for VFIO DMA */
