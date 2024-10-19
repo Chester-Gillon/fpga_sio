@@ -60,3 +60,11 @@ $ dmesg|grep FLR
 
 Disabling the Function Level Reset stopped the hanging. Not sure what the source of the issue is.
 
+The above issues with Function Level Reset were when the card was fitted to a HP Pavilion 590-p0053na in which other
+PCIe errors were seen even when a Function Level Reset was disabled
+- see https://gist.github.com/Chester-Gillon/ba675c6ab4e5eb7271f43f8ce4aedb6c#5-pcie-errors-when-fittd-to-a-hp-pavilion-590-p0053na
+
+Moved the card to a HP Z4 G4, which stopped the other PCIe errors when Function Level Reset were disabled.
+Attempted to re-enable Function Level Reset. However, the HP Z4 G4 then hung when dump_pci_info_vfio opened the first function in the design.
+Had to hold the power button to force a power off to recover.
+
