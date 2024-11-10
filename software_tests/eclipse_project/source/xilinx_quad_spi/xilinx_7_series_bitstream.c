@@ -210,6 +210,11 @@ static const x7_enum_lut_entry_t x7_idcode_names[] =
     {.value = 0X4B73093, .name = "VU45P"},
     {.value = 0X4B7B093, .name = "VU47P"},
     {.value = 0X4B61093, .name = "VU57P"},
+    /* Alveo accelerator cards.
+     * Partial list found from creating bitstreams. Can't seem to find the IDCODE values documented.
+     * While https://github.com/erinadreno/list_of_Xilinx_FPGAs?tab=readme-ov-file#alveo-and-kria
+     * says the XCU50 is "rebadged XCVU35P" the XCU50 has a different IDCODE. */
+    {.value = 0X4B77093, .name = "XCU50"},
     {                    .name = NULL}
 };
 
