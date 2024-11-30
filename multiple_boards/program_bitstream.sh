@@ -6,7 +6,7 @@ SCRIPT=$(readlink -f $0)
 SCRIPT_PATH=`dirname ${SCRIPT}`
 
 # Set the Vivado lab tools version used
-VIVADO_VERSION=2023.1
+VIVADO_VERSION=2024.2
 VIVADO_LAB_EXE=/opt/Xilinx/Vitis/${VIVADO_VERSION}/bin/vivado_lab
 if [ ! -x ${VIVADO_LAB_EXE} ]
 then
