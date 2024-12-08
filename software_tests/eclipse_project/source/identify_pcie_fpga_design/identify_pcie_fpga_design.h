@@ -122,6 +122,14 @@ typedef enum
     FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_USER_ACCESS, /* PF2 */
     FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_UART,        /* PF3 */
 
+    /* fpga_tests/XCKU5P_DUAL_QSFP_dma_stream_fixed_data which contains:
+     * a. Four AXI streams with fixed data to try and maximum DMA throughput:
+     *    - C2H have a fixed data value always ready.
+     *    - H2C just asserts TREADY and doesn't do anything with the data.
+     * b. Access a Quad SPI connected to the FPGA configuration flash.
+     * c. Access the SYSMON (internal sensors only) */
+    FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_FIXED_DATA,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 

@@ -39,7 +39,8 @@ const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE] =
     [FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_QUAD_SPI] = "XCKU5P_DUAL_QSFP_qdma_ram (quad SPI)",
     [FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_SYSMON] = "XCKU5P_DUAL_QSFP_qdma_ram (SYSMON)",
     [FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_USER_ACCESS] = "XCKU5P_DUAL_QSFP_qdma_ram (user access)",
-    [FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_UART] = "XCKU5P_DUAL_QSFP_qdma_ram (UART)"
+    [FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_UART] = "XCKU5P_DUAL_QSFP_qdma_ram (UART)",
+    [FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_FIXED_DATA] = "XCKU5P_DUAL_QSFP_dma_stream_fixed_data"
 };
 
 
@@ -166,6 +167,14 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_QDMA_RAM_UART,
         .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE
+    },
+    [FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_FIXED_DATA] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_DMA_STREAM_FIXED_DATA,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     }
 };
 
@@ -479,6 +488,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                 break;
 
                 case FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_LOOPBACK:
+                case FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_FIXED_DATA:
                 {
                     const uint32_t peripherals_bar_index = 0;
                     const uint32_t dma_bridge_bar_index = 2;

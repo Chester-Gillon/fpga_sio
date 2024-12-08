@@ -101,4 +101,12 @@
 #define FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_QDMA_RAM_USER_ACCESS 0x000E /* PF2 */
 #define FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_QDMA_RAM_UART        0x000F /* PF3 */
 
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Four AXI streams with fixed data to try and maximum DMA throughput:
+ *    - C2H have a fixed data value always ready.
+ *    - H2C just asserts TREADY and doesn't do anything with the data.
+ * b. Access a Quad SPI connected to the FPGA configuration flash.
+ * c. Access the SYSMON (internal sensors only) */
+#define FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_DMA_STREAM_FIXED_DATA 0x0010
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

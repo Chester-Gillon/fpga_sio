@@ -16,3 +16,7 @@ target_link_libraries (ddr3_reset_control identify_pcie_fpga_design vfio_access 
 add_executable (test_dma_bridge_parallel_streams "test_dma_bridge_parallel_streams.c")
 target_link_libraries (test_dma_bridge_parallel_streams xilinx_dma_bridge_transfers transfer_timing
                        identify_pcie_fpga_design vfio_access pthread)
+
+add_executable (test_dma_bridge_independent_streams "test_dma_bridge_independent_streams.c")
+target_link_libraries (test_dma_bridge_independent_streams xilinx_dma_bridge_transfers transfer_timing
+                       identify_pcie_fpga_design vfio_access pthread)
