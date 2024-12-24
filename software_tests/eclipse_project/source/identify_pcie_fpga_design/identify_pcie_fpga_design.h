@@ -89,7 +89,7 @@ typedef enum
     FPGA_DESIGN_NITEFURY_DMA_STREAM_LOOPBACK,
 
     /* fpga_tests/TOSING_160T_dma_stream_loopback which contains:
-     * a. DMA/Bridge Subsystem loopback of two AXI streams.
+     * a. DMA/Bridge Subsystem loopback of two AXI streams via a AXI4-Stream Switch with register based routing.
      * b. Quad SPI connected to the configuration flash.
      * c. XADC
      */

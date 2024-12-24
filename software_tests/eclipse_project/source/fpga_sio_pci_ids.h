@@ -69,7 +69,7 @@
 #define FPGA_SIO_SUBDEVICE_ID_NITEFURY_DMA_STREAM_LOOPBACK 0x0008
 
 /* The FPGA which uses the DMA/Bridge Subsystem to:
- * a. Loopback two AXI streams.
+ * a. Loopback two AXI streams via a AXI4-Stream Switch with register based routing.
  * b. Access a Quad SPI connected to the FPGA configuration flash.
  * c. Access the XADC (internal sensors only) */
 #define FPGA_SIO_SUBDEVICE_ID_TOSING_160T_DMA_STREAM_LOOPBACK 0x0009
