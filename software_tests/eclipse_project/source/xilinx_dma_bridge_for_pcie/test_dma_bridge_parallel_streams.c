@@ -137,6 +137,9 @@ typedef struct
     stream_pair_throughput_statistics_t overall_statistics;
     /* The throughput statistics for the current reporting interval */
     stream_pair_throughput_statistics_t interval_statistics;
+    /* Used to sequence stopping the test, to allow transfers to complete */
+    bool h2c_stopping;
+    bool test_stopped;
 } stream_test_context_t;
 
 
@@ -398,6 +401,9 @@ static void initialise_parallel_streams (stream_test_contexts_t *const context)
     {
         stream_test_context_t *const stream_pair = &context->stream_pairs[pair_index];
 
+        stream_pair->h2c_stopping = false;
+        stream_pair->test_stopped = false;
+
         /* Use command line option to control if attempt to use one container for all mappings.
          * This is to test the effect of the isolate_iommu_groups command line option when the stream pairs
          * are across more than IOMMU group. */
@@ -540,7 +546,6 @@ static void *parallel_streams_test_thread (void *const arg)
     void *h2c_buffer;
     void *c2h_buffer;
     uint32_t num_idle_stream_pairs;
-    bool test_stopping;
     int64_t now;
     bool final_statistics;
 
@@ -593,15 +598,8 @@ static void *parallel_streams_test_thread (void *const arg)
      * a. A failure occurs (DMA timeout) on any stream pair.
      * b. A test stop has been requested, and all previously queued transfers have completed. */
     num_idle_stream_pairs = 0;
-    test_stopping = false;
     while (context->overall_success && (num_idle_stream_pairs < context->num_stream_pairs))
     {
-        /* Sample a request to stop the test */
-        if (test_stop_requested)
-        {
-            test_stopping = true;
-        }
-
         num_idle_stream_pairs = 0;
         for (pair_index = 0; context->overall_success && (pair_index < context->num_stream_pairs); pair_index++)
         {
@@ -618,7 +616,12 @@ static void *parallel_streams_test_thread (void *const arg)
                 stream_pair->interval_statistics.time_last_transfer_c2h_completed = now;
                 stream_pair->interval_statistics.num_completed_transfers++;
 
-                if (!test_stopping)
+                if (stream_pair->h2c_stopping &&
+                    (stream_pair->overall_statistics.num_completed_transfers == stream_pair->h2c_transfer.num_descriptors_started))
+                {
+                    stream_pair->test_stopped = true;
+                }
+                else
                 {
                     x2x_start_next_c2h_buffer (&stream_pair->c2h_transfer);
                 }
@@ -627,22 +630,25 @@ static void *parallel_streams_test_thread (void *const arg)
             /* Poll for completion of H2C transfer.
              * Re-starts the transfer, unless the test has been requested to stop. */
             h2c_buffer = x2x_poll_completed_transfer (&stream_pair->h2c_transfer, NULL, NULL);
-            if ((h2c_buffer != NULL) && !test_stopping)
+            if (h2c_buffer != NULL)
             {
-                now = get_monotonic_time ();
-                h2c_buffer = x2x_get_next_h2c_buffer (&stream_pair->h2c_transfer);
-                X2X_ASSERT (&stream_pair->h2c_transfer, h2c_buffer != NULL);
-                x2x_start_populated_descriptors (&stream_pair->h2c_transfer);
-                stream_pair->last_completed_descriptor_index =
-                        (stream_pair->last_completed_descriptor_index + 1) % context->num_descriptors;
-                stream_pair->c2h_completed_times[stream_pair->last_completed_descriptor_index] = now;
+                if (test_stop_requested)
+                {
+                    stream_pair->h2c_stopping = true;
+                }
+                else
+                {
+                    now = get_monotonic_time ();
+                    h2c_buffer = x2x_get_next_h2c_buffer (&stream_pair->h2c_transfer);
+                    X2X_ASSERT (&stream_pair->h2c_transfer, h2c_buffer != NULL);
+                    x2x_start_populated_descriptors (&stream_pair->h2c_transfer);
+                    stream_pair->last_completed_descriptor_index =
+                            (stream_pair->last_completed_descriptor_index + 1) % context->num_descriptors;
+                    stream_pair->c2h_completed_times[stream_pair->last_completed_descriptor_index] = now;
+                }
             }
 
-            /* Once the test has been requested to stop, monitor when the transfers have become idle meaning
-             * all outstanding transfers have completed */
-            if (test_stopping &&
-                (stream_pair->h2c_transfer.num_in_use_descriptors == 0) &&
-                (stream_pair->c2h_transfer.num_in_use_descriptors == 0))
+            if (stream_pair->test_stopped)
             {
                 num_idle_stream_pairs++;
             }
