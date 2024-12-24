@@ -19,6 +19,7 @@
 
 #include "identify_pcie_fpga_design.h"
 #include "xilinx_dma_bridge_transfers.h"
+#include "xilinx_axi_stream_switch_configure.h"
 #include "transfer_timing.h"
 
 #include <stdlib.h>
@@ -75,6 +76,7 @@ static uint32_t arg_num_tested_device_filters;
 static const struct option command_line_options[] =
 {
     {"stream_device", required_argument, NULL, 0},
+    {"device_routing", required_argument, NULL, 0},
     {"buffer_allocation", required_argument, NULL, 0},
     {"stream_mapping_size", required_argument, NULL, 0},
     {"stream_num_descriptors", required_argument, NULL, 0},
@@ -211,6 +213,11 @@ static void display_usage (void)
     printf ("  Specify a specific PCI device and H2C channel ID to perform the\n");
     printf ("  stream test on. Without this test all present streams.\n");
     printf ("  May be used more than once.\n");
+    printf ("--device_routing <domain>:<bus>:<dev>.<func>[,<master_port>:<slave_port>]\n");
+    printf ("  Specify a PCI device to set the AXI4-Stream Switch routing for.\n");
+    printf ("  The routing in specified as zero or more pairs of the master port and the\n");
+    printf ("  slave port used for the route. Unspecified master ports are left disabled\n");
+    printf ("  May be used more than once.\n");
     printf ("--buffer_allocation heap|shared_memory|huge_pages\n");
     printf ("  Selects the VFIO buffer allocation type\n");
     printf ("--stream_mapping_size <size_bytes>\n");
@@ -308,6 +315,12 @@ static void parse_command_line_arguments (int argc, char *argv[])
                     printf ("Invalid %s %s\n", optdef->name, optarg);
                     exit (EXIT_FAILURE);
                 }
+            }
+            else if (strcmp (optdef->name, "device_routing") == 0)
+            {
+                const bool add_pci_device_location_filter = false;
+
+                process_device_routing_argument (optarg, add_pci_device_location_filter);
             }
             else if (strcmp (optdef->name, "buffer_allocation") == 0)
             {
@@ -899,8 +912,7 @@ int main (int argc, char *argv[])
     stream_test_contexts_t context = {0};
     uint32_t num_h2c_channels;
     uint32_t num_c2h_channels;
-    uint32_t h2c_channel_id;
-    uint32_t c2h_channel_id;
+    device_routing_t routing;
 
     parse_command_line_arguments (argc, argv);
 
@@ -929,31 +941,28 @@ int main (int argc, char *argv[])
                     &num_h2c_channels, &num_c2h_channels, NULL, NULL);
             if (design_uses_stream && (num_h2c_channels > 0) && (num_c2h_channels > 0))
             {
-                for (h2c_channel_id = 0; h2c_channel_id < num_h2c_channels; h2c_channel_id++)
+                configure_routing_for_device (design, &routing);
+                for (uint32_t route_index = 0; route_index < routing.num_routes; route_index++)
                 {
-                    if (is_stream_tested (vfio_device, h2c_channel_id))
+                    const xilinx_axi_switch_master_port_configuration_t *const route = &routing.routes[route_index];
+
+                    if (route->enabled)
                     {
-                        stream_test_context_t *const stream_pair = &context.stream_pairs[context.num_stream_pairs];
-
-                        if ((h2c_channel_id & 1) == 1)
+                        if (is_stream_tested (design->vfio_device, route->slave_port))
                         {
-                            c2h_channel_id = h2c_channel_id - 1;
-                        }
-                        else
-                        {
-                            c2h_channel_id = (h2c_channel_id + 1) % num_c2h_channels;
-                        }
+                            stream_test_context_t *const stream_pair = &context.stream_pairs[context.num_stream_pairs];
 
-                        stream_pair->design = design;
-                        stream_pair->vfio_device = vfio_device;
-                        stream_pair->h2c_channel_id = h2c_channel_id;
-                        stream_pair->c2h_channel_id = c2h_channel_id;
-                        printf ("Selecting test of %s design PCI device %s IOMMU group %s H2C channel %u C2H channel %u\n",
-                                fpga_design_names[stream_pair->design->design_id],
-                                stream_pair->vfio_device->device_name, stream_pair->vfio_device->group->iommu_group_name,
-                                stream_pair->h2c_channel_id, stream_pair->c2h_channel_id);
+                            stream_pair->design = design;
+                            stream_pair->vfio_device = vfio_device;
+                            stream_pair->h2c_channel_id = route->slave_port;
+                            stream_pair->c2h_channel_id = route->master_port;
+                            printf ("Selecting test of %s design PCI device %s IOMMU group %s H2C channel %u C2H channel %u\n",
+                                    fpga_design_names[stream_pair->design->design_id],
+                                    stream_pair->vfio_device->device_name, stream_pair->vfio_device->group->iommu_group_name,
+                                    stream_pair->h2c_channel_id, stream_pair->c2h_channel_id);
 
-                        context.num_stream_pairs++;
+                            context.num_stream_pairs++;
+                        }
                     }
                 }
             }

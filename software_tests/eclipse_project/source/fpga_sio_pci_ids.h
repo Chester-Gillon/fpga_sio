@@ -55,7 +55,7 @@
 #define FPGA_SIO_SUBDEVICE_ID_NITEFURY_DMA_DDR3 0x0006
 
 /* The FPGA which uses the DMA/Bridge Subsystem to:
- * a. Loopback two AXI streams.
+ * a. Loopback two AXI streams via a AXI4-Stream Switch with register based routing.
  * b. Access a Quad SPI connected to the FPGA configuration flash.
  * c. Access the XADC (internal sensors only).
  * d. Access the I2C bus, using either a AXI IIC Bus Interface PG090 and AXI GPIO PG144
@@ -63,7 +63,7 @@
 #define FPGA_SIO_SUBDEVICE_ID_TEF1001_DMA_STREAM_LOOPBACK 0x0007
 
 /* The FPGA which uses the DMA/Bridge Subsystem to:
- * a. Loopback two AXI streams.
+ * a. Loopback two AXI streams via a AXI4-Stream Switch with register based routing.
  * b. Access a Quad SPI connected to the FPGA configuration flash.
  * c. Access the XADC - internal sensors and one external input. */
 #define FPGA_SIO_SUBDEVICE_ID_NITEFURY_DMA_STREAM_LOOPBACK 0x0008
@@ -75,7 +75,7 @@
 #define FPGA_SIO_SUBDEVICE_ID_TOSING_160T_DMA_STREAM_LOOPBACK 0x0009
 
 /* The FPGA which uses the DMA/Bridge Subsystem to:
- * a. Loopback four AXI streams.
+ * a. Loopback four AXI streams via a AXI4-Stream Switch with register based routing.
  * b. Access a Quad SPI connected to the FPGA configuration flash.
  * c. Access the SYSMON (internal sensors only) */
 #define FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_DMA_STREAM_LOOPBACK 0x000A

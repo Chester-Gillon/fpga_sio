@@ -71,7 +71,7 @@ do
             fi
 
             # Ensure NOIOMMU mode is enabled.
-            # This test is required if the vfio module is built-it, since the previous step won't have loaded the module
+            # This test is required if the vfio module is built-in, since the previous step won't have loaded the module
             if [ -e /sys/module/vfio/parameters/enable_unsafe_noiommu_mode ]
             then
                 existing_mode=$(< /sys/module/vfio/parameters/enable_unsafe_noiommu_mode)
@@ -100,7 +100,7 @@ do
         if [ -d ${pci_dir}/driver ]
         then
             # If there is an existing device bound, then leave it.
-            # I.e. don't try and re-build to vfio-pci
+            # I.e. don't try and re-bind to vfio-pci
             existing_driver=`basename \`readlink ${pci_dir}/driver\``
             echo "${device_identification} is already bound to driver ${existing_driver}"
         else

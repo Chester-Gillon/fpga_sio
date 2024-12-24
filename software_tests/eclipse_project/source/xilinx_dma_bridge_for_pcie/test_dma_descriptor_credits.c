@@ -15,6 +15,7 @@
 
 #include "identify_pcie_fpga_design.h"
 #include "xilinx_dma_bridge_host_interface.h"
+#include "xilinx_axi_stream_switch_configure.h"
 #include "transfer_timing.h"
 
 #include <stdlib.h>
@@ -81,7 +82,7 @@ static bool arg_test_vfio_reset;
  */
 static void parse_command_line_arguments (int argc, char *argv[])
 {
-    const char *const optstring = "d:o:3r?";
+    const char *const optstring = "d:s:o:3r?";
     int option;
     char junk;
 
@@ -92,6 +93,14 @@ static void parse_command_line_arguments (int argc, char *argv[])
         {
         case 'd':
             vfio_add_pci_device_location_filter (optarg);
+            break;
+
+        case 's':
+            {
+                const bool add_pci_device_location_filter = false;
+
+                process_device_routing_argument (optarg, add_pci_device_location_filter);
+            }
             break;
 
         case 'o':
@@ -114,7 +123,9 @@ static void parse_command_line_arguments (int argc, char *argv[])
 
         case '?':
         default:
-            printf ("Usage %s -d <pci_device_location> -o <descriptors_iova_offset,h2c_data_iova_offset,c2h_data_iova_offset> [-3] [-r]\n", argv[0]);
+            printf ("Usage %s -d <pci_device_location> -s <pci_device_location>[,<master_port>:<slave_port>] -o <descriptors_iova_offset,h2c_data_iova_offset,c2h_data_iova_offset> [-3] [-r]\n", argv[0]);
+            printf ("  -d selects a PCI device to test\n");
+            printf ("  -s configures AXI4-Stream Switch routing\n");
             printf ("  -3 specifies only 32-bit DMA addressing capability\n");
             printf ("  -r performs a test of VFIO reset\n");
             exit (EXIT_FAILURE);
@@ -179,7 +190,7 @@ static uint8_t *get_dma_mapped_registers_base (fpga_design_t *const design)
             map_vfio_registers_block (design->vfio_device, design->dma_bridge_bar, dma_control_base_offset, dma_control_frame_size);
     if (mapped_registers_base == NULL)
     {
-        printf ("BAR[%" PRIu32 " size of 0x%llx too small for DMA/Bridge Subsystem for PCI Express\n",
+        printf ("BAR[%" PRIu32 "] size of 0x%llx too small for DMA/Bridge Subsystem for PCI Express\n",
                 design->dma_bridge_bar, design->vfio_device->regions_info[design->dma_bridge_bar].size);
     }
 
@@ -1072,6 +1083,7 @@ static void test_vfio_reset (fpga_designs_t *const designs, const uint32_t desig
 int main (int argc, char *argv[])
 {
     fpga_designs_t designs;
+    device_routing_t routing;
     bool success;
 
     parse_command_line_arguments (argc, argv);
@@ -1115,10 +1127,25 @@ int main (int argc, char *argv[])
                 }
                 else
                 {
-                    /* Assumes the DMA bridge has two streams, which are cross-connected internally in the FPGA.
-                     * Test both pairs of streams. */
-                    success = test_stream_descriptor_rings (&designs, design_index, 0, 1) &&
-                            test_stream_descriptor_rings (&designs, design_index, 1, 0);
+                    /* Test the DMA bridge using each pair of streams which are internally connected */
+                    uint32_t num_enabled_routes = 0;
+                    configure_routing_for_device (design, &routing);
+
+                    for (uint32_t route_index = 0; route_index < routing.num_routes; route_index++)
+                    {
+                        const xilinx_axi_switch_master_port_configuration_t *const route = &routing.routes[route_index];
+
+                        if (route->enabled)
+                        {
+                            success = test_stream_descriptor_rings (&designs, design_index, route->slave_port, route->master_port);
+                            num_enabled_routes++;
+                        }
+                    }
+
+                    if (num_enabled_routes == 0)
+                    {
+                        printf ("Skipping test of descriptor rings, as no enabled routes\n");
+                    }
                 }
             }
 

@@ -14,12 +14,11 @@
  *  b. AXI streams which are looped back inside the FPGA. The allows a transfer from:
  *     a. H2C from host buffer to stream.
  *     b. C2H from stream to a different host buffer.
- *
- *     The program has a built-in assumptions about which H2C and C2H are looped back inside the FPGA.
  */
 
 #include "identify_pcie_fpga_design.h"
 #include "xilinx_dma_bridge_transfers.h"
+#include "xilinx_axi_stream_switch_configure.h"
 #include "transfer_timing.h"
 
 #include <stdlib.h>
@@ -140,6 +139,7 @@ static size_t arg_stream_axi_width_bytes = 16;
 static const struct option command_line_options[] =
 {
     {"device", required_argument, NULL, 0},
+    {"device_routing", required_argument, NULL},
     {"a32", no_argument, &arg_test_a32_dma_capability, true},
     {"max_buffer_size", required_argument, NULL, 0},
     {"max_channel_combinations", required_argument, NULL, 0},
@@ -176,6 +176,11 @@ static void display_usage (void)
     printf ("--device <domain>:<bus>:<dev>.<func>\n");
     printf ("  only open using VFIO specific PCI devices in the event that there is one than\n");
     printf ("  one PCI device which matches the identity filters.\n");
+    printf ("  May be used more than once.\n");
+    printf ("--device_routing <domain>:<bus>:<dev>.<func>[,<master_port>:<slave_port>]\n");
+    printf ("  Specify a PCI device to set the AXI4-Stream Switch routing for.\n");
+    printf ("  The routing in specified as zero or more pairs of the master port and the\n");
+    printf ("  slave port used for the route. Unspecified master ports are left disabled\n");
     printf ("  May be used more than once.\n");
     printf ("--a32\n");
     printf ("  Selects VFIO_DEVICE_DMA_CAPABILITY_A32, for testing the vfio_access code\n");
@@ -241,6 +246,12 @@ static void parse_command_line_arguments (int argc, char *argv[])
             else if (strcmp (optdef->name, "device") == 0)
             {
                 vfio_add_pci_device_location_filter (optarg);
+            }
+            else if (strcmp (optdef->name, "device_routing") == 0)
+            {
+                const bool add_pci_device_location_filter = false;
+
+                process_device_routing_argument (optarg, add_pci_device_location_filter);
             }
             else if (strcmp (optdef->name, "max_buffer_size") == 0)
             {
@@ -1632,6 +1643,7 @@ int main (int argc, char *argv[])
     uint32_t h2c_channel_id;
     uint32_t c2h_channel_id;
     uint32_t num_channel_combinations_tested;
+    device_routing_t routing;
     bool test_success;
     bool overall_success = true;
 
@@ -1683,23 +1695,17 @@ int main (int argc, char *argv[])
                                     design->vfio_device->group->iommu_group_name);
 
                             /* Test the pairs of streams cross-connected within the FPGA */
-                            num_channel_combinations_tested = 0;
-                            for (h2c_channel_id = 0;
-                                 (h2c_channel_id < num_h2c_channels) && (num_channel_combinations_tested < arg_max_channel_combinations);
-                                 h2c_channel_id++)
+                            configure_routing_for_device (design, &routing);
+                            for (uint32_t route_index = 0; route_index < routing.num_routes; route_index++)
                             {
-                                if ((h2c_channel_id & 1) == 1)
+                                const xilinx_axi_switch_master_port_configuration_t *const route = &routing.routes[route_index];
+
+                                if (route->enabled)
                                 {
-                                    c2h_channel_id = h2c_channel_id - 1;
+                                    test_success = perform_enabled_test (dma_test, design, vfio_device,
+                                            route->slave_port, route->master_port);
+                                    overall_success = overall_success && test_success;
                                 }
-                                else
-                                {
-                                    c2h_channel_id = (h2c_channel_id + 1) % num_c2h_channels;
-                                }
-                                test_success = perform_enabled_test (dma_test, design, vfio_device,
-                                        h2c_channel_id, c2h_channel_id);
-                                overall_success = overall_success && test_success;
-                                num_channel_combinations_tested++;
                             }
                         }
                         else

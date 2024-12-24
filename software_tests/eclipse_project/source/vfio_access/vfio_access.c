@@ -63,7 +63,19 @@ void vfio_add_pci_device_location_filter (const char *const device_name)
 
         if (num_values == 4)
         {
-            num_pci_device_location_filters++;
+            /* Add the filter if doesn't already exist */
+            bool filter_exists = false;
+            for (uint32_t filter_index = 0; !filter_exists && (filter_index < num_pci_device_location_filters); filter_index++)
+            {
+                const vfio_pci_device_location_filter_t *const existing = &vfio_pci_device_location_filters[filter_index];
+
+                filter_exists = (filter->domain == existing->domain) && (filter->bus == existing->bus) &&
+                        (filter->dev == existing->dev) && (filter->func == existing->func);
+            }
+            if (!filter_exists)
+            {
+                num_pci_device_location_filters++;
+            }
         }
         else
         {
@@ -1853,6 +1865,7 @@ vfio_device_t *open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_
 
     /* Save PCI device identification */
     new_device->pci_dev = pci_dev;
+    new_device->pci_revision_id = pci_read_byte (pci_dev, PCI_REVISION_ID);
     new_device->pci_subsystem_vendor_id = pci_read_word (pci_dev, PCI_SUBSYSTEM_VENDOR_ID);
     new_device->pci_subsystem_device_id = pci_read_word (pci_dev, PCI_SUBSYSTEM_ID);
     new_device->dma_capability = dma_capability;

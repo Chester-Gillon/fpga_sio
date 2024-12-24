@@ -67,6 +67,7 @@ typedef enum
     GENERIC_PCI_ACCESS_FUNC,
     GENERIC_PCI_ACCESS_VENDOR_ID,
     GENERIC_PCI_ACCESS_DEVICE_ID,
+    GENERIC_PCI_ACCESS_REVISION_ID,
 
     /* Only available for endpoints (type 0 header aka "normal") */
     GENERIC_PCI_ACCESS_SUBVENDOR_ID,

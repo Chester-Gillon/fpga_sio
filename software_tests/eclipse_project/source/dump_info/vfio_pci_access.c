@@ -273,6 +273,11 @@ bool generic_pci_access_uint_property (generic_pci_access_device_p const generic
         *value = vfio_device->pci_dev->device_id;
         break;
 
+    case GENERIC_PCI_ACCESS_REVISION_ID:
+        available = true;
+        *value = vfio_device->pci_revision_id;
+        break;
+
     case GENERIC_PCI_ACCESS_SUBVENDOR_ID:
         available = true;
         *value = vfio_device->pci_subsystem_vendor_id;

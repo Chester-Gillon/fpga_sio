@@ -159,6 +159,8 @@ typedef struct
 {
     /* The PCI device */
     struct pci_dev *pci_dev;
+    /* The revision of the subsystem (read from the PCI device configuration) */
+    u8 pci_revision_id;
     /* The PCI identity of the subsystem (read from the PCI device configuration) */
     u16 pci_subsystem_vendor_id;
     u16 pci_subsystem_device_id;

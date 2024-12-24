@@ -415,6 +415,8 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     const size_t xadc_frame_size         = 0x1000;
                     const size_t user_access_base_offset = 0x4000;
                     const size_t user_access_frame_size  = 0x1000;
+                    const size_t axi_switch_base_offset  = 0x6000;
+                    const size_t axi_switch_frame_size   = 0x1000;
 
                     candidate_design->dma_bridge_present = true;
                     candidate_design->dma_bridge_bar = dma_bridge_bar_index;
@@ -431,6 +433,14 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     candidate_design->user_access =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                     user_access_base_offset, user_access_frame_size);
+                    if (vfio_device->pci_revision_id >= 1)
+                    {
+                        candidate_design->axi_switch_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                        axi_switch_base_offset, axi_switch_frame_size);
+                        candidate_design->axi_switch_num_master_ports = 2;
+                        candidate_design->axi_switch_num_slave_ports = 2;
+                    }
                     design_identified = true;
                 }
                 break;
@@ -445,6 +455,8 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     const size_t xadc_frame_size         = 0x1000;
                     const size_t user_access_base_offset = 0x2000;
                     const size_t user_access_frame_size  = 0x1000;
+                    const size_t axi_switch_base_offset  = 0x3000;
+                    const size_t axi_switch_frame_size   = 0x1000;
 
                     candidate_design->dma_bridge_present = true;
                     candidate_design->dma_bridge_bar = dma_bridge_bar_index;
@@ -457,6 +469,14 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     candidate_design->user_access =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                     user_access_base_offset, user_access_frame_size);
+                    if (vfio_device->pci_revision_id >= 1)
+                    {
+                        candidate_design->axi_switch_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                        axi_switch_base_offset, axi_switch_frame_size);
+                        candidate_design->axi_switch_num_master_ports = 2;
+                        candidate_design->axi_switch_num_slave_ports = 2;
+                    }
                     design_identified = true;
                 }
                 break;
@@ -488,6 +508,41 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                 break;
 
                 case FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_LOOPBACK:
+                {
+                    const uint32_t peripherals_bar_index = 0;
+                    const uint32_t dma_bridge_bar_index = 2;
+                    const size_t quad_spi_base_offset    = 0x0000;
+                    const size_t quad_spi_frame_size     = 0x1000;
+                    const size_t sysmon_base_offset      = 0x1000;
+                    const size_t sysmon_frame_size       = 0x1000;
+                    const size_t user_access_base_offset = 0x2000;
+                    const size_t user_access_frame_size  = 0x1000;
+                    const size_t axi_switch_base_offset  = 0x3000;
+                    const size_t axi_switch_frame_size   = 0x1000;
+
+                    candidate_design->dma_bridge_present = true;
+                    candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                    candidate_design->dma_bridge_memory_size_bytes = 0; /* DMA bridge configured for "AXI Stream" */
+                    candidate_design->quad_spi_regs =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                    quad_spi_base_offset, quad_spi_frame_size);
+                    candidate_design->sysmon_regs =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index, sysmon_base_offset, sysmon_frame_size);
+                    candidate_design->user_access =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                    user_access_base_offset, user_access_frame_size);
+                    if (vfio_device->pci_revision_id >= 1)
+                    {
+                        candidate_design->axi_switch_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                        axi_switch_base_offset, axi_switch_frame_size);
+                        candidate_design->axi_switch_num_master_ports = 4;
+                        candidate_design->axi_switch_num_slave_ports = 4;
+                    }
+                    design_identified = true;
+                }
+                break;
+
                 case FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_FIXED_DATA:
                 {
                     const uint32_t peripherals_bar_index = 0;

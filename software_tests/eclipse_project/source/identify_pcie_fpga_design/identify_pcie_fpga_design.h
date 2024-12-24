@@ -75,7 +75,7 @@ typedef enum
     FPGA_DESIGN_NITEFURY_DMA_DDR3,
 
     /* fpga_tests/TEF1001_dma_stream_loopback which contains:
-     * a. DMA/Bridge Subsystem loopback of two AXI streams.
+     * a. DMA/Bridge Subsystem loopback of two AXI streams via a AXI4-Stream Switch with register based routing.
      * b. Access a Quad SPI connected to the FPGA configuration flash.
      * c. Access the XADC (internal sensors only).
      * d. Access the I2C bus, using either a AXI IIC Bus Interface PG090 and AXI GPIO PG144
@@ -83,7 +83,7 @@ typedef enum
     FPGA_DESIGN_TEF1001_DMA_STREAM_LOOPBACK,
 
     /* fpga_tests/NiteFury_dma_stream_loopback which contains:
-     * a. DMA/Bridge Subsystem loopback of two AXI streams.
+     * a. DMA/Bridge Subsystem loopback of two AXI streams via a AXI4-Stream Switch with register based routing.
      * b. Access a Quad SPI connected to the FPGA configuration flash.
      * c. Access the XADC - internal sensors and one external input. */
     FPGA_DESIGN_NITEFURY_DMA_STREAM_LOOPBACK,
@@ -96,7 +96,7 @@ typedef enum
     FPGA_DESIGN_TOSING_160T_DMA_STREAM_LOOPBACK,
 
     /* fpga_tests/XCKU5P_DUAL_QSFP_dma_stream_loopback which contains:
-     * a. DMA/Bridge Subsystem loopback of four AXI streams.
+     * a. DMA/Bridge Subsystem loopback of four AXI streams via a AXI4-Stream Switch with register based routing.
      * b. Quad SPI connected to the configuration flash.
      * c. XADC
      */
@@ -168,6 +168,11 @@ typedef struct
      * a. bit-bang an I2C interface on the TEF1001
      * b. Mux the I2C output pins between either the bit-banged GPIOs or Xilinx AXI IIC */
     uint8_t *bit_banged_i2c_gpio_regs;
+    /* When non-NULL the base of the mapped registers used to control the routing of a AXI4-Stream Switch */
+    uint8_t *axi_switch_regs;
+    /* The number of ports on the AXI4-Stream Switch, as the registers don't define the number of ports configured in the IP. */
+    uint32_t axi_switch_num_master_ports;
+    uint32_t axi_switch_num_slave_ports;
     /* For FPGA_DESIGN_LITEFURY_PROJECT0 or FPGA_DESIGN_NITEFURY_PROJECT0 gives the version of the board design */
     uint32_t board_version;
 } fpga_design_t;

@@ -239,6 +239,7 @@ int main (int argc, char *argv[])
         uint32_t func;
         uint32_t vendor_id;
         uint32_t device_id;
+        uint32_t revision_id;
         uint32_t link_capabilities;
         uint16_t link_status;
         uint16_t link_control2;
@@ -259,13 +260,15 @@ int main (int argc, char *argv[])
                     generic_pci_access_uint_property (access.device, GENERIC_PCI_ACCESS_DEV, &dev) &&
                     generic_pci_access_uint_property (access.device, GENERIC_PCI_ACCESS_FUNC, &func) &&
                     generic_pci_access_uint_property (access.device, GENERIC_PCI_ACCESS_VENDOR_ID, &vendor_id) &&
-                    generic_pci_access_uint_property (access.device, GENERIC_PCI_ACCESS_DEVICE_ID, &device_id);
+                    generic_pci_access_uint_property (access.device, GENERIC_PCI_ACCESS_DEVICE_ID, &device_id) &&
+                    generic_pci_access_uint_property (access.device, GENERIC_PCI_ACCESS_REVISION_ID, &revision_id);
             if (access.success)
             {
-                printf ("Operating on device %04x:%02x:%02x.%x vendor_id=%04x (%s) device_id=%04x (%s)\n",
+                printf ("Operating on device %04x:%02x:%02x.%x vendor_id=%04x (%s) device_id=%04x (%s) revision_id=%02x\n",
                         domain, bus, dev, func,
                         vendor_id, generic_pci_access_text_property (access.device, GENERIC_PCI_ACCESS_VENDOR_NAME),
-                        device_id, generic_pci_access_text_property (access.device, GENERIC_PCI_ACCESS_DEVICE_NAME));
+                        device_id, generic_pci_access_text_property (access.device, GENERIC_PCI_ACCESS_DEVICE_NAME),
+                        revision_id);
                 printf ("Link capabilities: %08X Max link speed %s max link width x%u\n",
                         link_capabilities, link_speed_names[max_link_speed], max_link_width);
                 printf ("Link status: %04X\n", link_status);

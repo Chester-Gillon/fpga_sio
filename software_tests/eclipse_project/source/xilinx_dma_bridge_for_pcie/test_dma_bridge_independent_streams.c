@@ -20,6 +20,7 @@
 
 #include "identify_pcie_fpga_design.h"
 #include "xilinx_dma_bridge_transfers.h"
+#include "xilinx_axi_stream_switch_configure.h"
 #include "transfer_timing.h"
 
 #include <stdlib.h>
@@ -92,6 +93,7 @@ static const struct option command_line_options[] =
 {
     {"h2c_stream_device", required_argument, NULL, 0},
     {"c2h_stream_device", required_argument, NULL, 0},
+    {"device_routing", required_argument, NULL, 0},
     {"buffer_allocation", required_argument, NULL, 0},
     {"stream_mapping_size", required_argument, NULL, 0},
     {"stream_num_descriptors", required_argument, NULL, 0},
@@ -228,6 +230,11 @@ static void display_usage (void)
     printf ("  Specify a specific PCI device and C2H channel ID to perform a\n");
     printf ("  receiver stream test on\n");
     printf ("  May be used more than once.\n");
+    printf ("--device_routing <domain>:<bus>:<dev>.<func>[,<master_port>:<slave_port>]\n");
+    printf ("  Specify a PCI device to set the AXI4-Stream Switch routing for.\n");
+    printf ("  The routing in specified as zero or more pairs of the master port and the\n");
+    printf ("  slave port used for the route. Unspecified master ports are left disabled\n");
+    printf ("  May be used more than once.\n");
     printf ("--buffer_allocation heap|shared_memory|huge_pages\n");
     printf ("  Selects the VFIO buffer allocation type\n");
     printf ("--stream_mapping_size <size_bytes>\n");
@@ -259,7 +266,6 @@ static void parse_command_line_arguments (int argc, char *argv[])
     char device_name[64];
     bool found_existing_device;
     uint32_t device_filter_index;
-
 
     do
     {
@@ -329,6 +335,12 @@ static void parse_command_line_arguments (int argc, char *argv[])
                     printf ("Invalid %s %s\n", optdef->name, optarg);
                     exit (EXIT_FAILURE);
                 }
+            }
+            else if (strcmp (optdef->name, "device_routing") == 0)
+            {
+                const bool add_pci_device_location_filter = false;
+
+                process_device_routing_argument (optarg, add_pci_device_location_filter);
             }
             else if (strcmp (optdef->name, "buffer_allocation") == 0)
             {
@@ -881,6 +893,7 @@ int main (int argc, char *argv[])
     uint32_t num_c2h_channels;
     uint32_t channel_id;
     x2x_direction_t direction;
+    device_routing_t routing;
     stream_test_contexts_t context = {0};
 
     parse_command_line_arguments (argc, argv);
@@ -909,6 +922,14 @@ int main (int argc, char *argv[])
                     &num_h2c_channels, &num_c2h_channels, NULL, NULL);
             if (design_uses_stream)
             {
+                if (design->axi_switch_regs != NULL)
+                {
+                    /* When the design contains a AXI4-Stream Switch allow the switch to be configured.
+                     * The configured routes are not used in the decision of which streams to test, since this program is
+                     * used to investigate independent use of H2C and C2H streams which may not be connected. */
+                    configure_routing_for_device (design, &routing);
+                }
+
                 direction = X2X_DIRECTION_H2C;
                 for (channel_id = 0; channel_id < num_h2c_channels; channel_id++)
                 {

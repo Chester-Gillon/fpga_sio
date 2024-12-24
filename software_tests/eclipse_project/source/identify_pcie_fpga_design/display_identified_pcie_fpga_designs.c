@@ -7,6 +7,7 @@
 
 #include "identify_pcie_fpga_design.h"
 #include "xilinx_dma_bridge_transfers.h"
+#include "xilinx_axi_stream_switch.h"
 
 #include <stdlib.h>
 #include <stddef.h>
@@ -155,6 +156,48 @@ static void display_dma_bridge (const fpga_design_t *const design)
 }
 
 
+/**
+ * @brief Display information about Xilinx AXI4-Stream Switch in an identified design.
+ * @details
+ *   Displays the enabled routes from master to slave ports.
+ *   Since all the ports are disabled at reset, displays a specific message when all ports are disabled.
+ * @param[in] design The identified design containing the AXI4-Stream Switch
+ */
+static void display_axi_switch (const fpga_design_t *const design)
+{
+    uint32_t master_port;
+    bool enabled_ports[XILINX_AXI_STREAM_SWITCH_MAX_PORTS];
+    uint32_t slave_ports[XILINX_AXI_STREAM_SWITCH_MAX_PORTS];
+    uint32_t num_enabled_ports = 0;
+
+    for (master_port = 0; master_port < design->axi_switch_num_master_ports; master_port++)
+    {
+        enabled_ports[master_port] =
+                xilinx_axi_switch_get_selected_slave (design->axi_switch_regs, master_port, &slave_ports[master_port]);
+        if (enabled_ports[master_port])
+        {
+            num_enabled_ports++;
+        }
+    }
+
+    if (num_enabled_ports > 0)
+    {
+        printf ("  Enabled AXI4-Stream Switch route(s):\n");
+        for (master_port = 0; master_port < design->axi_switch_num_master_ports; master_port++)
+        {
+            if (enabled_ports[master_port])
+            {
+                printf ("    Master %2u -> Slave %2u\n", master_port, slave_ports[master_port]);
+            }
+        }
+    }
+    else
+    {
+        printf ("  All %u master ports in AXI4-Stream Switch are disabled\n", design->axi_switch_num_master_ports);
+    }
+}
+
+
 int main (int argc, char *argv[])
 {
     fpga_designs_t designs;
@@ -175,7 +218,8 @@ int main (int argc, char *argv[])
             printf (" version 0x%x", design->board_version);
         }
         printf (":\n");
-        printf ("  PCI device %s IOMMU group %s\n", design->vfio_device->device_name, design->vfio_device->group->iommu_group_name);
+        printf ("  PCI device %s rev %02x IOMMU group %s\n", design->vfio_device->device_name, design->vfio_device->pci_revision_id,
+                design->vfio_device->group->iommu_group_name);
         if (design->dma_bridge_present)
         {
             display_dma_bridge (design);
@@ -194,6 +238,10 @@ int main (int argc, char *argv[])
         display_design_present_peripheral (design, "SYSMON", design->sysmon_regs);
         display_design_present_peripheral (design, "IIC", design->iic_regs);
         display_design_present_peripheral (design, "bit-banged I2C GPIO", design->bit_banged_i2c_gpio_regs);
+        if (design->axi_switch_regs != NULL)
+        {
+            display_axi_switch (design);
+        }
     }
 
     close_pcie_fpga_designs (&designs);

@@ -387,6 +387,11 @@ bool generic_pci_access_uint_property (generic_pci_access_device_p const generic
         *value = device->device_id;
         break;
 
+    case GENERIC_PCI_ACCESS_REVISION_ID:
+        available = generic_pci_access_cfg_read_u8 (generic_device, PCI_REVISION_ID, &cfg_u8);
+        *value = cfg_u8;
+        break;
+
     case GENERIC_PCI_ACCESS_SUBVENDOR_ID:
         if (generic_pci_access_cfg_read_u8 (generic_device, PCI_HEADER_TYPE, &cfg_u8))
         {

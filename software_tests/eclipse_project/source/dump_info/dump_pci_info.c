@@ -579,6 +579,7 @@ static void display_pci_device (generic_pci_access_device_p const device, const 
     uint32_t device_id;
     uint32_t subvendor_id;
     uint32_t subdevice_id;
+    uint32_t revision_id;
     generic_pci_access_mem_region_t regions[PCI_STD_NUM_BARS];
     const char *const iommu_group = generic_pci_access_text_property (device, GENERIC_PCI_ACCESS_IOMMU_GROUP);
     const char *const driver = generic_pci_access_text_property (device, GENERIC_PCI_ACCESS_DRIVER);
@@ -588,11 +589,12 @@ static void display_pci_device (generic_pci_access_device_p const device, const 
         generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_DEV, &dev) &&
         generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_FUNC, &func) &&
         generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_VENDOR_ID, &vendor_id) &&
-        generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_DEVICE_ID, &device_id))
+        generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_DEVICE_ID, &device_id) &&
+        generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_REVISION_ID, &revision_id))
     {
         display_indent (indent_level);
-        printf ("domain=%04x bus=%02x dev=%02x func=%02x\n",
-                domain, bus, dev, func);
+        printf ("domain=%04x bus=%02x dev=%02x func=%02x rev=%02x\n",
+                domain, bus, dev, func, revision_id);
 
 
         display_indent (indent_level);
