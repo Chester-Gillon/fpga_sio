@@ -247,7 +247,7 @@ void configure_routing_for_device (const fpga_design_t *const design, device_rou
     {
     case DEVICE_ROUTING_NONE:
         /* It is a bug to get here, since this function should only be called for designs in which routing can be selected */
-        printf ("No routing available for device %s design %s",
+        printf ("No routing available for device %s design %s\n",
                 design->vfio_device->device_name, fpga_design_names[design->design_id]);
         exit (EXIT_FAILURE);
         break;

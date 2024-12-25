@@ -109,4 +109,22 @@
  * c. Access the SYSMON (internal sensors only) */
 #define FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_DMA_STREAM_FIXED_DATA 0x0010
 
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Two AXI streams with fixed data to try and maximum DMA throughput:
+ *    - C2H have a fixed data value always ready.
+ *    - H2C just asserts TREADY and doesn't do anything with the data.
+ * b. Access a Quad SPI connected to the FPGA configuration flash.
+ * c. Access the XADC (internal sensors only).
+ * d. Access the I2C bus, using either a AXI IIC Bus Interface PG090 and AXI GPIO PG144
+ *    in the same way as the i2c_probe (FPGA_SIO_SUBDEVICE_ID_I2C_PROBE) design. */
+#define FPGA_SIO_SUBDEVICE_ID_TEF1001_DMA_STREAM_FIXED_DATA 0x0011
+
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Two AXI streams with fixed data to try and maximum DMA throughput:
+ *    - C2H have a fixed data value always ready.
+ *    - H2C just asserts TREADY and doesn't do anything with the data.
+ * b. Access a Quad SPI connected to the FPGA configuration flash.
+ * c. Access the XADC - internal sensors and one external input. */
+#define FPGA_SIO_SUBDEVICE_ID_NITEFURY_DMA_STREAM_FIXED_DATA 0x0012
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

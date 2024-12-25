@@ -40,7 +40,9 @@ const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE] =
     [FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_SYSMON] = "XCKU5P_DUAL_QSFP_qdma_ram (SYSMON)",
     [FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_USER_ACCESS] = "XCKU5P_DUAL_QSFP_qdma_ram (user access)",
     [FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_UART] = "XCKU5P_DUAL_QSFP_qdma_ram (UART)",
-    [FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_FIXED_DATA] = "XCKU5P_DUAL_QSFP_dma_stream_fixed_data"
+    [FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_FIXED_DATA] = "XCKU5P_DUAL_QSFP_dma_stream_fixed_data",
+    [FPGA_DESIGN_TEF1001_DMA_STREAM_FIXED_DATA] = "TEF1001_dma_stream_fixed_data",
+    [FPGA_DESIGN_NITEFURY_DMA_STREAM_FIXED_DATA] = "NiteFury_dma_stream_fixed_data"
 };
 
 
@@ -175,6 +177,22 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_DMA_STREAM_FIXED_DATA,
         .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
+    },
+    [FPGA_DESIGN_TEF1001_DMA_STREAM_FIXED_DATA] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_TEF1001_DMA_STREAM_FIXED_DATA,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
+    },
+    [FPGA_DESIGN_NITEFURY_DMA_STREAM_FIXED_DATA] =
+    {
+            .vendor_id = FPGA_SIO_VENDOR_ID,
+            .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+            .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+            .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_NITEFURY_DMA_STREAM_FIXED_DATA,
+            .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     }
 };
 
@@ -445,6 +463,40 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                 }
                 break;
 
+                case FPGA_DESIGN_TEF1001_DMA_STREAM_FIXED_DATA:
+                {
+                    const uint32_t peripherals_bar_index = 0;
+                    const uint32_t dma_bridge_bar_index = 2;
+                    const size_t iic_base_offset         = 0x0000;
+                    const size_t iic_frame_size          = 0x1000;
+                    const size_t gpio_base_offset        = 0x1000;
+                    const size_t gpio_frame_size         = 0x1000;
+                    const size_t quad_spi_base_offset    = 0x2000;
+                    const size_t quad_spi_frame_size     = 0x1000;
+                    const size_t xadc_base_offset        = 0x3000;
+                    const size_t xadc_frame_size         = 0x1000;
+                    const size_t user_access_base_offset = 0x4000;
+                    const size_t user_access_frame_size  = 0x1000;
+
+                    candidate_design->dma_bridge_present = true;
+                    candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                    candidate_design->dma_bridge_memory_size_bytes = 0; /* DMA bridge configured for "AXI Stream" */
+
+                    candidate_design->iic_regs =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index, iic_base_offset, iic_frame_size);
+                    candidate_design->bit_banged_i2c_gpio_regs =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index, gpio_base_offset, gpio_frame_size);
+                    candidate_design->quad_spi_regs =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index, quad_spi_base_offset, quad_spi_frame_size);
+                    candidate_design->xadc_regs =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index, xadc_base_offset, xadc_frame_size);
+                    candidate_design->user_access =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                    user_access_base_offset, user_access_frame_size);
+                    design_identified = true;
+                }
+                break;
+
                 case FPGA_DESIGN_NITEFURY_DMA_STREAM_LOOPBACK:
                 {
                     const uint32_t peripherals_bar_index = 0;
@@ -477,6 +529,32 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                         candidate_design->axi_switch_num_master_ports = 2;
                         candidate_design->axi_switch_num_slave_ports = 2;
                     }
+                    design_identified = true;
+                }
+                break;
+
+                case FPGA_DESIGN_NITEFURY_DMA_STREAM_FIXED_DATA:
+                {
+                    const uint32_t peripherals_bar_index = 0;
+                    const uint32_t dma_bridge_bar_index = 2;
+                    const size_t quad_spi_base_offset    = 0x0000;
+                    const size_t quad_spi_frame_size     = 0x1000;
+                    const size_t xadc_base_offset        = 0x1000;
+                    const size_t xadc_frame_size         = 0x1000;
+                    const size_t user_access_base_offset = 0x2000;
+                    const size_t user_access_frame_size  = 0x1000;
+
+                    candidate_design->dma_bridge_present = true;
+                    candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                    candidate_design->dma_bridge_memory_size_bytes = 0; /* DMA bridge configured for "AXI Stream" */
+
+                    candidate_design->quad_spi_regs =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index, quad_spi_base_offset, quad_spi_frame_size);
+                    candidate_design->xadc_regs =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index, xadc_base_offset, xadc_frame_size);
+                    candidate_design->user_access =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                    user_access_base_offset, user_access_frame_size);
                     design_identified = true;
                 }
                 break;
