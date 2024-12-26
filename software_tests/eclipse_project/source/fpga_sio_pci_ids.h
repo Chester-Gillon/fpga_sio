@@ -127,4 +127,12 @@
  * c. Access the XADC - internal sensors and one external input. */
 #define FPGA_SIO_SUBDEVICE_ID_NITEFURY_DMA_STREAM_FIXED_DATA 0x0012
 
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Two AXI streams with fixed data to try and maximum DMA throughput:
+ *    - C2H have a fixed data value always ready.
+ *    - H2C just asserts TREADY and doesn't do anything with the data.
+ * b. Access a Quad SPI connected to the FPGA configuration flash.
+ * c. Access the XADC (internal sensors only) */
+#define FPGA_SIO_SUBDEVICE_ID_TOSING_160T_DMA_STREAM_FIXED_DATA 0x0013
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

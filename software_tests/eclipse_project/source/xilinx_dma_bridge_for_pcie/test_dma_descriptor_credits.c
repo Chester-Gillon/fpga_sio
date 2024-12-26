@@ -1128,23 +1128,32 @@ int main (int argc, char *argv[])
                 else
                 {
                     /* Test the DMA bridge using each pair of streams which are internally connected */
-                    uint32_t num_enabled_routes = 0;
-                    configure_routing_for_device (design, &routing);
+                    const device_routing_selection_t selection = get_requested_routing_for_device (design, &routing);
 
-                    for (uint32_t route_index = 0; route_index < routing.num_routes; route_index++)
+                    if (selection != DEVICE_ROUTING_NONE)
                     {
-                        const xilinx_axi_switch_master_port_configuration_t *const route = &routing.routes[route_index];
+                        uint32_t num_enabled_routes = 0;
+                        configure_routing_for_device (design, &routing);
 
-                        if (route->enabled)
+                        for (uint32_t route_index = 0; route_index < routing.num_routes; route_index++)
                         {
-                            success = test_stream_descriptor_rings (&designs, design_index, route->slave_port, route->master_port);
-                            num_enabled_routes++;
+                            const xilinx_axi_switch_master_port_configuration_t *const route = &routing.routes[route_index];
+
+                            if (route->enabled)
+                            {
+                                success = test_stream_descriptor_rings (&designs, design_index, route->slave_port, route->master_port);
+                                num_enabled_routes++;
+                            }
+                        }
+
+                        if (num_enabled_routes == 0)
+                        {
+                            printf ("Skipping test of descriptor rings, as no enabled routes\n");
                         }
                     }
-
-                    if (num_enabled_routes == 0)
+                    else
                     {
-                        printf ("Skipping test of descriptor rings, as no enabled routes\n");
+                        printf ("Skipping test of descriptor rings, as design doesn't support loopback\n");
                     }
                 }
             }

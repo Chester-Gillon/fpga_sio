@@ -148,6 +148,15 @@ typedef enum
      * c. Access the XADC - internal sensors and one external input. */
     FPGA_DESIGN_NITEFURY_DMA_STREAM_FIXED_DATA,
 
+    /* fpga_tests/TOSING_160T_dma_stream_fixed_data which contains:
+     * a. Two AXI streams with fixed data to try and maximum DMA throughput:
+     *    - C2H have a fixed data value always ready.
+     *    - H2C just asserts TREADY and doesn't do anything with the data.
+     * b. Quad SPI connected to the configuration flash.
+     * c. XADC
+     */
+    FPGA_DESIGN_TOSING_160T_DMA_STREAM_FIXED_DATA,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 
