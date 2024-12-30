@@ -218,8 +218,13 @@ int main (int argc, char *argv[])
             printf (" version 0x%x", design->board_version);
         }
         printf (":\n");
-        printf ("  PCI device %s rev %02x IOMMU group %s\n", design->vfio_device->device_name, design->vfio_device->pci_revision_id,
+        printf ("  PCI device %s rev %02x IOMMU group %s", design->vfio_device->device_name, design->vfio_device->pci_revision_id,
                 design->vfio_device->group->iommu_group_name);
+        if (design->vfio_device->pci_physical_slot != NULL)
+        {
+            printf ("  physical slot %s\n", design->vfio_device->pci_physical_slot);
+        }
+        printf ("\n");
         if (design->dma_bridge_present)
         {
             display_dma_bridge (design);

@@ -5,13 +5,14 @@
  * @brief Functions to access PCI devices by Linux /sys/bus/pci
  */
 
-#ifndef SOURCE_VFIO_ACCESS_PCI_SYSFS_ACCESS_H_
-#define SOURCE_VFIO_ACCESS_PCI_SYSFS_ACCESS_H_
+#ifndef PCI_SYSFS_ACCESS_H_
+#define PCI_SYSFS_ACCESS_H_
 
 #include <stdint.h>
 
 
 char *pci_sysfs_read_device_symlink_name (const uint32_t domain, const uint32_t bus, const uint32_t dev, const uint32_t func,
                                           const char *const property_name);
+char *pci_sysfs_read_physical_slot (const uint32_t domain, const uint32_t bus, const uint32_t dev);
 
-#endif /* SOURCE_VFIO_ACCESS_PCI_SYSFS_ACCESS_H_ */
+#endif /* PCI_SYSFS_ACCESS_H_ */

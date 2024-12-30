@@ -410,6 +410,11 @@ const char *generic_pci_access_text_property (generic_pci_access_device_p const 
 
     case GENERIC_PCI_ACCESS_DRIVER:
         property_text = pci_sysfs_read_device_symlink_name (device->domain, device->bus, device->dev, device->func, "driver");
+        break;
+
+    case GENERIC_PCI_ACCESS_PHYSICAL_SLOT:
+        property_text = pci_sysfs_read_physical_slot (device->domain, device->bus, device->dev);
+        break;
     }
 
     return property_text;

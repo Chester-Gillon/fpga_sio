@@ -472,6 +472,13 @@ const char *generic_pci_access_text_property (generic_pci_access_device_p const 
         property_text = pci_sysfs_read_device_symlink_name ((uint32_t) device->domain, device->bus, device->dev, device->func, "driver");
 #endif
         break;
+
+    case GENERIC_PCI_ACCESS_PHYSICAL_SLOT:
+        if (fill_uint_property (device, PCI_FILL_PHYS_SLOT))
+        {
+            property_text = device->phy_slot;
+        }
+        break;
     }
 
     return property_text;

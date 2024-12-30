@@ -1864,10 +1864,12 @@ vfio_device_t *open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_
     }
 
     /* Save PCI device identification */
+    const int known_fields = pci_fill_info (pci_dev, PCI_FILL_PHYS_SLOT);
     new_device->pci_dev = pci_dev;
     new_device->pci_revision_id = pci_read_byte (pci_dev, PCI_REVISION_ID);
     new_device->pci_subsystem_vendor_id = pci_read_word (pci_dev, PCI_SUBSYSTEM_VENDOR_ID);
     new_device->pci_subsystem_device_id = pci_read_word (pci_dev, PCI_SUBSYSTEM_ID);
+    new_device->pci_physical_slot = ((known_fields & PCI_FILL_PHYS_SLOT) != 0) ? pci_dev->phy_slot : NULL;
     new_device->dma_capability = dma_capability;
 
     switch (vfio_devices->devices_usage)

@@ -365,6 +365,10 @@ const char *generic_pci_access_text_property (generic_pci_access_device_p const 
                 vfio_device->pci_dev->dev, vfio_device->pci_dev->func, "driver");
 #endif
         break;
+
+    case GENERIC_PCI_ACCESS_PHYSICAL_SLOT:
+        property_text = strdup (vfio_device->pci_physical_slot);
+        break;
     }
 
     return property_text;

@@ -164,6 +164,8 @@ typedef struct
     /* The PCI identity of the subsystem (read from the PCI device configuration) */
     u16 pci_subsystem_vendor_id;
     u16 pci_subsystem_device_id;
+    /* When non-NULL the slot of the PCI device */
+    const char *pci_physical_slot;
     /* The DMA capability of the device, which must be determined by the caller of this API */
     vfio_device_dma_capability_t dma_capability;
     /* The PCI device name as <domain>:<bus>:<device>.<function> */
