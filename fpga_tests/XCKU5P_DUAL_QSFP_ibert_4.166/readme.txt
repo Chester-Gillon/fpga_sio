@@ -45,6 +45,15 @@ The steps to create the project were:
     to remote to allow create_example_project.tcl to be run the files needing to be added to git control
     to be outside of the ignored project directory. 
 
+3. Created a block diagram as the top-level, with the example_ibert_ultrascale_gty_0 created by the
+   example as a module. Initially the block diagram just has ports to connect to all the signals
+   on the example_ibert_ultrascale_gty_0 in preparation for adding a PCIe core to be able to access
+   the QSFP port management.
+
+   After making the example_ibert_ultrascale_gty_0 lower in the hierarchy had to edit the
+   ibert_ultrascale_gty_ip_example.xdc get_pins TX/RX out clock clock constraints to be able to
+   find the pins and avoid critical warnings.
+
 Not sure that have got the ibert_ultrascale_gty_0.xci file shared between the XCKU5P_DUAL_QSFP_ibert_4.166
 and ibert_ultrascale_gty_0_ex projects correctly, in the same way as the TOSING_160T_SFP_ibert design.
 
