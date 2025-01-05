@@ -31,11 +31,7 @@ module example_ibert_ultrascale_gty_0
   input  [`C_GTY_REFCLKS_USED-1:0]      gty_refclk0p_i,
   input  [`C_GTY_REFCLKS_USED-1:0]      gty_refclk0n_i,
   input  [`C_GTY_REFCLKS_USED-1:0]      gty_refclk1p_i,
-  input  [`C_GTY_REFCLKS_USED-1:0]      gty_refclk1n_i,
-  
-  // QSFP control
-  output QSFP_RESET_A,
-  output QSFP_RESET_B
+  input  [`C_GTY_REFCLKS_USED-1:0]      gty_refclk1n_i
 );
 
   //
@@ -147,10 +143,6 @@ module example_ibert_ultrascale_gty_0
   // Sysclock connection
   //
   assign gty_sysclk_i = gty_sysclkp_i;
-
-  // Ensure QSFP modules aren't in reset
-  assign QSFP_RESET_A = 1'b1;
-  assign QSFP_RESET_B = 1'b1;
 
   //
   // IBERT core instantiation

@@ -33,11 +33,6 @@ The steps to create the project were:
 2. Created the ibert_ultrascale_gty_0_ex project, by after configuring the IBERT IP in XCKU5P_DUAL_QSFP_ibert_4.166,
    right clicked the core and selected "Open IP Example Design".
 
-    In the top-level example_ibert_ultrascale_gty_0.v module manually added the following outputs:
-  // Ensure QSFP modules aren't in reset
-  assign QSFP_RESET_A = 1'b1;
-  assign QSFP_RESET_B = 1'b1;
-
     create_example_project.tcl re-creates this project.
 
     Manually moved files to the project top level and in the Vivado project removed the old files within the
@@ -46,18 +41,50 @@ The steps to create the project were:
     to be outside of the ignored project directory. 
 
 3. Created a block diagram as the top-level, with the example_ibert_ultrascale_gty_0 created by the
-   example as a module. Initially the block diagram just has ports to connect to all the signals
-   on the example_ibert_ultrascale_gty_0 in preparation for adding a PCIe core to be able to access
-   the QSFP port management.
+   example as a module. The block diagram connects the ports to all the signals on the example_ibert_ultrascale_gty_0
+   module. The reason for adding the block diagram was to allow a PCIe core and associated peripherals to allow
+   access to the QSFP management signals.
+
 
    After making the example_ibert_ultrascale_gty_0 lower in the hierarchy had to edit the
    ibert_ultrascale_gty_ip_example.xdc get_pins TX/RX out clock clock constraints to be able to
    find the pins and avoid critical warnings.
 
-Not sure that have got the ibert_ultrascale_gty_0.xci file shared between the XCKU5P_DUAL_QSFP_ibert_4.166
-and ibert_ultrascale_gty_0_ex projects correctly, in the same way as the TOSING_160T_SFP_ibert design.
+4. After adding the DMA Bridge got 8 Critical Warnings of the following form:
+   [Vivado 12-2285] Cannot set LOC property of instance 'XCKU5P_DUAL_QSFP_ibert_4_166_i/xdma_0/inst/pcie4_ip_i/inst/XCKU5P_DUAL_QSFP_ibert_4_166_xdma_0_0_pcie4_ip_gt_top_i/diablo_gt.diablo_gt_phy_wrapper/gt_wizard.gtwizard_top_i/XCKU5P_DUAL_QSFP_ibert_4_166_xdma_0_0_pcie4_ip_gt_i/inst/gen_gtwizard_gtye4_top.XCKU5P_DUAL_QSFP_ibert_4_166_xdma_0_0_pcie4_ip_gt_gtwizard_gtye4_inst/gen_gtwizard_gtye4.gen_channel_container[2].gen_enabled_channel.gtye4_channel_wrapper_inst/channel_inst/gtye4_channel_gen.gen_gtye4_channel_inst[1].GTYE4_CHANNEL_PRIM_INST'... XCKU5P_DUAL_QSFP_ibert_4_166_i/xdma_0/inst/pcie4_ip_i/inst/XCKU5P_DUAL_QSFP_ibert_4_166_xdma_0_0_pcie4_ip_gt_top_i/diablo_gt.diablo_gt_phy_wrapper/gt_wizard.gtwizard_top_i/XCKU5P_DUAL_QSFP_ibert_4_166_xdma_0_0_pcie4_ip_gt_i/inst/gen_gtwizard_gtye4_top.XCKU5P_DUAL_QSFP_ibert_4_166_xdma_0_0_pcie4_ip_gt_gtwizard_gtye4_inst/gen_gtwizard_gtye4.gen_channel_container[2].gen_enabled_channel.gtye4_channel_wrapper_inst/channel_inst/gtye4_channel_gen.gen_gtye4_channel_inst[1].GTYE4_CHANNEL_PRIM_INST. Instance XCKU5P_DUAL_QSFP_ibert_4_166_i/xdma_0/inst/pcie4_ip_i/inst/XCKU5P_DUAL_QSFP_ibert_4_166_xdma_0_0_pcie4_ip_gt_top_i/diablo_gt.diablo_gt_phy_wrapper/gt_wizard.gtwizard_top_i/XCKU5P_DUAL_QSFP_ibert_4_166_xdma_0_0_pcie4_ip_gt_i/inst/gen_gtwizard_gtye4_top.XCKU5P_DUAL_QSFP_ibert_4_166_xdma_0_0_pcie4_ip_gt_gtwizard_gtye4_inst/gen_gtwizard_gtye4.gen_channel_container[2].gen_enabled_channel.gtye4_channel_wrapper_inst/channel_inst/gtye4_channel_gen.gen_gtye4_channel_inst[1].GTYE4_CHANNEL_PRIM_INST can not be placed in GTYE4_CHANNEL of site GTYE4_CHANNEL_X0Y9 because the bel is occupied by XCKU5P_DUAL_QSFP_ibert_4_166_i/example_ibert_ultras_0/inst/u_ibert_gty_core/inst/QUAD0.u_q/CH[1].u_ch/u_gtye4_channel. This could be caused by bel constraint conflict ["/home/mr_halfword/fpga_sio/fpga_tests/XCKU5P_DUAL_QSFP_ibert_4.166/ibert_ultrascale_gty_0_ex/ibert_ultrascale_gty_0_ex.gen/sources_1/bd/XCKU5P_DUAL_QSFP_ibert_4_166/ip/XCKU5P_DUAL_QSFP_ibert_4_166_xdma_0_0/ip_0/ip_0/synth/XCKU5P_DUAL_QSFP_ibert_4_166_xdma_0_0_pcie4_ip_gt.xdc":77]
 
-The bitstream detected:
-- 8 links when fitted a 40G QSFP+ DAC cable to both ports
-- 2 links when fitted a pair Finisar FTLF8524P2BNV of SDP+ modules in Mellanox QSFP+ to SFP+ adapters
+   The XCKU5P_DUAL_QSFP_ibert_4_166_xdma_0_0_pcie4_ip_gt.xdc file is read only, and has been created by the IBERT IP which was configured
+   to use GTY QUADS 226 and 227 to which the QSFP ports are connected to.
+
+   The PCIe interface uses GTY QUADS 224 and 225, with the PCIe reference clock on MGTREFCLK0_225.
+
+   The DMA/Bridge Subsystem for PCIe was set to Basic mode when created, and there was no control for GT Selection.
+   Changed to Advance mode and the GT Quad was shown as "GTY Quad 227".
+   Enabled GTY Qaud Selection and changed to "GTY Quad 225" (the quad used for the PCIe reference clock).
+   This change to the GTY Qaud Selection removed the Critical Warnings.
+
+4. The GPIO mapping for the QSFP control signals are:
+   Bit 0 input  : MOD_PRSN
+   Bit 1 input  : INTERRUPT
+   Bit 2 output : RESET
+   Bit 3 output : MOD_SEL
+   Bit 4 output : LP_MODE
+   Bit 5 output : LED
+
+   Since the AXI GPIO doesn't allow output bits to be read back, configured the AXI GPIO as:
+   - Dual channel
+   - 1st channel is all inputs
+   - 2nd channel is all outputs
+   - Output channel bits are connected to input channel bits.
+
+   I.e. the output channel bits can be read via the input channel.
+   TBC: The delay before the output bits can be read back, and if there is any race condition.
+
+Notes:
+a. Not sure that have got the ibert_ultrascale_gty_0.xci file shared between the XCKU5P_DUAL_QSFP_ibert_4.166
+   and ibert_ultrascale_gty_0_ex projects correctly, in the same way as the TOSING_160T_SFP_ibert design.
+
+b. The bitstream detected:
+   - 8 links when fitted a 40G QSFP+ DAC cable to both ports
+   - 2 links when fitted a pair Finisar FTLF8524P2BNV of SDP+ modules in Mellanox QSFP+ to SFP+ adapters
 
