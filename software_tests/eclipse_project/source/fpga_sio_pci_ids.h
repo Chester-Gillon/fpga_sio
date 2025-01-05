@@ -135,4 +135,15 @@
  * c. Access the XADC (internal sensors only) */
 #define FPGA_SIO_SUBDEVICE_ID_TOSING_160T_DMA_STREAM_FIXED_DATA 0x0013
 
+/* The FPGA which uses IBERT for testing the QSFP. The IBERT core is accessed
+ * over JTAG, rather via PCIe.
+ *
+ * There is a DMA Bridge with the following memory mapped peripherals:
+ * a. Management of each QSFP port via:
+ *    - AXI IIC Bus Interface
+ *    - GPIO for the discrete signals
+ * b. Access a Quad SPI connected to the FPGA configuration flash.
+ * c. Access the SYSMON (internal sensors only) */
+#define FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_IBERT 0x0014
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */
