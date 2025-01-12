@@ -349,7 +349,7 @@ static bool i2c_standard_byte_read (uint8_t *const iic_regs, const uint8_t i2c_s
 /**
  * @brief Probe the range valid I2C 7-bit addresses to see which addresses respond
  * @details For debugging displays the value of the byte read in any response
-  * @param[in/out] design The FPGA design containing the peripherals to use for the probe
+ * @param[in/out] design The FPGA design containing the peripherals to use for the probe
 */
 static void probe_i2c_addresses (fpga_design_t *const design)
 {
@@ -487,6 +487,64 @@ static void probe_i2c_addresses (fpga_design_t *const design)
     }
 }
 
+
+/**
+ * @brief Probe the I2C addresses on both QSFP ports of the fpga_tests/XCKU5P_DUAL_QSFP_ibert_4.166 design
+ * @details
+ *   This design is handled as a special case since:
+ *   a. It has independent IIC controllers, and the fpga_design_t structure only only contains a single iic_regs field.
+ *   b. Each QSFP port has a MOD_SEL signal which must be low to enable I2C communication.
+ * @param[in/out] design The FPGA design containing the peripherals to use for the probe
+ */
+static void probe_dual_qsfp_ports (fpga_design_t *const design)
+{
+    const char *const qsfp_port_names[] =
+    {
+        "A",
+        "B"
+    };
+    const uint32_t num_qsfp_ports = sizeof (qsfp_port_names) / sizeof (qsfp_port_names[0]);
+
+    for (uint32_t port_index = 0; port_index < num_qsfp_ports; port_index++)
+    {
+        /* Map the registers used for QSFP management */
+        const uint32_t bar_index = 0;
+        const size_t frame_size_per_port = 0x2000;
+        const size_t overall_frame_size = num_qsfp_ports * frame_size_per_port;
+        const size_t gpio_input_offset = 0x0;
+        const size_t gpio_output_offset = 0x8;
+        const size_t iic_offset = 0x1000;
+        const size_t port_start_offset = port_index * frame_size_per_port;
+
+        const uint8_t *const gpio_input =
+                map_vfio_registers_block (design->vfio_device, bar_index, port_start_offset + gpio_input_offset, overall_frame_size);
+        uint8_t *const gpio_output =
+                map_vfio_registers_block (design->vfio_device, bar_index, port_start_offset + gpio_output_offset, overall_frame_size);
+        design->iic_regs =
+                map_vfio_registers_block (design->vfio_device, bar_index, port_start_offset + iic_offset, overall_frame_size);
+        if ((gpio_input == NULL) || (gpio_output == NULL) || (design->iic_regs == NULL))
+        {
+            printf ("Failed to map registers for port %s\n", qsfp_port_names[port_index]);
+            return;
+        }
+
+        /* Ensure the QSFP module is enabled for I2C access */
+        const uint32_t mod_sel_mask = 1 << 3;
+        uint32_t gpios = read_reg32 (gpio_input, 0);
+        if ((gpios & mod_sel_mask) != 0)
+        {
+            gpios &= ~mod_sel_mask;
+            write_reg32 (gpio_output, 0, gpios);
+            printf ("Enabling MOD_SEL for QSFP port %s\n", qsfp_port_names[port_index]);
+        }
+
+        /* Perform the probe for the QSFP port */
+        printf ("Probing QSFP port %s \n", qsfp_port_names[port_index]);
+        probe_i2c_addresses (design);
+    }
+}
+
+
 int main (int argc, char *argv[])
 {
     fpga_designs_t designs;
@@ -501,7 +559,19 @@ int main (int argc, char *argv[])
     {
         fpga_design_t *const design = &designs.designs[design_index];
 
-        if ((design->iic_regs != NULL) && (design->bit_banged_i2c_gpio_regs != NULL))
+        if (design->design_id == FPGA_DESIGN_XCKU5P_DUAL_QSFP_IBERT)
+        {
+            if (arg_iic_access_mode == IIC_ACCESS_MODE_BIT_BANGED)
+            {
+                printf ("%s design doesn't support %s access mode\n",
+                        fpga_design_names[design->design_id], iic_access_mode_names[arg_iic_access_mode]);
+            }
+            else
+            {
+                probe_dual_qsfp_ports (design);
+            }
+        }
+        else if ((design->iic_regs != NULL) && (design->bit_banged_i2c_gpio_regs != NULL))
         {
             probe_i2c_addresses (design);
         }

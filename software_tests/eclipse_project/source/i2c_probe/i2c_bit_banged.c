@@ -333,20 +333,23 @@ void select_i2c_controller (const bool select_bit_banged, uint8_t *const gpio_re
     /* Default to SMBus PEC disabled */
     (void) memset (controller->smbus_pec_enables, false, sizeof (controller->smbus_pec_enables));
 
-    /* Assume the I2C bus is idle so can initialise the GPIO data output to both SDA and SLA high without
-     * needing to try and complete any previous failed transaction.
-     *
-     * @todo The AXI IIC should always be tracking the bus-busy state even when the GPIO bit-banged controller was is use,
-     *       so could perhaps check if the AXI IIC thinks the bus is busy.
-     *
-     *       One complication is that the GPIO data register doesn't readback the state of the output bits.
-     */
-    controller->gpio_data_out = GPIO_DATA_SDA_OUT_MASK | GPIO_DATA_SCL_OUT_MASK;
-    if (select_bit_banged)
+    if (controller->gpio_regs != NULL)
     {
-        controller->gpio_data_out |= GPIO_DATA_SELECT_BIT_BANG_MASK;
+        /* Assume the I2C bus is idle so can initialise the GPIO data output to both SDA and SLA high without
+         * needing to try and complete any previous failed transaction.
+         *
+         * @todo The AXI IIC should always be tracking the bus-busy state even when the GPIO bit-banged controller was is use,
+         *       so could perhaps check if the AXI IIC thinks the bus is busy.
+         *
+         *       One complication is that the GPIO data register doesn't readback the state of the output bits.
+         */
+        controller->gpio_data_out = GPIO_DATA_SDA_OUT_MASK | GPIO_DATA_SCL_OUT_MASK;
+        if (select_bit_banged)
+        {
+            controller->gpio_data_out |= GPIO_DATA_SELECT_BIT_BANG_MASK;
+        }
+        write_reg32 (controller->gpio_regs, GPIO_DATA_OFFSET, controller->gpio_data_out);
     }
-    write_reg32 (controller->gpio_regs, GPIO_DATA_OFFSET, controller->gpio_data_out);
 
     /* Create the SMBus CRC look-up table, which uses the "CRC-8-CCITT" algorithm */
     for (uint32_t crc_table_index = 0; crc_table_index < SMBUS_CRC_TABLE_SIZE; crc_table_index++)
