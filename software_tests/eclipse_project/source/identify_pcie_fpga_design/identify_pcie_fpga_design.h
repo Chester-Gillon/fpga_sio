@@ -168,6 +168,11 @@ typedef enum
      * c. Access the SYSMON (internal sensors only) */
     FPGA_DESIGN_XCKU5P_DUAL_QSFP_IBERT,
 
+    /* fpga_tests/TEF1001_ddr3_throughput which uses the AXI Memory Mapped to PCI Express block to access:
+     * a. Access the AXI DMA block to transfer between 8GB of DDR3 memory and stream sources/sinks.
+     * b. Access the XADC (internal sensors only). */
+    FPGA_DESIGN_TEF1001_DDR3_THROUGHPUT,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 

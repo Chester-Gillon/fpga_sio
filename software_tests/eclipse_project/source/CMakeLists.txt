@@ -136,6 +136,7 @@ add_subdirectory ("${PROJECT_SOURCE_DIR}/micromemory_5425_nvram")
 add_subdirectory ("${PROJECT_SOURCE_DIR}/serial_ports")
 add_subdirectory ("${PROJECT_SOURCE_DIR}/xilinx_axi_stream_switch")
 add_subdirectory ("${PROJECT_SOURCE_DIR}/qsfp_management")
+add_subdirectory ("${PROJECT_SOURCE_DIR}/ddr_throughput")
 
 # Create a file listing all executables linking the vfio_access library, for use by set_exe_vfio_capabilities.sh
 report_all_targets("vfio_access")

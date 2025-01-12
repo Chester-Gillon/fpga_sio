@@ -146,4 +146,9 @@
  * c. Access the SYSMON (internal sensors only) */
 #define FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_IBERT 0x0014
 
+/* The FPGA which uses the AXI Memory Mapped to PCI Express block to access:
+ * a. Access the AXI DMA block to transfer between 8GB of DDR3 memory and stream sources/sinks.
+ * b. Access the XADC (internal sensors only). */
+#define FPGA_SIO_SUBDEVICE_ID_TEF1001_DDR3_THROUGHPUT 0x0015
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */
