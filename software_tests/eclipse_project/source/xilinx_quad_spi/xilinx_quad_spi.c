@@ -987,6 +987,34 @@ static bool quad_spi_identify_supported_flash (quad_spi_controller_context_t *co
 
 
 /**
+ * @brief Perform a software reset of the Qaud SPI core and wait for the reset to complete before setting the control settings.#
+ * @param[in] controller The controller being initialised
+ * @param[in] control_register_settings The control register settings to apply after the reset is complete.
+ */
+static void quad_spi_software_reset (quad_spi_controller_context_t *const controller, const uint32_t control_register_settings)
+{
+    uint32_t status_register;
+
+    /* Assert a software reset */
+    write_reg32 (controller->quad_spi_regs, XSPI_SOFTWARE_RESET_OFFSET, XSPI_SOFTWARE_RESET_VALUE);
+
+    /* Wait until the software reset has completed. PG153 doesn't define how to check that the reset has completed.
+     * This test was determined empirically. Without it when the AXI QUAD SPI was configured with ext_spi_clk a lower
+     * frequency than the axi_aclk then either:
+     * a. The FIFO depth read back as zero, since the TX FIFO was initially full,
+     * b. qaud_spi_perform_transaction hung.
+     */
+    do
+    {
+        status_register = read_reg32 (controller->quad_spi_regs, XSPI_STATUS_OFFSET);
+    } while ((status_register & XSPI_STATUS_TX_FULL_MASK) != 0);
+
+    /* Set the required control settings */
+    write_reg32 (controller->quad_spi_regs, XSPI_CONTROL_OFFSET, control_register_settings);
+}
+
+
+/**
  * @brief Initialise the Quad SPI controller
  * @details Assumes only one thread is using the controller, and resets the Quad SPI core.
  * @param[out] controller The initialised controller
@@ -1007,8 +1035,7 @@ bool quad_spi_initialise_controller (quad_spi_controller_context_t *const contro
     controller->quad_spi_regs = quad_spi_regs;
 
     /* Software reset the Quad SPI core, and then set master mode */
-    write_reg32 (controller->quad_spi_regs, XSPI_SOFTWARE_RESET_OFFSET, XSPI_SOFTWARE_RESET_VALUE);
-    write_reg32 (controller->quad_spi_regs, XSPI_CONTROL_OFFSET, control_register_settings);
+    quad_spi_software_reset (controller, control_register_settings);
 
     /* Determine the FIFO depth configured in the Quad SPI core by writing to the transmit data register
      * while transactions are inhibited, until the transmit FIFO becomes full. */
@@ -1028,8 +1055,7 @@ bool quad_spi_initialise_controller (quad_spi_controller_context_t *const contro
     case 256:
         /* These are valid FIFO depths which can be configured in the core.
          * Reset the Quad SPI core again now that have determined the depth (a FIFO reset isn't sufficient). */
-        write_reg32 (controller->quad_spi_regs, XSPI_SOFTWARE_RESET_OFFSET, XSPI_SOFTWARE_RESET_VALUE);
-        write_reg32 (controller->quad_spi_regs, XSPI_CONTROL_OFFSET, control_register_settings);
+        quad_spi_software_reset (controller, control_register_settings);
         break;
 
     default:
