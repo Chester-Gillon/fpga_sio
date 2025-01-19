@@ -1,3 +1,14 @@
+# Defines the pins used for the QSFP module management.
+# I.e. the slow speed signals rather than the SERDES signals.
+#
+# fpga_tests/XCKU5P_DUAL_QSFP_input_monitor/readme.txt found that the following
+# have external pull-ups when no QSFP modules are fitted:
+# Inputs        : INTERRUPT, MOD_PRSN
+# Outputs       : RESET, LP_MODE, MOD_SEL
+# Bi-directional: SCL, SDA
+#
+# Therefore, no need to enable an internal pull-up on the above signals.
+#
 # Placement on QSFP modules looking from outside the PC:
 #
 #                            port B LED 
@@ -22,27 +33,19 @@ set_property IOSTANDARD LVCMOS33 [get_ports {QSFP_MOD_SEL_A}]
 set_property PACKAGE_PIN AE15 [get_ports {QSFP_RESET_A}]
 set_property IOSTANDARD LVCMOS33 [get_ports {QSFP_RESET_A}]
 
-# There is no documentation about the external pull-up resistors on the I2C bus,
-# enable a pull-up on the IO pad
 set_property PACKAGE_PIN B14 [get_ports {QSFP_I2C_A_scl_io}]
 set_property IOSTANDARD LVCMOS33 [get_ports {QSFP_I2C_A_scl_io}] 
-set_property PULLUP true [get_ports {QSFP_I2C_A_scl_io}]
 
 set_property PACKAGE_PIN A14 [get_ports {QSFP_I2C_A_sda_io}]
 set_property IOSTANDARD LVCMOS33 [get_ports {QSFP_I2C_A_sda_io}] 
-set_property PULLUP true [get_ports {QSFP_I2C_A_sda_io}]
 
 # Input pulled low to indicate a module present.
-# Not sure if there is an external pull-up resistor, so enable a pull-up on the IO pad.
 set_property PACKAGE_PIN C14 [get_ports {QSFP_MOD_PRSN_A}]
 set_property IOSTANDARD LVCMOS33 [get_ports {QSFP_MOD_PRSN_A}]
-set_property PULLUP true [get_ports {QSFP_MOD_PRSN_A}]
 
 # Input pull low to indicate an interrupt.
-# Not sure if there is an external pull-up resistor, so enable a pull-up on the IO pad.
 set_property PACKAGE_PIN AD15 [get_ports {QSFP_INTERRUPT_A}]
 set_property IOSTANDARD LVCMOS33 [get_ports {QSFP_INTERRUPT_A}]
-set_property PULLUP true [get_ports {QSFP_INTERRUPT_A}] 
 
 # Active high output to force the module into low-power state.
 # May be changed by I2C command to be transmit disable.
@@ -59,21 +62,22 @@ set_property IOSTANDARD LVCMOS33 [get_ports {QSFP_MOD_SEL_B}]
 set_property PACKAGE_PIN A10 [get_ports {QSFP_RESET_B}]
 set_property IOSTANDARD LVCMOS33 [get_ports {QSFP_RESET_B}]
 
-set_property PACKAGE_PIN B10 [get_ports {QSFP_I2C_B_scl_io}]
+# The XCKU5P_pcie_qsfp_or_sfp_IO.xls delivered as documentation for the board indicated
+# QSFP B SCL is on pin B10. However, using that pin resulted in no I2C communication with
+# a QSFP module.
+# fpga_tests/XCKU5P_DUAL_QSFP_input_monitor/readme.txt indicated B11 has an external pull-up
+# so changed to pin B11.
+set_property PACKAGE_PIN B11 [get_ports {QSFP_I2C_B_scl_io}]
 set_property IOSTANDARD LVCMOS33 [get_ports {QSFP_I2C_B_scl_io}] 
-set_property PULLUP true [get_ports {QSFP_I2C_B_scl_io}]
 
 set_property PACKAGE_PIN B12 [get_ports {QSFP_I2C_B_sda_io}]
 set_property IOSTANDARD LVCMOS33 [get_ports {QSFP_I2C_B_sda_io}] 
-set_property PULLUP true [get_ports {QSFP_I2C_B_sda_io}]
 
 set_property PACKAGE_PIN A13 [get_ports {QSFP_MOD_PRSN_B}]
 set_property IOSTANDARD LVCMOS33 [get_ports {QSFP_MOD_PRSN_B}]
-set_property PULLUP true [get_ports {QSFP_MOD_PRSN_B}]
 
 set_property PACKAGE_PIN A12 [get_ports {QSFP_INTERRUPT_B}]
 set_property IOSTANDARD LVCMOS33 [get_ports {QSFP_INTERRUPT_B}]
-set_property PULLUP true [get_ports {QSFP_INTERRUPT_B}] 
 
 set_property PACKAGE_PIN A9 [get_ports {QSFP_LP_MODE_B}]
 set_property IOSTANDARD LVCMOS33 [get_ports {QSFP_LP_MODE_B}]
