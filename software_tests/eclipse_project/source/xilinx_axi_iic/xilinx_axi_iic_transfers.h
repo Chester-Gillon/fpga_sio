@@ -21,7 +21,9 @@ typedef enum
     /* The bus was unexpectedly idle, when the bus was expected to be claimed by the IIC controller */
     IIC_TRANSFER_STATUS_BUS_IDLE,
     /* A transfer failed due to no acknowledgement from the address slave */
-    IIC_TRANSFER_STATUS_NO_ACK
+    IIC_TRANSFER_STATUS_NO_ACK,
+    /* A transfer failed when arbitration for the bus was lost */
+    IIC_TRANSFER_STATUS_ARBITRATION_LOST
 } iic_transfer_status_t;
 
 /* The options for an I2C transfer which indicates how the transfer will terminated */
@@ -48,5 +50,8 @@ iic_transfer_status_t iic_initialise_controller (iic_controller_context_t *const
 iic_transfer_status_t iic_read (iic_controller_context_t *const controller, const uint8_t i2c_slave_address,
                                 const size_t num_bytes, uint8_t data[const num_bytes],
                                 const iic_transfer_option_t option);
+iic_transfer_status_t iic_write (iic_controller_context_t *const controller, const uint8_t i2c_slave_address,
+                                 const size_t num_bytes, const uint8_t data[const num_bytes],
+                                 const iic_transfer_option_t option);
 
 #endif /* XILINX_AXI_IIC_TRANSFERS_H_ */

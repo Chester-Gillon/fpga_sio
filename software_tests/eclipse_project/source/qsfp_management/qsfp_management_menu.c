@@ -13,6 +13,7 @@
 
 #include "fpga_sio_pci_ids.h"
 #include "vfio_access.h"
+#include "xilinx_axi_iic_transfers.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -68,6 +69,10 @@ typedef struct
     const uint8_t *gpio_input;
     /* Write only for the output signals */
     uint8_t *gpio_output;
+    /* The mapped registers for the Xilinx IIC */
+    uint8_t *iic_regs;
+    /* The controller for I2C transfers */
+    iic_controller_context_t iic_controller;
 } qsfp_management_port_registers_t;
 
 
@@ -173,6 +178,86 @@ static bool toggle_gpio_output (const qsfp_management_port_registers_t *const qs
 
 
 /**
+ * @brief Take action to set up a QSFP module for access over I2C
+ * @param[in/out] qsfp_port Which QSFP port will be accessed
+ * @return Returns IIC_TRANSFER_STATUS_SUCCESS is the module is ready for access
+ */
+static iic_transfer_status_t qsfp_module_access_setup (qsfp_management_port_registers_t *const qsfp_port)
+{
+    uint32_t port_value;
+    const uint32_t module_present_mask = 1u << GPIO_MOD_PRSN;
+    const uint32_t module_select_mask = 1u << GPIO_MOD_SEL;
+
+    /* Check that a module is present */
+    port_value = read_reg32 (qsfp_port->gpio_input, 0);
+    if ((port_value & module_present_mask) != 0)
+    {
+        return IIC_TRANSFER_STATUS_NO_ACK;
+    }
+
+    /* Ensure the QSFP module is enabled for I2C access */
+    if ((port_value & module_select_mask) != 0)
+    {
+        port_value &= ~module_select_mask;
+        write_reg32 (qsfp_port->gpio_output, 0, port_value);
+    }
+
+    return IIC_TRANSFER_STATUS_SUCCESS;
+}
+
+/**
+ * @brief Perform an I2C read from a QSFP module
+ * @param[in,out] qsfp_port Which QSFP port to read from
+ * @param[in] i2c_slave_address The module I2C address to read from
+ * @param[in] data_address The start address to read data from from
+ * @param[in] num_bytes The number of data bytes to read
+ * @param[out] data The data read from I2C
+ * @return Returns IIC_TRANSFER_STATUS_SUCCESS if the read was successful
+ */
+static iic_transfer_status_t qsfp_module_read (qsfp_management_port_registers_t *const qsfp_port, const uint8_t i2c_slave_address,
+                                               const uint8_t data_address, size_t num_bytes, uint8_t data[const num_bytes])
+{
+    iic_transfer_status_t status;
+
+    status = qsfp_module_access_setup (qsfp_port);
+
+    if (status == IIC_TRANSFER_STATUS_SUCCESS)
+    {
+        status = iic_write (&qsfp_port->iic_controller, i2c_slave_address, sizeof (data_address), &data_address,
+                IIC_TRANSFER_OPTION_REPEATED_START);
+    }
+
+    if (status == IIC_TRANSFER_STATUS_SUCCESS)
+    {
+        if (num_bytes == 1)
+        {
+            uint8_t read_buffer[2];
+
+            /* Attempt to work-around the race condition in iic_read() which may get stuck when attempt to read a single byte.
+             * This reads 2 bytes, and copies only the 1st into the callers buffer. */
+            status = iic_read (&qsfp_port->iic_controller, i2c_slave_address, sizeof (read_buffer), read_buffer, IIC_TRANSFER_OPTION_STOP);
+            data[0] = read_buffer[0];
+        }
+        else
+        {
+            status = iic_read (&qsfp_port->iic_controller, i2c_slave_address, num_bytes, data, IIC_TRANSFER_OPTION_STOP);
+        }
+    }
+
+    return status;
+}
+
+/* @todo An initial test of reading module information over I2C, checking the results using the debugger */
+static void display_module_information (qsfp_management_port_registers_t *const qsfp_port)
+{
+    uint8_t data[256];
+    iic_transfer_status_t status;
+
+    status = qsfp_module_read (qsfp_port, 0x50, 0, sizeof (data), data);
+}
+
+
+/**
  * @brief Perform the top level menu for QSFP management
  * @param[in,out] vfio_device The device to perform QSFP management for
  */
@@ -193,6 +278,7 @@ static void qsfp_management_menu (vfio_device_t *const vfio_device)
     const size_t overall_frame_size = NUM_QSFP_PORTS * frame_size_per_port;
     const size_t gpio_input_offset = 0x0;
     const size_t gpio_output_offset = 0x8;
+    const size_t iic_base_offset = 0x1000;
     for (port_index = 0; port_index < NUM_QSFP_PORTS; port_index++)
     {
         const size_t port_start_offset = port_index * frame_size_per_port;
@@ -200,11 +286,14 @@ static void qsfp_management_menu (vfio_device_t *const vfio_device)
 
         port->gpio_input = map_vfio_registers_block (vfio_device, bar_index, port_start_offset + gpio_input_offset, overall_frame_size);
         port->gpio_output = map_vfio_registers_block (vfio_device, bar_index, port_start_offset + gpio_output_offset, overall_frame_size);
-        if ((port->gpio_input == NULL) || (port->gpio_output == NULL))
+        port->iic_regs = map_vfio_registers_block (vfio_device, bar_index, port_start_offset + iic_base_offset, overall_frame_size);
+        if ((port->gpio_input == NULL) || (port->gpio_output == NULL) || (port->iic_regs == NULL))
         {
             printf ("Failed to map registers for port %s\n", qsfp_port_names[port_index]);
             return;
         }
+
+        iic_initialise_controller (&port->iic_controller, port->iic_regs);
     }
 
     display_gpio_signals (qsfp_ports);
@@ -220,6 +309,7 @@ static void qsfp_management_menu (vfio_device_t *const vfio_device)
             printf ("0: Select port for control operations\n");
             printf ("1: Display GPIO signals\n");
             printf ("2: Toggle GPIO output\n");
+            printf ("3: Display module information");
             printf ("98: Display menu\n");
             printf ("99: Exit\n");
             display_menu = false;
@@ -258,6 +348,10 @@ static void qsfp_management_menu (vfio_device_t *const vfio_device)
                 {
                     display_gpio_signals (qsfp_ports);
                 }
+                break;
+
+            case 3:
+                display_module_information (&qsfp_ports[port_index]);
                 break;
 
             case 98:

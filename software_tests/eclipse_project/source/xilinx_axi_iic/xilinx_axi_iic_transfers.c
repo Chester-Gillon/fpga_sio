@@ -9,8 +9,8 @@
  *  Restrictions are:
  *  a. Polls for transfer completion, so can't overlap with other work.
  *  b. Only supports 7-bit transfers.
- *  c. Only supports a I2C master. This was written for the I2C bus on the Trenz Electronic TEF1001-02-B2IX4-A which due to
- *     the CPLD mux between the FPGA with the IIC and the actual I2C bus doesn't allow an IIC slave as the SCL is output only.
+ *  c. Only supports a I2C master. This was originally written for the I2C bus on the Trenz Electronic TEF1001-02-B2IX4-A which
+ *     due to the CPLD mux between the FPGA with the IIC and the actual I2C bus doesn't allow an IIC slave as the SCL is output only.
  */
 
 #include "xilinx_axi_iic_host_interface.h"
@@ -110,7 +110,8 @@ static void iic_send_7bit_address (iic_controller_context_t *const controller, c
  * @param[in] controller The IIC controller context to use
  * @param[in] num_bytes The number of bytes to read
  * @param[out] data The bytes read from the addresses device
- * @return Returns IIC_TRANSFER_STATUS_SUCCESS is the receive was successful.
+ * @param[in] option Selects how the transfer will be terminated on the I2C bus
+ * @return Returns IIC_TRANSFER_STATUS_SUCCESS if the receive was successful.
  */
 static iic_transfer_status_t iic_receive (iic_controller_context_t *const controller,
                                           const size_t num_bytes, uint8_t data[const num_bytes],
@@ -212,13 +213,123 @@ static iic_transfer_status_t iic_receive (iic_controller_context_t *const contro
 
 
 /**
+ * @brief Send the specified buffer to the device that has been previously addressed on the IIC bus.
+ * @details This function assumes that the 7 bit address has been sent and it should wait for the transmit of the
+ *          address to complete.
+ * @param[in] controller The IIC controller context to use
+ * @param[in] num_bytes The number of bytes to write
+ * @param[in] data The bytes written to the device address
+ * @param[in] option Selects how the transfer will be terminated on the I2C bus
+ * @return Returns IIC_TRANSFER_STATUS_SUCCESS if the transmit was successful.
+ */
+static iic_transfer_status_t iic_send (iic_controller_context_t *const controller,
+                                       const size_t num_bytes, const uint8_t data[const num_bytes],
+                                       const iic_transfer_option_t option)
+{
+    size_t remaining_bytes = num_bytes;
+    uint32_t data_index = 0;
+    uint32_t iic_isr;
+
+    /* Attempt to transmit the specified number of bytes to the I2C bus */
+    while (remaining_bytes > 0)
+    {
+        /* Wait for the transmit to be empty before sending any more data by polling the interrupt status register */
+        for (;;)
+        {
+            iic_isr = read_reg32 (controller->iic_regs, IIC_INTERRUPT_STATUS_REGISTER_OFFSET);
+
+            if ((iic_isr & IIC_ISR_IIC_BUS_IS_NOT_BUSY_MASK) != 0)
+            {
+                return IIC_TRANSFER_STATUS_BUS_IDLE;
+            }
+            else if ((iic_isr & IIC_ISR_ARBITRATION_LOST_MASK) != 0)
+            {
+                return IIC_TRANSFER_STATUS_ARBITRATION_LOST;
+            }
+            else if ((iic_isr & IIC_ISR_TRANSMIT_ERROR_SLAVE_TRANSMIT_COMPLETE_MASK) != 0)
+            {
+                return IIC_TRANSFER_STATUS_NO_ACK;
+            }
+
+            if ((iic_isr & IIC_ISR_TRANSMIT_FIFO_EMPTY_MASK) != 0)
+            {
+                break;
+            }
+        }
+
+        /* If there is more than one byte to send then put the next byte to send into the transmit FIFO */
+        if (remaining_bytes > 1)
+        {
+            write_reg32 (controller->iic_regs, IIC_TX_FIFO_OFFSET, data[data_index]);
+            data_index++;
+        }
+        else
+        {
+            if (option == IIC_TRANSFER_OPTION_STOP)
+            {
+                /* If the Option is to release the bus after  the last data byte, Set the stop Option before sending the
+                 * last byte of data so that the stop Option will be generated immediately following the data.
+                 * This is done by clearing the MSMS bit in the control register. */
+                write_reg32 (controller->iic_regs, IIC_CONTROL_REGISTER_OFFSET, IIC_CR_EN_MASK | IIC_CR_TX_MASK);
+            }
+
+            /* Put the last byte to send in the transmit FIFO */
+            write_reg32 (controller->iic_regs, IIC_TX_FIFO_OFFSET, data[data_index]);
+            data_index++;
+
+            if (option == IIC_TRANSFER_OPTION_REPEATED_START)
+            {
+                iic_clear_isr (controller, IIC_ISR_TRANSMIT_FIFO_EMPTY_MASK);
+
+                /* Wait for the transmit to be empty before setting RSTA bit. */
+                for (;;)
+                {
+                    iic_isr = read_reg32 (controller->iic_regs, IIC_INTERRUPT_STATUS_REGISTER_OFFSET);
+                    if ((iic_isr & IIC_ISR_TRANSMIT_FIFO_EMPTY_MASK) != 0)
+                    {
+                        /* RSTA bit should be set only when the FIFO is completely Empty. */
+                        write_reg32 (controller->iic_regs, IIC_CONTROL_REGISTER_OFFSET,
+                                IIC_CR_RSTA_MASK | IIC_CR_EN_MASK | IIC_CR_TX_MASK | IIC_CR_MSMS_MASK);
+                        break;
+                    }
+                }
+            }
+        }
+
+        /* Clear the latched interrupt status register and this must be done after the transmit FIFO has been written to
+         * or it won't clear */
+        iic_clear_isr (controller, IIC_ISR_TRANSMIT_FIFO_EMPTY_MASK);
+
+        remaining_bytes--;
+    }
+
+    if (option == IIC_TRANSFER_OPTION_STOP)
+    {
+        /* If the Option is to release the bus after transmission of data, Wait for the bus to transition to not busy before
+         * returning, the IIC device cannot be disabled until this  occurs. Note that this is different from a receive operation
+         * because the stop Option causes the bus to go not busy. */
+        for (;;)
+        {
+            iic_isr = read_reg32 (controller->iic_regs, IIC_INTERRUPT_STATUS_REGISTER_OFFSET);
+            if ((iic_isr & IIC_ISR_IIC_BUS_IS_NOT_BUSY_MASK) != 0)
+            {
+                break;
+            }
+        }
+    }
+
+    return IIC_TRANSFER_STATUS_SUCCESS;
+}
+
+
+/**
  * @brief Perform a read from the I2C bus
  * @param[in,out] controller The IIC controller context to use
  * @param[in] i2c_slave_address The 7-bit slave address to read from
  * @param[in] num_bytes The number of bytes to read
  * @param[out] data The bytes read from i2c_slave_address
  * @param[in] option Selects how the transfer will be terminated on the I2C bus
- * @return Returns IIC_TRANSFER_STATUS_SUCCESS is the read was successful.
+ * @return Returns IIC_TRANSFER_STATUS_SUCCESS if the read was successful.
  */
 iic_transfer_status_t iic_read (iic_controller_context_t *const controller, const uint8_t i2c_slave_address,
                                 const size_t num_bytes, uint8_t data[const num_bytes],
@@ -268,7 +379,7 @@ iic_transfer_status_t iic_read (iic_controller_context_t *const controller, cons
          * @todo This loop was based upon the XIic_Recv() function in
          *       https://github.com/Xilinx/embeddedsw/blob/master/XilinxProcessorIPLib/drivers/iic/src/xiic_l.c
          *
-         *       There is a race condition that when step the code, and either their is no ACK or num_bytes==1
+         *       There is a race condition that when step the code, and either there is no ACK or num_bytes==1
          *       that the loop doesn't sample the bus as busy and therefore gets stuck every time.
          *       The loop may also get stuck when not stepping if the process gets preempted for long enough. */
         do
@@ -305,6 +416,84 @@ iic_transfer_status_t iic_read (iic_controller_context_t *const controller, cons
     {
         /* The receive is complete, disable the IIC device if the Option is to release the Bus after Reception of data */
         write_reg32 (controller->iic_regs, IIC_CONTROL_REGISTER_OFFSET, 0);
+        controller->bus_claimed = false;
+    }
+
+    return status;
+}
+
+
+/**
+ * @brief Perform a write to the I2C bus
+ * @param[in,out] controller The IIC controller context to use
+ * @param[in] i2c_slave_address The 7-bit slave address to write to
+ * @param[in] num_bytes The number of bytes to write
+ * @param[in] data The bytes written to from i2c_slave_address
+ * @param[in] option Selects how the transfer will be terminated on the I2C bus
+ * @return Returns IIC_TRANSFER_STATUS_SUCCESS is the write was successful.
+ */
+iic_transfer_status_t iic_write (iic_controller_context_t *const controller, const uint8_t i2c_slave_address,
+                                 const size_t num_bytes, const uint8_t data[const num_bytes],
+                                 const iic_transfer_option_t option)
+{
+    iic_transfer_status_t status;
+    uint32_t iic_cr;
+    uint32_t iic_sr;
+
+    /* Check the bus state allows the transfer to be started */
+    status = iic_check_bus_state_before_transfer (controller);
+    if (status != IIC_TRANSFER_STATUS_SUCCESS)
+    {
+        return status;
+    }
+
+    /* Check to see if already Master on the Bus.
+     * If Repeated Start bit is not set send Start bit by setting MSMS bit else Send the address. */
+    iic_cr = read_reg32 (controller->iic_regs, IIC_CONTROL_REGISTER_OFFSET);
+    if ((iic_cr & IIC_CR_RSTA_MASK) == 0)
+    {
+        /* Put the address into the FIFO to be sent and indicate that the operation to be performed on the bus is a write operation */
+        iic_send_7bit_address (controller, i2c_slave_address, IIC_RX_FIFO_WRITE_OPERATION);
+
+        /* Clear the latched interrupt status so that it will be updated with the new state when it changes, this
+         * must be done after the address is put in the FIFO */
+        iic_clear_isr (controller, IIC_ISR_TRANSMIT_FIFO_EMPTY_MASK |
+                IIC_ISR_TRANSMIT_ERROR_SLAVE_TRANSMIT_COMPLETE_MASK |
+                IIC_ISR_ARBITRATION_LOST_MASK);
+
+        /* MSMS must be set after putting data into transmit FIFO, indicate the direction is transmit, this device is master
+         * and enable the IIC device */
+        write_reg32 (controller->iic_regs, IIC_CONTROL_REGISTER_OFFSET,
+                IIC_CR_MSMS_MASK | IIC_CR_TX_MASK | IIC_CR_EN_MASK);
+
+        /* Clear the latched interrupt status for the bus not busy bit which must be done while the bus is busy */
+        do
+        {
+            iic_sr = read_reg32 (controller->iic_regs, IIC_STATUS_REGISTER_OFFSET);
+        } while ((iic_sr & IIC_SR_BB_MASK) == 0);
+
+        iic_clear_isr (controller, IIC_ISR_IIC_BUS_IS_NOT_BUSY_MASK);
+    }
+    else
+    {
+        /* Already owns the Bus indicating that its a Repeated Start call. 7 bit slave address, send the address for a write
+         * operation and set the state to indicate the address has been sent. */
+        iic_send_7bit_address (controller, i2c_slave_address, IIC_RX_FIFO_WRITE_OPERATION);
+    }
+
+    /* Send the specified data to the device on the IIC bus specified by the the address */
+    status = iic_send (controller, num_bytes, data, option);
+
+    iic_cr = read_reg32 (controller->iic_regs, IIC_CONTROL_REGISTER_OFFSET);
+    if ((iic_cr & IIC_CR_RSTA_MASK) != 0)
+    {
+        controller->bus_claimed = true;
+    }
+    else
+    {
+        /* The transmission is completed, disable the IIC device if the Option is to release the Bus after Reception of data */
+        write_reg32 (controller->iic_regs, IIC_CONTROL_REGISTER_OFFSET, 0);
+        controller->bus_claimed = false;
     }
 
     return status;
