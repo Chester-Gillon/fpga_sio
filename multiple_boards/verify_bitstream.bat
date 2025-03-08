@@ -1,18 +1,22 @@
 @echo off
 rem Wrapper script to call verify_bitstream.tcl using the Vivado lab tools under Windows
+setlocal enabledelayedexpansion
 
 rem Get the absolute path of this script (has ending backslash)
 set batdir=%~dp0
 
-set vivado_version=2021.1
-set vivado_lab_exe=C:\Xilinx\Vitis\%vivado_version%\bin\vivado_lab
-if not exist "%vivado_lab_exe%" (
-   echo Error: %vivado_lab_exe% doesn't exist
-   goto exit
+for %%V in (2024.2 2021.1) do (
+   set vivado_lab_exe=C:\Xilinx\Vitis\%%V\bin\vivado_lab
+   if exist !vivado_lab_exe! (
+      goto parse_args
+   )
 )
+echo Error: Unable to find a Vivado Lab Tools installation
+goto exit
 
 rem Parse command line arguments.
 rem Simply checks that the supplied bitstream filename exists; doesn't verify that an actual bitstream file.
+:parse_args
 if "%~1"=="" (
    echo Usage: %0 ^<bitstream_filename^>
    goto exit
@@ -36,6 +40,6 @@ rem The lab tool arguments are set to disable the writing of log and journal fil
 rem
 rem -notrace suppresses the echoing of the TCL commands. 
 rem Not shown in the vivado_lab help, but found in https://support.xilinx.com/s/article/46102?language=en_US
-"%vivado_lab_exe%" -notrace -nolog -nojournal -mode batch -source "%batdir%verify_bitstream.tcl" -tclargs "%bitstream_filename%" "%mask_filename%"
+"!vivado_lab_exe!" -notrace -nolog -nojournal -mode batch -source "%batdir%verify_bitstream.tcl" -tclargs "%bitstream_filename%" "%mask_filename%"
 
 :exit
