@@ -1828,6 +1828,135 @@ static bool open_vfio_device_with_indirect_access (vfio_devices_t *const vfio_de
 
 
 /**
+ * @brief Extract a field which spans multiple consecutive bits
+ * @param[in] register_value The register containing the field
+ * @param[in] field_mask The mask for the field to extract
+ * @return The extracted field value, shifted to the least significant bits
+ */
+static uint32_t vfio_extract_pci_field (const uint32_t register_value, const uint32_t field_mask)
+{
+    const int field_shift = ffs ((int) field_mask) - 1; /* ffs returns the least significant bit as zero */
+
+    return (register_value & field_mask) >> field_shift;
+}
+
+
+/**
+ * @brief Read the PCIe capability pointer for a VFIO device
+ * @param[in] vfio_device The device to read the capability pointer for
+ * @param[out] capability_pointer The capability pointer read from the PCI configuration space of the device
+ * @return Returns true when have read the capability pointer.
+ */
+static bool vfio_get_pcie_capability_pointer (vfio_device_t *const vfio_device, uint8_t *const capability_pointer)
+{
+    bool been_hear[256] = {false};
+    bool success;
+    bool read_capability_pointer = false;
+    uint16_t status_register;
+    success = vfio_read_pci_config_u16 (vfio_device, PCI_STATUS, &status_register);
+    uint8_t capability_id;
+
+    /* Check for presence of PCI capabilities */
+    if (success && (status_register & PCI_STATUS_CAP_LIST) != 0)
+    {
+        /* Iterate over all capabilities. been_hear[] used as protection against infinite loops due to malformed capability lists */
+        success = vfio_read_pci_config_u8 (vfio_device, PCI_CAPABILITY_LIST, capability_pointer);
+        while (success && (!read_capability_pointer) && (*capability_pointer != 0) && (!been_hear[*capability_pointer]))
+        {
+            success = vfio_read_pci_config_u8 (vfio_device, *capability_pointer + PCI_CAP_LIST_ID, &capability_id);
+
+            if (success)
+            {
+                if (capability_id == PCI_CAP_ID_EXP)
+                {
+                    read_capability_pointer = true;
+                }
+                else
+                {
+                    /* Advance to next capability */
+                    been_hear[*capability_pointer] = true;
+                    success = vfio_read_pci_config_u8 (vfio_device, *capability_pointer + PCI_CAP_LIST_NEXT, capability_pointer);
+                }
+            }
+        }
+    }
+
+    return read_capability_pointer;
+}
+
+
+/**
+ * @brief Display an enumeration
+ * @param[in] enums_array_size The size of the enumeration array
+ * @param[in] enum_names Contains the names of the enumeration. Values which are not valid are NULL.
+ * @param[in] value The enumeration value to display the name for
+ */
+static void vfio_display_enumeration (const size_t enums_array_size, const char *const enum_names[const enums_array_size],
+                                      const uint32_t value)
+{
+    if ((value < enums_array_size) && (enum_names[value] != NULL))
+    {
+        printf ("%s", enum_names[value]);
+    }
+    else
+    {
+        printf ("Unknown encoding 0x%x", value);
+    }
+}
+
+
+/**
+ * @brief Display a warning if a VFIO device is operating a link speed or width less than the maximum
+ * @details
+ *   This only considers the maximum link speed and width the VFIO device endpoint reports.
+ *   I.e. it could falsely report a warning if the PCIe root port supports a lower width or link speed
+ *   than the device. Given that VFIO can't open a root port there is no way for this function to
+ *   access the PCIe root port.
+ * @param[in] vfio_device The device to check
+ */
+static void vfio_warn_if_device_limited_bandwidth (vfio_device_t *const vfio_device)
+{
+    uint8_t capability_pointer;
+    uint32_t link_capabilities;
+    uint16_t link_status;
+
+    const char *const link_speed_names[] =
+    {
+        [1] = "2.5 GT/s",
+        [2] = "5 GT/s",
+        [3] = "8 GT/s",
+        [4] = "16 GT/s",
+        [5] = "32 GT/s",
+        [6] = "64 GT/s"
+    };
+    const uint32_t num_valid_link_speeds = sizeof (link_speed_names) / sizeof (link_speed_names[0]);
+
+    if (vfio_get_pcie_capability_pointer (vfio_device, &capability_pointer))
+    {
+        if (vfio_read_pci_config_u32 (vfio_device, capability_pointer + PCI_EXP_LNKCAP, &link_capabilities) &&
+            vfio_read_pci_config_u16 (vfio_device, capability_pointer + PCI_EXP_LNKSTA, &link_status))
+        {
+            const uint32_t max_link_speed = vfio_extract_pci_field (link_capabilities, PCI_EXP_LNKCAP_SPEED);
+            const uint32_t max_link_width = vfio_extract_pci_field (link_capabilities, PCI_EXP_LNKCAP_WIDTH);
+
+            const uint32_t negotiated_link_speed = vfio_extract_pci_field (link_status, PCI_EXP_LNKSTA_SPEED);
+            const uint32_t negotiated_link_width = vfio_extract_pci_field (link_status, PCI_EXP_LNKSTA_WIDTH);
+
+            if ((max_link_speed != negotiated_link_speed) || (max_link_width != negotiated_link_width))
+            {
+                printf ("Warning: Device %s has reduced bandwidth\n", vfio_device->device_description);
+                printf ("         Max width x%u speed ", max_link_width);
+                vfio_display_enumeration (num_valid_link_speeds, link_speed_names, max_link_speed);
+                printf (". Negotiated width x%u speed ", negotiated_link_width);
+                vfio_display_enumeration (num_valid_link_speeds, link_speed_names, negotiated_link_speed);
+                printf ("\n");
+            }
+        }
+    }
+}
+
+
+/**
  * @brief Open an VFIO device, without mapping it's memory BARs.
  * @details This handles the different action to open the VFIO device depending upon devices_usage
  * @param[in/out] vfio_devices The list of vfio devices to append the opened device to.
@@ -1887,6 +2016,7 @@ vfio_device_t *open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_
             /* open_vfio_device_fd() has reported a diagnostic message why the device couldn't be opened */
             return NULL;
         }
+        vfio_warn_if_device_limited_bandwidth (new_device);
         break;
 
     case VFIO_DEVICES_USAGE_INDIRECT_ACCESS:
@@ -1894,6 +2024,7 @@ vfio_device_t *open_vfio_device (vfio_devices_t *const vfio_devices, struct pci_
         {
             return NULL;
         }
+        vfio_warn_if_device_limited_bandwidth (new_device);
         break;
 
     case VFIO_DEVICES_USAGE_MANAGER:
