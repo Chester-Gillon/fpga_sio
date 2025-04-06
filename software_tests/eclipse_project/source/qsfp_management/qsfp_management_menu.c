@@ -19,6 +19,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <linux/ethtool.h>
 
 
 /* The QSFP management discrete signals controlled by GPIO, as bit numbers */
@@ -205,17 +206,23 @@ static iic_transfer_status_t qsfp_module_access_setup (qsfp_management_port_regi
     return IIC_TRANSFER_STATUS_SUCCESS;
 }
 
+
 /**
- * @brief Perform an I2C read from a QSFP module
+ * @brief Perform a single I2C read from a QSFP module
+ * @details
+ *  This:
+ *  a. Takes action to set up a QSFP module for access over I2C
+ *  b. Attempts to work-around a race condition in iic_read(). If num_bytes==1 will actually read 2 bytes in a I2C transaction,
+ *     and only return the 1st byte to the caller.
  * @param[in,out] qsfp_port Which QSFP port to read from
  * @param[in] i2c_slave_address The module I2C address to read from
  * @param[in] data_address The start address to read data from from
  * @param[in] num_bytes The number of data bytes to read
- * @param[out] data The data read from I2C
+ * @param[out] data_read The data read from I2C, using a single transaction.
  * @return Returns IIC_TRANSFER_STATUS_SUCCESS if the read was successful
  */
-static iic_transfer_status_t qsfp_module_read (qsfp_management_port_registers_t *const qsfp_port, const uint8_t i2c_slave_address,
-                                               const uint8_t data_address, size_t num_bytes, uint8_t data[const num_bytes])
+static iic_transfer_status_t qsfp_i2c_single_read (qsfp_management_port_registers_t *const qsfp_port, const uint8_t i2c_slave_address,
+                                                   const uint8_t data_address, size_t num_bytes, uint8_t data[const num_bytes])
 {
     iic_transfer_status_t status;
 
@@ -247,13 +254,64 @@ static iic_transfer_status_t qsfp_module_read (qsfp_management_port_registers_t 
     return status;
 }
 
+
+/**
+ * @brief Perform an I2C read from a QSFP module
+ * @details
+ *  The data_reverse_read is for verifying that the I2C operation can perform addressing as expected.
+ *  For data items which are constant, data_single_read and data_reverse_read should have the same values.
+ * @param[in,out] qsfp_port Which QSFP port to read from
+ * @param[in] i2c_slave_address The module I2C address to read from
+ * @param[in] data_address The start address to read data from from
+ * @param[in] num_bytes The number of data bytes to read
+ * @param[out] data_single_read The data read from I2C, using a single transaction.
+ * @param[out] data_reverse_read When non-NULL the data read from I2C, using multiple transactions which work backwards
+ *                               with a decrementing data address for every transaction.
+ * @return Returns IIC_TRANSFER_STATUS_SUCCESS if the read was successful
+ */
+static iic_transfer_status_t qsfp_module_read (qsfp_management_port_registers_t *const qsfp_port, const uint8_t i2c_slave_address,
+                                               const uint8_t data_address, size_t num_bytes,
+                                               uint8_t data_single_read[const num_bytes],
+                                               uint8_t data_reverse_read[const num_bytes])
+{
+    iic_transfer_status_t status;
+
+    /* Always perform a single read transaction */
+    status = qsfp_i2c_single_read (qsfp_port, i2c_slave_address, data_address, num_bytes, data_single_read);
+
+    /* Perform a reverse read when requested */
+    if (data_reverse_read != NULL)
+    {
+        uint8_t chunk_data_address = (uint8_t) (data_address + num_bytes);
+        size_t bytes_remaining = num_bytes;
+
+        while ((status == IIC_TRANSFER_STATUS_SUCCESS) && (bytes_remaining > 0))
+        {
+            /* Due to the work-around applied in qsfp_i2c_single_read() read chunks of 2 bytes in reverse */
+            const size_t bytes_in_chunk = (bytes_remaining > 1) ? 2 : 1;
+
+            chunk_data_address -= (uint8_t) bytes_in_chunk;
+            bytes_remaining -= bytes_in_chunk;
+            status = qsfp_i2c_single_read (qsfp_port, i2c_slave_address, chunk_data_address, bytes_in_chunk,
+                    &data_reverse_read[bytes_remaining]);
+        }
+    }
+
+    return status;
+}
+
 /* @todo An initial test of reading module information over I2C, checking the results using the debugger */
 static void display_module_information (qsfp_management_port_registers_t *const qsfp_port)
 {
-    uint8_t data[256];
+    uint8_t data_forward[ETH_MODULE_SFF_8079_LEN];
+    uint8_t data_reverse[ETH_MODULE_SFF_8079_LEN];
     iic_transfer_status_t status;
 
-    status = qsfp_module_read (qsfp_port, 0x50, 0, sizeof (data), data);
+    status = qsfp_module_read (qsfp_port, 0x50, 0, sizeof (data_forward), data_forward, data_reverse);
+    if (status == IIC_TRANSFER_STATUS_SUCCESS)
+    {
+        printf ("Module identifier = 0x%02x (0x%02x)\n", data_forward[0], data_reverse[0]);
+    }
 }
 
 
@@ -309,7 +367,7 @@ static void qsfp_management_menu (vfio_device_t *const vfio_device)
             printf ("0: Select port for control operations\n");
             printf ("1: Display GPIO signals\n");
             printf ("2: Toggle GPIO output\n");
-            printf ("3: Display module information");
+            printf ("3: Display module information\n");
             printf ("98: Display menu\n");
             printf ("99: Exit\n");
             display_menu = false;
