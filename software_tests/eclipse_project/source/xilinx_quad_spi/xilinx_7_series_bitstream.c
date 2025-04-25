@@ -7,16 +7,33 @@
  * This provides a mechanism for sanity checking the bitstreams, either in SPI flash or in a file.
  *
  * This file was originally written just for Xilinx 7-series devices, using following as a guide for the bitstream layout:
- *    https://docs.xilinx.com/r/en-US/ug470_7Series_Config
+ *    https://docs.amd.com/v/u/en-US/ug470_7Series_Config
  *
  * For the 7-series devices checked bitstreams for 7A200T and 7K160T
  *
- * Subsequently added additional support for Xilinx UltraScale devices, using the following:
- *    https://docs.xilinx.com/v/u/en-US/ug570-ultrascale-configuration
+ * Subsequently:
+ * 1. Added additional support for Xilinx UltraScale and UltraScale+ devices, using the following:
+ *      https://docs.amd.com/r/en-US/ug570-ultrascale-configuration
  *
- * For the UltraScale devices checked a bitstream for a KU060.
- * @todo The KU060 bitstream had a command code of 0x15, between GRESTORE and DGHIGH_LFRM commands.
- *       UG570 doesn't describe what command code 0x15 is.
+ *    For the UltraScale devices checked a bitstream for a KU060.
+ *    @todo The KU060 bitstream had a command code of 0x15, between GRESTORE and DGHIGH_LFRM commands.
+ *    UG570 doesn't describe what command code 0x15 is.
+ * 2. Added additional support for Zync UltraScale and UltraScale+ devices:
+ *    a. The Zynq UltraScale+ Device TRM https://docs.amd.com/v/u/en-US/ug1085-zynq-ultrascale-trm only lists the IDCODES
+ *       for the PS (processing system).
+ *    b. Application Note: UltraScale and UltraScale+ FPGAs Internal Programming of BBRAM and eFUSEs
+ *       https://docs.amd.com/v/u/en-US/xapp1283-internalprogramming-bbram-efuses contains:
+ *         "For FPGA devices, the JTAG IDCODE can be found in UG570 [Ref 2]. For Zynq UltraScale+
+ *          devices, the JTAG IDCODE in the PL is different than the published IDCODE for the PS. Contact your
+ *          local Xilinx FAE or send an e-mail to secure.solutions@xilinx.com to get the appropriate PL JTAG
+ *          IDCODE for your Zynq UltraScale+ device."
+ *    c. Using a bitstream created for a xczu4ev searched for the raw hex IDCODE in the installation directory
+ *       for Vivado 2024.2. This found the data/verilog/src/unisims/JTAG_SIME2.v source file which has the
+ *       IDCODE from the xczu4ev bitstream and other Zynq devices
+ * 3. Added additional support for accelerator boards.
+ *    https://github.com/erinadreno/list_of_Xilinx_FPGAs?tab=readme-ov-file#alveo-and-kria had the list of FPGA for
+ *    the different boards, and the JTAG_SIME2.v source file had the IDCODe values.
+ *
  */
 
 #include "xilinx_7_series_bitstream.h"
@@ -210,11 +227,66 @@ static const x7_enum_lut_entry_t x7_idcode_names[] =
     {.value = 0X4B73093, .name = "VU45P"},
     {.value = 0X4B7B093, .name = "VU47P"},
     {.value = 0X4B61093, .name = "VU57P"},
-    /* Alveo accelerator cards.
-     * Partial list found from creating bitstreams. Can't seem to find the IDCODE values documented.
-     * While https://github.com/erinadreno/list_of_Xilinx_FPGAs?tab=readme-ov-file#alveo-and-kria
-     * says the XCU50 is "rebadged XCVU35P" the XCU50 has a different IDCODE. */
-    {.value = 0X4B77093, .name = "XCU50"},
+    /* Zynq-7000 SoC */
+    {.value = 0X3722093, .name = "7Z010"},
+    {.value = 0X373B093, .name = "7Z015"},
+    {.value = 0X3727093, .name = "7Z020"},
+    {.value = 0X372C093, .name = "7Z030"},
+    {.value = 0X3732093, .name = "7Z035"},
+    {.value = 0X3731093, .name = "7Z045"},
+    {.value = 0X3736093, .name = "7Z100"},
+    {.value = 0X3723093, .name = "7Z007S"},
+    {.value = 0X373C093, .name = "7Z012S"},
+    {.value = 0X3728093, .name = "7Z014S"},
+    /* Zynq UltraScale+                    Product Family */
+    {.value = 0X4826093, .name = "XCZU1" }, /* CG EG    */
+    {.value = 0X4A43093, .name = "XCZU2" }, /* CG EG    */
+    {.value = 0X4A42093, .name = "XCZU3" }, /* CG EG    */
+    {.value = 0X4A47093, .name = "XCZU4" }, /* CG EG EV */
+    {.value = 0X4A46093, .name = "XCZU5" }, /* CG EG EV */
+    {.value = 0X484B093, .name = "XCZU6" }, /* CG EG    */
+    {.value = 0X4A5A093, .name = "XCZU7" }, /* CG EG EV */
+    {.value = 0X484A093, .name = "XCZU9" }, /* CG       */
+    {.value = 0X4A4E093, .name = "XCZU11"}, /*    EG    */
+    {.value = 0X4A52093, .name = "XCZU15"}, /*    EG    */
+    {.value = 0X4A57093, .name = "XCZU17"}, /*    EG    */
+    {.value = 0X4A56093, .name = "XCZU19"}, /*    EG    */
+    {.value = 0X4AF2093, .name = "XCZU3T"}, /* CG EG    */
+    /* Zynq UltraScale+ RFSoC */
+    {.value = 0X4A83093, .name = "XCZU21DR"},
+    {.value = 0X4A87093, .name = "XCZU25DR"},
+    {.value = 0X4A86093, .name = "XCZU27DR"},
+    {.value = 0X4A82093, .name = "XCZU28DR"},
+    {.value = 0X4A84093, .name = "XCZU29DR"},
+    {.value = 0X4A88093, .name = "XCZU39DR"},
+    {.value = 0X4ADA093, .name = "XCZU42DR"},
+    {.value = 0X4AA7093, .name = "XCZU43DR"},
+    {.value = 0X4AA2093, .name = "XCZU46DR"},
+    {.value = 0X4AA9093, .name = "XCZU47DR"},
+    {.value = 0X4AA5093, .name = "XCZU48DR"},
+    {.value = 0X4AA8093, .name = "XCZU49DR"},
+    {.value = 0X4AD8093, .name = "XCZU55DR"},
+    {.value = 0X4AD9093, .name = "XCZU57DR"},
+    {.value = 0X4AA3093, .name = "XCZU58DR"},
+    {.value = 0X4AA6093, .name = "XCZU59DR"},
+    {.value = 0X4ADB093, .name = "XCZU63DR"},
+    {.value = 0X4ADC093, .name = "XCZU64DR"},
+    {.value = 0X4AD7093, .name = "XCZU65DR"},
+    {.value = 0X4AD6093, .name = "XCZU67DR"},
+    /* Accelerator cards.
+     * Comments from https://github.com/erinadreno/list_of_Xilinx_FPGAs?tab=readme-ov-file#alveo-and-kria
+     *
+     *                                         Product                Corresponding standalone FPGA */
+    {.value = 0X4A58093, .name = "XCU25"},  /* Alveo U25N             XCZU19EG */
+    {.value = 0X4AD5093, .name = "XCU26"},  /* Alveo SN1000 SmartNIC  XCVU23P */
+    {.value = 0X4A5C093, .name = "XCU30"},  /* Alveo U30              XCZU7EV */
+    {.value = 0X4B7D093, .name = "XCU55C"}, /* Alveo U55C             XCVU47P */
+    {.value = 0X4B77093, .name = "XCU50"},  /* Alveo U50              XCVU35P */
+    {.value = 0X4B37093, .name = "XCU200"}, /* Alveo U200             XCVU9P */
+    {.value = 0X4B57093, .name = "XCU250"}, /* Alveo U250             XCVU13P */
+    {.value = 0X4B7D093, .name = "XCU280"}, /* Alveo U280             XCVU37P */
+    {.value = 0X4AD5093, .name = "XCUX35"}, /* Alveo X3522            XCVU23P */
+    {.value = 0X4A49093, .name = "XCK26"},  /* Kria K26               XCZU5EV */
     {                    .name = NULL}
 };
 
