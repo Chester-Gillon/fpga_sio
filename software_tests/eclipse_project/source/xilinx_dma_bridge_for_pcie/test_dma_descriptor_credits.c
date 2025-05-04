@@ -11,7 +11,22 @@
  *   Whereas by giving the DMA engine a "ring" of descriptors and enabling credits, can leave the DMA engine
  *   running and write to X2X_SGDMA_DESCRIPTOR_CREDITS_OFFSET to cause the DMA engine to process the next
  *   set of populated descriptors.
+ *
+ *   The option for spawning a child process which may access the DMA mappings was designed to investigate if the following issue
+ *   https://unix.stackexchange.com/questions/793888/fork-causes-dma-buffer-in-physical-memory-to-retain-stale-data-on-subsequent-w
+ *   could be repeated when using VFIO.
+ *
+ *   With a 4.18.0-553.51.1.el8_10.x86_64 Kernel the observed behaviour is:
+ *   1. When the heap is used to allocate the buffers for DMA mappings, which results in a private mapping, then:
+ *      a. The child process sees the DMA mappings as containing zeros when accesses them.
+ *      b. The child process modifying the DMA mappings doesn't impact the test results.
+ *   2. When shared memory is used to allocate the buffers for DMA mappings then:
+ *      a. The child process can read the contents set by the parent process.
+ *      b. If the child process toggles the contents once, that causes the test to fail.
+ *      c. If the child process toggles the contents twice, the test passes.
  */
+
+#define _GNU_SOURCE /* For O_DIRECT */
 
 #include "identify_pcie_fpga_design.h"
 #include "xilinx_dma_bridge_host_interface.h"
@@ -20,9 +35,14 @@
 
 #include <stdlib.h>
 #include <inttypes.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <errno.h>
 
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 
@@ -76,13 +96,105 @@ static bool arg_test_a32_dma_capability;
 static bool arg_test_vfio_reset;
 
 
+/* Command line argument which performs a test of forking a child process */
+typedef enum
+{
+    /* No child process is forked */
+    TEST_FORK_NONE,
+    /* Child process is forked, but doesn't access any DMA mappings */
+    TEST_FORK_NO_DMA_MAPPING_ACCESS,
+    /* Child process is forked and reads the DMA mappings which were allocated prior to the child being forked */
+    TEST_FORK_READ_DMA_MAPPING,
+    /* Child process is forked and writes the DMA mappings which were allocated prior to the child being forked.
+     * This toggles the data and then restores the original, so should leave the data unchanged. */
+    TEST_FORK_WRITE_DMA_MAPPING,
+    /* Child process is forked and writes the DMA mappings which were allocated prior to the child being forked.
+     * This toggles the data, so should affect the test results if the child can modify the data seen by the parent or DMA. */
+    TEST_FORK_TOGGLE_DMA_MAPPING
+} test_fork_mode_t;
+static test_fork_mode_t arg_test_fork = TEST_FORK_NONE;
+
+
+/* Command line argument which gives the point which the child process is forked, depending upon the number of DMA mappings
+ * which have been allocated for the test. The child process is only able to access the DMA mappings which have been allocated
+ * at the point the child process is forked. */
+static uint32_t arg_num_allocated_mappings_for_fork = 3;
+
+
+/* Command line argument which sets the VFIO buffer allocation type */
+static vfio_buffer_allocation_type_t arg_buffer_allocation = VFIO_BUFFER_ALLOCATION_HEAP;
+
+
+/* Pipes used for bi-directional communication between the parent and forked child process */
+static int child_pipe_read_fd = -1;
+static int child_pipe_write_fd = -1;
+static int parent_pipe_read_fd = -1;
+static int parent_pipe_write_fd = -1;
+
+
+/* PID of the forked child process */
+static pid_t child_pid = -1;
+
+
+/* A collection of the possible DMA mappings used for one test, to allow the child process to access the mappings */
+#define MAX_TEST_DMA_MAPPINGS 3
+typedef struct
+{
+    /* The number of allocated mappings */
+    uint32_t num_dma_mappings;
+    /* The allocated mappings */
+    const vfio_dma_mapping_t *dma_mappings[MAX_TEST_DMA_MAPPINGS];
+} test_dma_mappings_t;
+
+
+/* Identifies messages sent on the pipes between the parent and child. There is no data sent with each message. */
+typedef enum
+{
+    /* Sent from the child to parent to acknowledge the previous message has been action */
+    PIPE_MSG_CHILD_ACK,
+    /* Sent from parent to child to cause the child to announce its presence */
+    PIPE_MSG_CHILD_ANNOUNCE,
+    /* Sent from parent to child to cause the child to read from all the DMA mappings */
+    PIPE_MSG_CHILD_READ_DMA_MAPPINGS,
+    /* Sent from parent to child to cause the child to write to all DMA mappings.
+     * This is done by inverting all bits in the first word of all DMA mappings, to see if modifications in the child
+     * will affect the test. */
+    PIPE_MSG_CHILD_WRITE_DMA_MAPPINGS,
+    /* Sent from parent to child to request the child exits.
+     * No PIPE_MSG_CHILD_ACK is sent in response, since the parent reaps the child to confirm the message has been processed. */
+    PIPE_MSG_CHILD_EXIT
+} pipe_msg_t;
+
+
+/**
+ * @brief Abort the program if an assertion fails, after displaying a message
+ * @param[in] assertion Should be true to allow the program to continue.
+ * @param[in] format printf style format string for error message.
+ * @param[in] ... printf arguments
+ */
+static void check_assert (const bool assertion, const char *format, ...) __attribute__ ((format (printf, 2, 3)));
+static void check_assert (const bool assertion, const char *format, ...)
+{
+    if (!assertion)
+    {
+        va_list args;
+
+        va_start (args, format);
+        vfprintf (stderr, format, args);
+        va_end (args);
+        fprintf (stderr, "\n");
+        exit (EXIT_FAILURE);
+    }
+}
+
+
 /**
  * @brief Parse the command line arguments
  * @param[in] argc, argv Arguments passed to main
  */
 static void parse_command_line_arguments (int argc, char *argv[])
 {
-    const char *const optstring = "d:s:o:3r?";
+    const char *const optstring = "d:s:o:3rf:a:b:?";
     int option;
     char junk;
 
@@ -121,13 +233,76 @@ static void parse_command_line_arguments (int argc, char *argv[])
             arg_test_vfio_reset = true;
             break;
 
+        case 'f':
+            if (strcmp (optarg, "none") == 0)
+            {
+                arg_test_fork = TEST_FORK_NONE;
+            }
+            else if (strcmp (optarg, "no_dma_mapping_access") == 0)
+            {
+                arg_test_fork = TEST_FORK_NO_DMA_MAPPING_ACCESS;
+            }
+            else if (strcmp (optarg, "read_dma_mapping") == 0)
+            {
+                arg_test_fork = TEST_FORK_READ_DMA_MAPPING;
+            }
+            else if (strcmp (optarg, "write_dma_mapping") == 0)
+            {
+                arg_test_fork = TEST_FORK_WRITE_DMA_MAPPING;
+            }
+            else if (strcmp (optarg, "toggle_dma_mapping") == 0)
+            {
+                arg_test_fork = TEST_FORK_TOGGLE_DMA_MAPPING;
+            }
+            else
+            {
+                printf ("Invalid test fork mode %s\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            break;
+
+        case 'a':
+            if ((sscanf (optarg, "%" SCNu32 "%c", &arg_num_allocated_mappings_for_fork, &junk) != 1) ||
+                (arg_num_allocated_mappings_for_fork > MAX_TEST_DMA_MAPPINGS))
+            {
+                printf ("Invalid num allocated mappings for fork %s\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            break;
+
+        case 'b':
+            if (strcmp (optarg, "heap") == 0)
+            {
+                arg_buffer_allocation = VFIO_BUFFER_ALLOCATION_HEAP;
+            }
+            else if (strcmp (optarg, "shared_memory") == 0)
+            {
+                arg_buffer_allocation = VFIO_BUFFER_ALLOCATION_SHARED_MEMORY;
+            }
+            else if (strcmp (optarg, "huge_pages") == 0)
+            {
+                arg_buffer_allocation = VFIO_BUFFER_ALLOCATION_HUGE_PAGES;
+            }
+            else
+            {
+                printf ("Invalid buffer allocation type %s\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            break;
+
         case '?':
         default:
-            printf ("Usage %s -d <pci_device_location> -s <pci_device_location>[,<master_port>:<slave_port>] -o <descriptors_iova_offset,h2c_data_iova_offset,c2h_data_iova_offset> [-3] [-r]\n", argv[0]);
+            printf ("Usage %s -d <pci_device_location> -s <pci_device_location>[,<master_port>:<slave_port>]"
+                    " -o <descriptors_iova_offset,h2c_data_iova_offset,c2h_data_iova_offset> [-3] [-r] "
+                    "-b heap|shared_memory|huge_pages "
+                    "[-f none:no_dma_mapping_access|read_dma_mapping|write_dma_mapping|oggle_dma_mapping] [-a <num_allocated_mappings>\n", argv[0]);
             printf ("  -d selects a PCI device to test\n");
             printf ("  -s configures AXI4-Stream Switch routing\n");
             printf ("  -3 specifies only 32-bit DMA addressing capability\n");
             printf ("  -r performs a test of VFIO reset\n");
+            printf ("  -f performs a test of forking a child process, with different DMA mapping options\n");
+            printf ("  -a specifies how many DMA mappings are allocated before forking a child process\n");
+            printf ("  -b Selects the VFIO buffer allocation type\n");
             exit (EXIT_FAILURE);
             break;
         }
@@ -172,6 +347,239 @@ static void check_for_test_timeout (bool *const success, const char *format, ...
             *success = false;
         }
     }
+}
+
+
+/**
+ * @brief Send a message on a pipe
+ * @param[in] pipe_fd The pipe to write to
+ * @param[in] message The message to send
+ */
+static void send_pipe_message (const int pipe_fd, const pipe_msg_t message)
+{
+    ssize_t num_written;
+    bool message_sent;
+    int saved_errno;
+
+    do
+    {
+        errno = 0;
+        num_written = write (pipe_fd, &message, sizeof (message));
+        saved_errno = errno;
+        message_sent = num_written == sizeof (message);
+        if (!message_sent)
+        {
+            check_assert (saved_errno == EINTR, "write");
+        }
+    } while (!message_sent);
+}
+
+
+/**
+ * @brief Await receipt of a message from a pipe
+ * @param[in] pipe_fd The pipe to read from
+ * @return The received message
+ */
+static pipe_msg_t await_pipe_message (const int pipe_fd)
+{
+    ssize_t num_read;
+    bool message_received;
+    int saved_errno;
+    pipe_msg_t message;
+
+    do
+    {
+        errno = 0;
+        num_read = read (pipe_fd, &message, sizeof (message));
+        saved_errno = errno;
+        message_received = num_read == sizeof (message);
+        if (!message_received)
+        {
+            check_assert (saved_errno == EINTR, "read");
+        }
+    } while (!message_received);
+
+    return message;
+}
+
+
+/**
+ * @brief The entry point for the forked child process, which communicates with the parent process via pipes
+ * @param[in] test_dma_mappings The DMA mappings for the test which the child process may access
+ */
+static void child_test_process (test_dma_mappings_t *const test_dma_mappings)
+{
+    bool exit_requested = false;
+    pipe_msg_t message;
+    uint32_t mapping_index;
+
+    while (!exit_requested)
+    {
+        message = await_pipe_message (child_pipe_read_fd);
+        switch (message)
+        {
+        case PIPE_MSG_CHILD_ANNOUNCE:
+            printf ("Hello from child pid %d\n", getpid ());
+            send_pipe_message (child_pipe_write_fd, PIPE_MSG_CHILD_ACK);
+            break;
+
+        case PIPE_MSG_CHILD_READ_DMA_MAPPINGS:
+            printf ("Child reading words ");
+            for (mapping_index = 0; mapping_index < test_dma_mappings->num_dma_mappings; mapping_index++)
+            {
+                const uint32_t *const data = test_dma_mappings->dma_mappings[mapping_index]->buffer.vaddr;
+
+                printf (" 0x%08x", *data);
+            }
+            printf ("\n");
+            send_pipe_message (child_pipe_write_fd, PIPE_MSG_CHILD_ACK);
+            break;
+
+        case PIPE_MSG_CHILD_WRITE_DMA_MAPPINGS:
+            /* Read the first word from each DMA mapping, and then write back the bitwise inverse value */
+            printf ("Child toggling words ");
+            for (mapping_index = 0; mapping_index < test_dma_mappings->num_dma_mappings; mapping_index++)
+            {
+                void *const data = test_dma_mappings->dma_mappings[mapping_index]->buffer.vaddr;
+                const uint32_t original_data = read_reg32 (data, 0);
+
+                write_reg32 (data, 0, ~original_data);
+                printf (" 0x%08x", original_data);
+            }
+            printf ("\n");
+            send_pipe_message (child_pipe_write_fd, PIPE_MSG_CHILD_ACK);
+            break;
+
+        case PIPE_MSG_CHILD_EXIT:
+            exit_requested = true;
+            break;
+
+        default:
+            check_assert (false, "Unexpected message %d received by child process", message);
+            break;
+        }
+    }
+
+    exit (EXIT_SUCCESS);
+}
+
+
+/**
+ * @brief Spawn a child process, when required by the command line arguments.
+ * @param[in] test_dma_mappings The DMA mappings for the test which the child process may access.
+ *                              The current number of mappings acts as a trigger for when to spawn the child process.
+ */
+static void spawn_child_when_required (test_dma_mappings_t *const test_dma_mappings)
+{
+    int rc;
+    int pipefds[2];
+    pipe_msg_t message;
+
+    if ((arg_test_fork != TEST_FORK_NONE) && (test_dma_mappings->num_dma_mappings == arg_num_allocated_mappings_for_fork))
+    {
+        /* Create the pipes used for bi-directional communication between the parent and child process */
+        rc = pipe2 (pipefds, O_DIRECT);
+        check_assert (rc == 0, "pipe2()");
+        child_pipe_read_fd = pipefds[0];
+        parent_pipe_write_fd = pipefds[1];
+
+        rc = pipe2 (pipefds, O_DIRECT);
+        check_assert (rc == 0, "pipe2()");
+        parent_pipe_read_fd = pipefds[0];
+        child_pipe_write_fd = pipefds[1];
+
+        const pid_t pid = fork ();
+        check_assert (pid >= 0, "fork");
+        if (pid == 0)
+        {
+            /* In the child */
+            child_test_process (test_dma_mappings);
+        }
+        else
+        {
+            /* In the parent. Save the child PID to be able to reap the process */
+            child_pid = pid;
+
+            send_pipe_message (parent_pipe_write_fd, PIPE_MSG_CHILD_ANNOUNCE);
+            message = await_pipe_message (parent_pipe_read_fd);
+            check_assert (message == PIPE_MSG_CHILD_ACK, "Unexpected message from child");
+        }
+    }
+}
+
+
+/**
+ * @brief At the end of a test reap the child process, if it was used
+ */
+static void reap_child_if_used (void)
+{
+    if (child_pid > 0)
+    {
+        int rc;
+        siginfo_t info;
+
+        /* Tell the child process to exit */
+        send_pipe_message (parent_pipe_write_fd, PIPE_MSG_CHILD_EXIT);
+
+        /* In parent, wait for child to exit before continuing */
+        rc = waitid (P_PID, (id_t) child_pid, &info, WEXITED);
+        check_assert (rc == 0, "waitid");
+    }
+}
+
+
+/**
+ * @brief Called when the DMA mappings for a test have been allocated, to cause the child process to access the mappings if enabled.
+ * @details Called once the contents of the DMA mappings, but before the DMA has been started, so the contents should be non-zero
+ *          if the child process is seeing the same contents as the parent process.
+ */
+static void test_fork_dma_mapping_access (void)
+{
+    pipe_msg_t message;
+
+    switch (arg_test_fork)
+    {
+    case TEST_FORK_READ_DMA_MAPPING:
+        send_pipe_message (parent_pipe_write_fd, PIPE_MSG_CHILD_READ_DMA_MAPPINGS);
+        message = await_pipe_message (parent_pipe_read_fd);
+        check_assert (message == PIPE_MSG_CHILD_ACK, "Unexpected message from child");
+        break;
+
+    case TEST_FORK_WRITE_DMA_MAPPING:
+        /* Make the child toggle the DMA mappings twice, so performs a write but leaving the original contents unmodified */
+        for (uint32_t iteration = 0; iteration < 2; iteration++)
+        {
+            send_pipe_message (parent_pipe_write_fd, PIPE_MSG_CHILD_WRITE_DMA_MAPPINGS);
+            message = await_pipe_message (parent_pipe_read_fd);
+            check_assert (message == PIPE_MSG_CHILD_ACK, "Unexpected message from child");
+        }
+        break;
+
+    case TEST_FORK_TOGGLE_DMA_MAPPING:
+        send_pipe_message (parent_pipe_write_fd, PIPE_MSG_CHILD_WRITE_DMA_MAPPINGS);
+        message = await_pipe_message (parent_pipe_read_fd);
+        check_assert (message == PIPE_MSG_CHILD_ACK, "Unexpected message from child");
+        break;
+
+    default:
+        /* No action required */
+        break;
+    }
+}
+
+
+/**
+ * @brief Append one DMA mapping to the list the child process may access
+ * @details This may also trigger the child process to be forked
+ * @param[in,out] test_dma_mappings The list of DMA mappings for the test to append to
+ * @param[in] dma_mapping The DMA mapping to append
+ */
+static void append_test_dma_mapping (test_dma_mappings_t *const test_dma_mappings, const vfio_dma_mapping_t *const dma_mapping)
+{
+    check_assert (test_dma_mappings->num_dma_mappings < MAX_TEST_DMA_MAPPINGS, "too many test DMA mappings");
+    test_dma_mappings->dma_mappings[test_dma_mappings->num_dma_mappings] = dma_mapping;
+    test_dma_mappings->num_dma_mappings++;
+    spawn_child_when_required (test_dma_mappings);
 }
 
 
@@ -495,9 +903,15 @@ static bool test_memory_mapped_descriptor_rings (fpga_designs_t *const designs, 
     uint32_t descriptor_offset;
     bool c2h_descriptors_completed;
     bool success;
+    test_dma_mappings_t test_dma_mappings =
+    {
+        .num_dma_mappings = 0
+    };
 
     fpga_design_t *const design = &designs->designs[design_index];
     vfio_device_t *const vfio_device = &designs->vfio_devices.devices[design_index];
+
+    spawn_child_when_required (&test_dma_mappings);
 
     /* Check that have been passed a BAR which is large enough to contain the DMA control registers */
     uint8_t *const mapped_registers_base = get_dma_mapped_registers_base (design);
@@ -525,15 +939,18 @@ static bool test_memory_mapped_descriptor_rings (fpga_designs_t *const designs, 
             vfio_align_cache_line_size (num_descriptors_per_ring * sizeof (dma_descriptor_t)) +
             vfio_align_cache_line_size (sizeof (completed_descriptor_count_writeback_t));
     allocate_vfio_dma_mapping (vfio_device, &descriptors_mapping, num_rings * total_descriptor_bytes_per_ring,
-            VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, VFIO_BUFFER_ALLOCATION_HEAP);
+            VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
+    append_test_dma_mapping (&test_dma_mappings, &descriptors_mapping);
 
     /* Read mapping used by device, with each transfer limited to the maximum of the memory and command line argument */
     allocate_vfio_dma_mapping (vfio_device, &h2c_data_mapping, total_memory_bytes,
-            VFIO_DMA_MAP_FLAG_READ, VFIO_BUFFER_ALLOCATION_HEAP);
+            VFIO_DMA_MAP_FLAG_READ, arg_buffer_allocation);
+    append_test_dma_mapping (&test_dma_mappings, &h2c_data_mapping);
 
     /* Write mapping used by device, with each transfer limited to the maximum of the memory and command line argument */
     allocate_vfio_dma_mapping (vfio_device, &c2h_data_mapping, total_memory_bytes,
-            VFIO_DMA_MAP_FLAG_WRITE, VFIO_BUFFER_ALLOCATION_HEAP);
+            VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
+    append_test_dma_mapping (&test_dma_mappings, &c2h_data_mapping);
 
     if ((descriptors_mapping.buffer.vaddr == NULL) ||
         (h2c_data_mapping.buffer.vaddr    == NULL) ||
@@ -567,6 +984,8 @@ static bool test_memory_mapped_descriptor_rings (fpga_designs_t *const designs, 
             num_descriptors_per_ring, &descriptors_mapping);
     initialise_descriptor_ring (&c2h_ring, mapped_registers_base, DMA_SUBMODULE_C2H_CHANNELS, channel_id,
             num_descriptors_per_ring, &descriptors_mapping);
+
+    test_fork_dma_mapping_access ();
 
     /* Perform the test, using DMA descriptors to transfer the test pattern:
      * a. From Host to Card Memory using h2c_ring
@@ -671,6 +1090,7 @@ static bool test_memory_mapped_descriptor_rings (fpga_designs_t *const designs, 
         }
     }
 
+    reap_child_if_used ();
     remove_iova_offsets (&descriptors_mapping, &h2c_data_mapping, &c2h_data_mapping, iova_offsets_applied);
     free_vfio_dma_mapping (&c2h_data_mapping);
     free_vfio_dma_mapping (&h2c_data_mapping);
@@ -719,9 +1139,15 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
     bool dma_completion_success;
     bool test_pattern_success;
     uint32_t message_index;
+    test_dma_mappings_t test_dma_mappings =
+    {
+        .num_dma_mappings = 0
+    };
 
     fpga_design_t *const design = &designs->designs[design_index];
     vfio_device_t *const vfio_device = &designs->vfio_devices.devices[design_index];
+
+    spawn_child_when_required (&test_dma_mappings);
 
     /* Check that have been passed a BAR which is large enough to contain the DMA control registers */
     uint8_t *const mapped_registers_base = get_dma_mapped_registers_base (design);
@@ -748,15 +1174,18 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
             vfio_align_cache_line_size (num_descriptors_per_ring * sizeof (c2h_stream_writeback_t));
     allocate_vfio_dma_mapping (vfio_device, &descriptors_mapping,
             total_descriptor_bytes_per_h2c_ring + total_descriptor_bytes_per_c2h_ring,
-            VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, VFIO_BUFFER_ALLOCATION_HEAP);
+            VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
+    append_test_dma_mapping (&test_dma_mappings, &descriptors_mapping);
 
     /* Read mapping used by device, with each transfer limited to the maximum of the memory and command line argument */
     allocate_vfio_dma_mapping (vfio_device, &h2c_data_mapping, total_memory_bytes,
-            VFIO_DMA_MAP_FLAG_READ, VFIO_BUFFER_ALLOCATION_HEAP);
+            VFIO_DMA_MAP_FLAG_READ, arg_buffer_allocation);
+    append_test_dma_mapping (&test_dma_mappings, &h2c_data_mapping);
 
     /* Write mapping used by device, with each transfer limited to the maximum of the memory and command line argument */
     allocate_vfio_dma_mapping (vfio_device, &c2h_data_mapping, total_memory_bytes,
-            VFIO_DMA_MAP_FLAG_WRITE, VFIO_BUFFER_ALLOCATION_HEAP);
+            VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
+    append_test_dma_mapping (&test_dma_mappings, &c2h_data_mapping);
 
     if ((descriptors_mapping.buffer.vaddr == NULL) ||
         (h2c_data_mapping.buffer.vaddr    == NULL) ||
@@ -772,6 +1201,8 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
             num_descriptors_per_ring, &descriptors_mapping);
     initialise_descriptor_ring (&c2h_ring, mapped_registers_base, DMA_SUBMODULE_C2H_CHANNELS, c2h_channel_id,
             num_descriptors_per_ring, &descriptors_mapping);
+
+    test_fork_dma_mapping_access ();
 
     /* Initialise the C2H descriptors to point at the ring of buffers of fixed sizes, and start the receive DMA */
     for (uint32_t descriptor_index = 0; descriptor_index < c2h_ring.num_descriptors; descriptor_index++)
@@ -991,6 +1422,7 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
                 message_index, total_messages);
     }
 
+    reap_child_if_used ();
     remove_iova_offsets (&descriptors_mapping, &h2c_data_mapping, &c2h_data_mapping, iova_offsets_applied);
     free_vfio_dma_mapping (&c2h_data_mapping);
     free_vfio_dma_mapping (&h2c_data_mapping);
