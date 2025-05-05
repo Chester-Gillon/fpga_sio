@@ -42,8 +42,10 @@
 
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/mman.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <signal.h>
 
 
 /* Defines the context for a descriptor ring for a AXI4 Memory Mapped Interface or AXI4 Stream Interface */
@@ -125,6 +127,10 @@ static uint32_t arg_num_allocated_mappings_for_fork = 3;
 static vfio_buffer_allocation_type_t arg_buffer_allocation = VFIO_BUFFER_ALLOCATION_HEAP;
 
 
+/* Command line argument which uses MADV_DONTFORK on the DMA mappings, just prior to forking the child process. */
+static bool arg_madv_dontfork = false;
+
+
 /* Pipes used for bi-directional communication between the parent and forked child process */
 static int child_pipe_read_fd = -1;
 static int child_pipe_write_fd = -1;
@@ -194,7 +200,7 @@ static void check_assert (const bool assertion, const char *format, ...)
  */
 static void parse_command_line_arguments (int argc, char *argv[])
 {
-    const char *const optstring = "d:s:o:3rf:a:b:?";
+    const char *const optstring = "d:s:o:3rf:a:b:m?";
     int option;
     char junk;
 
@@ -290,12 +296,16 @@ static void parse_command_line_arguments (int argc, char *argv[])
             }
             break;
 
+        case 'm':
+            arg_madv_dontfork = true;
+            break;
+
         case '?':
         default:
             printf ("Usage %s -d <pci_device_location> -s <pci_device_location>[,<master_port>:<slave_port>]"
                     " -o <descriptors_iova_offset,h2c_data_iova_offset,c2h_data_iova_offset> [-3] [-r] "
                     "-b heap|shared_memory|huge_pages "
-                    "[-f none:no_dma_mapping_access|read_dma_mapping|write_dma_mapping|oggle_dma_mapping] [-a <num_allocated_mappings>\n", argv[0]);
+                    "[-f none:no_dma_mapping_access|read_dma_mapping|write_dma_mapping|oggle_dma_mapping] [-a <num_allocated_mappings>] [-m]\n", argv[0]);
             printf ("  -d selects a PCI device to test\n");
             printf ("  -s configures AXI4-Stream Switch routing\n");
             printf ("  -3 specifies only 32-bit DMA addressing capability\n");
@@ -303,6 +313,7 @@ static void parse_command_line_arguments (int argc, char *argv[])
             printf ("  -f performs a test of forking a child process, with different DMA mapping options\n");
             printf ("  -a specifies how many DMA mappings are allocated before forking a child process\n");
             printf ("  -b Selects the VFIO buffer allocation type\n");
+            printf ("  -m Uses MADV_DONTFORK on the DMA mappings\n");
             exit (EXIT_FAILURE);
             break;
         }
@@ -465,6 +476,39 @@ static void child_test_process (test_dma_mappings_t *const test_dma_mappings)
 
 
 /**
+ * @brief SIGSEGV signal handler for the child process
+ * @details When the arg_madv_dontfork option is used, the child process is expected to get a SIGSEGV when it attempts to access
+ *          DMA mappings. This handler attempts to continue the communication with the parent process by just acknowledging messages
+ *          until told to exit. This should allow the parent process to exit, rather than hanging waiting for the child.
+ *
+ *          The alternative would be to make await_pipe_message() in the parent check for the child process exiting.
+ * @param[in] sig Not used
+ * @param[in] info Used to report diagnostic information
+ * @param[in] ucontext Not used
+ */
+static void child_sigsegv_handler (int sig, siginfo_t *info, void *ucontext)
+{
+    pipe_msg_t message;
+
+    /* Report diagnostic information */
+    printf ("\nSIGSEGV in child si_code=%d si_addr=%p\n", info->si_code, info->si_addr);
+
+    /* The assumption is the SIGSEGV occurred when attempted to process a PIPE_MSG_CHILD_READ_DMA_MAPPINGS or
+     * PIPE_MSG_CHILD_WRITE_DMA_MAPPINGS. Acknowledge that assumed command and any further messages until the parent process requests
+     * the child exits. */
+    do
+    {
+        send_pipe_message (child_pipe_write_fd, PIPE_MSG_CHILD_ACK);
+        message = await_pipe_message (child_pipe_read_fd);
+    } while (message != PIPE_MSG_CHILD_EXIT);
+
+    /* While exit() isn't documented as async-signal-safe, calling exit() is required to allow coverage results to be written.
+     * If use _exit(), which is documented as async-signal-safe, then no coverage results get written for this function. */
+    exit (EXIT_FAILURE);
+}
+
+
+/**
  * @brief Spawn a child process, when required by the command line arguments.
  * @param[in] test_dma_mappings The DMA mappings for the test which the child process may access.
  *                              The current number of mappings acts as a trigger for when to spawn the child process.
@@ -477,6 +521,19 @@ static void spawn_child_when_required (test_dma_mappings_t *const test_dma_mappi
 
     if ((arg_test_fork != TEST_FORK_NONE) && (test_dma_mappings->num_dma_mappings == arg_num_allocated_mappings_for_fork))
     {
+        /* When enabled by a command line option, mark the buffers containing the DMA mappings as not to be made available to the
+         * child process. */
+        if (arg_madv_dontfork)
+        {
+            for (uint32_t mapping_index = 0; mapping_index < test_dma_mappings->num_dma_mappings; mapping_index++)
+            {
+                const vfio_dma_mapping_t *const dma_mapping = test_dma_mappings->dma_mappings[mapping_index];
+
+                rc = madvise (dma_mapping->buffer.vaddr, dma_mapping->buffer.size, MADV_DONTFORK);
+                check_assert (rc == 0, "madvise");
+            }
+        }
+
         /* Create the pipes used for bi-directional communication between the parent and child process */
         rc = pipe2 (pipefds, O_DIRECT);
         check_assert (rc == 0, "pipe2()");
@@ -488,11 +545,20 @@ static void spawn_child_when_required (test_dma_mappings_t *const test_dma_mappi
         parent_pipe_read_fd = pipefds[0];
         child_pipe_write_fd = pipefds[1];
 
+        /* Spawn the child process */
         const pid_t pid = fork ();
         check_assert (pid >= 0, "fork");
         if (pid == 0)
         {
             /* In the child */
+            struct sigaction action;
+
+            memset (&action, 0, sizeof (action));
+            action.sa_sigaction = child_sigsegv_handler;
+            action.sa_flags = SA_SIGINFO;
+            rc = sigaction (SIGSEGV, &action, NULL);
+            check_assert (rc == 0, "sigaction");
+
             child_test_process (test_dma_mappings);
         }
         else
