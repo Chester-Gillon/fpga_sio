@@ -415,6 +415,47 @@ static pipe_msg_t await_pipe_message (const int pipe_fd)
 
 
 /**
+ * @brief Called from the child process to display diagnostic information about if all DMA mappings read as zeros or not.
+ * @details Created to investigate if the fork gives zero pages to the spawned child process for the mappings.
+ * @param[in] test_dma_mappings The DMA mappings to check.
+ */
+static void child_check_if_dma_mappings_all_zeros (test_dma_mappings_t *const test_dma_mappings)
+{
+    size_t total_dma_mapping_bytes = 0;
+    size_t num_non_zero_dma_mapping_bytes = 0;
+
+    for (uint32_t mapping_index = 0; mapping_index < test_dma_mappings->num_dma_mappings; mapping_index++)
+    {
+        const vfio_buffer_t *const buffer = &test_dma_mappings->dma_mappings[mapping_index]->buffer;
+        const uint8_t *const data = buffer->vaddr;
+
+        for (size_t byte_index = 0; byte_index < buffer->size; byte_index++)
+        {
+            total_dma_mapping_bytes++;
+            if (data[byte_index] != 0)
+            {
+                num_non_zero_dma_mapping_bytes++;
+            }
+        }
+    }
+
+    if (total_dma_mapping_bytes == 0)
+    {
+        printf ("Child has no DMA mappings\n");
+    }
+    else if (num_non_zero_dma_mapping_bytes == 0)
+    {
+        printf ("Child has all %zu bytes of %u DMA mappings as zeros\n", total_dma_mapping_bytes, test_dma_mappings->num_dma_mappings);
+    }
+    else
+    {
+        printf ("Child has %zu out of %zu bytes in %u DMA mappings with non-zero values\n",
+                num_non_zero_dma_mapping_bytes, total_dma_mapping_bytes, test_dma_mappings->num_dma_mappings);
+    }
+}
+
+
+/**
  * @brief The entry point for the forked child process, which communicates with the parent process via pipes
  * @param[in] test_dma_mappings The DMA mappings for the test which the child process may access
  */
@@ -435,6 +476,7 @@ static void child_test_process (test_dma_mappings_t *const test_dma_mappings)
             break;
 
         case PIPE_MSG_CHILD_READ_DMA_MAPPINGS:
+            child_check_if_dma_mappings_all_zeros (test_dma_mappings);
             printf ("Child reading words ");
             for (mapping_index = 0; mapping_index < test_dma_mappings->num_dma_mappings; mapping_index++)
             {
@@ -447,6 +489,8 @@ static void child_test_process (test_dma_mappings_t *const test_dma_mappings)
             break;
 
         case PIPE_MSG_CHILD_WRITE_DMA_MAPPINGS:
+            child_check_if_dma_mappings_all_zeros (test_dma_mappings);
+
             /* Read the first word from each DMA mapping, and then write back the bitwise inverse value */
             printf ("Child toggling words ");
             for (mapping_index = 0; mapping_index < test_dma_mappings->num_dma_mappings; mapping_index++)
