@@ -151,4 +151,10 @@
  * b. Access the XADC (internal sensors only). */
 #define FPGA_SIO_SUBDEVICE_ID_TEF1001_DDR3_THROUGHPUT 0x0015
 
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Access four AXI streams which perform a CRC64 calculation.
+ * b. Access a Quad SPI connected to the FPGA configuration flash.
+ * c. Access the SYSMON (internal sensors only) */
+#define FPGA_SIO_SUBDEVICE_ID_XCKU5P_DUAL_QSFP_DMA_STREAM_CRC64 0x0016
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

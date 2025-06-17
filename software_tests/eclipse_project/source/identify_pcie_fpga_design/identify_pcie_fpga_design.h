@@ -173,6 +173,13 @@ typedef enum
      * b. Access the XADC (internal sensors only). */
     FPGA_DESIGN_TEF1001_DDR3_THROUGHPUT,
 
+    /* fpga_tests/XCKU5P_DUAL_QSFP_dma_stream_crc64 which contains:
+     * a. DMA/Bridge Subsystem access to four AXI streams which perform a CRC64 calculation.
+     * b. Quad SPI connected to the configuration flash.
+     * c. XADC
+     */
+    FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_CRC64,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 
