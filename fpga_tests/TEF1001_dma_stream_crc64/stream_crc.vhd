@@ -12,8 +12,8 @@
 --  A 128-bit AXI stream which always operates on 8 bytes at a time, and produces a single
 --  8 byte CRC packet across the each input packet.
 -- Dependencies: 
---  crc_imp.vhd which was generated from http://outputlogic.com/?page_id=321
---  selecting the CRC-64-ECMA polynomial on https://en.wikipedia.org/wiki/Cyclic_redundancy_check
+--  crc_imp.vhd which was generated from https://git.bues.ch/git/crcgen.git using:
+--    ./crcgen -V -a CRC-64-ECMA -b 128 -D data_in -C crc_in -o crc_out
 -- Revision:
 -- Revision 0.01 - File Created
 -- Additional Comments:
@@ -51,9 +51,10 @@ end stream_crc;
 
 architecture Behavioral of stream_crc is
 
-    signal crc_rst : std_logic;
-    signal crc_en  : std_logic;
-    signal crc_out : std_logic_vector (63 downto 0);
+    signal crc_rst      : std_logic;
+    signal crc_en       : std_logic;
+    signal previous_crc : std_logic_vector (63 downto 0);
+    signal new_crc      : std_logic_vector (63 downto 0);
 begin
     -- Update the CRC when the input data is valid
     crc_en <= m_tready and s_tvalid;
@@ -61,10 +62,8 @@ begin
     crc_sub: entity work.crc
         port map (
         data_in => s_tdata,
-        crc_en => crc_en,
-        rst => crc_rst,
-        clk => aclk,
-        crc_out => crc_out
+        crc_in => previous_crc,
+        crc_out => new_crc
         );    
 
     -- Don't accept input if either:
@@ -76,7 +75,7 @@ begin
     m_tlast <= '1';
     
     -- Pass out the current 64-bit CRC on the least significant bits 
-    m_tdata(63 downto 0) <= crc_out;
+    m_tdata(63 downto 0) <= previous_crc;
     m_tdata(127 downto 64) <= (others => '0');
     
     -- Indictate only a 8 byte packet output size.
@@ -87,6 +86,12 @@ begin
         if (aclk'EVENT and aclk = '1') then
             -- Reset the CRC sequence on AXI reset or end of the input stream
             crc_rst <= (not aresetn) or s_tlast;
+            
+            if (crc_rst = '1') then
+                previous_crc <= (others => '1');
+            elsif (crc_en = '1') then
+                previous_crc <= new_crc;
+            end if; 
 
             -- Output the CRC at the end of the input stream.
             m_tvalid <= crc_en and s_tlast;
