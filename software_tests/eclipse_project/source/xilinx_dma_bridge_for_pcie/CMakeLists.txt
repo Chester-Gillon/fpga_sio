@@ -1,4 +1,7 @@
 # Build a library for using the Xilinx DMA Bridge for PCIe in user space using VFIO
+#
+# The crc64.h file was generated from https://git.bues.ch/git/crcgen.git using:
+#    ./crcgen -c -a CRC-64-ECMA -b 64 -S
 
 project (xilinx_dma_bridge_for_pci C)
 
@@ -12,7 +15,7 @@ target_link_libraries (test_dma_bridge xilinx_dma_bridge_transfers identify_pcie
 add_executable (test_dma_descriptor_credits "test_dma_descriptor_credits.c")
 target_link_libraries (test_dma_descriptor_credits identify_pcie_fpga_design
                        xilinx_axi_stream_switch_configure xilinx_axi_stream_switch
-                       vfio_access transfer_timing crcmodel)
+                       vfio_access transfer_timing)
 
 add_executable (ddr3_reset_control "ddr3_reset_control.c")
 target_link_libraries (ddr3_reset_control identify_pcie_fpga_design vfio_access transfer_timing)

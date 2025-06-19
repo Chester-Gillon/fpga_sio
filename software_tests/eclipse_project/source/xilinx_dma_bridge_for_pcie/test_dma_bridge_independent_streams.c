@@ -528,7 +528,7 @@ static void initialise_independent_streams (stream_test_contexts_t *const contex
                 for (word_index = 0; word_index < context->data_mapping_size_words; word_index++)
                 {
                     tx_words[word_index] = tx_test_pattern;
-                    linear_congruential_generator (&tx_test_pattern);
+                    linear_congruential_generator32 (&tx_test_pattern);
                 }
             }
         }

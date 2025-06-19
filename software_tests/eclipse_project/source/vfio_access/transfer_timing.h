@@ -45,9 +45,20 @@ void display_transfer_timing_statistics (const transfer_timing_t *const timing);
  * @details "Numerical Recipes" from https://en.wikipedia.org/wiki/Linear_congruential_generator
  * @param[in/out] seed the LCG value to advance
  */
-static inline void linear_congruential_generator (uint32_t *const seed)
+static inline void linear_congruential_generator32 (uint32_t *const seed)
 {
     *seed = (*seed * 1664525) + 1013904223;
+}
+
+
+/**
+ * @brief A 32-bit Linear congruential generator for creating a pseudo-random test pattern.
+ * @details "Numerical Recipes" from https://en.wikipedia.org/wiki/Linear_congruential_generator
+ * @param[in/out] seed the LCG value to advance
+ */
+static inline void linear_congruential_generator64 (uint64_t *const seed)
+{
+    *seed = (*seed * 6364136223846793005) + 1442695040888963407;
 }
 
 

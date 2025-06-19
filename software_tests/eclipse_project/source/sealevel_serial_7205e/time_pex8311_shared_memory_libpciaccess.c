@@ -71,7 +71,7 @@ static void test_shared_memory (struct pci_device *const device,
 
     /* Start the test pattern at which is at the start of the shared memory */
     memcpy (&host_test_pattern, shared_memory, sizeof (host_test_pattern));
-    linear_congruential_generator (&host_test_pattern);
+    linear_congruential_generator32 (&host_test_pattern);
 
     /* Perform a number of test iterations to get multiple timing measurements */
     success = true;
@@ -82,7 +82,7 @@ static void test_shared_memory (struct pci_device *const device,
         for (size_t word_index = 0; word_index < shared_memory_size_words; word_index++)
         {
             host_words[word_index] = host_test_pattern;
-            linear_congruential_generator (&host_test_pattern);
+            linear_congruential_generator32 (&host_test_pattern);
         }
 
         /* Use the CPU to copy the test pattern to the shared memory */
@@ -114,7 +114,7 @@ static void test_shared_memory (struct pci_device *const device,
                         word_offset, card_words[word_offset], card_test_pattern);
                 success = false;
             }
-            linear_congruential_generator (&card_test_pattern);
+            linear_congruential_generator32 (&card_test_pattern);
         }
     }
 

@@ -562,7 +562,7 @@ static bool test_stream_loopback_with_fixed_buffers (const fpga_design_t *const 
                 for (word_index = 0; word_index < h2c_buffer_size_words; word_index++)
                 {
                     buffer_words[word_index] = tx_test_pattern;
-                    linear_congruential_generator (&tx_test_pattern);
+                    linear_congruential_generator32 (&tx_test_pattern);
                 }
             }
             transfer_time_stop (&populate_test_pattern_timing);
@@ -646,7 +646,7 @@ static bool test_stream_loopback_with_fixed_buffers (const fpga_design_t *const 
                                 next_c2h_buffer_index, word_index, buffer_words[word_index], rx_test_pattern);
                         success = false;
                     }
-                    linear_congruential_generator (&rx_test_pattern);
+                    linear_congruential_generator32 (&rx_test_pattern);
                 }
 
                 next_c2h_buffer_index = (next_c2h_buffer_index + 1) % c2h_transfer_configuration.num_descriptors;
@@ -923,7 +923,7 @@ static bool test_stream_loopback_with_variable_transfers (const fpga_design_t *c
             for (word_offset = 0; word_offset < num_words_per_iteration; word_offset++)
             {
                 tx_words[tx_test_word_index] = tx_test_pattern;
-                linear_congruential_generator (&tx_test_pattern);
+                linear_congruential_generator32 (&tx_test_pattern);
                 tx_test_word_index++;
                 if (tx_test_word_index == h2c_mapping_size_words)
                 {
@@ -1008,7 +1008,7 @@ static bool test_stream_loopback_with_variable_transfers (const fpga_design_t *c
             for (word_offset = 0; success && (word_offset < num_words_per_iteration); word_offset++)
             {
                 X2X_ASSERT (&c2h_transfer, rx_words[rx_test_word_index] == rx_test_pattern);
-                linear_congruential_generator (&rx_test_pattern);
+                linear_congruential_generator32 (&rx_test_pattern);
                 rx_test_word_index++;
                 if (rx_test_word_index == c2h_mapping_size_words)
                 {
@@ -1181,7 +1181,7 @@ static bool test_dma_accessible_memory_with_fixed_buffers (const fpga_design_t *
             for (word_index = 0; word_index < ddr_size_words; word_index++)
             {
                 host_words[word_index] = host_test_pattern;
-                linear_congruential_generator (&host_test_pattern);
+                linear_congruential_generator32 (&host_test_pattern);
             }
             transfer_time_stop (&populate_test_pattern_timing);
 
@@ -1247,7 +1247,7 @@ static bool test_dma_accessible_memory_with_fixed_buffers (const fpga_design_t *
                             word_index, card_words[word_index], card_test_pattern);
                     success = false;
                 }
-                linear_congruential_generator (&card_test_pattern);
+                linear_congruential_generator32 (&card_test_pattern);
             }
             transfer_time_stop (&verify_test_pattern_timing);
         }
@@ -1428,7 +1428,7 @@ static bool test_dma_accessible_memory_with_variable_transfers (const fpga_desig
             for (word_index = 0; word_index < ddr_size_words; word_index++)
             {
                 host_words[word_index] = host_test_pattern;
-                linear_congruential_generator (&host_test_pattern);
+                linear_congruential_generator32 (&host_test_pattern);
             }
             transfer_time_stop (&populate_test_pattern_timing);
 
@@ -1545,7 +1545,7 @@ static bool test_dma_accessible_memory_with_variable_transfers (const fpga_desig
                             word_index, card_words[word_index], card_test_pattern);
                     success = false;
                 }
-                linear_congruential_generator (&card_test_pattern);
+                linear_congruential_generator32 (&card_test_pattern);
             }
             transfer_time_stop (&verify_test_pattern_timing);
         }

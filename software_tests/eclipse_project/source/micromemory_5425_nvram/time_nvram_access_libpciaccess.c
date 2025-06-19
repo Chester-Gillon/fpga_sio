@@ -85,14 +85,14 @@ static void test_nvram_via_memory_window (struct pci_device *const device,
     /* As NVRAM access via PIO is relatively slow only time once over the NVRAM, rather than exercising all value of 32-bit words.
      * Start the test pattern by advancing from the value which happens to be at the start of the memory window. */
     memcpy (&host_test_pattern, memory_window, sizeof (host_test_pattern));
-    linear_congruential_generator (&host_test_pattern);
+    linear_congruential_generator32 (&host_test_pattern);
 
     /* Fill the host buffer with a test pattern to write to the NVRAM contents */
     card_test_pattern = host_test_pattern;
     for (size_t word_index = 0; word_index < nvram_size_words; word_index++)
     {
         host_words[word_index] = host_test_pattern;
-        linear_congruential_generator (&host_test_pattern);
+        linear_congruential_generator32 (&host_test_pattern);
     }
 
     /* Use the CPU to copy the test pattern to the NVRAM one window at a time */
@@ -123,7 +123,7 @@ static void test_nvram_via_memory_window (struct pci_device *const device,
                     word_offset, card_words[word_offset], card_test_pattern);
             success = false;
         }
-        linear_congruential_generator (&card_test_pattern);
+        linear_congruential_generator32 (&card_test_pattern);
     }
 
     if (success)

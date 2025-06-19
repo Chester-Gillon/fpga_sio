@@ -32,7 +32,7 @@
 #include "xilinx_dma_bridge_host_interface.h"
 #include "xilinx_axi_stream_switch_configure.h"
 #include "transfer_timing.h"
-#include "crcmodel.h"
+#include "crc64.h"
 
 #include <stdlib.h>
 #include <inttypes.h>
@@ -1089,7 +1089,7 @@ static bool test_memory_mapped_descriptor_rings (fpga_designs_t *const designs, 
     {
         host_words[word_index] = host_test_pattern;
         card_words[word_index] = ~host_test_pattern;
-        linear_congruential_generator (&host_test_pattern);
+        linear_congruential_generator32 (&host_test_pattern);
     }
 
     /* Initialise the rings, but don't populate the descriptors to actually perform DMA transfers */
@@ -1199,7 +1199,7 @@ static bool test_memory_mapped_descriptor_rings (fpga_designs_t *const designs, 
         }
         else
         {
-            linear_congruential_generator (&card_test_pattern);
+            linear_congruential_generator32 (&card_test_pattern);
         }
     }
 
@@ -1367,7 +1367,7 @@ static bool test_stream_descriptor_rings_loopback (fpga_designs_t *const designs
             for (word_index = 0; word_index < num_words_in_descriptor; word_index++)
             {
                 host_words[word_offset + word_index] = host_test_pattern;
-                linear_congruential_generator (&host_test_pattern);
+                linear_congruential_generator32 (&host_test_pattern);
             }
             h2c_ring.next_descriptor_index = (h2c_ring.next_descriptor_index + 1) % h2c_ring.num_descriptors;
             remaining_message_words -= num_words_in_descriptor;
@@ -1469,7 +1469,7 @@ static bool test_stream_descriptor_rings_loopback (fpga_designs_t *const designs
                         }
                         else
                         {
-                            linear_congruential_generator (&card_test_pattern);
+                            linear_congruential_generator32 (&card_test_pattern);
                         }
                     }
                 }
@@ -1526,7 +1526,7 @@ static bool test_stream_descriptor_rings_loopback (fpga_designs_t *const designs
     const bool success = dma_completion_success && test_pattern_success;
     if (success)
     {
-        printf ("Successfully sent %" PRIu32 " messages from Ch%" PRIu32 "->%" PRIu32 " with a total of %zu words in %zu descriptors\n",
+        printf ("Successfully sent %" PRIu32 " messages from Ch%" PRIu32 "->%" PRIu32 " with a total of %zu 32-bit words in %zu descriptors\n",
                 total_messages, h2c_channel_id, c2h_channel_id, total_message_words, total_message_descriptors);
     }
     else
@@ -1576,7 +1576,7 @@ static bool test_stream_descriptor_rings_crc64 (fpga_designs_t *const designs, c
                                                 const uint32_t h2c_channel_id, const uint32_t c2h_channel_id)
 {
     const uint32_t page_size_bytes = (uint32_t) getpagesize ();
-    const uint32_t page_size_words = page_size_bytes / sizeof (uint32_t);
+    const uint32_t page_size_words = page_size_bytes / sizeof (uint64_t);
     vfio_dma_mapping_t descriptors_mapping;
     vfio_dma_mapping_t h2c_data_mapping;
     vfio_dma_mapping_t c2h_data_mapping;
@@ -1598,16 +1598,7 @@ static bool test_stream_descriptor_rings_crc64 (fpga_designs_t *const designs, c
     fpga_design_t *const design = &designs->designs[design_index];
     vfio_device_t *const vfio_device = &designs->vfio_devices.devices[design_index];
 
-    /* The hardware calculates CRC-64-ECMA */
-    cm_t crc64 =
-    {
-        .cm_width = 64,                     /* Parameter: Width in bits [8,32].       */
-        .cm_poly = 0x42F0E1EBA9EA3693UL,    /* Parameter: The algorithm's polynomial. */
-        .cm_init = UINT64_MAX,              /* Parameter: Initial register value.     */
-        .cm_refin = false,                  /* Parameter: Reflect input bytes?        */
-        .cm_refot = false,                  /* Parameter: Reflect output CRC?         */
-        .cm_xorot = 0                       /* Parameter: XOR this to output CRC.     */
-    };
+    uint64_t running_crc64;
 
     spawn_child_when_required (&test_dma_mappings);
 
@@ -1619,7 +1610,7 @@ static bool test_stream_descriptor_rings_crc64 (fpga_designs_t *const designs, c
     }
 
     const size_t max_stream_tdata_width_bytes = 16; //@todo while testing FPGA_DESIGN_TEF1001_DMA_STREAM_CRC64 32;
-    const uint32_t message_size_alignment = (uint32_t) (max_stream_tdata_width_bytes / sizeof (uint32_t));
+    const uint32_t message_size_alignment = (uint32_t) (max_stream_tdata_width_bytes / sizeof (uint64_t));
 
     /* This test transmits variable length messages using the streams.
      * Each descriptor is used to transfer a maximum of one page.
@@ -1684,9 +1675,9 @@ static bool test_stream_descriptor_rings_crc64 (fpga_designs_t *const designs, c
     uint32_t message_length_words = page_size_words - message_size_alignment;
     size_t total_message_words = 0;
     size_t total_message_descriptors = 0;
-    uint32_t *const host_words = h2c_data_mapping.buffer.vaddr;
-    uint32_t *const card_words = c2h_data_mapping.buffer.vaddr;
-    uint32_t host_test_pattern = 0;
+    uint64_t *const host_words = h2c_data_mapping.buffer.vaddr;
+    uint64_t *const card_words = c2h_data_mapping.buffer.vaddr;
+    uint64_t host_test_pattern = 0;
     uint32_t num_processed_c2h_descriptors = 0;
     dma_completion_success = true;
     test_pattern_success = true;
@@ -1699,7 +1690,7 @@ static bool test_stream_descriptor_rings_crc64 (fpga_designs_t *const designs, c
         /* Populate all descriptors for the message, and then transmit the message.
          * This calculates the expected CRC64 for the message. */
         remaining_message_words = message_length_words;
-        cm_ini (&crc64);
+        running_crc64 = UINT64_MAX;
         for (descriptor_offset = 0; descriptor_offset < num_descriptors_for_message; descriptor_offset++)
         {
             const uint32_t word_offset = page_size_words * h2c_ring.next_descriptor_index;
@@ -1708,7 +1699,7 @@ static bool test_stream_descriptor_rings_crc64 (fpga_designs_t *const designs, c
             dma_descriptor_t *const descriptor = &h2c_ring.descriptors[h2c_ring.next_descriptor_index];
 
             descriptor->src_adr = h2c_data_mapping.iova + (h2c_ring.next_descriptor_index * page_size_bytes);
-            descriptor->len = num_words_in_descriptor * sizeof (uint32_t);
+            descriptor->len = num_words_in_descriptor * sizeof (uint64_t);
             if (num_words_in_descriptor == remaining_message_words)
             {
                 descriptor->magic_nxt_adj_control |= DMA_DESCRIPTOR_CONTROL_EOP;
@@ -1720,19 +1711,10 @@ static bool test_stream_descriptor_rings_crc64 (fpga_designs_t *const designs, c
             for (word_index = 0; word_index < num_words_in_descriptor; word_index++)
             {
                 host_words[word_offset + word_index] = host_test_pattern;
-                linear_congruential_generator (&host_test_pattern);
+                running_crc64 = crc (running_crc64, host_test_pattern);
+                linear_congruential_generator64 (&host_test_pattern);
             }
-            {
-                //@todo Unless all bytes on the tdata width are the same, the CRC64 value doesn't match.
-                //      This suggests an issue with how the bytes are ordered in the input to the CRC calculation.
-                const uint32_t num_bytes_in_descriptor = num_words_in_descriptor * sizeof (uint32_t);
-                uint8_t *const data_bytes = (uint8_t *) &host_words[word_offset];
-                for (size_t byte_offset = 0; byte_offset < num_bytes_in_descriptor; byte_offset += max_stream_tdata_width_bytes)
-                {
-                    memset (&data_bytes[byte_offset + 1], data_bytes[byte_offset], max_stream_tdata_width_bytes - 1);
-                }
-            }
-            cm_blk (&crc64, (p_ubyte_) &host_words[word_offset], num_words_in_descriptor * sizeof (uint32_t));
+
             h2c_ring.next_descriptor_index = (h2c_ring.next_descriptor_index + 1) % h2c_ring.num_descriptors;
             remaining_message_words -= num_words_in_descriptor;
         }
@@ -1810,7 +1792,7 @@ static bool test_stream_descriptor_rings_crc64 (fpga_designs_t *const designs, c
             else
             {
                 const uint32_t word_offset = page_size_words * c2h_ring.next_descriptor_index;
-                const uint64_t expected_crc = cm_crc (&crc64);
+                const uint64_t expected_crc = running_crc64;
                 uint64_t *const actual_crc = (uint64_t *) &card_words[word_offset];
 
                 /* Check the expected CRC64 is received.
@@ -1875,7 +1857,7 @@ static bool test_stream_descriptor_rings_crc64 (fpga_designs_t *const designs, c
     const bool success = dma_completion_success && test_pattern_success;
     if (success)
     {
-        printf ("Successfully sent %" PRIu32 " messages from Ch%" PRIu32 "->%" PRIu32 " with a total of %zu words in %zu descriptors\n",
+        printf ("Successfully sent %" PRIu32 " messages from Ch%" PRIu32 "->%" PRIu32 " with a total of %zu 64-bit words in %zu descriptors\n",
                 total_messages, h2c_channel_id, c2h_channel_id, total_message_words, total_message_descriptors);
     }
     else

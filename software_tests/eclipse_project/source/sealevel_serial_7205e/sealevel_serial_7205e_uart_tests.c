@@ -707,7 +707,7 @@ static void test_context_reset (uart_test_context_t *const context, uint32_t *co
     for (uint32_t word_index = 0; word_index < TEST_DURATION_WORDS; word_index++)
     {
         tx_words[word_index] = *seed;
-        linear_congruential_generator (seed);
+        linear_congruential_generator32 (seed);
     }
 
     test_timeout_reset (context);
@@ -1249,7 +1249,7 @@ static void perform_uart_loopback_test (uart_test_context_t contexts[const NUM_U
                         context->rx_port->bar_index, word_index, rx_words[word_index], context->rx_test_pattern);
                 context->test_state = UART_TEST_FAILED;
             }
-            linear_congruential_generator (&context->rx_test_pattern);
+            linear_congruential_generator32 (&context->rx_test_pattern);
         }
 
         if (context->test_state == UART_TEST_COMPLETE)
