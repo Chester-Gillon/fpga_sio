@@ -12,7 +12,7 @@ target_link_libraries (test_dma_bridge xilinx_dma_bridge_transfers identify_pcie
 add_executable (test_dma_descriptor_credits "test_dma_descriptor_credits.c")
 target_link_libraries (test_dma_descriptor_credits identify_pcie_fpga_design
                        xilinx_axi_stream_switch_configure xilinx_axi_stream_switch
-                       vfio_access transfer_timing)
+                       vfio_access transfer_timing crcmodel)
 
 add_executable (ddr3_reset_control "ddr3_reset_control.c")
 target_link_libraries (ddr3_reset_control identify_pcie_fpga_design vfio_access transfer_timing)

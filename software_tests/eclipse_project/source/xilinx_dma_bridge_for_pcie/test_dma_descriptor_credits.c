@@ -32,6 +32,7 @@
 #include "xilinx_dma_bridge_host_interface.h"
 #include "xilinx_axi_stream_switch_configure.h"
 #include "transfer_timing.h"
+#include "crcmodel.h"
 
 #include <stdlib.h>
 #include <inttypes.h>
@@ -74,8 +75,10 @@ typedef struct
 } descriptor_ring_t;
 
 
-/* The timeout for test. A global variable, so may be changed when single stepping */
-static int64_t test_timeout_secs = 10;
+/* The timeout for test. A global variable, so may be changed when single stepping.
+ * Was initially 10, but that caused test_stream_descriptor_rings_crc64() to timeout part way through the test when
+ * compiled for coverage. The CRC calculation is performed while the test timeout is active. */
+static int64_t test_timeout_secs = 20;
 
 
 /* The absolute CLOCK_MONOTONIC time at which the test is timed out */
@@ -819,7 +822,7 @@ static void initialise_descriptor_ring (descriptor_ring_t *const ring, uint8_t *
             DMA_SUBMODULE_H2C_SGDMA : DMA_SUBMODULE_C2H_SGDMA;
     uint64_t completed_descriptor_count_iova;
     uint64_t first_descriptor_iova;
-    uint64_t first_stream_writeback_iova;
+    uint64_t first_stream_writeback_iova = 0;
 
     /* Access the channel registers */
     ring->channels_submodule = channels_submodule;
@@ -885,7 +888,7 @@ static void initialise_descriptor_ring (descriptor_ring_t *const ring, uint8_t *
     ring->completed_descriptor_count->sts_err_compl_descriptor_count = 0;
 
     /* For the first descriptor set it's address in the DMA control registers.
-     * Number of extra descriptors is set to zero as are no trying to optimise the descriptor fetching. */
+     * Number of extra descriptors is set to zero as are not trying to optimise the descriptor fetching. */
     write_split_reg64 (ring->x2x_sgdma_regs, X2X_SGDMA_DESCRIPTOR_ADDRESS_OFFSET, first_descriptor_iova);
     write_reg32 (ring->x2x_sgdma_regs, X2X_SGDMA_DESCRIPTOR_ADJACENT_OFFSET, 0);
 
@@ -1231,8 +1234,8 @@ static bool test_memory_mapped_descriptor_rings (fpga_designs_t *const designs, 
  * @param[in] c2h_channel_id Which DMA bridge channel to use for AXI4 stream reads (Card To Host)
  * @return Returns true if the test has passed
  */
-static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const uint32_t design_index,
-                                          const uint32_t h2c_channel_id, const uint32_t c2h_channel_id)
+static bool test_stream_descriptor_rings_loopback (fpga_designs_t *const designs, const uint32_t design_index,
+                                                   const uint32_t h2c_channel_id, const uint32_t c2h_channel_id)
 {
     const uint32_t page_size_bytes = (uint32_t) getpagesize ();
     const uint32_t page_size_words = page_size_bytes / sizeof (uint32_t);
@@ -1274,7 +1277,7 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
     const uint32_t min_ring_iterations = 3;
     const uint32_t total_messages = min_ring_iterations * num_descriptors_per_ring;
 
-    const size_t total_memory_bytes = total_messages * page_size_bytes;
+    const size_t total_memory_bytes = num_descriptors_per_ring * page_size_bytes;
 
     /* Create read/write mapping for DMA descriptors, one ring for H2C and C2H host directions */
     const size_t total_descriptor_bytes_per_h2c_ring =
@@ -1455,7 +1458,7 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
                     /* Check the test pattern has been successfully transfered to the card words.
                      * Stops checking the test pattern after the first failure, but allow DMA to continue.
                      * This is tell the difference between errors which cause the transferred data to be incorrect,
-                     * v.s.errors which cause the DMA to fail to complete. */
+                     * v.s. errors which cause the DMA to fail to complete. */
                     for (word_index = 0; test_pattern_success && (word_index < num_words_in_descriptor); word_index++)
                     {
                         if (card_words[word_offset + word_index] != card_test_pattern)
@@ -1509,6 +1512,355 @@ static bool test_stream_descriptor_rings (fpga_designs_t *const designs, const u
         total_message_words += message_length_words;
         total_message_descriptors += num_descriptors_for_message;
         message_length_words++;
+
+        if (dma_completion_success)
+        {
+            message_index++;
+        }
+    }
+
+    /* Stop the channel running at the end of the test */
+    write_reg32 (h2c_ring.x2x_channel_regs, X2X_CHANNEL_CONTROL_W1C_OFFSET, X2X_CHANNEL_CONTROL_RUN);
+    write_reg32 (c2h_ring.x2x_channel_regs, X2X_CHANNEL_CONTROL_W1C_OFFSET, X2X_CHANNEL_CONTROL_RUN);
+
+    const bool success = dma_completion_success && test_pattern_success;
+    if (success)
+    {
+        printf ("Successfully sent %" PRIu32 " messages from Ch%" PRIu32 "->%" PRIu32 " with a total of %zu words in %zu descriptors\n",
+                total_messages, h2c_channel_id, c2h_channel_id, total_message_words, total_message_descriptors);
+    }
+    else
+    {
+        printf ("Failed after %" PRIu32 " out of %" PRIu32 " messages transferred by DMA\n",
+                message_index, total_messages);
+    }
+
+    reap_child_if_used ();
+    remove_iova_offsets (&descriptors_mapping, &h2c_data_mapping, &c2h_data_mapping, iova_offsets_applied);
+    free_vfio_dma_mapping (&c2h_data_mapping);
+    free_vfio_dma_mapping (&h2c_data_mapping);
+    free_vfio_dma_mapping (&descriptors_mapping);
+
+    return success;
+}
+
+
+/**
+ * @brief Perform DMA tests on a DMA bridge with a AXI4 Stream interface.
+ * @details This uses two AXI4 Stream interfaces where the C2H channel outputs the CRC64 result of each H2C packet to test
+ *          transferring variable length messages via descriptor rings.
+ *          The receive descriptor ring uses a number of fixed size buffers, and the messages can split across
+ *          multiple buffers with the final buffer for a message partially populated.
+ *
+ *          The CRC64 operation:
+ *          a. Means the size of each H2C packet is fixed as 8 bytes.
+ *          b. Is performed in parallel across the width of the C2H stream, without taking account of tkeep on the end of packet.
+ *             Therefore, to get the expected CRC64 result all HC2 packets have to be a multiple of 32 bytes (max tdata width
+ *             of the DMA bridge).
+ *
+ *          The transmit ring has the same number and size of buffers as the receive descriptor ring.
+ *
+ *          The receive ring is kept toped-up with a full set of credits, as with a stream interface can have
+ *          descriptors waiting to receive data.
+ *
+ *          As the receive ring descriptors aren't changed while running the test, could potentially make
+ *          use of Nxt_adj to optimise descriptor fetching. Albeit this is a functional test which doesn't
+ *          measure any performance.
+ * @param[in/out] designs The identified designs
+ * @param[in] design_index Which FPGA design containing a DMA bridge to test
+ * @param[in] h2c_channel_id Which DMA bridge channel to use for AXI4 stream writes (Host To Card)
+ * @param[in] c2h_channel_id Which DMA bridge channel to use for AXI4 stream reads (Card To Host)
+ * @return Returns true if the test has passed
+ */
+static bool test_stream_descriptor_rings_crc64 (fpga_designs_t *const designs, const uint32_t design_index,
+                                                const uint32_t h2c_channel_id, const uint32_t c2h_channel_id)
+{
+    const uint32_t page_size_bytes = (uint32_t) getpagesize ();
+    const uint32_t page_size_words = page_size_bytes / sizeof (uint32_t);
+    vfio_dma_mapping_t descriptors_mapping;
+    vfio_dma_mapping_t h2c_data_mapping;
+    vfio_dma_mapping_t c2h_data_mapping;
+    bool iova_offsets_applied;
+    descriptor_ring_t h2c_ring;
+    descriptor_ring_t c2h_ring;
+    uint32_t descriptor_offset;
+    uint32_t remaining_message_words;
+    uint32_t word_index;
+    bool h2c_completed;
+    bool dma_completion_success;
+    bool test_pattern_success;
+    uint32_t message_index;
+    test_dma_mappings_t test_dma_mappings =
+    {
+        .num_dma_mappings = 0
+    };
+
+    fpga_design_t *const design = &designs->designs[design_index];
+    vfio_device_t *const vfio_device = &designs->vfio_devices.devices[design_index];
+
+    /* The hardware calculates CRC-64-ECMA */
+    cm_t crc64 =
+    {
+        .cm_width = 64,                     /* Parameter: Width in bits [8,32].       */
+        .cm_poly = 0x42F0E1EBA9EA3693UL,    /* Parameter: The algorithm's polynomial. */
+        .cm_init = UINT64_MAX,              /* Parameter: Initial register value.     */
+        .cm_refin = false,                  /* Parameter: Reflect input bytes?        */
+        .cm_refot = false,                  /* Parameter: Reflect output CRC?         */
+        .cm_xorot = 0                       /* Parameter: XOR this to output CRC.     */
+    };
+
+    spawn_child_when_required (&test_dma_mappings);
+
+    /* Check that have been passed a BAR which is large enough to contain the DMA control registers */
+    uint8_t *const mapped_registers_base = get_dma_mapped_registers_base (design);
+    if (mapped_registers_base == NULL)
+    {
+        return false;
+    }
+
+    const size_t max_stream_tdata_width_bytes = 16; //@todo while testing FPGA_DESIGN_TEF1001_DMA_STREAM_CRC64 32;
+    const uint32_t message_size_alignment = (uint32_t) (max_stream_tdata_width_bytes / sizeof (uint32_t));
+
+    /* This test transmits variable length messages using the streams.
+     * Each descriptor is used to transfer a maximum of one page.
+     * The message length starts just below the length of one page and is incremented for each message,
+     * which means most messages are split across multiple descriptors. */
+    const uint32_t num_descriptors_per_ring = X2X_SGDMA_MAX_DESCRIPTOR_CREDITS;
+    const uint32_t min_ring_iterations = 3;
+    const uint32_t total_messages = min_ring_iterations * num_descriptors_per_ring;
+
+    const size_t total_memory_bytes = num_descriptors_per_ring * page_size_bytes;
+
+    /* Create read/write mapping for DMA descriptors, one ring for H2C and C2H host directions */
+    const size_t total_descriptor_bytes_per_h2c_ring =
+            vfio_align_cache_line_size (num_descriptors_per_ring * sizeof (dma_descriptor_t)) +
+            vfio_align_cache_line_size (sizeof (completed_descriptor_count_writeback_t));
+    const size_t total_descriptor_bytes_per_c2h_ring = total_descriptor_bytes_per_h2c_ring +
+            vfio_align_cache_line_size (num_descriptors_per_ring * sizeof (c2h_stream_writeback_t));
+    allocate_vfio_dma_mapping (vfio_device, &descriptors_mapping,
+            total_descriptor_bytes_per_h2c_ring + total_descriptor_bytes_per_c2h_ring,
+            VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
+    append_test_dma_mapping (&test_dma_mappings, &descriptors_mapping);
+
+    /* Read mapping used by device, with each transfer limited to the maximum of the memory and command line argument */
+    allocate_vfio_dma_mapping (vfio_device, &h2c_data_mapping, total_memory_bytes,
+            VFIO_DMA_MAP_FLAG_READ, arg_buffer_allocation);
+    append_test_dma_mapping (&test_dma_mappings, &h2c_data_mapping);
+
+    /* Write mapping used by device, with each transfer limited to the maximum of the memory and command line argument */
+    allocate_vfio_dma_mapping (vfio_device, &c2h_data_mapping, total_memory_bytes,
+            VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
+    append_test_dma_mapping (&test_dma_mappings, &c2h_data_mapping);
+
+    if ((descriptors_mapping.buffer.vaddr == NULL) ||
+        (h2c_data_mapping.buffer.vaddr    == NULL) ||
+        (c2h_data_mapping.buffer.vaddr    == NULL))
+    {
+        return false;
+    }
+
+    apply_iova_offsets (&descriptors_mapping, &h2c_data_mapping, &c2h_data_mapping, &iova_offsets_applied);
+
+    /* Initialise the rings, but don't populate the descriptors to actually perform DMA transfers */
+    initialise_descriptor_ring (&h2c_ring, mapped_registers_base, DMA_SUBMODULE_H2C_CHANNELS, h2c_channel_id,
+            num_descriptors_per_ring, &descriptors_mapping);
+    initialise_descriptor_ring (&c2h_ring, mapped_registers_base, DMA_SUBMODULE_C2H_CHANNELS, c2h_channel_id,
+            num_descriptors_per_ring, &descriptors_mapping);
+
+    test_fork_dma_mapping_access ();
+
+    /* Initialise the C2H descriptors to point at the ring of buffers of fixed sizes, and start the receive DMA */
+    for (uint32_t descriptor_index = 0; descriptor_index < c2h_ring.num_descriptors; descriptor_index++)
+    {
+        dma_descriptor_t *const descriptor = &c2h_ring.descriptors[descriptor_index];
+
+        descriptor->len = (uint32_t) page_size_bytes;
+        descriptor->dst_adr = c2h_data_mapping.iova + (descriptor_index * page_size_bytes);
+    }
+    write_reg32 (c2h_ring.x2x_sgdma_regs, X2X_SGDMA_DESCRIPTOR_CREDITS_OFFSET, c2h_ring.num_descriptors);
+    c2h_ring.started_descriptor_count += c2h_ring.num_descriptors;
+
+    /* Perform a test using messages of increasing length */
+    uint32_t message_length_words = page_size_words - message_size_alignment;
+    size_t total_message_words = 0;
+    size_t total_message_descriptors = 0;
+    uint32_t *const host_words = h2c_data_mapping.buffer.vaddr;
+    uint32_t *const card_words = c2h_data_mapping.buffer.vaddr;
+    uint32_t host_test_pattern = 0;
+    uint32_t num_processed_c2h_descriptors = 0;
+    dma_completion_success = true;
+    test_pattern_success = true;
+    start_test_timeout ();
+    message_index = 0;
+    while (dma_completion_success && (message_index < total_messages))
+    {
+        const uint32_t num_descriptors_for_message = (message_length_words + (page_size_words - 1)) / page_size_words;
+
+        /* Populate all descriptors for the message, and then transmit the message.
+         * This calculates the expected CRC64 for the message. */
+        remaining_message_words = message_length_words;
+        cm_ini (&crc64);
+        for (descriptor_offset = 0; descriptor_offset < num_descriptors_for_message; descriptor_offset++)
+        {
+            const uint32_t word_offset = page_size_words * h2c_ring.next_descriptor_index;
+            const uint32_t num_words_in_descriptor = (remaining_message_words < page_size_words) ?
+                    remaining_message_words : page_size_words;
+            dma_descriptor_t *const descriptor = &h2c_ring.descriptors[h2c_ring.next_descriptor_index];
+
+            descriptor->src_adr = h2c_data_mapping.iova + (h2c_ring.next_descriptor_index * page_size_bytes);
+            descriptor->len = num_words_in_descriptor * sizeof (uint32_t);
+            if (num_words_in_descriptor == remaining_message_words)
+            {
+                descriptor->magic_nxt_adj_control |= DMA_DESCRIPTOR_CONTROL_EOP;
+            }
+            else
+            {
+                descriptor->magic_nxt_adj_control &= ~DMA_DESCRIPTOR_CONTROL_EOP;
+            }
+            for (word_index = 0; word_index < num_words_in_descriptor; word_index++)
+            {
+                host_words[word_offset + word_index] = host_test_pattern;
+                linear_congruential_generator (&host_test_pattern);
+            }
+            {
+                //@todo Unless all bytes on the tdata width are the same, the CRC64 value doesn't match.
+                //      This suggests an issue with how the bytes are ordered in the input to the CRC calculation.
+                const uint32_t num_bytes_in_descriptor = num_words_in_descriptor * sizeof (uint32_t);
+                uint8_t *const data_bytes = (uint8_t *) &host_words[word_offset];
+                for (size_t byte_offset = 0; byte_offset < num_bytes_in_descriptor; byte_offset += max_stream_tdata_width_bytes)
+                {
+                    memset (&data_bytes[byte_offset + 1], data_bytes[byte_offset], max_stream_tdata_width_bytes - 1);
+                }
+            }
+            cm_blk (&crc64, (p_ubyte_) &host_words[word_offset], num_words_in_descriptor * sizeof (uint32_t));
+            h2c_ring.next_descriptor_index = (h2c_ring.next_descriptor_index + 1) % h2c_ring.num_descriptors;
+            remaining_message_words -= num_words_in_descriptor;
+        }
+        write_reg32 (h2c_ring.x2x_sgdma_regs, X2X_SGDMA_DESCRIPTOR_CREDITS_OFFSET, num_descriptors_for_message);
+        h2c_ring.started_descriptor_count += num_descriptors_for_message;
+
+        /* Receive the calculated CRC64 message, which will only be in a single descriptor */
+        bool c2h_descriptor_populated = false;
+        c2h_stream_writeback_t *const stream_writeback = &c2h_ring.stream_writeback[c2h_ring.next_descriptor_index];
+        while (dma_completion_success && (!c2h_descriptor_populated))
+        {
+            const uint32_t sts_err_compl_descriptor_count =
+                    __atomic_load_n (&c2h_ring.completed_descriptor_count->sts_err_compl_descriptor_count, __ATOMIC_ACQUIRE);
+            const uint32_t c2h_completed_descriptor_count =
+                    sts_err_compl_descriptor_count & COMPLETED_DESCRIPTOR_COUNT_WRITEBACK_MASK;
+
+            if (c2h_completed_descriptor_count > num_processed_c2h_descriptors)
+            {
+                c2h_descriptor_populated = true;
+            }
+            else
+            {
+                check_for_test_timeout (&dma_completion_success, "C2H descriptor to complete (processed %" PRIu32 " completed %" PRIu32 " channel_status 0x%" PRIx32 ")",
+                        num_processed_c2h_descriptors, c2h_completed_descriptor_count,
+                        read_reg32 (c2h_ring.x2x_channel_regs, X2X_CHANNEL_STATUS_RW1C_OFFSET));
+
+                if (!dma_completion_success)
+                {
+                    /* The H2C descriptor has to complete before the C2H descriptor can complete.
+                     * In the event the the C2H descriptor fails to complete, also report the status of the H2C descriptor. */
+                    const uint32_t sts_err_compl_descriptor_count =
+                            __atomic_load_n (&h2c_ring.completed_descriptor_count->sts_err_compl_descriptor_count, __ATOMIC_ACQUIRE);
+                    const uint32_t h2c_completed_descriptor_count =
+                            sts_err_compl_descriptor_count & COMPLETED_DESCRIPTOR_COUNT_WRITEBACK_MASK;
+
+                    if (h2c_completed_descriptor_count == h2c_ring.started_descriptor_count)
+                    {
+                        printf ("H2C had completed\n");
+                    }
+                    else
+                    {
+                        printf ("Test timeout waiting for H2C descriptors to complete (started %" PRIu32 " completed %" PRIu32 " channel_status 0x%" PRIx32 ")\n",
+                                h2c_ring.started_descriptor_count, h2c_completed_descriptor_count,
+                                read_reg32 (h2c_ring.x2x_channel_regs, X2X_CHANNEL_STATUS_RW1C_OFFSET));
+                    }
+                }
+            }
+        }
+
+        if (dma_completion_success)
+        {
+            /* A receive descriptor is available. Check:
+             * a. The stream writeback has the expected magic value.
+             * b. The stream writeback length is the expected value.
+             * c. The End-Of-Packet indication indicates is set.
+             * d. The data contents contains the expected CRC64 value. */
+            const bool actual_eop = (stream_writeback->wb_magic_status & CH2_STREAM_WB_EOP) != 0;
+            const uint32_t expected_length = sizeof (uint64_t);
+            if ((stream_writeback->wb_magic_status & C2H_STREAM_WB_MAGIC_MASK) != C2H_STREAM_WB_MAGIC)
+            {
+                printf ("Incorrect stream wb_magic_status 0x%" PRIx32 "\n", stream_writeback->wb_magic_status);
+                dma_completion_success = false;
+            }
+            else if (!actual_eop)
+            {
+                printf ("EOP not set\n");
+                dma_completion_success = false;
+            }
+            else if (stream_writeback->length != expected_length)
+            {
+                printf ("Incorrect length actual %" PRIu32 " expected %" PRIu32 "\n",
+                        stream_writeback->length, expected_length);
+                dma_completion_success = false;
+            }
+            else
+            {
+                const uint32_t word_offset = page_size_words * c2h_ring.next_descriptor_index;
+                const uint64_t expected_crc = cm_crc (&crc64);
+                uint64_t *const actual_crc = (uint64_t *) &card_words[word_offset];
+
+                /* Check the expected CRC64 is received.
+                 * Stops checking the CRC after the first failure, but allow DMA to continue.
+                 * This is tell the difference between errors which cause the transferred data to be incorrect,
+                 * v.s. errors which cause the DMA to fail to complete. */
+                if (test_pattern_success && (*actual_crc != expected_crc))
+                {
+                    printf ("Actual CRC %016" PRIX64 " != Expected CRC %016" PRIX64 " (over %u words)\n",
+                            *actual_crc, expected_crc, message_length_words);
+                    test_pattern_success = false;
+                }
+            }
+        }
+
+        if (dma_completion_success)
+        {
+            /* Clear the writeback for the H2C descriptor and re-start it */
+            stream_writeback->wb_magic_status = 0;
+            stream_writeback->length = 0;
+            c2h_ring.next_descriptor_index = (c2h_ring.next_descriptor_index + 1) % c2h_ring.num_descriptors;
+            write_reg32 (c2h_ring.x2x_sgdma_regs, X2X_SGDMA_DESCRIPTOR_CREDITS_OFFSET, 1);
+            c2h_ring.started_descriptor_count++;
+            num_processed_c2h_descriptors++;
+        }
+
+        /* Ensure the H2C descriptors have completed. This is not expected to have to wait. */
+        h2c_completed = false;
+        while (dma_completion_success && (!h2c_completed))
+        {
+            const uint32_t sts_err_compl_descriptor_count =
+                    __atomic_load_n (&h2c_ring.completed_descriptor_count->sts_err_compl_descriptor_count, __ATOMIC_ACQUIRE);
+            const uint32_t h2c_completed_descriptor_count =
+                    sts_err_compl_descriptor_count & COMPLETED_DESCRIPTOR_COUNT_WRITEBACK_MASK;
+
+            if (h2c_completed_descriptor_count == h2c_ring.started_descriptor_count)
+            {
+                h2c_completed = true;
+            }
+            else
+            {
+                check_for_test_timeout (&dma_completion_success, "H2C descriptors to complete (started %" PRIu32 " completed %" PRIu32 " channel_status 0x%" PRIx32 ")",
+                        h2c_ring.started_descriptor_count, h2c_completed_descriptor_count,
+                        read_reg32 (h2c_ring.x2x_channel_regs, X2X_CHANNEL_STATUS_RW1C_OFFSET));
+            }
+        }
+
+        total_message_words += message_length_words;
+        total_message_descriptors += num_descriptors_for_message;
+        message_length_words += message_size_alignment;
 
         if (dma_completion_success)
         {
@@ -1683,7 +2035,17 @@ int main (int argc, char *argv[])
 
                             if (route->enabled)
                             {
-                                success = test_stream_descriptor_rings (&designs, design_index, route->slave_port, route->master_port);
+                                switch (design->design_id)
+                                {
+                                case FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_CRC64:
+                                case FPGA_DESIGN_TEF1001_DMA_STREAM_CRC64:
+                                    success = test_stream_descriptor_rings_crc64 (&designs, design_index, route->slave_port, route->master_port);
+                                    break;
+
+                                default:
+                                    success = test_stream_descriptor_rings_loopback (&designs, design_index, route->slave_port, route->master_port);
+                                    break;
+                                }
                                 num_enabled_routes++;
                             }
                         }

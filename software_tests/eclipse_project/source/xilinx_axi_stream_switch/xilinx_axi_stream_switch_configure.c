@@ -69,7 +69,7 @@ static const device_routing_t default_stream_loopback[FPGA_DESIGN_ARRAY_SIZE] =
         }
     },
 
-    /* For this design the output packet length is a fixed size of 8 bytes as in the CRC64 result rather than a looped back
+    /* For these designs the output packet length is a fixed size of 8 bytes as in the CRC64 result rather than a looped back
      * copy of the input packet. Adding this design did allow the stream loopback tests to be run to see what they reported. */
     [FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_CRC64] =
     {
@@ -80,6 +80,15 @@ static const device_routing_t default_stream_loopback[FPGA_DESIGN_ARRAY_SIZE] =
              {.enabled = true, .master_port = 1, .slave_port = 1},
              {.enabled = true, .master_port = 2, .slave_port = 2},
              {.enabled = true, .master_port = 3, .slave_port = 3}
+        }
+    },
+    [FPGA_DESIGN_TEF1001_DMA_STREAM_CRC64] =
+    {
+        .num_routes = 2,
+        .routes =
+        {
+             {.enabled = true, .master_port = 0, .slave_port = 0},
+             {.enabled = true, .master_port = 1, .slave_port = 1}
         }
     }
 };

@@ -116,6 +116,8 @@ typedef struct
     int64_t time_last_transfer_completed;
     /* The number of completed transfers in the statistics collection interval */
     uint32_t num_completed_transfers;
+    /* The number of bytes transferred in the statistics collection interval */
+    uint64_t num_transferred_bytes;
 } stream_throughput_statistics_t;
 
 
@@ -555,6 +557,7 @@ static void publish_statistics (stream_test_contexts_t *const context, const boo
 
             test_statistics.streams[direction][stream_index] = stream->interval_statistics;
             stream->interval_statistics.num_completed_transfers = 0;
+            stream->interval_statistics.num_transferred_bytes = 0;
 
             /* Set the start time for the next collection interval to be when the last transfer completed for the reported
              * interval. This makes the timespan used to report the throughput rate a multiple of a whole number of transfers,
@@ -590,6 +593,8 @@ static void *independent_streams_test_thread (void *const arg)
     bool test_stopping;
     int64_t now;
     bool final_statistics;
+    size_t transfer_len;
+    bool end_of_packet;
 
     const int64_t nsecs_per_sec = 1000000000;
     const int64_t reporting_interval_ns = 10 * nsecs_per_sec;
@@ -635,6 +640,7 @@ static void *independent_streams_test_thread (void *const arg)
             stream->overall_statistics.time_last_transfer_completed =
                     stream->overall_statistics.collection_interval_start_time;
             stream->overall_statistics.num_completed_transfers = 0;
+            stream->overall_statistics.num_transferred_bytes = 0;
             stream->interval_statistics = stream->overall_statistics;
         }
     }
@@ -659,16 +665,21 @@ static void *independent_streams_test_thread (void *const arg)
             {
                 stream_test_context_t *const stream = &context->streams[direction][stream_index];
 
-                /* Poll for completion of C2H transfer, updating the throughput statistics upon completion.
+                /* Poll for completion of transfer, updating the throughput statistics upon completion.
                  * Re-starts the transfer, unless the test has been requested to stop. */
-                buffer = x2x_poll_completed_transfer (&stream->transfer, NULL, NULL);
+                buffer = x2x_poll_completed_transfer (&stream->transfer, &transfer_len, &end_of_packet);
                 if (buffer != NULL)
                 {
+                    /* Allow for CRC64 streams where C2H has a fixed packet length, rather than the C2H packet length */
+                    const size_t num_transferred_bytes = (direction == X2X_DIRECTION_H2C) ? context->bytes_per_buffer : transfer_len;
+
                     now = get_monotonic_time ();
                     stream->overall_statistics.time_last_transfer_completed = now;
                     stream->overall_statistics.num_completed_transfers++;
+                    stream->overall_statistics.num_transferred_bytes += num_transferred_bytes;
                     stream->interval_statistics.time_last_transfer_completed = now;
                     stream->interval_statistics.num_completed_transfers++;
+                    stream->interval_statistics.num_transferred_bytes += num_transferred_bytes;
 
                     if (!test_stopping)
                     {
@@ -775,12 +786,11 @@ static void display_stream_statistics (const stream_test_contexts_t *const conte
     {
         const double interval_secs =
                 ((double) (statistics->time_last_transfer_completed - statistics->collection_interval_start_time)) / 1E9;
-        const size_t bytes_transferred = statistics->num_completed_transfers * context->bytes_per_buffer;
-        const double mbytes_per_sec = (((double) bytes_transferred) / 1E6) / interval_secs;
+        const double mbytes_per_sec = (((double) statistics->num_transferred_bytes) / 1E6) / interval_secs;
 
-        printf ("  %s %s channel %u %.3f Mbytes/sec (%zu bytes in %.06f secs)\n",
+        printf ("  %s %s channel %u %.3f Mbytes/sec (%zu bytes in %u transfers over %.06f secs)\n",
                 stream->vfio_device->device_name, x2x_direction_names[direction], stream->channel_id,
-                mbytes_per_sec, bytes_transferred, interval_secs);
+                mbytes_per_sec, statistics->num_transferred_bytes, statistics->num_completed_transfers, interval_secs);
     }
     else
     {

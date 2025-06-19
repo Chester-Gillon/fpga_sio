@@ -180,6 +180,14 @@ typedef enum
      */
     FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_CRC64,
 
+    /* fpga_tests/TEF1001_dma_stream_crc64 which contains:
+     * a. DMA/Bridge Subsystem access to two AXI streams which perform a CRC64 calculation.
+     * b. Access a Quad SPI connected to the FPGA configuration flash.
+     * c. Access the XADC (internal sensors only).
+     * d. Access the I2C bus, using either a AXI IIC Bus Interface PG090 and AXI GPIO PG144
+     *    in the same way as the i2c_probe (FPGA_SIO_SUBDEVICE_ID_I2C_PROBE) design. */
+    FPGA_DESIGN_TEF1001_DMA_STREAM_CRC64,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 
