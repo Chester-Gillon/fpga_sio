@@ -322,6 +322,7 @@ int main (int argc, char *argv[])
                         {
                         case FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_CRC64:
                         case FPGA_DESIGN_TEF1001_DMA_STREAM_CRC64:
+                        case FPGA_DESIGN_TOSING_160T_DMA_STREAM_CRC64:
                             printf ("Testing design %s using C2H %u -> H2C %u\n",
                                     fpga_design_names[design->design_id], h2c_channel_id, c2h_channel_id);
                             for (uint32_t h2c_packet_len_bytes = MIN_H2C_PACKET_LEN_BYTES;

@@ -188,6 +188,13 @@ typedef enum
      *    in the same way as the i2c_probe (FPGA_SIO_SUBDEVICE_ID_I2C_PROBE) design. */
     FPGA_DESIGN_TEF1001_DMA_STREAM_CRC64,
 
+    /* fpga_tests/TOSING_160T_dma_stream_crc64 which contains:
+     * a. DMA/Bridge Subsystem access to two AXI streams which perform a CRC64 calculation.
+     * b. Quad SPI connected to the configuration flash.
+     * c. XADC
+     */
+    FPGA_DESIGN_TOSING_160T_DMA_STREAM_CRC64,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 

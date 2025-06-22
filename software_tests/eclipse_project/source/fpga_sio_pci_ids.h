@@ -165,4 +165,10 @@
  *    in the same way as the i2c_probe (FPGA_SIO_SUBDEVICE_ID_I2C_PROBE) design. */
 #define FPGA_SIO_SUBDEVICE_ID_TEF1001_DMA_STREAM_CRC64 0x0017
 
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Access two AXI streams which perform a CRC64 calculation.
+ * b. Access a Quad SPI connected to the FPGA configuration flash.
+ * c. Access the XADC (internal sensors only) */
+#define FPGA_SIO_SUBDEVICE_ID_TOSING_160T_DMA_STREAM_CRC64 0x0018
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

@@ -90,6 +90,15 @@ static const device_routing_t default_stream_loopback[FPGA_DESIGN_ARRAY_SIZE] =
              {.enabled = true, .master_port = 0, .slave_port = 0},
              {.enabled = true, .master_port = 1, .slave_port = 1}
         }
+    },
+    [FPGA_DESIGN_TOSING_160T_DMA_STREAM_CRC64] =
+    {
+        .num_routes = 2,
+        .routes =
+        {
+             {.enabled = true, .master_port = 0, .slave_port = 0},
+             {.enabled = true, .master_port = 1, .slave_port = 1}
+        }
     }
 };
 
