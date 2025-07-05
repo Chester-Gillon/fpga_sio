@@ -1609,7 +1609,7 @@ static bool test_stream_descriptor_rings_crc64 (fpga_designs_t *const designs, c
         return false;
     }
 
-    const size_t max_stream_tdata_width_bytes = 16; //@todo while testing FPGA_DESIGN_TEF1001_DMA_STREAM_CRC64 32;
+    const size_t max_stream_tdata_width_bytes = 32;
     const uint32_t message_size_alignment = (uint32_t) (max_stream_tdata_width_bytes / sizeof (uint64_t));
 
     /* This test transmits variable length messages using the streams.
@@ -2022,6 +2022,7 @@ int main (int argc, char *argv[])
                                 case FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_CRC64:
                                 case FPGA_DESIGN_TEF1001_DMA_STREAM_CRC64:
                                 case FPGA_DESIGN_TOSING_160T_DMA_STREAM_CRC64:
+                                case FPGA_DESIGN_NITEFURY_DMA_STREAM_CRC64:
                                     success = test_stream_descriptor_rings_crc64 (&designs, design_index, route->slave_port, route->master_port);
                                     break;
 

@@ -195,6 +195,12 @@ typedef enum
      */
     FPGA_DESIGN_TOSING_160T_DMA_STREAM_CRC64,
 
+    /* fpga_tests/NiteFury_dma_stream_crc64 which contains:
+     * a. DMA/Bridge Subsystem access to two AXI streams which perform a CRC64 calculation.
+     * b. Access a Quad SPI connected to the FPGA configuration flash.
+     * c. Access the XADC - internal sensors and one external input. */
+    FPGA_DESIGN_NITEFURY_DMA_STREAM_CRC64,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 
