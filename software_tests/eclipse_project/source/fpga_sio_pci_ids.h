@@ -177,4 +177,10 @@
  * c. Access the XADC - internal sensors and one external input. */
 #define FPGA_SIO_SUBDEVICE_ID_NITEFURY_DMA_STREAM_CRC64 0x0019
 
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Access four AXI streams which perform a CRC64 calculation.
+ * b. Access a Quad SPI connected to the FPGA configuration flash.
+ * c. Access the SYSMON (internal sensors only) */
+#define FPGA_SIO_SUBDEVICE_ID_AS02MC04_DMA_STREAM_CRC64 0x001A
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

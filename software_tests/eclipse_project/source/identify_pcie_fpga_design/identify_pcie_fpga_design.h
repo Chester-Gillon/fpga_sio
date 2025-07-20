@@ -176,8 +176,7 @@ typedef enum
     /* fpga_tests/XCKU5P_DUAL_QSFP_dma_stream_crc64 which contains:
      * a. DMA/Bridge Subsystem access to four AXI streams which perform a CRC64 calculation.
      * b. Quad SPI connected to the configuration flash.
-     * c. XADC
-     */
+     * c. SYSMON */
     FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_CRC64,
 
     /* fpga_tests/TEF1001_dma_stream_crc64 which contains:
@@ -200,6 +199,12 @@ typedef enum
      * b. Access a Quad SPI connected to the FPGA configuration flash.
      * c. Access the XADC - internal sensors and one external input. */
     FPGA_DESIGN_NITEFURY_DMA_STREAM_CRC64,
+
+    /* fpga_tests/AS02MC04_dma_stream_crc64 which contains:
+     * a. DMA/Bridge Subsystem access to four AXI streams which perform a CRC64 calculation.
+     * b. Quad SPI connected to the configuration flash.
+     * c. SYSMON */
+    FPGA_DESIGN_AS02MC04_DMA_STREAM_CRC64,
 
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;

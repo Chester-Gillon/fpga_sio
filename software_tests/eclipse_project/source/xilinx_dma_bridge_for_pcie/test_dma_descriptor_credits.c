@@ -2023,6 +2023,7 @@ int main (int argc, char *argv[])
                                 case FPGA_DESIGN_TEF1001_DMA_STREAM_CRC64:
                                 case FPGA_DESIGN_TOSING_160T_DMA_STREAM_CRC64:
                                 case FPGA_DESIGN_NITEFURY_DMA_STREAM_CRC64:
+                                case FPGA_DESIGN_AS02MC04_DMA_STREAM_CRC64:
                                     success = test_stream_descriptor_rings_crc64 (&designs, design_index, route->slave_port, route->master_port);
                                     break;
 
