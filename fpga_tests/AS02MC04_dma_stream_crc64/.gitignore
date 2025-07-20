@@ -1,0 +1,5 @@
+AS02MC04_dma_stream_crc64/
+*.mif
+ltssm_trns_names.txt
+pcie_debug*.dat
+rxdet.dat
