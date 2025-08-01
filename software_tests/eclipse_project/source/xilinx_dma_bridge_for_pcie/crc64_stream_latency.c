@@ -14,6 +14,8 @@
 #include "xilinx_axi_stream_switch_configure.h"
 #include "transfer_timing.h"
 #include "crc64.h"
+#include "xilinx_xadc.h"
+#include "xilinx_sysmon.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -78,14 +80,13 @@ static int latency_compare (const void *const compare_a, const void *const compa
 
 /**
  * @brief Measure the CRC64 stream latency for a particular packet length
- * @param[in] design The design containing the CRC64 stream to test
- * @param[in/out] vfio_device The VFIO device containing the CRC64 stream to test
+ * @param[in/out] design The design containing the CRC64 stream to test
  * @param[in] h2c_channel_id The identity of the H2C channel used for the CRC64 stream
  * @param[in] c2h_channel_id The identity of the C2H channel used for the CRC64 stream
  * @param[in] h2c_packet_len_bytes The length the packet over which the CRC64 is calculated
  * @param[in/out] test_sequence Used to generate a different test pattern to perform the CRC64 calculation on for every call.
  */
-static void measure_crc64_stream_latency (fpga_design_t *const design, vfio_device_t *const vfio_device,
+static void measure_crc64_stream_latency (fpga_design_t *const design,
                                           const uint32_t h2c_channel_id, const uint32_t c2h_channel_id,
                                           const uint32_t h2c_packet_len_bytes, uint64_t *const test_sequence)
 {
@@ -120,7 +121,7 @@ static void measure_crc64_stream_latency (fpga_design_t *const design, vfio_devi
         .card_buffer_start_offset = 0, /* Not used for AXI stream */
         .c2h_stream_continuous = false,
         .timeout_seconds = disable_timeout,
-        .vfio_device = vfio_device,
+        .vfio_device = design->vfio_device,
         .bar_index = design->dma_bridge_bar,
         .descriptors_mapping = &descriptors_mapping,
         .data_mapping = &h2c_data_mapping,
@@ -139,7 +140,7 @@ static void measure_crc64_stream_latency (fpga_design_t *const design, vfio_devi
         .card_buffer_start_offset = 0, /* Not used for AXI stream */
         .c2h_stream_continuous = false,
         .timeout_seconds = disable_timeout,
-        .vfio_device = vfio_device,
+        .vfio_device = design->vfio_device,
         .bar_index = design->dma_bridge_bar,
         .descriptors_mapping = &descriptors_mapping,
         .data_mapping = &c2h_data_mapping,
@@ -149,14 +150,14 @@ static void measure_crc64_stream_latency (fpga_design_t *const design, vfio_devi
     /* Create read/write mapping for DMA descriptors */
     const size_t descriptors_allocation_size = x2x_get_descriptor_allocation_size (&h2c_transfer_configuration) +
             x2x_get_descriptor_allocation_size (&c2h_transfer_configuration);
-    allocate_vfio_dma_mapping (vfio_device, &descriptors_mapping, descriptors_allocation_size,
+    allocate_vfio_dma_mapping (design->vfio_device, &descriptors_mapping, descriptors_allocation_size,
             VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, VFIO_BUFFER_ALLOCATION_HEAP);
 
     /* Read mapping used by device, for the entire input packet length */
-    allocate_vfio_dma_mapping (vfio_device, &h2c_data_mapping, h2c_packet_len_bytes, VFIO_DMA_MAP_FLAG_READ, VFIO_BUFFER_ALLOCATION_HEAP);
+    allocate_vfio_dma_mapping (design->vfio_device, &h2c_data_mapping, h2c_packet_len_bytes, VFIO_DMA_MAP_FLAG_READ, VFIO_BUFFER_ALLOCATION_HEAP);
 
     /* Write mapping used by device, for just the CRC64 result */
-    allocate_vfio_dma_mapping (vfio_device, &c2h_data_mapping, sizeof (uint64_t), VFIO_DMA_MAP_FLAG_WRITE, VFIO_BUFFER_ALLOCATION_HEAP);
+    allocate_vfio_dma_mapping (design->vfio_device, &c2h_data_mapping, sizeof (uint64_t), VFIO_DMA_MAP_FLAG_WRITE, VFIO_BUFFER_ALLOCATION_HEAP);
 
     uint64_t *const input_words = h2c_data_mapping.buffer.vaddr;
     uint64_t expected_crc64;
@@ -269,6 +270,57 @@ static void measure_crc64_stream_latency (fpga_design_t *const design, vfio_devi
 }
 
 
+/**
+ * @brief Display the temperature of a design, if the design contains a supported sensor
+ * @param[in] design The design to display the temperature for.
+ */
+static void display_temperature (fpga_design_t *const design)
+{
+    xadc_sample_collection_t xadc_collection;
+    sysmon_sample_collection_t sysmon_collection;
+
+    if (design->xadc_regs != NULL)
+    {
+        read_xadc_samples (&xadc_collection, design->xadc_regs);
+
+        const xadc_channel_sample_t *const sample = &xadc_collection.samples[XADC_CHANNEL_TEMPERATURE];
+        if (sample->measurement.defined)
+        {
+            printf ("Current temperature %5.1fC", sample->measurement.scaled_value);
+            if (sample->min.defined)
+            {
+                printf ("  min %5.1fC", sample->min.scaled_value);
+            }
+            if (sample->max.defined)
+            {
+                printf ("  max %5.1fC", sample->max.scaled_value);
+            }
+            printf ("\n");
+        }
+    }
+
+    if (design->sysmon_regs != NULL)
+    {
+        read_sysmon_samples (&sysmon_collection, design->sysmon_regs);
+
+        const sysmon_channel_sample_t *const sample = &sysmon_collection.samples[SYSMON_CHANNEL_TEMPERATURE];
+        if (sample->measurement.defined)
+        {
+            printf ("Current temperature %5.1fC", sample->measurement.scaled_value);
+            if (sample->min.defined)
+            {
+                printf ("  min %5.1fC", sample->min.scaled_value);
+            }
+            if (sample->max.defined)
+            {
+                printf ("  max %5.1fC", sample->max.scaled_value);
+            }
+            printf ("\n");
+        }
+    }
+}
+
+
 int main (int argc, char *argv[])
 {
     int rc;
@@ -278,6 +330,10 @@ int main (int argc, char *argv[])
     uint32_t num_c2h_channels;
     device_routing_t routing;
     uint64_t test_sequence;
+
+    /* Any command line argument causes the temperature to be displayed.
+     * This is to try and determine if the device under test heats up when DMA is active. */
+    const bool report_temperature = argc > 1;
 
     /* Attempt to lock all future pages to try and get deterministic timing */
     errno = 0;
@@ -299,13 +355,12 @@ int main (int argc, char *argv[])
     for (uint32_t design_index = 0; design_index < designs.num_identified_designs; design_index++)
     {
         fpga_design_t *const design = &designs.designs[design_index];
-        vfio_device_t *const vfio_device = &designs.vfio_devices.devices[design_index];
 
         if (design->dma_bridge_present)
         {
             const bool design_uses_stream = design->dma_bridge_memory_size_bytes == 0;
 
-            x2x_get_num_channels (vfio_device, design->dma_bridge_bar, design->dma_bridge_memory_size_bytes,
+            x2x_get_num_channels (design->vfio_device, design->dma_bridge_bar, design->dma_bridge_memory_size_bytes,
                     &num_h2c_channels, &num_c2h_channels, NULL, NULL);
             if (design_uses_stream && (num_h2c_channels > 0) && (num_c2h_channels > 0))
             {
@@ -327,12 +382,22 @@ int main (int argc, char *argv[])
                         case FPGA_DESIGN_AS02MC04_DMA_STREAM_CRC64:
                             printf ("Testing design %s using C2H %u -> H2C %u\n",
                                     fpga_design_names[design->design_id], h2c_channel_id, c2h_channel_id);
+                            if (report_temperature && (route_index == 0))
+                            {
+                                /* Display the temperature at the start of the first test of the design */
+                                display_temperature (design);
+                            }
                             for (uint32_t h2c_packet_len_bytes = MIN_H2C_PACKET_LEN_BYTES;
                                     h2c_packet_len_bytes <= MAX_H2C_PACKET_LEN_BYTES;
                                     h2c_packet_len_bytes <<= 1)
                             {
-                                measure_crc64_stream_latency (design, vfio_device, h2c_channel_id, c2h_channel_id,
+                                measure_crc64_stream_latency (design, h2c_channel_id, c2h_channel_id,
                                         h2c_packet_len_bytes, &test_sequence);
+                            }
+                            if (report_temperature)
+                            {
+                                /* Display the temperature at the end of every test of the design */
+                                display_temperature (design);
                             }
                             break;
 
