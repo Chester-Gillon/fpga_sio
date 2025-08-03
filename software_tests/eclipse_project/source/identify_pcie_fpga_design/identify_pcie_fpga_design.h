@@ -206,6 +206,11 @@ typedef enum
      * c. SYSMON */
     FPGA_DESIGN_AS02MC04_DMA_STREAM_CRC64,
 
+    /* fpga_tests/AS02MC04_enum/<designs_with_different_PCIe_configuration> which contains:
+     * a. DMA/Bridge Subsystem to contain only a AXI peripheral to read the user access timestamp.
+     * b. Have different revisions to investigating to enumerate for x8 width. */
+    FPGA_DESIGN_AS02MC04_ENUM,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 

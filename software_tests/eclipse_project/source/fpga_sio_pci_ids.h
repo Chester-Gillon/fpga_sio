@@ -183,4 +183,9 @@
  * c. Access the SYSMON (internal sensors only) */
 #define FPGA_SIO_SUBDEVICE_ID_AS02MC04_DMA_STREAM_CRC64 0x001A
 
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Contain only a AXI peripheral to read the user access timestamp.
+ * b. Have different revisions to investigating to enumerate for x8 width. */
+#define FPGA_SIO_SUBDEVICE_ID_AS02MC04_ENUM 0x001B
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

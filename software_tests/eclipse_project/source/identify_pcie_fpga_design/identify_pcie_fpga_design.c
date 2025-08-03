@@ -50,7 +50,8 @@ const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE] =
     [FPGA_DESIGN_TEF1001_DMA_STREAM_CRC64] = "TEF1001_dma_stream_crc64",
     [FPGA_DESIGN_TOSING_160T_DMA_STREAM_CRC64] = "TOSING_160T_dma_stream_crc64",
     [FPGA_DESIGN_NITEFURY_DMA_STREAM_CRC64] = "NiteFury_dma_stream_crc64",
-    [FPGA_DESIGN_AS02MC04_DMA_STREAM_CRC64] = "AS02MC04_dma_stream_crc64"
+    [FPGA_DESIGN_AS02MC04_DMA_STREAM_CRC64] = "AS02MC04_dma_stream_crc64",
+    [FPGA_DESIGN_AS02MC04_ENUM] = "AS02MC04_enum"
 };
 
 
@@ -265,6 +266,14 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_AS02MC04_DMA_STREAM_CRC64,
         .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
+    },
+    [FPGA_DESIGN_AS02MC04_ENUM] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_AS02MC04_ENUM,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE
     }
 };
 
@@ -997,6 +1006,21 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                                     quad_spi_base_offset, quad_spi_frame_size);
                     candidate_design->sysmon_regs =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index, sysmon_base_offset, sysmon_frame_size);
+                    candidate_design->user_access =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                    user_access_base_offset, user_access_frame_size);
+                    design_identified = true;
+                }
+                break;
+
+                case FPGA_DESIGN_AS02MC04_ENUM:
+                {
+                    /* While the DMA/Bridge Subsystem is used to create a PCIe endpoint, the DMA isn't connected to anything */
+                    const uint32_t peripherals_bar_index = 0;
+                    const size_t user_access_base_offset = 0x0000;
+                    const size_t user_access_frame_size  = 0x1000;
+
+                    candidate_design->dma_bridge_present = false;
                     candidate_design->user_access =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                     user_access_base_offset, user_access_frame_size);
