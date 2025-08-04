@@ -273,7 +273,7 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_AS02MC04_ENUM,
-        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     }
 };
 
@@ -1015,12 +1015,18 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
 
                 case FPGA_DESIGN_AS02MC04_ENUM:
                 {
-                    /* While the DMA/Bridge Subsystem is used to create a PCIe endpoint, the DMA isn't connected to anything */
                     const uint32_t peripherals_bar_index = 0;
+                    const uint32_t dma_bridge_bar_index = 1; /* Due to the peripherals BAR being 32-bit */
                     const size_t user_access_base_offset = 0x0000;
                     const size_t user_access_frame_size  = 0x1000;
 
-                    candidate_design->dma_bridge_present = false;
+                    /* DMA bridge configured for "Memory Mapped" but no actual memory connected.
+                     * The following allows x2x_get_num_channels() to return valid results, but attempts to actually
+                     * perform DMA will timeout. */
+                    candidate_design->dma_bridge_present = true;
+                    candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                    candidate_design->dma_bridge_memory_size_bytes = 4096;
+
                     candidate_design->user_access =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                     user_access_base_offset, user_access_frame_size);
