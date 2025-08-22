@@ -14,3 +14,4 @@ set_property BITSTREAM.CONFIG.SPI_32BIT_ADDR YES [current_design]
 
 # For tracking the version of the bitstream
 set_property BITSTREAM.CONFIG.USR_ACCESS TIMESTAMP [current_design]
+
