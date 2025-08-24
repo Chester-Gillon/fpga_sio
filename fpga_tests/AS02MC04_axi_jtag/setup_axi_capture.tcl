@@ -13,5 +13,9 @@ set_property CAPTURE_COMPARE_VALUE eq2'h3 [get_hw_probes WRITE -of_objects [get_
 set_property CONTROL.CAPTURE_CONDITION OR [get_hw_ilas -of_objects [get_hw_devices xcku3p_0] -filter {CELL_NAME=~"u_ila_0"}]
 
 # Need to set the trigger position to zero to be able to upload the 1st data transfer.
-set_property CONTROL.TRIGGER_MODE BASIC_ONLY [get_hw_ilas -of_objects [get_hw_devices xcku3p_0] -filter {CELL_NAME=~"u_ila_0"}]
+# Setting CONTROL.TRIGGER_MODE was commented out following changing debug.xdc to configure
+# the ILA with C_ADV_TRIGGER false. With C_ADV_TRIGGER false in the ILA, attempting to set CONTROL.TRIGGER_MODE
+# results in the error:
+#     ERROR: [Labtoolstcl 44-156] hw_ila property 'CONTROL.TRIGGER_MODE' is read-only.
+# set_property CONTROL.TRIGGER_MODE BASIC_ONLY [get_hw_ilas -of_objects [get_hw_devices xcku3p_0] -filter {CELL_NAME=~"u_ila_0"}]
 set_property CONTROL.TRIGGER_POSITION 0 [get_hw_ilas -of_objects [get_hw_devices xcku3p_0] -filter {CELL_NAME=~"u_ila_0"}]
