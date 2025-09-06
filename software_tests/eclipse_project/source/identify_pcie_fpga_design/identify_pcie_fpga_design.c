@@ -51,7 +51,8 @@ const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE] =
     [FPGA_DESIGN_TOSING_160T_DMA_STREAM_CRC64] = "TOSING_160T_dma_stream_crc64",
     [FPGA_DESIGN_NITEFURY_DMA_STREAM_CRC64] = "NiteFury_dma_stream_crc64",
     [FPGA_DESIGN_AS02MC04_DMA_STREAM_CRC64] = "AS02MC04_dma_stream_crc64",
-    [FPGA_DESIGN_AS02MC04_ENUM] = "AS02MC04_enum"
+    [FPGA_DESIGN_AS02MC04_ENUM] = "AS02MC04_enum",
+    [FPGA_DESIGN_U200_ENUM] = "U200_enum"
 };
 
 
@@ -273,6 +274,14 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_AS02MC04_ENUM,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
+    },
+    [FPGA_DESIGN_U200_ENUM] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_U200_ENUM,
         .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     }
 };
@@ -1014,6 +1023,27 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                 break;
 
                 case FPGA_DESIGN_AS02MC04_ENUM:
+                {
+                    const uint32_t peripherals_bar_index = 0;
+                    const uint32_t dma_bridge_bar_index = 1; /* Due to the peripherals BAR being 32-bit */
+                    const size_t user_access_base_offset = 0x0000;
+                    const size_t user_access_frame_size  = 0x1000;
+
+                    /* DMA bridge configured for "Memory Mapped" but no actual memory connected.
+                     * The following allows x2x_get_num_channels() to return valid results, but attempts to actually
+                     * perform DMA will timeout. */
+                    candidate_design->dma_bridge_present = true;
+                    candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                    candidate_design->dma_bridge_memory_size_bytes = 4096;
+
+                    candidate_design->user_access =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                    user_access_base_offset, user_access_frame_size);
+                    design_identified = true;
+                }
+                break;
+
+                case FPGA_DESIGN_U200_ENUM:
                 {
                     const uint32_t peripherals_bar_index = 0;
                     const uint32_t dma_bridge_bar_index = 1; /* Due to the peripherals BAR being 32-bit */

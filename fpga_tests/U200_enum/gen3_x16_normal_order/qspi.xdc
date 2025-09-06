@@ -9,3 +9,6 @@ set_property BITSTREAM.GENERAL.COMPRESS TRUE           [current_design]
 set_property BITSTREAM.CONFIG.SPI_FALL_EDGE YES        [current_design]
 set_property BITSTREAM.CONFIG.SPI_32BIT_ADDR Yes       [current_design]
 set_property BITSTREAM.CONFIG.UNUSEDPIN Pullup         [current_design]
+
+# For tracking the version of the bitstream
+set_property BITSTREAM.CONFIG.USR_ACCESS TIMESTAMP [current_design]
