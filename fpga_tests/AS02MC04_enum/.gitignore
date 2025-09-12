@@ -1,1 +1,4 @@
 AS02MC04_enum/
+*.dat
+ltssm_trns_names.txt
+*.msk
