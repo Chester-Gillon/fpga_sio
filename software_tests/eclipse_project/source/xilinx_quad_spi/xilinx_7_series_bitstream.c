@@ -459,10 +459,13 @@ static bool x7_bitstream_get_next_word (x7_bitstream_context_t *const context, u
  * @brief Read the data words for a configuration packet, and append the description of the packet.
  * @param[in/out] context The context used for reading the bitstream
  * @param[in] new_packet Defines the packet which has its data words to be read and then appended
+ * @param[in] current_slr_index Which SLR are currently parsing
  * @return Returns true if read the data words, or false if an error occurred.
  */
-static bool x7_bitstream_read_packet_data (x7_bitstream_context_t *const context, const x7_packet_record_t *const new_packet)
+static bool x7_bitstream_read_packet_data (x7_bitstream_context_t *const context, const x7_packet_record_t *const new_packet,
+                                           const uint32_t current_slr_index)
 {
+    x7_bitstream_slr_t *const slr = &context->slrs[current_slr_index];
     uint32_t data_word;
 
     /* Read the packet data, to ensure the data_buffer is populated and check can read the expected number of words
@@ -480,20 +483,20 @@ static bool x7_bitstream_read_packet_data (x7_bitstream_context_t *const context
 
     /* Append the description of the packet, dynamically growing the array as required */
     const uint32_t grow_increment = 64;
-    if (context->num_packets == context->packets_allocated_length)
+    if (slr->num_packets == slr->packets_allocated_length)
     {
-        context->packets_allocated_length += grow_increment;
-        context->packets = realloc (context->packets, sizeof (context->packets[0]) * context->packets_allocated_length);
-        if (context->packets == NULL)
+        slr->packets_allocated_length += grow_increment;
+        slr->packets = realloc (slr->packets, sizeof (slr->packets[0]) * slr->packets_allocated_length);
+        if (slr->packets == NULL)
         {
             snprintf (context->error, sizeof (context->error), "Failed to allocate packets array of %zu bytes",
-                    sizeof (context->packets[0]) * context->packets_allocated_length);
+                    sizeof (slr->packets[0]) * slr->packets_allocated_length);
             return false;
         }
     }
 
-    context->packets[context->num_packets] = *new_packet;
-    context->num_packets++;
+    slr->packets[slr->num_packets] = *new_packet;
+    slr->num_packets++;
 
     /* Update the bitstream length to include the data just read */
     context->bitstream_length_bytes = context->next_word_index;
@@ -510,140 +513,183 @@ static bool x7_bitstream_read_packet_data (x7_bitstream_context_t *const context
 static void x7_bitstream_parse (x7_bitstream_context_t *const context)
 {
     /* Initialise to an empty bitstream */
-    context->packets = NULL;
-    context->num_packets = 0;
-    context->packets_allocated_length = 0;
-    context->end_of_configuration_seen = false;
+    uint32_t current_slr_index = 0;
     context->bitstream_length_bytes = 0;
+    context->num_slrs = 0;
+    context->next_word_index = 0;
 
-    /* Search for the Sync word which marks the start of the configuration frames.
-     * This advances a byte at a time, to match the description of the configuration logic which searches for
-     * alignment to a 32-bit word boundary.
+    /* Iterate over the possible SLRs for a device, each of which has a Sync word.
+     * Can't to seem to find where bitstream format for SLRs is documented. The following structure was written to ensure
+     * the entire bitstream for a XCU200 was parsed.
      *
-     * In the SPI flash configuration options there is no description about the number of dummy cycles to be used
-     * for a specific flash. Presumably dummy cycles are not an issue due to:
-     * a. The bitstream starts with dummy pad words.
-     * b. The configuration logic hunts for the sync word, skipping over dummy bytes.
-     *
-     * Not sure how changes to the SPI data width are handled, perhaps just reads from the start again. */
-    uint32_t candidate_sync_word;
-    context->sync_word_byte_index = 0;
-    context->sync_word_found = false;
-    do
-    {
-        context->next_word_index = context->sync_word_byte_index;
-        if (!x7_bitstream_get_next_word (context, &candidate_sync_word))
-        {
-            snprintf (context->error, sizeof (context->error), "No Sync word found");
-            return;
-        }
-        if (candidate_sync_word == X7_BITSTREAM_SYNC_WORD)
-        {
-            context->sync_word_found = true;
-        }
-        else
-        {
-            context->sync_word_byte_index++;
-        }
-    } while (!context->sync_word_found);
-
-    /* Parse the bitstream configuration words until see the end of configuration, or the end of the data buffer */
-    bool previous_packet_was_type_1 = false;
-    uint32_t header_word_index;
-    uint32_t configuration_header_word;
+     * The loop will only execute once for devices which don't use SLRs. */
     bool parse_complete = false;
     do
     {
-        header_word_index = context->next_word_index;
-        if (x7_bitstream_get_next_word (context, &configuration_header_word))
-        {
-            /* Decode the common packet header fields */
-            x7_packet_record_t new_packet =
-            {
-                .header_type = (configuration_header_word & 0xE0000000) >> 29,
-                .opcode = (configuration_header_word & 0x18000000) >> 27,
-                .data_words_offset = context->next_word_index
-            };
+        /* Start an empty SLR */
+        current_slr_index = context->num_slrs;
+        x7_bitstream_slr_t *const slr = &context->slrs[current_slr_index];
 
-            if (context->end_of_configuration_seen)
+        slr->packets = NULL;
+        slr->num_packets = 0;
+        slr->packets_allocated_length = 0;
+        slr->end_of_configuration_seen = false;
+
+        /* Search for the Sync word which marks the start of the configuration frames.
+         * This advances a byte at a time, to match the description of the configuration logic which searches for
+         * alignment to a 32-bit word boundary.
+         *
+         * In the SPI flash configuration options there is no description about the number of dummy cycles to be used
+         * for a specific flash. Presumably dummy cycles are not an issue due to:
+         * a. The bitstream starts with dummy pad words.
+         * b. The configuration logic hunts for the sync word, skipping over dummy bytes.
+         *
+         * Not sure how changes to the SPI data width are handled, perhaps just reads from the start again. */
+        uint32_t candidate_sync_word;
+        slr->sync_word_byte_index = context->next_word_index;
+        slr->sync_word_found = false;
+        do
+        {
+            context->next_word_index = slr->sync_word_byte_index;
+            if (!x7_bitstream_get_next_word (context, &candidate_sync_word))
             {
-                /* Once have seen the end of configuration, store any padding NOP's until read a configuration word which
-                 * isn't a a NOP. Doesn't validate a configuration word which isn't a NOP since when reading a SPI flash
-                 * will likely find an erased word after the NOPs. */
-                if ((new_packet.header_type == X7_TYPE_1_PACKET) && (new_packet.opcode == X7_PACKET_OPCODE_NOP) &&
-                    (new_packet.word_count == 0))
+                snprintf (context->error, sizeof (context->error), "No Sync word found");
+                return;
+            }
+            if (candidate_sync_word == X7_BITSTREAM_SYNC_WORD)
+            {
+                slr->sync_word_found = true;
+                context->num_slrs++;
+            }
+            else
+            {
+                slr->sync_word_byte_index++;
+            }
+        } while (!slr->sync_word_found);
+
+        /* Parse the bitstream configuration words until see the end of configuration, or the end of the data buffer */
+        bool slr_parse_complete = false;
+        bool previous_packet_was_type_1 = false;
+        uint32_t header_word_index;
+        uint32_t configuration_header_word;
+        do
+        {
+            header_word_index = context->next_word_index;
+            if (x7_bitstream_get_next_word (context, &configuration_header_word))
+            {
+                /* Decode the common packet header fields */
+                x7_packet_record_t new_packet =
                 {
-                    if (!x7_bitstream_read_packet_data (context, &new_packet))
+                        .header_type = (configuration_header_word & 0xE0000000) >> 29,
+                        .opcode = (configuration_header_word & 0x18000000) >> 27,
+                        .data_words_offset = context->next_word_index
+                };
+
+                if (slr->end_of_configuration_seen)
+                {
+                    if (configuration_header_word == X7_BITSTREAM_SYNC_WORD)
                     {
-                        return;
+                        /* If a Sync word follows the final NOP then there should be a following SLR which will have an
+                         * additional Sync word. Therefore, exit the SLR parse loop and start looking for the Sync word
+                         * for the following SLR.
+                         *
+                         * Can't find documentation which describes the words between this Sync word and the next Sync word
+                         * at the start of the next SLR. Did seem to be a write with no data to register address 0x1e
+                         * for which can't find documentation. */
+                        slr_parse_complete = true;
+                    }
+                    else if ((context->num_slrs > 1) &&
+                             (new_packet.header_type == X7_TYPE_1_PACKET) && (new_packet.opcode == X7_PACKET_OPCODE_WRITE))
+                    {
+                        /* When a device has SLRs, the final SLR can have a sequence of DESYNC and START commands,
+                         * apparently for each SLR. Store these commands so get to the end of the bitstream. */
+                        slr->end_of_configuration_seen = false;
+                        new_packet.register_address = (configuration_header_word & 0x07FFE000) >> 13;
+                        new_packet.word_count = (configuration_header_word & 0x000007FF);
+                        if (!x7_bitstream_read_packet_data (context, &new_packet, current_slr_index))
+                        {
+                            return;
+                        }
+                    }
+                    else if ((new_packet.header_type == X7_TYPE_1_PACKET) && (new_packet.opcode == X7_PACKET_OPCODE_NOP) &&
+                            (new_packet.word_count == 0))
+                    {
+                        /* Once have seen the end of configuration, store any padding NOP's until read a configuration word which
+                         * isn't a a NOP. Doesn't validate a configuration word which isn't a NOP since when reading a SPI flash
+                         * will likely find an erased word after the NOPs. */
+                        if (!x7_bitstream_read_packet_data (context, &new_packet, current_slr_index))
+                        {
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        parse_complete = true;
                     }
                 }
                 else
                 {
-                    parse_complete = true;
+                    switch (new_packet.header_type)
+                    {
+                    case X7_TYPE_1_PACKET:
+                        /* Read the data words */
+                        new_packet.register_address = (configuration_header_word & 0x07FFE000) >> 13;
+                        new_packet.word_count = (configuration_header_word & 0x000007FF);
+                        if (!x7_bitstream_read_packet_data (context, &new_packet, current_slr_index))
+                        {
+                            return;
+                        }
+
+                        /* Look for the write of the DESYNC command which indicates the end of the configuration */
+                        if ((new_packet.opcode == X7_PACKET_OPCODE_WRITE) && (new_packet.word_count == 1))
+                        {
+                            const uint32_t reg_data = x7_bitstream_unpack_word (context, new_packet.data_words_offset);
+
+                            if ((new_packet.register_address == X7_PACKET_TYPE_1_REG_CMD) && (reg_data == X7_COMMAND_DESYNC))
+                            {
+                                slr->end_of_configuration_seen = true;
+                            }
+                        }
+                        break;
+
+                    case X7_TYPE_2_PACKET:
+                        /* UG470 says the Type 2 packet must follow a Type 1 packet */
+                        if (!previous_packet_was_type_1)
+                        {
+                            snprintf (context->error, sizeof (context->error),
+                                    "Type 2 packet header word %08X at index %u didn't follow a type 1 packet header",
+                                    configuration_header_word, header_word_index);
+                            return;
+                        }
+
+                        /* For a Type 2 packet just read the data words.
+                         * This library doesn't inspect the contents of the configuration frames */
+                        new_packet.word_count = configuration_header_word & 0x07FFFFFF;
+                        if (!x7_bitstream_read_packet_data (context, &new_packet, current_slr_index))
+                        {
+                            return;
+                        }
+                        break;
+
+                    default:
+                        snprintf (context->error, sizeof (context->error),
+                                "Unknown packet type %u in header word %08X at index %u",
+                                new_packet.header_type, configuration_header_word, header_word_index);
+                        return;
+                        break;
+                    }
                 }
+
+                previous_packet_was_type_1 = new_packet.header_type == X7_TYPE_1_PACKET;
             }
             else
             {
-                switch (new_packet.header_type)
-                {
-                case X7_TYPE_1_PACKET:
-                    /* Read the data words */
-                    new_packet.register_address = (configuration_header_word & 0x07FFE000) >> 13;
-                    new_packet.word_count = (configuration_header_word & 0x000007FF);
-                    if (!x7_bitstream_read_packet_data (context, &new_packet))
-                    {
-                        return;
-                    }
-
-                    /* Look for the write of the DESYNC command which indicates the end of the configuration */
-                    if ((new_packet.opcode == X7_PACKET_OPCODE_WRITE) && (new_packet.word_count == 1))
-                    {
-                        const uint32_t reg_data = x7_bitstream_unpack_word (context, new_packet.data_words_offset);
-
-                        if ((new_packet.register_address == X7_PACKET_TYPE_1_REG_CMD) && (reg_data == X7_COMMAND_DESYNC))
-                        {
-                            context->end_of_configuration_seen = true;
-                        }
-                    }
-                    break;
-
-                case X7_TYPE_2_PACKET:
-                    /* UG470 says the Type 2 packet must follow a Type 1 packet */
-                    if (!previous_packet_was_type_1)
-                    {
-                        snprintf (context->error, sizeof (context->error),
-                                "Type 2 packet header word %08X at index %u didn't follow a type 1 packet header",
-                                configuration_header_word, header_word_index);
-                        return;
-                    }
-
-                    /* For a Type 2 packet just read the data words.
-                     * This library doesn't inspect the contents of the configuration frames */
-                    new_packet.word_count = configuration_header_word & 0x07FFFFFF;
-                    if (!x7_bitstream_read_packet_data (context, &new_packet))
-                    {
-                        return;
-                    }
-                    break;
-
-                default:
-                    snprintf (context->error, sizeof (context->error),
-                            "Unknown packet type %u in header word %08X at index %u",
-                            new_packet.header_type, configuration_header_word, header_word_index);
-                    return;
-                    break;
-                }
+                /* Reached the end of the data buffer */
+                parse_complete = true;
             }
-
-            previous_packet_was_type_1 = new_packet.header_type == X7_TYPE_1_PACKET;
-        }
-        else
-        {
-            /* Reached the end of the data buffer */
-            parse_complete = true;
-        }
-    } while (!parse_complete);
+        } while (!slr_parse_complete && !parse_complete);
+    }
+    while (!parse_complete && (context->num_slrs < X7_MAX_NUM_SLRS));
 }
 
 
@@ -1158,8 +1204,11 @@ void x7_bitstream_free (x7_bitstream_context_t *const context)
         }
     }
 
-    free (context->packets);
-    context->packets = NULL;
+    for (uint32_t slr_index = 0; slr_index < context->num_slrs; slr_index++)
+    {
+        free (context->slrs[slr_index].packets);
+        context->slrs[slr_index].packets = NULL;
+    }
 }
 
 
@@ -1184,13 +1233,16 @@ void x7_bitstream_free (x7_bitstream_context_t *const context)
  *  bitstreams. As the contents of the configuration data isn't documented no need to try and decode the configurarion
  *  data contents.
  * @param[in] context The bitstream being parsed
+ * @param[in] current_slr_index Which SLR are currently parsing
  * @param[in/out] packet_index Used to advance through the packets in the bitstream.
  *                On entry the first packet of configuration data to summarise
  *                On exit the packet after the end of the configuration data
  */
 static void x7_bitstream_summarise_configuration_data_writes (const x7_bitstream_context_t *const context,
+                                                              const uint32_t current_slr_index,
                                                               uint32_t *const packet_index)
 {
+    const x7_bitstream_slr_t *const slr = &context->slrs[current_slr_index];
     bool parsing_configuration_data_writes = true;
     uint32_t num_nops = 0;
     uint32_t num_far_writes = 0;
@@ -1206,9 +1258,9 @@ static void x7_bitstream_summarise_configuration_data_writes (const x7_bitstream
     uint32_t total_packets_consumed = 0;
 
     /* Count the packets which form the bitstream section which contains the configuration data writes */
-    while ((*packet_index < context->num_packets) && parsing_configuration_data_writes)
+    while ((*packet_index < slr->num_packets) && parsing_configuration_data_writes)
     {
-        const x7_packet_record_t *const packet = &context->packets[*packet_index];
+        const x7_packet_record_t *const packet = &slr->packets[*packet_index];
 
         parsing_configuration_data_writes = true;
         if (x7_packet_is_nop (packet))
@@ -1319,11 +1371,26 @@ void x7_bitstream_summarise (const x7_bitstream_context_t *const context)
     uint32_t register_value;
 
     /* Indicate if the bitstream was parsed successfully and therefore if appears valid.
-     * Even if not consider valid displays the information which was parsed. */
-    if (context->end_of_configuration_seen)
+     * Even if not considered valid displays the information which was parsed. */
+    uint32_t total_packets = 0;
+    bool end_of_configuration_seen = false;
+    for (uint32_t slr_index = 0; slr_index < context->num_slrs; slr_index++)
     {
-        printf ("Successfully parsed bitstream of length %u bytes with %u configuration packets\n",
-                context->bitstream_length_bytes, context->num_packets);
+        total_packets += context->slrs[slr_index].num_packets;
+        end_of_configuration_seen = context->slrs[slr_index].end_of_configuration_seen;
+    }
+    if (end_of_configuration_seen)
+    {
+        printf ("Successfully parsed bitstream of length %u bytes with %u configuration packets",
+                context->bitstream_length_bytes, total_packets);
+        if (context->num_slrs > 1)
+        {
+            printf (" with %u SLRs\n", context->num_slrs);
+        }
+        else
+        {
+            printf ("\n");
+        }
     }
     else
     {
@@ -1348,90 +1415,100 @@ void x7_bitstream_summarise (const x7_bitstream_context_t *const context)
         }
     }
 
-    /* Display the byte index of the sync word, which indicates how much padding before the start of the bitstream */
-    if (context->sync_word_found)
+    for (uint32_t current_slr_index = 0; current_slr_index < context->num_slrs; current_slr_index++)
     {
-        printf ("Sync word at byte index 0x%X\n", context->sync_word_byte_index);
-    }
+        const x7_bitstream_slr_t *const slr = &context->slrs[current_slr_index];
 
-    /* Summarise the configuration packets */
-    uint32_t packet_index = 0;
-    while (packet_index < context->num_packets)
-    {
-        /* Produce a summary of configuration data packets */
-        if (x7_packet_is_register_write (&context->packets[packet_index], X7_PACKET_TYPE_1_REG_FAR))
+        /* Display the byte index of the sync word, which indicates how much padding before the start of the bitstream */
+        if (slr->sync_word_found)
         {
-            x7_bitstream_summarise_configuration_data_writes (context, &packet_index);
+            if (context->num_slrs > 1)
+            {
+                /* Indicate the start of each SLR */
+                printf ("SLR[%u] ", current_slr_index);
+            }
+            printf ("Sync word at byte index 0x%X\n", slr->sync_word_byte_index);
         }
 
-        /* Display individual configuration packets which are not part of the configuration data */
-        const x7_packet_record_t *const packet = &context->packets[packet_index];
-        switch (packet->header_type)
+        /* Summarise the configuration packets */
+        uint32_t packet_index = 0;
+        while (packet_index < slr->num_packets)
         {
-        case X7_TYPE_1_PACKET:
-            printf ("  Type 1 packet opcode %s",
-                    x7_bitstream_lookup_enum (x7_packet_opcode_names, packet->opcode, unknown_opcode));
-            if (x7_packet_is_nop (packet))
+            /* Produce a summary of configuration data packets */
+            if (x7_packet_is_register_write (&slr->packets[packet_index], X7_PACKET_TYPE_1_REG_FAR))
             {
-                /* For NOPs just display the number of consecutive NOPs as no meaningful contents */
-                uint32_t num_consecutive_nops = 1;
-                while ((packet_index < context->num_packets) && (x7_packet_is_nop (&context->packets[packet_index + 1])))
-                {
-                    num_consecutive_nops++;
-                    packet_index++;
-                }
-
-                if (num_consecutive_nops > 1)
-                {
-                    printf (" (%u consecutive)\n", num_consecutive_nops);
-                }
-                else
-                {
-                    printf ("\n");
-                }
+                x7_bitstream_summarise_configuration_data_writes (context, current_slr_index, &packet_index);
             }
-            else
-            {
-                printf (" register %s",
-                        x7_bitstream_lookup_enum (x7_packet_type_1_register_names, packet->register_address, unknown_register));
-                if (x7_packet_is_word_register_write (context, packet, X7_PACKET_TYPE_1_REG_CMD, &register_value))
-                {
-                    /* Decode the name of the command written */
-                    printf (" command %s\n",
-                            x7_bitstream_lookup_enum (x7_command_register_code_names, register_value, unknown_command));
-                }
-                else if (x7_packet_is_word_register_write (context, packet, X7_PACKET_TYPE_1_REG_IDCODE, &register_value))
-                {
-                    /* Display the name of the device */
-                    printf (" %s\n", x7_bitstream_lookup_enum (x7_idcode_names, register_value, unknown_idcode));
-                }
-                else if (x7_packet_is_word_register_write (context, packet, X7_PACKET_TYPE_1_REG_AXSS, &register_value))
-                {
-                    /* Display the user access register as both the decode build timestamp and raw value */
-                    char formatted_timestamp[USER_ACCESS_TIMESTAMP_LEN];
 
-                    format_user_access_timestamp (register_value, formatted_timestamp);
-                    printf (" %08X - %s\n", register_value, formatted_timestamp);
-                }
-                else
+            /* Display individual configuration packets which are not part of the configuration data */
+            const x7_packet_record_t *const packet = &slr->packets[packet_index];
+            switch (packet->header_type)
+            {
+            case X7_TYPE_1_PACKET:
+                printf ("  Type 1 packet opcode %s",
+                        x7_bitstream_lookup_enum (x7_packet_opcode_names, packet->opcode, unknown_opcode));
+                if (x7_packet_is_nop (packet))
                 {
-                    /* Display the raw data words */
-                    printf (" words");
-                    for (uint32_t word_index = 0; word_index < packet->word_count; word_index++)
+                    /* For NOPs just display the number of consecutive NOPs as no meaningful contents */
+                    uint32_t num_consecutive_nops = 1;
+                    while ((packet_index < slr->num_packets) && (x7_packet_is_nop (&slr->packets[packet_index + 1])))
                     {
-                        printf (" %08X", x7_bitstream_unpack_word (context, packet->data_words_offset + word_index));
+                        num_consecutive_nops++;
+                        packet_index++;
                     }
-                    printf ("\n");
+
+                    if (num_consecutive_nops > 1)
+                    {
+                        printf (" (%u consecutive)\n", num_consecutive_nops);
+                    }
+                    else
+                    {
+                        printf ("\n");
+                    }
                 }
+                else
+                {
+                    printf (" register %s",
+                            x7_bitstream_lookup_enum (x7_packet_type_1_register_names, packet->register_address, unknown_register));
+                    if (x7_packet_is_word_register_write (context, packet, X7_PACKET_TYPE_1_REG_CMD, &register_value))
+                    {
+                        /* Decode the name of the command written */
+                        printf (" command %s\n",
+                                x7_bitstream_lookup_enum (x7_command_register_code_names, register_value, unknown_command));
+                    }
+                    else if (x7_packet_is_word_register_write (context, packet, X7_PACKET_TYPE_1_REG_IDCODE, &register_value))
+                    {
+                        /* Display the name of the device */
+                        printf (" %s\n", x7_bitstream_lookup_enum (x7_idcode_names, register_value, unknown_idcode));
+                    }
+                    else if (x7_packet_is_word_register_write (context, packet, X7_PACKET_TYPE_1_REG_AXSS, &register_value))
+                    {
+                        /* Display the user access register as both the decode build timestamp and raw value */
+                        char formatted_timestamp[USER_ACCESS_TIMESTAMP_LEN];
+
+                        format_user_access_timestamp (register_value, formatted_timestamp);
+                        printf (" %08X - %s\n", register_value, formatted_timestamp);
+                    }
+                    else
+                    {
+                        /* Display the raw data words */
+                        printf (" words");
+                        for (uint32_t word_index = 0; word_index < packet->word_count; word_index++)
+                        {
+                            printf (" %08X", x7_bitstream_unpack_word (context, packet->data_words_offset + word_index));
+                        }
+                        printf ("\n");
+                    }
+                }
+                break;
+
+            case X7_TYPE_2_PACKET:
+                printf ("  Type 2 packet opcode %s word_count %u\n",
+                        x7_bitstream_lookup_enum (x7_packet_opcode_names, packet->opcode, unknown_opcode), packet->word_count);
+                break;
             }
-            break;
 
-        case X7_TYPE_2_PACKET:
-            printf ("  Type 2 packet opcode %s word_count %u\n",
-                    x7_bitstream_lookup_enum (x7_packet_opcode_names, packet->opcode, unknown_opcode), packet->word_count);
-            break;
+            packet_index++;
         }
-
-        packet_index++;
     }
 }

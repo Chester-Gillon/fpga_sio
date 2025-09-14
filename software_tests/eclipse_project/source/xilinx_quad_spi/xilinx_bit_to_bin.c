@@ -29,7 +29,7 @@ int main (int argc, char *argv[])
     const char *const bin_filename = argv[2];
 
     x7_bitstream_read_from_file (&bitstream_context, bit_filename);
-    if (bitstream_context.end_of_configuration_seen)
+    if ((bitstream_context.num_slrs > 0) && (bitstream_context.slrs[bitstream_context.num_slrs - 1].end_of_configuration_seen))
     {
         switch (bitstream_context.file.file_format)
         {

@@ -146,6 +146,29 @@ typedef struct
 } x7_bitstream_file_context_t;
 
 
+/* The maximum number of SLRs in a device */
+#define X7_MAX_NUM_SLRS 4
+
+
+/* Contains the context for reading the part of a bitstream for one SLR */
+typedef struct
+{
+    /* Set true when the Sync word has been found */
+    bool sync_word_found;
+    /* The byte index into data_buffer that the Sync word was found */
+    uint32_t sync_word_byte_index;
+    /* Set true when has seen the end of the configuration in the bitstream.
+     * When false have failed to parse a valid bitstream, and the following fields may contain an incomplete bitstream */
+    bool end_of_configuration_seen;
+    /* Dynamically sized array of configuration packets found in the bitstream */
+    x7_packet_record_t *packets;
+    /* The number of valid entries in packets[] */
+    uint32_t num_packets;
+    /* The current allocated size of the packets[] array */
+    uint32_t packets_allocated_length;
+} x7_bitstream_slr_t;
+
+
 /* Contains the context for reading a bitstream for a Xilinx 7-series device */
 typedef struct
 {
@@ -168,24 +191,17 @@ typedef struct
      * - When reading the bitstream from flash this grows in chunks read from the flash,
      *   which may end up more than bitstream_length_bytes. */
     uint32_t data_buffer_length;
-    /* The length of the bitstream in data_buffer, which ends at the last NOP seen after the end of the configuration */
+    /* The length of the bitstream in data_buffer, which ends at the last NOP of the final SLR seen after the
+     * end of the configuration */
     uint32_t bitstream_length_bytes;
     /* The byte index into data_buffer to read the next bitstream word from.
      * May not be aligned, it depends upon the alignment the Sync word was read from. */
     uint32_t next_word_index;
-    /* Set true when the Sync word has been found */
-    bool sync_word_found;
-    /* The byte index into data_buffer that the Sync word was found */
-    uint32_t sync_word_byte_index;
-    /* Set true when has seen the end of the configuration in the bitstream.
-     * When false have failed to parse a valid bitstream, and the following fields may contain an incomplete bitstream */
-    bool end_of_configuration_seen;
-    /* Dynamically sized array of configuration packets found in the bitstream */
-    x7_packet_record_t *packets;
-    /* The number of valid entries in packets[] */
-    uint32_t num_packets;
-    /* The current allocated size of the packets[] array */
-    uint32_t packets_allocated_length;
+    /* The number of SLRs assumed the device uses, based upon parsing the bit stream */
+    uint32_t num_slrs;
+    /* Devices with SLRs appear to partition the bitstream into one "section" for each SLR.
+     * Store each SLR independently. */
+    x7_bitstream_slr_t slrs[X7_MAX_NUM_SLRS];
 } x7_bitstream_context_t;
 
 
