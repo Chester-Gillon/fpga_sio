@@ -52,7 +52,9 @@ const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE] =
     [FPGA_DESIGN_NITEFURY_DMA_STREAM_CRC64] = "NiteFury_dma_stream_crc64",
     [FPGA_DESIGN_AS02MC04_DMA_STREAM_CRC64] = "AS02MC04_dma_stream_crc64",
     [FPGA_DESIGN_AS02MC04_ENUM] = "AS02MC04_enum",
-    [FPGA_DESIGN_U200_ENUM] = "U200_enum"
+    [FPGA_DESIGN_U200_ENUM] = "U200_enum",
+    [FPGA_DESIGN_U200_100G_ETHER_SIMPLEX_TX] = "U200_100G_ether_simplex_tx",
+    [FPGA_DESIGN_U200_DMA_STREAM_CRC64] = "U200_dma_stream_crc64"
 };
 
 
@@ -283,7 +285,43 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_U200_ENUM,
         .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
+    },
+    [FPGA_DESIGN_U200_100G_ETHER_SIMPLEX_TX] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_U200_100G_ETHER_SIMPLEX_TX,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
+    },
+    [FPGA_DESIGN_U200_DMA_STREAM_CRC64] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_U200_DMA_STREAM_CRC64,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     }
+};
+
+
+/* For the designs which implement a CRC64 stream, the size of tdata width in bytes.
+ * The value depends upon the PCIe speed and width of the DMA/Bridge Subsystem, which in terms sets the available stream width.
+ *
+ * The CRC64 operation:
+ * a. Means the size of each H2C packet is fixed as 8 bytes.
+ * b. Is performed in parallel across the width of the C2H stream, without taking account of tkeep on the end of packet.
+ *    Therefore, to get the expected CRC64 result all HC2 packets have to be a multiple of this value.
+ */
+const uint32_t crc64_stream_tdata_width_bytes[FPGA_DESIGN_ARRAY_SIZE] =
+{
+    [FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_CRC64] = 32,
+    [FPGA_DESIGN_TEF1001_DMA_STREAM_CRC64         ] = 16,
+    [FPGA_DESIGN_TOSING_160T_DMA_STREAM_CRC64     ] = 16,
+    [FPGA_DESIGN_NITEFURY_DMA_STREAM_CRC64        ] = 16,
+    [FPGA_DESIGN_AS02MC04_DMA_STREAM_CRC64        ] = 32,
+    [FPGA_DESIGN_U200_DMA_STREAM_CRC64            ] = 64
+
 };
 
 
@@ -1057,6 +1095,50 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     candidate_design->dma_bridge_bar = dma_bridge_bar_index;
                     candidate_design->dma_bridge_memory_size_bytes = 4096;
 
+                    candidate_design->user_access =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                    user_access_base_offset, user_access_frame_size);
+                    design_identified = true;
+                }
+                break;
+
+                case FPGA_DESIGN_U200_100G_ETHER_SIMPLEX_TX:
+                {
+                    const uint32_t peripherals_bar_index = 0;
+                    const uint32_t dma_bridge_bar_index = 2;
+                    const size_t user_access_base_offset = 0x2000;
+                    const size_t user_access_frame_size  = 0x2000;
+
+
+                    candidate_design->dma_bridge_present = true;
+                    candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                    candidate_design->dma_bridge_memory_size_bytes = 0; /* DMA bridge configured for "AXI Stream" */
+                    candidate_design->user_access =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                    user_access_base_offset, user_access_frame_size);
+                    design_identified = true;
+                }
+                break;
+
+                case FPGA_DESIGN_U200_DMA_STREAM_CRC64:
+                {
+                    const uint32_t peripherals_bar_index = 0;
+                    const uint32_t dma_bridge_bar_index = 2;
+                    const size_t quad_spi_base_offset    = 0x0000;
+                    const size_t quad_spi_frame_size     = 0x1000;
+                    const size_t sysmon_base_offset      = 0x1000;
+                    const size_t sysmon_frame_size       = 0x1000;
+                    const size_t user_access_base_offset = 0x2000;
+                    const size_t user_access_frame_size  = 0x1000;
+
+                    candidate_design->dma_bridge_present = true;
+                    candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                    candidate_design->dma_bridge_memory_size_bytes = 0; /* DMA bridge configured for "AXI Stream" */
+                    candidate_design->quad_spi_regs =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                    quad_spi_base_offset, quad_spi_frame_size);
+                    candidate_design->sysmon_regs =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index, sysmon_base_offset, sysmon_frame_size);
                     candidate_design->user_access =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                     user_access_base_offset, user_access_frame_size);

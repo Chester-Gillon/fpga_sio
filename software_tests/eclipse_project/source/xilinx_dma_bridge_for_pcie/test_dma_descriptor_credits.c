@@ -78,7 +78,7 @@ typedef struct
 /* The timeout for test. A global variable, so may be changed when single stepping.
  * Was initially 10, but that caused test_stream_descriptor_rings_crc64() to timeout part way through the test when
  * compiled for coverage. The CRC calculation is performed while the test timeout is active. */
-static int64_t test_timeout_secs = 20;
+static int64_t test_timeout_secs = 40;
 
 
 /* The absolute CLOCK_MONOTONIC time at which the test is timed out */
@@ -1552,12 +1552,6 @@ static bool test_stream_descriptor_rings_loopback (fpga_designs_t *const designs
  *          The receive descriptor ring uses a number of fixed size buffers, and the messages can split across
  *          multiple buffers with the final buffer for a message partially populated.
  *
- *          The CRC64 operation:
- *          a. Means the size of each H2C packet is fixed as 8 bytes.
- *          b. Is performed in parallel across the width of the C2H stream, without taking account of tkeep on the end of packet.
- *             Therefore, to get the expected CRC64 result all HC2 packets have to be a multiple of 32 bytes (max tdata width
- *             of the DMA bridge).
- *
  *          The transmit ring has the same number and size of buffers as the receive descriptor ring.
  *
  *          The receive ring is kept toped-up with a full set of credits, as with a stream interface can have
@@ -1609,8 +1603,7 @@ static bool test_stream_descriptor_rings_crc64 (fpga_designs_t *const designs, c
         return false;
     }
 
-    const size_t max_stream_tdata_width_bytes = 32;
-    const uint32_t message_size_alignment = (uint32_t) (max_stream_tdata_width_bytes / sizeof (uint64_t));
+    const uint32_t message_size_alignment = (uint32_t) (crc64_stream_tdata_width_bytes[design->design_id] / sizeof (uint64_t));
 
     /* This test transmits variable length messages using the streams.
      * Each descriptor is used to transfer a maximum of one page.
@@ -2017,19 +2010,13 @@ int main (int argc, char *argv[])
 
                             if (route->enabled)
                             {
-                                switch (design->design_id)
+                                if (crc64_stream_tdata_width_bytes[design->design_id] != 0)
                                 {
-                                case FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_CRC64:
-                                case FPGA_DESIGN_TEF1001_DMA_STREAM_CRC64:
-                                case FPGA_DESIGN_TOSING_160T_DMA_STREAM_CRC64:
-                                case FPGA_DESIGN_NITEFURY_DMA_STREAM_CRC64:
-                                case FPGA_DESIGN_AS02MC04_DMA_STREAM_CRC64:
                                     success = test_stream_descriptor_rings_crc64 (&designs, design_index, route->slave_port, route->master_port);
-                                    break;
-
-                                default:
+                                }
+                                else
+                                {
                                     success = test_stream_descriptor_rings_loopback (&designs, design_index, route->slave_port, route->master_port);
-                                    break;
                                 }
                                 num_enabled_routes++;
                             }

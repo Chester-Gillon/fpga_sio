@@ -120,6 +120,17 @@ static const device_routing_t default_stream_loopback[FPGA_DESIGN_ARRAY_SIZE] =
              {.enabled = true, .master_port = 3, .slave_port = 3}
         }
     },
+    [FPGA_DESIGN_U200_DMA_STREAM_CRC64] =
+    {
+        .num_routes = 4,
+        .routes =
+        {
+             {.enabled = true, .master_port = 0, .slave_port = 0},
+             {.enabled = true, .master_port = 1, .slave_port = 1},
+             {.enabled = true, .master_port = 2, .slave_port = 2},
+             {.enabled = true, .master_port = 3, .slave_port = 3}
+        }
+    }
 };
 
 

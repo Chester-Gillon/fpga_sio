@@ -193,4 +193,16 @@
  * b. Have different revisions to investigating to enumerate for x16 width and bifurcation. */
 #define FPGA_SIO_SUBDEVICE_ID_U200_ENUM 0x001C
 
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Contain only a AXI peripheral to read the user access timestamp.
+ * b. Have a 100G Ethernet simplex transmitter, including control and statistics registers. */
+#define FPGA_SIO_SUBDEVICE_ID_U200_100G_ETHER_SIMPLEX_TX 0x001D
+
+
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Access four AXI streams which perform a CRC64 calculation.
+ * b. Access a Quad SPI connected to the FPGA configuration flash.
+ * c. Access the SYSMON on all 3 SLRs (internal sensors only) */
+#define FPGA_SIO_SUBDEVICE_ID_U200_DMA_STREAM_CRC64 0x001E
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

@@ -216,11 +216,25 @@ typedef enum
      * b. Have different revisions to investigating to enumerate for x8 width and bifurcation. */
     FPGA_DESIGN_U200_ENUM,
 
+    /* fpga_tests/U200_100G_ether_simplex_tx which contains:
+     * a. DMA/Bridge Subsystem access to one AXI stream which transmits 100G Ethernet.
+     * b. Memory mapped Ethernet including control and statistics registers. */
+    FPGA_DESIGN_U200_100G_ETHER_SIMPLEX_TX,
+
+    /* fpga_tests/U200_dma_stream_crc64 which contains:
+     * a. DMA/Bridge Subsystem access to four AXI streams which perform a CRC64 calculation.
+     * b. Quad SPI connected to the configuration flash.
+     * c. SYSMON on all 3 SLRs */
+    FPGA_DESIGN_U200_DMA_STREAM_CRC64,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 
 
 extern const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE];
+
+
+extern const uint32_t crc64_stream_tdata_width_bytes[FPGA_DESIGN_ARRAY_SIZE];
 
 
 /* Defines one identified design */

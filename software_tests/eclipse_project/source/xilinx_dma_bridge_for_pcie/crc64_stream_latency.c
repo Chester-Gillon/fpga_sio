@@ -25,8 +25,9 @@
 #include <sys/mman.h>
 
 
-/* Defines the range of H2C packet lengths (input to CRC64 stream) which are tested in increments of power of two */
-#define MIN_H2C_PACKET_LEN_BYTES 32
+/* Defines the range of H2C packet lengths (input to CRC64 stream) which are tested in increments of power of two:
+ * a. The minimum is the per-design crc64_stream_tdata_width_bytes[] value.
+ * b. The maximum is specified here, which must be >= the largest minimum across all designs. */
 #define MAX_H2C_PACKET_LEN_BYTES (1024 * 1024)
 
 /* Number of timing measurements for each different packet length */
@@ -373,13 +374,8 @@ int main (int argc, char *argv[])
 
                     if (route->enabled)
                     {
-                        switch (design->design_id)
+                        if (crc64_stream_tdata_width_bytes[design->design_id] != 0)
                         {
-                        case FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_CRC64:
-                        case FPGA_DESIGN_TEF1001_DMA_STREAM_CRC64:
-                        case FPGA_DESIGN_TOSING_160T_DMA_STREAM_CRC64:
-                        case FPGA_DESIGN_NITEFURY_DMA_STREAM_CRC64:
-                        case FPGA_DESIGN_AS02MC04_DMA_STREAM_CRC64:
                             printf ("Testing design %s using C2H %u -> H2C %u\n",
                                     fpga_design_names[design->design_id], h2c_channel_id, c2h_channel_id);
                             if (report_temperature && (route_index == 0))
@@ -387,7 +383,7 @@ int main (int argc, char *argv[])
                                 /* Display the temperature at the start of the first test of the design */
                                 display_temperature (design);
                             }
-                            for (uint32_t h2c_packet_len_bytes = MIN_H2C_PACKET_LEN_BYTES;
+                            for (uint32_t h2c_packet_len_bytes = crc64_stream_tdata_width_bytes[design->design_id];
                                     h2c_packet_len_bytes <= MAX_H2C_PACKET_LEN_BYTES;
                                     h2c_packet_len_bytes <<= 1)
                             {
@@ -399,11 +395,6 @@ int main (int argc, char *argv[])
                                 /* Display the temperature at the end of every test of the design */
                                 display_temperature (design);
                             }
-                            break;
-
-                        default:
-                            /* The streams in this design don't contain the CRC64 functionality */
-                            break;
                         }
                     }
                 }
