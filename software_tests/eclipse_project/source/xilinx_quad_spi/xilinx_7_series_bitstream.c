@@ -412,7 +412,7 @@ static bool x7_bitstream_get_next_word (x7_bitstream_context_t *const context, u
     {
         if (context->controller != NULL)
         {
-            if (context->data_buffer_length == context->controller->flash_size_bytes)
+            if ((context->flash_start_address + context->data_buffer_length) == context->controller->flash_size_bytes)
             {
                 /* Have read the entire flash, so another word isn't available */
                 return false;

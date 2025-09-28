@@ -248,9 +248,55 @@ static void display_spi_flash_information (const fpga_design_t *const design)
         test_spi_flash_read_modes (&controller);
     }
 
+    /* Always attempt to parse a bitstream from the start of flash */
     x7_bitstream_context_t bitstream_context;
     x7_bitstream_read_from_spi_flash (&bitstream_context, &controller, 0);
     x7_bitstream_summarise (&bitstream_context);
+
+    /* The MultiBoot address location to be used when the IPROG command is applied.
+     * Extracted from the WBSTAR register. */
+    uint32_t warm_boot_start_address = 0;
+    /* Set true when an IPROG command has been seen, meaning can attempt to locate a bitstream at warm_boot_start_address */
+    bool iprog_seen = false;
+
+    if (bitstream_context.num_slrs > 0)
+    {
+        /* If found a bitstream at the start of flash, look for it containing an IPROG which means a further bitsream should
+         * be present. */
+        const x7_bitstream_slr_t *const slr = &bitstream_context.slrs[0];
+        uint32_t wbstar_register_value;
+
+        if (slr->end_of_configuration_seen)
+        {
+            for (uint32_t packet_index = 0; packet_index < slr->num_packets; packet_index++)
+            {
+                const x7_packet_record_t *const packet = &slr->packets[packet_index];
+
+                if (x7_packet_is_word_register_write (&bitstream_context, packet, X7_PACKET_TYPE_1_REG_WBSTAR, &wbstar_register_value))
+                {
+                    /* Extract the warm boot start address from the 29 least significant bits of the WBSTAR register */
+                    const uint32_t warm_boot_start_address_mask = 0x1fffffff;
+
+                    warm_boot_start_address = wbstar_register_value & warm_boot_start_address_mask;
+                }
+                else if (x7_packet_is_command (&bitstream_context, packet, X7_COMMAND_IPROG))
+                {
+                    iprog_seen = true;
+                }
+            }
+        }
+    }
+
+    if (iprog_seen)
+    {
+        x7_bitstream_free (&bitstream_context);
+
+        printf ("\nAbove bitstream appears to be golden image. Looking for following multiboot image at offset 0x%x\n",
+                warm_boot_start_address);
+        x7_bitstream_read_from_spi_flash (&bitstream_context, &controller, warm_boot_start_address);
+        x7_bitstream_summarise (&bitstream_context);
+    }
+
     x7_bitstream_free (&bitstream_context);
 }
 
