@@ -18,7 +18,8 @@ typedef enum
 {
     QUAD_SPI_FLASH_SPANSION_S25FL_A,
     QUAD_SPI_FLASH_MICRON_N25Q256A,
-    QUAD_SPI_FLASH_MACRONIX_MX25L128
+    QUAD_SPI_FLASH_MACRONIX_MX25L128,
+    QUAD_SPI_FLASH_MICRON_MT25QU01G
 } quad_spi_flash_t;
 
 extern const char *const quad_spi_flash_names[];
@@ -88,6 +89,22 @@ typedef struct
 } micron_n25q256a_parameters_t;
 
 
+/* Parameters for a QUAD_SPI_FLASH_MICRON_MT25QU01G */
+typedef struct
+{
+    /* The Serial Flash Discovery Parameters */
+    uint8_t sfdp[2048];
+    /* The populated length of sfdp in bytes */
+    uint32_t sfdp_populated_len;
+    /* The basic parameters obtained from SFDP */
+    sfdp_parameter_table_t basic;
+    /* The value of the non-volatile configuration register in the flash */
+    uint16_t nonvolatile_configuration_register;
+    /* The value of the volatile configuration register in the flash */
+    uint8_t volatile_configuration_register;
+} micron_mt25qu01g_parameters_t;
+
+
 /* Parameters for a QUAD_SPI_FLASH_MACRONIX_MX25L128 */
 typedef struct
 {
@@ -153,6 +170,8 @@ typedef struct
         micron_n25q256a_parameters_t n25q256a_params;
         /* For QUAD_SPI_FLASH_MACRONIX_MX25L128 */
         macronix_mx25l128_parameters_t mx25l128_params;
+        /* For QUAD_SPI_FLASH_MICRON_MT25QU01G */
+        micron_mt25qu01g_parameters_t mt25qu01g_params;
     };
 } quad_spi_controller_context_t;
 
