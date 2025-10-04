@@ -259,6 +259,12 @@ typedef struct
     uint8_t *xadc_regs;
     /* When non-NULL the base of the mapped registers for the SYSMON IP present in the design */
     uint8_t *sysmon_regs;
+    /* The number of SYSMON slaves, which can be non-zero for SSI devices.
+     * Haven't tried to automatically detect the number of SYSMON slaves since:
+     * a. If doesn't seem to be specified if register addresses for SYSMON slaves not present return defined data.
+     *    E.g. zeros for the configuration registers.
+     * b. Some designs using SYSMON in non-SSI devices have the SYSMON frame size less than used for the SYSMON slaves. */
+    uint32_t num_sysmon_slaves;
     /* When non-NULL the base of the mapped registers for the Xilinx AXI IIC IP present in the design */
     uint8_t *iic_regs;
     /* When non-NULL the base of the mapped register which contains the user access (AXSS register) which

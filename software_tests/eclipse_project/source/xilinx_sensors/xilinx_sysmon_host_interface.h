@@ -184,4 +184,8 @@
 /* Configuration register for the Analog Bus */
 #define SYSMON_ANALOG_BUS_CONFIGURATION_OFFSET        0x514
 
+
+/* Offset from the above registers for each SYSMON slave in a Stacked Silicon Interconnect (SSI) device */
+#define SYSMON_PER_SLAVE_OFFSET 0x800
+
 #endif /* SYSMON_HOST_INTERFACE_H_ */

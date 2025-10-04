@@ -55,7 +55,7 @@ int main (int argc, char *argv[])
 {
     fpga_designs_t designs;
     xadc_sample_collection_t xadc_collection;
-    sysmon_sample_collection_t sysmon_collection;
+    sysmon_device_collection_t sysmon_collection;
 
     parse_command_line_arguments (argc, argv);
 
@@ -77,7 +77,7 @@ int main (int argc, char *argv[])
 
         if (design->sysmon_regs != NULL)
         {
-            read_sysmon_samples (&sysmon_collection, design->sysmon_regs);
+            read_sysmon_samples (&sysmon_collection, design->sysmon_regs, design->num_sysmon_slaves);
             printf ("Displaying SYSMON values for design %s in PCI device %s IOMMU group %s:\n",
                     fpga_design_names[design->design_id], design->vfio_device->device_name,
                     design->vfio_device->group->iommu_group_name);

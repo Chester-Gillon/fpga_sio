@@ -317,123 +317,134 @@ static void unpack_sysmon_channel_bitmask (bool channel_flags[const SYSMON_CHANN
  * @details Reads the SYSMON configuration to determine:
  *          a. Which channels are enabled
  *          b. If external channels are in unipolar or bipolar mode
- * @param[out] collection The samples which have been read
- * @param[in/out] sysmon_regs The base address of the SYSMON registers to read
+ * @param[out] device_collection The samples which have been read
+ * @param[in/out] device_sysmon_regs The base address of the device SYSMON registers to read
+ * @param[in] num_sysmon_slaves The number of SYSMON slaves, which can be non-zero for SSI devices
  */
-void read_sysmon_samples (sysmon_sample_collection_t *const collection, uint8_t *const sysmon_regs)
+void read_sysmon_samples (sysmon_device_collection_t *const device_collection,
+                          uint8_t *const device_sysmon_regs, const uint32_t num_sysmon_slaves)
 {
-    /* Initialise to no samples defined */
-    memset (collection->samples, 0, sizeof (collection->samples));
+    device_collection->num_instances = 1 /* master */ + num_sysmon_slaves;
 
-    /* Default to no channels being enabled in the sequencer */
-    memset (collection->enabled_channels, false, sizeof (collection->enabled_channels));
-
-    /* Default to no channels being averaged */
-    memset (collection->averaged_channels, false, sizeof (collection->averaged_channels));
-
-    /* Default to channels being unipolar */
-    memset (collection->bipolar_channels, false, sizeof (collection->bipolar_channels));
-
-    /* Default to standard acquisition time */
-    memset (collection->channel_increased_acquisition_times, false, sizeof (collection->channel_increased_acquisition_times));
-
-    /* Read the raw configuration registers */
-    collection->configuration_register_0 = read_reg32 (sysmon_regs, SYSMON_CONFIGURATION_REGISTER_0_OFFSET);
-    collection->configuration_register_1 = read_reg32 (sysmon_regs, SYSMON_CONFIGURATION_REGISTER_1_OFFSET);
-    collection->configuration_register_2 = read_reg32 (sysmon_regs, SYSMON_CONFIGURATION_REGISTER_2_OFFSET);
-    collection->configuration_register_3 = read_reg32 (sysmon_regs, SYSMON_CONFIGURATION_REGISTER_3_OFFSET);
-    collection->configuration_register_4 = read_reg32 (sysmon_regs, SYSMON_CONFIGURATION_REGISTER_4_OFFSET);
-    collection->anlog_bus_configuration = read_reg32 (sysmon_regs, SYSMON_ANALOG_BUS_CONFIGURATION_OFFSET);
-    collection->flag_register = read_reg32 (sysmon_regs, SYSMON_FLAG_REGISTER_OFFSET);
-
-    /* Extract the number of samples averaged, using the "Averaging Filter Settings" table from UG580 */
-    const uint32_t average_filter_bits = (collection->configuration_register_0 & 0x3000) >> 12;
-    switch (average_filter_bits)
+    /* Read all SYSMON instances in the device */
+    for (uint32_t instance = 0; instance < device_collection->num_instances; instance++)
     {
-    case 0:
-        collection->num_averaged_samples = 0;
-        break;
+        sysmon_sample_collection_t *const collection = &device_collection->collections[instance];
+        uint8_t *const sysmon_regs = &device_sysmon_regs[instance * SYSMON_PER_SLAVE_OFFSET];
 
-    case 1:
-        collection->num_averaged_samples = 16;
-        break;
+        /* Initialise to no samples defined */
+        memset (collection->samples, 0, sizeof (collection->samples));
 
-    case 2:
-        collection->num_averaged_samples = 64;
-        break;
+        /* Default to no channels being enabled in the sequencer */
+        memset (collection->enabled_channels, false, sizeof (collection->enabled_channels));
 
-    case 3:
-        collection->num_averaged_samples = 256;
-        break;
-    }
+        /* Default to no channels being averaged */
+        memset (collection->averaged_channels, false, sizeof (collection->averaged_channels));
 
-    /* Extract the sequencer mode, using the "Sequencer Operation Settings" table from UG580 */
-    const uint32_t seq_bits = (collection->configuration_register_1 & 0xf000) >> 12;
-    switch (seq_bits)
-    {
-    case 1:
-        collection->sequencer_mode = SYSMON_SEQUENCER_SINGLE_PASS_SEQUENCE;
-        break;
+        /* Default to channels being unipolar */
+        memset (collection->bipolar_channels, false, sizeof (collection->bipolar_channels));
 
-    case 2:
-        collection->sequencer_mode = SYSMON_SEQUENCER_CONTINUOUS_SEQUENCE_MODE;
-        break;
+        /* Default to standard acquisition time */
+        memset (collection->channel_increased_acquisition_times, false, sizeof (collection->channel_increased_acquisition_times));
 
-    case 3:
-        collection->sequencer_mode = SYSMON_SEQUENCER_SINGLE_CHANNEL_MODE;
-        break;
+        /* Read the raw configuration registers */
+        collection->configuration_register_0 = read_reg32 (sysmon_regs, SYSMON_CONFIGURATION_REGISTER_0_OFFSET);
+        collection->configuration_register_1 = read_reg32 (sysmon_regs, SYSMON_CONFIGURATION_REGISTER_1_OFFSET);
+        collection->configuration_register_2 = read_reg32 (sysmon_regs, SYSMON_CONFIGURATION_REGISTER_2_OFFSET);
+        collection->configuration_register_3 = read_reg32 (sysmon_regs, SYSMON_CONFIGURATION_REGISTER_3_OFFSET);
+        collection->configuration_register_4 = read_reg32 (sysmon_regs, SYSMON_CONFIGURATION_REGISTER_4_OFFSET);
+        collection->anlog_bus_configuration = read_reg32 (sysmon_regs, SYSMON_ANALOG_BUS_CONFIGURATION_OFFSET);
+        collection->flag_register = read_reg32 (sysmon_regs, SYSMON_FLAG_REGISTER_OFFSET);
 
-    default:
-        collection->sequencer_mode = SYSMON_SEQUENCER_DEFAULT_MODE;
-        break;
-    }
-
-    if (collection->sequencer_mode == SYSMON_SEQUENCER_SINGLE_CHANNEL_MODE)
-    {
-        /* Determine the single channel which is in use */
-        const sysmon_channels_t single_channel = collection->configuration_register_0 & 0x3f;
-
-        collection->enabled_channels[single_channel] = true;
-        collection->averaged_channels[single_channel] = collection->num_averaged_samples != 0;
-        collection->bipolar_channels[single_channel] = (collection->configuration_register_0 & (1 << 10)) != 0;
-        collection->channel_increased_acquisition_times[single_channel] = (collection->configuration_register_0 & (1 << 8)) != 0;
-    }
-    else
-    {
-        /* Determine which channels are enabled in the sequencer, are averaged, are in bipolar mode and
-         * have increased acquisition time */
-        unpack_sysmon_channel_bitmask (collection->enabled_channels, sysmon_regs,
-                SYSMON_CHANNEL_SELECTION_LOWER_OFFSET, SYSMON_CHANNEL_SELECTION_UPPER_OFFSET, SYSMON_CHANNEL_SELECTION_USER_OFFSET);
-        unpack_sysmon_channel_bitmask (collection->enabled_slow_channels, sysmon_regs,
-                SYSMON_SLOW_CHANNEL_SELECTION_LOWER_OFFSET, SYSMON_SLOW_CHANNEL_SELECTION_UPPER_OFFSET,
-                SYSMON_SLOW_CHANNEL_SELECTION_USER_OFFSET);
-        unpack_sysmon_channel_bitmask (collection->averaged_channels, sysmon_regs,
-                SYSMON_CHANNEL_AVERAGING_LOWER_OFFSET, SYSMON_CHANNEL_AVERAGING_UPPER_OFFSET, SYSMON_CHANNEL_AVERAGING_USER_OFFSET);
-        unpack_sysmon_channel_bitmask (collection->bipolar_channels, sysmon_regs,
-                SYSMON_CHANNEL_ANALOG_INPUT_MODE_LOWER_OFFSET, SYSMON_CHANNEL_ANALOG_INPUT_MODE_UPPER_OFFSET, 0);
-        unpack_sysmon_channel_bitmask (collection->channel_increased_acquisition_times, sysmon_regs,
-                SYSMON_CHANNEL_ACQUISITION_TIME_LOWER_OFFSET, SYSMON_CHANNEL_ACQUISITION_TIME_UPPER_OFFSET, 0);
-    }
-
-    /* Obtain values for the enabled SYSMON channels */
-    for (sysmon_channels_t channel = 0; channel < SYSMON_CHANNEL_ARRAY_SIZE; channel++)
-    {
-        /* Assume the on-chip sensors always have defined values.
-         * This is because they are included in the Default Mode Sequence which is used during
-         * initial power-up and FPGA configuration.
-         *
-         * Selected as a special case so that enabled_channels[] reports what is the current enabled channels
-         * in the sequencer, based upon how the FPGA bitstream may have changed from the power-up default. */
-        const bool assumed_defined_on_chip_sensor =
-                (channel == SYSMON_CHANNEL_CALIBRATION) ||
-                (channel == SYSMON_CHANNEL_TEMPERATURE) ||
-                (channel == SYSMON_CHANNEL_VCCINT) ||
-                (channel == SYSMON_CHANNEL_VCCAUX) ||
-                (channel == SYSMON_CHANNEL_VBRAM);
-
-        if (collection->enabled_channels[channel] || collection->enabled_slow_channels[channel] || assumed_defined_on_chip_sensor)
+        /* Extract the number of samples averaged, using the "Averaging Filter Settings" table from UG580 */
+        const uint32_t average_filter_bits = (collection->configuration_register_0 & 0x3000) >> 12;
+        switch (average_filter_bits)
         {
-            read_sysmon_channel (collection, sysmon_regs, channel);
+        case 0:
+            collection->num_averaged_samples = 0;
+            break;
+
+        case 1:
+            collection->num_averaged_samples = 16;
+            break;
+
+        case 2:
+            collection->num_averaged_samples = 64;
+            break;
+
+        case 3:
+            collection->num_averaged_samples = 256;
+            break;
+        }
+
+        /* Extract the sequencer mode, using the "Sequencer Operation Settings" table from UG580 */
+        const uint32_t seq_bits = (collection->configuration_register_1 & 0xf000) >> 12;
+        switch (seq_bits)
+        {
+        case 1:
+            collection->sequencer_mode = SYSMON_SEQUENCER_SINGLE_PASS_SEQUENCE;
+            break;
+
+        case 2:
+            collection->sequencer_mode = SYSMON_SEQUENCER_CONTINUOUS_SEQUENCE_MODE;
+            break;
+
+        case 3:
+            collection->sequencer_mode = SYSMON_SEQUENCER_SINGLE_CHANNEL_MODE;
+            break;
+
+        default:
+            collection->sequencer_mode = SYSMON_SEQUENCER_DEFAULT_MODE;
+            break;
+        }
+
+        if (collection->sequencer_mode == SYSMON_SEQUENCER_SINGLE_CHANNEL_MODE)
+        {
+            /* Determine the single channel which is in use */
+            const sysmon_channels_t single_channel = collection->configuration_register_0 & 0x3f;
+
+            collection->enabled_channels[single_channel] = true;
+            collection->averaged_channels[single_channel] = collection->num_averaged_samples != 0;
+            collection->bipolar_channels[single_channel] = (collection->configuration_register_0 & (1 << 10)) != 0;
+            collection->channel_increased_acquisition_times[single_channel] = (collection->configuration_register_0 & (1 << 8)) != 0;
+        }
+        else
+        {
+            /* Determine which channels are enabled in the sequencer, are averaged, are in bipolar mode and
+             * have increased acquisition time */
+            unpack_sysmon_channel_bitmask (collection->enabled_channels, sysmon_regs,
+                    SYSMON_CHANNEL_SELECTION_LOWER_OFFSET, SYSMON_CHANNEL_SELECTION_UPPER_OFFSET, SYSMON_CHANNEL_SELECTION_USER_OFFSET);
+            unpack_sysmon_channel_bitmask (collection->enabled_slow_channels, sysmon_regs,
+                    SYSMON_SLOW_CHANNEL_SELECTION_LOWER_OFFSET, SYSMON_SLOW_CHANNEL_SELECTION_UPPER_OFFSET,
+                    SYSMON_SLOW_CHANNEL_SELECTION_USER_OFFSET);
+            unpack_sysmon_channel_bitmask (collection->averaged_channels, sysmon_regs,
+                    SYSMON_CHANNEL_AVERAGING_LOWER_OFFSET, SYSMON_CHANNEL_AVERAGING_UPPER_OFFSET, SYSMON_CHANNEL_AVERAGING_USER_OFFSET);
+            unpack_sysmon_channel_bitmask (collection->bipolar_channels, sysmon_regs,
+                    SYSMON_CHANNEL_ANALOG_INPUT_MODE_LOWER_OFFSET, SYSMON_CHANNEL_ANALOG_INPUT_MODE_UPPER_OFFSET, 0);
+            unpack_sysmon_channel_bitmask (collection->channel_increased_acquisition_times, sysmon_regs,
+                    SYSMON_CHANNEL_ACQUISITION_TIME_LOWER_OFFSET, SYSMON_CHANNEL_ACQUISITION_TIME_UPPER_OFFSET, 0);
+        }
+
+        /* Obtain values for the enabled SYSMON channels */
+        for (sysmon_channels_t channel = 0; channel < SYSMON_CHANNEL_ARRAY_SIZE; channel++)
+        {
+            /* Assume the on-chip sensors always have defined values.
+             * This is because they are included in the Default Mode Sequence which is used during
+             * initial power-up and FPGA configuration.
+             *
+             * Selected as a special case so that enabled_channels[] reports what is the current enabled channels
+             * in the sequencer, based upon how the FPGA bitstream may have changed from the power-up default. */
+            const bool assumed_defined_on_chip_sensor =
+                    (channel == SYSMON_CHANNEL_CALIBRATION) ||
+                    (channel == SYSMON_CHANNEL_TEMPERATURE) ||
+                    (channel == SYSMON_CHANNEL_VCCINT) ||
+                    (channel == SYSMON_CHANNEL_VCCAUX) ||
+                    (channel == SYSMON_CHANNEL_VBRAM);
+
+            if (collection->enabled_channels[channel] || collection->enabled_slow_channels[channel] || assumed_defined_on_chip_sensor)
+            {
+                read_sysmon_channel (collection, sysmon_regs, channel);
+            }
         }
     }
 }
@@ -441,76 +452,87 @@ void read_sysmon_samples (sysmon_sample_collection_t *const collection, uint8_t 
 
 /**
  * @brief Brief the collection of SYSMON samples which have been read.
- * @param[in] collection The collection to display
+ * @param[in] device_collection The samples to display
  */
-void display_sysmon_samples (const sysmon_sample_collection_t *const collection)
+void display_sysmon_samples (const sysmon_device_collection_t *const device_collection)
 {
-    /* Display sequence mode and the enabled channels in the sequencer */
-    printf ("SYSMON samples using %s\n", sysmon_sequencer_mode_names[collection->sequencer_mode]);
-    printf ("Number of samples averaged ");
-    if (collection->num_averaged_samples > 0)
+    /* Display all SYSMON instances in the device */
+    for (uint32_t instance = 0; instance < device_collection->num_instances; instance++)
     {
-        printf ("%u\n", collection->num_averaged_samples);
-    }
-    else
-    {
-        printf ("none\n");
-    }
-    printf ("Current enabled channels in sequencer:");
-    for (sysmon_channels_t channel = 0; channel < SYSMON_CHANNEL_ARRAY_SIZE; channel++)
-    {
-        if (collection->enabled_channels[channel] || collection->enabled_slow_channels[channel])
+        const sysmon_sample_collection_t *const collection = &device_collection->collections[instance];
+
+        /* Display sequence mode and the enabled channels in the sequencer */
+        printf ("SYSMON");
+        if (device_collection->num_instances > 1)
         {
-            printf (" %s ", sysmon_channel_names[channel]);
-            if (collection->bipolar_channels[channel])
+            printf (" instance %u", instance);
+        }
+        printf (" samples using %s\n", sysmon_sequencer_mode_names[collection->sequencer_mode]);
+        printf ("Number of samples averaged ");
+        if (collection->num_averaged_samples > 0)
+        {
+            printf ("%u\n", collection->num_averaged_samples);
+        }
+        else
+        {
+            printf ("none\n");
+        }
+        printf ("Current enabled channels in sequencer:");
+        for (sysmon_channels_t channel = 0; channel < SYSMON_CHANNEL_ARRAY_SIZE; channel++)
+        {
+            if (collection->enabled_channels[channel] || collection->enabled_slow_channels[channel])
             {
-                printf (" (bipolar)");
-            }
-            if (collection->channel_increased_acquisition_times[channel])
-            {
-                printf (" (acq time)");
-            }
-            if (collection->enabled_slow_channels[channel])
-            {
-                printf (" (slow)");
-            }
-            if (collection->averaged_channels[channel])
-            {
-                printf (" (averaged)");
+                printf (" %s ", sysmon_channel_names[channel]);
+                if (collection->bipolar_channels[channel])
+                {
+                    printf (" (bipolar)");
+                }
+                if (collection->channel_increased_acquisition_times[channel])
+                {
+                    printf (" (acq time)");
+                }
+                if (collection->enabled_slow_channels[channel])
+                {
+                    printf (" (slow)");
+                }
+                if (collection->averaged_channels[channel])
+                {
+                    printf (" (averaged)");
+                }
             }
         }
-    }
-    printf ("\n");
+        printf ("\n");
 
-    /* Display the raw Analog Bus configuration pending understanding how to decode it */
-    printf ("Analog Bus configuration 0x%04X\n", collection->anlog_bus_configuration);
+        /* Display the raw Analog Bus configuration pending understanding how to decode it */
+        printf ("Analog Bus configuration 0x%04X\n", collection->anlog_bus_configuration);
 
-    /* Display all channels which have a defined sample. May include on-chip sensors which have an initial sample,
-     * but not not in the current sequencer. */
-    printf ("  Channel  Measurement     Min           Max\n");
-    for (sysmon_channels_t channel = 0; channel < SYSMON_CHANNEL_ARRAY_SIZE; channel++)
-    {
-        const char *const display_units = (channel == SYSMON_CHANNEL_TEMPERATURE) ? "C" : "V";
-        const sysmon_channel_sample_t *const sample = &collection->samples[channel];
-
-        if (sample->measurement.defined)
+        /* Display all channels which have a defined sample. May include on-chip sensors which have an initial sample,
+         * but not not in the current sequencer. */
+        printf ("  Channel  Measurement     Min           Max\n");
+        for (sysmon_channels_t channel = 0; channel < SYSMON_CHANNEL_ARRAY_SIZE; channel++)
         {
-            printf ("  %s     %7.4f%s", sysmon_channel_names[channel], sample->measurement.scaled_value, display_units);
+            const char *const display_units = (channel == SYSMON_CHANNEL_TEMPERATURE) ? "C" : "V";
+            const sysmon_channel_sample_t *const sample = &collection->samples[channel];
 
-            if (sample->min.defined)
+            if (sample->measurement.defined)
             {
-                printf ("     %7.4f%s", sample->min.scaled_value, display_units);
-            }
-            else
-            {
-                printf ("           ");
-            }
+                printf ("  %s     %7.4f%s", sysmon_channel_names[channel], sample->measurement.scaled_value, display_units);
 
-            if (sample->max.defined)
-            {
-                printf ("      %7.4f%s", sample->max.scaled_value, display_units);
+                if (sample->min.defined)
+                {
+                    printf ("     %7.4f%s", sample->min.scaled_value, display_units);
+                }
+                else
+                {
+                    printf ("           ");
+                }
+
+                if (sample->max.defined)
+                {
+                    printf ("      %7.4f%s", sample->max.scaled_value, display_units);
+                }
+                printf ("\n");
             }
-            printf ("\n");
         }
     }
 }

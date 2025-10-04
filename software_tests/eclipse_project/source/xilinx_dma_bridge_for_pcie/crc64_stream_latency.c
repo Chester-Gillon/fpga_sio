@@ -278,7 +278,7 @@ static void measure_crc64_stream_latency (fpga_design_t *const design,
 static void display_temperature (fpga_design_t *const design)
 {
     xadc_sample_collection_t xadc_collection;
-    sysmon_sample_collection_t sysmon_collection;
+    sysmon_device_collection_t sysmon_collection;
 
     if (design->xadc_regs != NULL)
     {
@@ -302,21 +302,24 @@ static void display_temperature (fpga_design_t *const design)
 
     if (design->sysmon_regs != NULL)
     {
-        read_sysmon_samples (&sysmon_collection, design->sysmon_regs);
-
-        const sysmon_channel_sample_t *const sample = &sysmon_collection.samples[SYSMON_CHANNEL_TEMPERATURE];
-        if (sample->measurement.defined)
+        for (uint32_t instance = 0; instance < sysmon_collection.num_instances; instance++)
         {
-            printf ("Current temperature %5.1fC", sample->measurement.scaled_value);
-            if (sample->min.defined)
+            read_sysmon_samples (&sysmon_collection, design->sysmon_regs, design->num_sysmon_slaves);
+
+            const sysmon_channel_sample_t *const sample = &sysmon_collection.collections[instance].samples[SYSMON_CHANNEL_TEMPERATURE];
+            if (sample->measurement.defined)
             {
-                printf ("  min %5.1fC", sample->min.scaled_value);
+                printf ("Current temperature %5.1fC", sample->measurement.scaled_value);
+                if (sample->min.defined)
+                {
+                    printf ("  min %5.1fC", sample->min.scaled_value);
+                }
+                if (sample->max.defined)
+                {
+                    printf ("  max %5.1fC", sample->max.scaled_value);
+                }
+                printf ("\n");
             }
-            if (sample->max.defined)
-            {
-                printf ("  max %5.1fC", sample->max.scaled_value);
-            }
-            printf ("\n");
         }
     }
 }

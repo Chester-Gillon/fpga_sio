@@ -138,7 +138,20 @@ typedef struct
 } sysmon_sample_collection_t;
 
 
-void read_sysmon_samples (sysmon_sample_collection_t *const collection, uint8_t *const sysmon_regs);
-void display_sysmon_samples (const sysmon_sample_collection_t *const collection);
+/* SSI devices have a master SYSMON, and up to 3 slaves */
+#define SYSMON_DEVICE_MAX_INSTANCES 4
+
+/* The collection of all samples for one device */
+typedef struct
+{
+    /* The number of instances of SYSMON in the device */
+    uint32_t num_instances;
+    /* The collection of samples for each SYSMON instance in the device */
+    sysmon_sample_collection_t collections[SYSMON_DEVICE_MAX_INSTANCES];
+} sysmon_device_collection_t;
+
+
+void read_sysmon_samples (sysmon_device_collection_t *const device_collection, uint8_t *const sysmon_regs, const uint32_t num_sysmon_slaves);
+void display_sysmon_samples (const sysmon_device_collection_t *const device_collection);
 
 #endif /* XILINX_SYSMON_H_ */

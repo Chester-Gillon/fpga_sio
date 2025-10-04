@@ -770,6 +770,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                                     quad_spi_base_offset, quad_spi_frame_size);
                     candidate_design->sysmon_regs =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index, sysmon_base_offset, sysmon_frame_size);
+                    candidate_design->num_sysmon_slaves = 0;
                     candidate_design->user_access =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                     user_access_base_offset, user_access_frame_size);
@@ -804,6 +805,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                                     quad_spi_base_offset, quad_spi_frame_size);
                     candidate_design->sysmon_regs =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index, sysmon_base_offset, sysmon_frame_size);
+                    candidate_design->num_sysmon_slaves = 0;
                     candidate_design->user_access =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                     user_access_base_offset, user_access_frame_size);
@@ -830,6 +832,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                                     quad_spi_base_offset, quad_spi_frame_size);
                     candidate_design->sysmon_regs =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index, sysmon_base_offset, sysmon_frame_size);
+                    candidate_design->num_sysmon_slaves = 0;
                     candidate_design->user_access =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                     user_access_base_offset, user_access_frame_size);
@@ -858,6 +861,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
 
                     candidate_design->sysmon_regs =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index, sysmon_base_offset, sysmon_frame_size);
+                    candidate_design->num_sysmon_slaves = 0;
                     design_identified = true;
                 }
                 break;
@@ -898,6 +902,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                                     quad_spi_base_offset, quad_spi_frame_size);
                     candidate_design->sysmon_regs =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index, sysmon_base_offset, sysmon_frame_size);
+                    candidate_design->num_sysmon_slaves = 0;
                     candidate_design->user_access =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                     user_access_base_offset, user_access_frame_size);
@@ -941,6 +946,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                                     quad_spi_base_offset, quad_spi_frame_size);
                     candidate_design->sysmon_regs =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index, sysmon_base_offset, sysmon_frame_size);
+                    candidate_design->num_sysmon_slaves = 0;
                     candidate_design->user_access =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                     user_access_base_offset, user_access_frame_size);
@@ -1053,6 +1059,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                                     quad_spi_base_offset, quad_spi_frame_size);
                     candidate_design->sysmon_regs =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index, sysmon_base_offset, sysmon_frame_size);
+                    candidate_design->num_sysmon_slaves = 0;
                     candidate_design->user_access =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                     user_access_base_offset, user_access_frame_size);
@@ -1126,10 +1133,10 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     const uint32_t dma_bridge_bar_index = 2;
                     const size_t quad_spi_base_offset    = 0x0000;
                     const size_t quad_spi_frame_size     = 0x1000;
-                    const size_t sysmon_base_offset      = 0x1000;
-                    const size_t sysmon_frame_size       = 0x1000;
-                    const size_t user_access_base_offset = 0x2000;
+                    const size_t user_access_base_offset = 0x1000;
                     const size_t user_access_frame_size  = 0x1000;
+                    const size_t sysmon_base_offset      = 0x2000;
+                    const size_t sysmon_frame_size       = 0x2000;
 
                     candidate_design->dma_bridge_present = true;
                     candidate_design->dma_bridge_bar = dma_bridge_bar_index;
@@ -1139,6 +1146,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                                     quad_spi_base_offset, quad_spi_frame_size);
                     candidate_design->sysmon_regs =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index, sysmon_base_offset, sysmon_frame_size);
+                    candidate_design->num_sysmon_slaves = 2;
                     candidate_design->user_access =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                     user_access_base_offset, user_access_frame_size);
