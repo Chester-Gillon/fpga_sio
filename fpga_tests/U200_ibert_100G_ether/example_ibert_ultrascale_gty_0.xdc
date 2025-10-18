@@ -32,10 +32,16 @@ set_property C_ENABLE_CLK_DIVIDER true [get_debug_cores dbg_hub]
 
 
  
-set_property PACKAGE_PIN M11 [get_ports gty_refclk0p_i[0]]
-set_property PACKAGE_PIN M10 [get_ports gty_refclk0n_i[0]]
-set_property PACKAGE_PIN K11 [get_ports gty_refclk1p_i[0]]
-set_property PACKAGE_PIN K10 [get_ports gty_refclk1n_i[0]]
+set_property PACKAGE_PIN T11 [get_ports gty_refclk0p_i[0]]
+set_property PACKAGE_PIN T10 [get_ports gty_refclk0n_i[0]]
+set_property PACKAGE_PIN P11 [get_ports gty_refclk1p_i[0]]
+set_property PACKAGE_PIN P10 [get_ports gty_refclk1n_i[0]]
+
+ 
+set_property PACKAGE_PIN M11 [get_ports gty_refclk0p_i[1]]
+set_property PACKAGE_PIN M10 [get_ports gty_refclk0n_i[1]]
+set_property PACKAGE_PIN K11 [get_ports gty_refclk1p_i[1]]
+set_property PACKAGE_PIN K10 [get_ports gty_refclk1n_i[1]]
 ##
 ## Refclk constraints
 ##
@@ -80,8 +86,14 @@ set_property PACKAGE_PIN K10 [get_ports gty_refclk1n_i[0]]
  
  
  
-create_clock -name gtrefclk0_12 -period 6.207 [get_ports gty_refclk0p_i[0]]
-create_clock -name gtrefclk1_12 -period 6.207 [get_ports gty_refclk1p_i[0]]
+ 
+create_clock -name gtrefclk0_11 -period 6.207 [get_ports gty_refclk0p_i[0]]
+create_clock -name gtrefclk1_11 -period 6.207 [get_ports gty_refclk1p_i[0]]
+set_clock_groups -group [get_clocks gtrefclk0_11 -include_generated_clocks] -asynchronous
+set_clock_groups -group [get_clocks gtrefclk1_11 -include_generated_clocks] -asynchronous
+ 
+create_clock -name gtrefclk0_12 -period 6.207 [get_ports gty_refclk0p_i[1]]
+create_clock -name gtrefclk1_12 -period 6.207 [get_ports gty_refclk1p_i[1]]
 set_clock_groups -group [get_clocks gtrefclk0_12 -include_generated_clocks] -asynchronous
 set_clock_groups -group [get_clocks gtrefclk1_12 -include_generated_clocks] -asynchronous
 ##

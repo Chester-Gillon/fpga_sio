@@ -19,7 +19,7 @@
 
 `define C_NUM_GTY_QUADS 2
 `define C_GTY_TOTAL_CH 8
-`define C_GTY_REFCLKS_USED 1
+`define C_GTY_REFCLKS_USED 2
 module example_ibert_ultrascale_gty_0
 (
   // GT top level ports
@@ -73,7 +73,7 @@ module example_ibert_ultrascale_gty_0
 
 
  
-    IBUFDS_GTE4 u_buf_q12_clk0
+    IBUFDS_GTE4 u_buf_q11_clk0
       (
         .O            (gty_refclk0_i[0]),
         .ODIV2        (gty_odiv2_0_i[0]),
@@ -82,13 +82,33 @@ module example_ibert_ultrascale_gty_0
         .IB           (gty_refclk0n_i[0])
       );
 
-    IBUFDS_GTE4 u_buf_q12_clk1
+    IBUFDS_GTE4 u_buf_q11_clk1
       (
         .O            (gty_refclk1_i[0]),
         .ODIV2        (gty_odiv2_1_i[0]),
         .CEB          (1'b0),
         .I            (gty_refclk1p_i[0]),
         .IB           (gty_refclk1n_i[0])
+      );
+
+
+ 
+    IBUFDS_GTE4 u_buf_q12_clk0
+      (
+        .O            (gty_refclk0_i[1]),
+        .ODIV2        (gty_odiv2_0_i[1]),
+        .CEB          (1'b0),
+        .I            (gty_refclk0p_i[1]),
+        .IB           (gty_refclk0n_i[1])
+      );
+
+    IBUFDS_GTE4 u_buf_q12_clk1
+      (
+        .O            (gty_refclk1_i[1]),
+        .ODIV2        (gty_odiv2_1_i[1]),
+        .CEB          (1'b0),
+        .I            (gty_refclk1p_i[1]),
+        .IB           (gty_refclk1n_i[1])
       );
 
 
@@ -100,35 +120,36 @@ module example_ibert_ultrascale_gty_0
 
 
 
-  assign gty_qrefclk0_i[0] = 1'b0;
-  assign gty_qrefclk1_i[0] = 1'b0;
+  assign gty_qrefclk0_i[0] = gty_refclk0_i[0];
+  assign gty_qrefclk1_i[0] = gty_refclk1_i[0];
   assign gty_qnorthrefclk0_i[0] = 1'b0;
   assign gty_qnorthrefclk1_i[0] = 1'b0;
   assign gty_qsouthrefclk0_i[0] = 1'b0;
-  assign gty_qsouthrefclk1_i[0] = gty_refclk1_i[0];
+  assign gty_qsouthrefclk1_i[0] = 1'b0;
 //GTYE4_COMMON clock connection
-  assign gty_qrefclk00_i[0] = 1'b0;
-  assign gty_qrefclk10_i[0] = 1'b0;
+  assign gty_qrefclk00_i[0] = gty_refclk0_i[0];
+  assign gty_qrefclk10_i[0] = gty_refclk1_i[0];
   assign gty_qrefclk01_i[0] = 1'b0;
-  assign gty_qrefclk11_i[0] = 1'b0;
+  assign gty_qrefclk11_i[0] = 1'b0;  
   assign gty_qnorthrefclk00_i[0] = 1'b0;
   assign gty_qnorthrefclk10_i[0] = 1'b0;
   assign gty_qnorthrefclk01_i[0] = 1'b0;
-  assign gty_qnorthrefclk11_i[0] = 1'b0;
+  assign gty_qnorthrefclk11_i[0] = 1'b0;  
   assign gty_qsouthrefclk00_i[0] = 1'b0;
-  assign gty_qsouthrefclk10_i[0] = gty_refclk1_i[0];
+  assign gty_qsouthrefclk10_i[0] = 1'b0;  
   assign gty_qsouthrefclk01_i[0] = 1'b0;
-  assign gty_qsouthrefclk11_i[0] = 1'b0;
+  assign gty_qsouthrefclk11_i[0] = 1'b0; 
  
-  assign gty_qrefclk0_i[1] = gty_refclk0_i[0];
-  assign gty_qrefclk1_i[1] = gty_refclk1_i[0];
+
+  assign gty_qrefclk0_i[1] = gty_refclk0_i[1];
+  assign gty_qrefclk1_i[1] = gty_refclk1_i[1];
   assign gty_qnorthrefclk0_i[1] = 1'b0;
   assign gty_qnorthrefclk1_i[1] = 1'b0;
   assign gty_qsouthrefclk0_i[1] = 1'b0;
   assign gty_qsouthrefclk1_i[1] = 1'b0;
 //GTYE4_COMMON clock connection
-  assign gty_qrefclk00_i[1] = gty_refclk0_i[0];
-  assign gty_qrefclk10_i[1] = gty_refclk1_i[0];
+  assign gty_qrefclk00_i[1] = gty_refclk0_i[1];
+  assign gty_qrefclk10_i[1] = gty_refclk1_i[1];
   assign gty_qrefclk01_i[1] = 1'b0;
   assign gty_qrefclk11_i[1] = 1'b0;  
   assign gty_qnorthrefclk00_i[1] = 1'b0;
