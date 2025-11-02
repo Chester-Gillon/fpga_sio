@@ -1,0 +1,45 @@
+# Taken from https://docs.amd.com/r/en-US/pg348-cms-subsystem/Alveo-Card-U200/U250-I/O-Constraints
+#
+# TBD is if the SYSMON I2C interface needs to be connected to allow the CMS to read the FPGA_TEMP
+# sensor, or if their is an external temperature sensor mounted on the heatsink.
+
+# Satellite UART
+set_property PACKAGE_PIN BA19 [get_ports satellite_uart_rxd]
+set_property -dict {IOSTANDARD LVCMOS12} [get_ports satellite_uart_rxd]
+set_property PACKAGE_PIN BB19 [get_ports satellite_uart_txd]
+set_property -dict {IOSTANDARD LVCMOS12 DRIVE 4} [get_ports satellite_uart_txd]
+
+
+# Satellite GPIO
+set_property PACKAGE_PIN AR20 [get_ports satellite_gpio[0]]
+set_property -dict {IOSTANDARD LVCMOS12} [get_ports satellite_gpio[0]]
+set_property PACKAGE_PIN AM20 [get_ports satellite_gpio[1]]
+set_property -dict {IOSTANDARD LVCMOS12} [get_ports satellite_gpio[1]]
+set_property PACKAGE_PIN AM21 [get_ports satellite_gpio[2]]
+set_property -dict {IOSTANDARD LVCMOS12} [get_ports satellite_gpio[2]]
+set_property PACKAGE_PIN AN21 [get_ports satellite_gpio[3]]
+set_property -dict {IOSTANDARD LVCMOS12} [get_ports satellite_gpio[3]]
+
+
+# QSFP/I2C Control
+set_property PACKAGE_PIN BE16 [get_ports qsfp0_modsel_l[0]]
+set_property IOSTANDARD LVCMOS12 [get_ports qsfp0_modsel_l[0]]
+set_property PACKAGE_PIN BE17 [get_ports qsfp0_reset_l[0]]
+set_property IOSTANDARD LVCMOS12 [get_ports qsfp0_reset_l[0]]
+set_property PACKAGE_PIN BD18 [get_ports qsfp0_lpmode[0]]
+set_property IOSTANDARD LVCMOS12 [get_ports qsfp0_lpmode[0]]
+set_property PACKAGE_PIN BE20 [get_ports qsfp0_modprs_l[0]]
+set_property IOSTANDARD LVCMOS12 [get_ports qsfp0_modprs_l[0]]
+set_property PACKAGE_PIN BE21 [get_ports qsfp0_int_l[0]]
+set_property IOSTANDARD LVCMOS12 [get_ports qsfp0_int_l[0]]
+
+set_property PACKAGE_PIN AY20 [get_ports qsfp1_modsel_l[0]]
+set_property IOSTANDARD LVCMOS12 [get_ports qsfp1_modsel_l[0]]
+set_property PACKAGE_PIN BC18 [get_ports qsfp1_reset_l[0]]
+set_property IOSTANDARD LVCMOS12 [get_ports qsfp1_reset_l[0]]
+set_property PACKAGE_PIN AV22 [get_ports qsfp1_lpmode[0]]
+set_property IOSTANDARD LVCMOS12 [get_ports qsfp1_lpmode[0]]
+set_property PACKAGE_PIN BC19 [get_ports qsfp1_modprs_l[0]]
+set_property IOSTANDARD LVCMOS12 [get_ports qsfp1_modprs_l[0]]
+set_property PACKAGE_PIN AV21 [get_ports qsfp1_int_l[0]]
+set_property IOSTANDARD LVCMOS12 [get_ports qsfp1_int_l[0]]
