@@ -227,6 +227,13 @@ typedef enum
      * c. SYSMON on all 3 SLRs */
     FPGA_DESIGN_U200_DMA_STREAM_CRC64,
 
+    /* U200_ibert_100G_ether which contains:
+     * a. The CMS subsystem for management of the QSFP ports.
+     * b. Access the SYSMON on all 3 SLRs (internal sensors only).
+     * c. Access GPIOs to control Refclk frequency selection.
+     * d. Access a Quad SPI connected to the FPGA configuration flash. */
+    FPGA_DESIGN_U200_IBERT_100G_ETHER,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 
@@ -279,6 +286,13 @@ typedef struct
     /* The number of ports on the AXI4-Stream Switch, as the registers don't define the number of ports configured in the IP. */
     uint32_t axi_switch_num_master_ports;
     uint32_t axi_switch_num_slave_ports;
+    /* When true a CMS Subsystem is present.
+     * Doesn't point at the mapped registers as part of the identification since the 256K register address space contains
+     * some reserved sections. Albeit map_vfio_device_bar_before_use() maps the entire BAR so the software could still a bad
+     * pointer to access a reserved section. */
+    bool cms_subsystem_present;
+    uint32_t cms_subsystem_bar_index;
+    size_t cms_subsystem_base_offset;
     /* For FPGA_DESIGN_LITEFURY_PROJECT0 or FPGA_DESIGN_NITEFURY_PROJECT0 gives the version of the board design */
     uint32_t board_version;
 } fpga_design_t;

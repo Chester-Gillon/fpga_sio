@@ -8,6 +8,7 @@
 #include "identify_pcie_fpga_design.h"
 #include "xilinx_dma_bridge_transfers.h"
 #include "xilinx_axi_stream_switch.h"
+#include "xilinx_cms.h"
 
 #include <stdlib.h>
 #include <stddef.h>
@@ -198,6 +199,35 @@ static void display_axi_switch (const fpga_design_t *const design)
 }
 
 
+/**
+ * @brief Display information about Xilinx Card Management Solution Subsystem in an identified design
+ * @param[in] design The identified design containing the CMS Subsystem
+ */
+static void display_cms (const fpga_design_t *const design)
+{
+    xilinx_cms_context_t context;
+
+    if (cms_initialise_access (&context, design->vfio_device, design->cms_subsystem_bar_index, design->cms_subsystem_base_offset))
+    {
+        cms_display_configuration (&context);
+
+        for (uint32_t cage_select = 0; cage_select < cms_num_qsfp_modules[context.software_profile]; cage_select++)
+        {
+            cms_qsfp_low_speed_io_read_data_t low_speed_io;
+
+            if (cms_read_qsfp_module_low_speed_io (&context, cage_select, &low_speed_io))
+            {
+                printf ("  QSFP %u : %s\n", cage_select, low_speed_io.qsfp_int_l ? "Interrupt Clear" : "Interrupt Set");
+                printf ("  QSFP %u : %s\n", cage_select, low_speed_io.qsfp_modprs_l ? "Module not Present" : "Module Present");
+                printf ("  QSFP %u : %s\n", cage_select, low_speed_io.qsfp_modsel_l ? "Module not Selected" : "Module Selected");
+                printf ("  QSFP %u : %s\n", cage_select, low_speed_io.qsfp_lpmode ? "Low Power Mode" : "High Power Mode");
+                printf ("  QSFP %u : %s\n", cage_select, low_speed_io.qsfp_reset_l ? "Reset Clear" : "Reset Active");
+            }
+        }
+    }
+}
+
+
 int main (int argc, char *argv[])
 {
     fpga_designs_t designs;
@@ -246,6 +276,10 @@ int main (int argc, char *argv[])
         if (design->axi_switch_regs != NULL)
         {
             display_axi_switch (design);
+        }
+        if (design->cms_subsystem_present)
+        {
+            display_cms (design);
         }
     }
 

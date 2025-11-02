@@ -114,6 +114,22 @@ static inline uint32_t generic_pci_access_extract_field (const uint32_t register
 }
 
 
+/**
+ * @brief Update a field which spans multiple consecutive bits
+ * @param[in,out] register_value The register containing the field
+ * @param[in] field_mask The mask for the field to update
+ * @param[in] field_value The new field value
+ */
+static inline void generic_pci_access_update_field (uint32_t *const register_value, const uint32_t field_mask,
+                                                    const uint32_t field_value)
+{
+    const int field_shift = ffs ((int) field_mask) - 1; /* ffs returns the least significant bit as zero */
+
+    *register_value &= ~field_mask;
+    *register_value |= (field_value << field_shift) & field_mask;
+}
+
+
 generic_pci_access_context_p generic_pci_access_initialise (void);
 void generic_pci_access_finalise (generic_pci_access_context_p const context);
 generic_pci_access_iterator_p generic_pci_access_iterator_create (generic_pci_access_context_p const context,

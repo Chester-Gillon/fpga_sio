@@ -205,4 +205,11 @@
  * c. Access the SYSMON on all 3 SLRs (internal sensors only) */
 #define FPGA_SIO_SUBDEVICE_ID_U200_DMA_STREAM_CRC64 0x001E
 
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Access the CMS subsystem for management of the QSFP ports.
+ * b. Access the SYSMON on all 3 SLRs (internal sensors only).
+ * c. Access GPIOs to control Refclk frequency selection.
+ * d. Access a Quad SPI connected to the FPGA configuration flash. */
+#define FPGA_SIO_SUBDEVICE_ID_U200_IBERT_100G_ETHER 0x001F
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */
