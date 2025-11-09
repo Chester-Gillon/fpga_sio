@@ -15,6 +15,7 @@
 #include "xilinx_xadc.h"
 #include "xilinx_sysmon.h"
 #include "identify_pcie_fpga_design.h"
+#include "xilinx_cms.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -56,6 +57,8 @@ int main (int argc, char *argv[])
     fpga_designs_t designs;
     xadc_sample_collection_t xadc_collection;
     sysmon_device_collection_t sysmon_collection;
+    xilinx_cms_context_t cms_context;
+    cms_sensor_collection_t cms_collection;
 
     parse_command_line_arguments (argc, argv);
 
@@ -83,6 +86,20 @@ int main (int argc, char *argv[])
                     design->vfio_device->group->iommu_group_name);
             display_sysmon_samples (&sysmon_collection);
             printf ("\n");
+        }
+
+        if (design->cms_subsystem_present)
+        {
+            if (cms_initialise_access (&cms_context, design->vfio_device,
+                    design->cms_subsystem_bar_index, design->cms_subsystem_base_offset))
+            {
+                cms_read_sensors (&cms_context, &cms_collection);
+                printf ("Displaying CMS values for design %s in PCI device %s IOMMU group %s:\n",
+                        fpga_design_names[design->design_id], design->vfio_device->device_name,
+                        design->vfio_device->group->iommu_group_name);
+                cms_display_sensors (&cms_collection);
+                printf ("\n");
+            }
         }
     }
 

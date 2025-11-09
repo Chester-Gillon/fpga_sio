@@ -13,6 +13,86 @@
 #include <time.h>
 
 
+/* The available sensors which have measurement values */
+typedef enum
+{
+    CMS_SENSOR_1V2_VCCIO,
+    CMS_SENSOR_2V5_VPP23,
+    CMS_SENSOR_3V3_AUX,
+    CMS_SENSOR_3V3_PEX,
+    CMS_SENSOR_3V3PEX_I_IN,
+    CMS_SENSOR_12V_AUX,
+    CMS_SENSOR_12V_AUX1,
+    CMS_SENSOR_12V_AUX_I_IN,
+    CMS_SENSOR_12V_PEX,
+    CMS_SENSOR_12V_SW,
+    CMS_SENSOR_12VPEX_I_IN,
+    CMS_SENSOR_AUX_3V3_I,
+    CMS_SENSOR_CAGE_TEMP0,
+    CMS_SENSOR_CAGE_TEMP1,
+    CMS_SENSOR_CAGE_TEMP2,
+    CMS_SENSOR_CAGE_TEMP3,
+    CMS_SENSOR_DDR4_VPP_BTM,
+    CMS_SENSOR_DDR4_VPP_TOP,
+    CMS_SENSOR_DIMM_TEMP0,
+    CMS_SENSOR_DIMM_TEMP1,
+    CMS_SENSOR_DIMM_TEMP2,
+    CMS_SENSOR_DIMM_TEMP3,
+    CMS_SENSOR_FAN_SPEED,
+    CMS_SENSOR_FAN_TEMP,
+    CMS_SENSOR_FPGA_TEMP,
+    CMS_SENSOR_GTAVCC,
+    CMS_SENSOR_GTVCC_AUX,
+    CMS_SENSOR_HBM_1V2,
+    CMS_SENSOR_HBM_1V2_I,
+    CMS_SENSOR_HBM_TEMP1,
+    CMS_SENSOR_HBM_TEMP2,
+    CMS_SENSOR_MGT0V9AVCC,
+    CMS_SENSOR_MGTAVCC,
+    CME_SENSOR_MGTAVCC_I,
+    CMS_SENSOR_MGTAVTT,
+    CMS_SENSOR_MGTAVTT_I,
+    CMS_SENSOR_PEX_3V3_POWER,
+    CMS_SENSOR_PEX_12V_POWER,
+    CMS_SENSOR_SE98_TEMP0,
+    CMS_SENSOR_SE98_TEMP1,
+    CMS_SENSOR_SE98_TEMP2,
+    CMS_SENSOR_SYS_5V5,
+    CMS_SENSOR_V12_IN_AUX0_I,
+    CMS_SENSOR_V12_IN_AUX1_I,
+    CMS_SENSOR_V12_IN_I,
+    CMS_SENSOR_VCC0V85,
+    CMS_SENSOR_VCC1V2_BTM,
+    CMS_SENSOR_VCC1V2_I,
+    CMS_SENSOR_VCC1V2_TOP,
+    CMS_SENSOR_VCC1V5,
+    CMS_SENSOR_VCC1V8,
+    CMS_SENSOR_VCC3V3,
+    CMS_SENSOR_VCC_5V0,
+    CMS_SENSOR_VCCAUX,
+    CMS_SENSOR_VCCAUX_PMC,
+    CMS_SENSOR_VCCINT,
+    CMS_SENSOR_VCCINT_I,
+    CMS_SENSOR_VCCINT_IO,
+    CMS_SENSOR_VCCINT_IO_I,
+    CMS_SENSOR_VCCINT_POWER,
+    CMS_SENSOR_VCCINT_TEMP,
+    CMS_SENSOR_VCCINT_VCU_0V9,
+    CMS_SENSOR_VCCRAM,
+    CMS_SENSOR_VCCSOC,
+    CMS_SENSOR_VPP2V5,
+
+    /* These are power values derived by multiplying corresponding voltage and current measurements.
+     * Must be last in the enumerations, so the the measurements values are read first. */
+    CMS_SENSOR_12V_AUX_POWER,
+    CMS_SENSOR_12V_PEX_POWER,
+    CMS_SENSOR_3V3_PEX_POWER,
+    CMS_SENSOR_3V3_AUX_POWER,
+
+    CMS_SENSOR_ARRAY_SIZE
+} cms_sensor_ids_t;
+
+
 /* Defines a cached copy of the CMS mailbox used to populate a request, and then obtain the response */
 #define CMS_MAILBOX_FRAME_SIZE_BYTES 0x1000
 #define CMS_MAILBOX_MAX_PAYLOAD_SIZE_BYTES (CMS_MAILBOX_FRAME_SIZE_BYTES - sizeof (uint32_t))
@@ -59,6 +139,45 @@ typedef enum
 
     CMS_SOFTWARE_PROFILE_ARRAY_SIZE
 } cms_software_profile_t;
+
+
+/* The different display units for sensor measurement values */
+typedef enum
+{
+    CMS_UNITS_MILLI_VOLTS,
+    CMS_UNITS_MILLI_AMPS,
+    CMS_UNITS_CELSIUS,
+    CMS_UNITS_RPM,
+    CMS_UNITS_MILLI_WATTS,
+    CMS_UNITS_MICRO_WATTS
+} cms_sensor_units_t;
+
+
+/* The definition of one sensor with has measurement values */
+typedef struct
+{
+    /* Name for display */
+    const char *const name;
+    /* How to display the values */
+    cms_sensor_units_t units;
+    /* When false reads measurement values.
+     * When true derives power from other sensors. */
+    bool derived_power;
+    /* Register offset for maximum value */
+    uint32_t max_reg_offset;
+    /* Register offset for average value */
+    uint32_t avg_reg_offset;
+    /* Register offset for instantaneous value */
+    uint32_t ins_reg_offset;
+    /* Which card(s) support the sensors */
+    bool supported_cards[CMS_SOFTWARE_PROFILE_ARRAY_SIZE];
+    /* When derived_power is true, the sensors used to derive the power */
+    cms_sensor_ids_t voltage_sensor;
+    cms_sensor_ids_t current_sensor;
+} cms_sensor_definition_t;
+
+
+extern const cms_sensor_definition_t cms_sensor_definitions[CMS_SENSOR_ARRAY_SIZE];
 
 
 /* The sensor IDs for the card information */
@@ -111,6 +230,31 @@ typedef struct
 } cms_qsfp_low_speed_io_read_data_t;
 
 
+/* The values for one sensor */
+typedef struct
+{
+    /* True when the sensor values are valid, which is card specific */
+    bool valid;
+    /* The maximum value */
+    uint32_t max;
+    /* The average value */
+    uint32_t average;
+    /* The instantaneous value */
+    uint32_t instantaneous;
+} cms_sensor_values_t;
+
+
+/* The collection of all sensors from the CMS subsystem */
+typedef struct
+{
+    /* True when power good is indicated.
+     * From PG348 it isn't clear if "power bad" will prevent the FPGA from working to allow the CMS subsystem to run. */
+    bool power_good;
+    /* The values for all sensors */
+    cms_sensor_values_t sensors[CMS_SENSOR_ARRAY_SIZE];
+} cms_sensor_collection_t;
+
+
 /* Defines the context used to access a CMS Subsystem */
 typedef struct
 {
@@ -146,5 +290,7 @@ bool cms_mailbox_transaction (xilinx_cms_context_t *const context, cms_mailbox_t
 bool cms_read_qsfp_module_low_speed_io (xilinx_cms_context_t *const context, const uint32_t cage_select,
                                         cms_qsfp_low_speed_io_read_data_t *const low_speed_io);
 void cms_display_configuration (const xilinx_cms_context_t *const context);
+void cms_read_sensors (const xilinx_cms_context_t *const context, cms_sensor_collection_t *const collection);
+void cms_display_sensors (const cms_sensor_collection_t *const collection);
 
 #endif /* CMS_SUBSYSTEM_XILINX_CMS_H_ */

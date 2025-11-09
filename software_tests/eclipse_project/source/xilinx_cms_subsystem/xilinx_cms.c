@@ -116,6 +116,921 @@ static const char *const cms_snsr_id_names[CMS_SNSR_ID_ARRAY_SIZE] =
 };
 
 
+/* Defines the possible sensors.
+ * Some supported_cards[] arrays are empty, since while PG348 defines the register "Table 3: Supported Sensors per Alveo Card"
+ * indicates there are no supported cards.  */
+const cms_sensor_definition_t cms_sensor_definitions[CMS_SENSOR_ARRAY_SIZE] =
+{
+    [CMS_SENSOR_1V2_VCCIO] =
+    {
+        .name = "1V2_VCCIO",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_1V2_VCCIO_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_1V2_VCCIO_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_1V2_VCCIO_INS_REG_OFFSET,
+        .supported_cards = {}
+    },
+    [CMS_SENSOR_2V5_VPP23] =
+    {
+        .name = "2V5_VPP23",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_2V5_VPP23_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_2V5_VPP23_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_2V5_VPP23_INS_REG_OFFSET,
+        .supported_cards = {}
+    },
+    [CMS_SENSOR_3V3_AUX] =
+    {
+        .name = "3V3_AUX",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_3V3_AUX_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_3V3_AUX_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_3V3_AUX_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_X3] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_3V3_PEX] =
+    {
+        .name = "3V3_PEX",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_3V3_PEX_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_3V3_PEX_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_3V3_PEX_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true,
+            [CMS_SOFTWARE_PROFILE_U45N] = true,
+            [CMS_SOFTWARE_PROFILE_X3] = true,
+            [CMS_SOFTWARE_PROFILE_UL3422] = true
+        }
+    },
+    [CMS_SENSOR_3V3PEX_I_IN] =
+    {
+        .name = "3V3PEX_I_IN",
+        .units = CMS_UNITS_MILLI_AMPS,
+        .max_reg_offset = CMS_3V3PEX_I_IN_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_3V3PEX_I_IN_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_3V3PEX_I_IN_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true,
+            [CMS_SOFTWARE_PROFILE_U45N] = true,
+            [CMS_SOFTWARE_PROFILE_X3] = true,
+            [CMS_SOFTWARE_PROFILE_UL3422] = true
+        }
+    },
+    [CMS_SENSOR_12V_AUX] =
+    {
+        .name = "12V_AUX",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_12V_AUX_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_12V_AUX_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_12V_AUX_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true,
+            [CMS_SOFTWARE_PROFILE_U45N] = true,
+            [CMS_SOFTWARE_PROFILE_UL3422] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_12V_AUX1] =
+    {
+        .name = "12V_AUX1",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_12V_AUX1_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_12V_AUX1_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_12V_AUX1_INS_REG_OFFSET,
+        .supported_cards = {}
+    },
+    [CMS_SENSOR_12V_AUX_I_IN] =
+    {
+        .name = "12V_AUX_I_IN",
+        .units = CMS_UNITS_MILLI_AMPS,
+        .max_reg_offset = CMS_12V_AUX_I_IN_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_12V_AUX_I_IN_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_12V_AUX_I_IN_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true,
+            [CMS_SOFTWARE_PROFILE_U45N] = true,
+            [CMS_SOFTWARE_PROFILE_UL3422] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_12V_PEX] =
+    {
+        .name = "12V_PEX",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_12V_PEX_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_12V_PEX_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_12V_PEX_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true,
+            [CMS_SOFTWARE_PROFILE_U45N] = true,
+            [CMS_SOFTWARE_PROFILE_X3] = true,
+            [CMS_SOFTWARE_PROFILE_UL3422] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_12V_SW] =
+    {
+        .name = "12V_SW",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_12V_SW_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_12V_SW_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_12V_SW_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true
+        }
+    },
+    [CMS_SENSOR_12VPEX_I_IN] =
+    {
+        .name = "12VPEX_I_IN",
+        .units = CMS_UNITS_MILLI_AMPS,
+        .max_reg_offset = CMS_12VPEX_I_IN_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_12VPEX_I_IN_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_12VPEX_I_IN_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true,
+            [CMS_SOFTWARE_PROFILE_U45N] = true,
+            [CMS_SOFTWARE_PROFILE_X3] = true,
+            [CMS_SOFTWARE_PROFILE_UL3422] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_AUX_3V3_I] =
+    {
+        .name = "AUX_3V3_I",
+        .units = CMS_UNITS_MILLI_AMPS,
+        .max_reg_offset = CMS_AUX_3V3_I_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_AUX_3V3_I_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_AUX_3V3_I_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_X3] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_CAGE_TEMP0] =
+    {
+        .name = "CAGE_TEMP0",
+        .units = CMS_UNITS_CELSIUS,
+        .max_reg_offset = CMS_CAGE_TEMP0_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_CAGE_TEMP0_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_CAGE_TEMP0_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true,
+            [CMS_SOFTWARE_PROFILE_U45N] = true,
+            [CMS_SOFTWARE_PROFILE_X3] = true
+        }
+    },
+    [CMS_SENSOR_CAGE_TEMP1] =
+    {
+        .name = "CAGE_TEMP1",
+        .units = CMS_UNITS_CELSIUS,
+        .max_reg_offset = CMS_CAGE_TEMP1_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_CAGE_TEMP1_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_CAGE_TEMP1_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true,
+            [CMS_SOFTWARE_PROFILE_U45N] = true,
+            [CMS_SOFTWARE_PROFILE_X3] = true
+        }
+    },
+    [CMS_SENSOR_CAGE_TEMP2] =
+    {
+        .name = "CAGE_TEMP2",
+        .units = CMS_UNITS_CELSIUS,
+        .max_reg_offset = CMS_CAGE_TEMP2_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_CAGE_TEMP2_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_CAGE_TEMP2_INS_REG_OFFSET,
+        .supported_cards = {}
+    },
+    [CMS_SENSOR_CAGE_TEMP3] =
+    {
+        .name = "CAGE_TEMP3",
+        .units = CMS_UNITS_CELSIUS,
+        .max_reg_offset = CMS_CAGE_TEMP3_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_CAGE_TEMP3_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_CAGE_TEMP3_INS_REG_OFFSET,
+        .supported_cards = {}
+    },
+    [CMS_SENSOR_DDR4_VPP_BTM] =
+    {
+        .name = "DDR4_VPP_BTM",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_DDR4_VPP_BTM_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_DDR4_VPP_BTM_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_DDR4_VPP_BTM_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true
+        }
+    },
+    [CMS_SENSOR_DDR4_VPP_TOP] =
+    {
+        .name = "DDR4_VPP_TOP",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_DDR4_VPP_TOP_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_DDR4_VPP_TOP_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_DDR4_VPP_TOP_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_UL3422] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_DIMM_TEMP0] =
+    {
+        .name = "DIMM_TEMP0",
+        .units = CMS_UNITS_CELSIUS,
+        .max_reg_offset = CMS_DIMM_TEMP0_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_DIMM_TEMP0_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_DIMM_TEMP0_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true
+        }
+    },
+    [CMS_SENSOR_DIMM_TEMP1] =
+    {
+        .name ="DIMM_TEMP1",
+        .units = CMS_UNITS_CELSIUS,
+        .max_reg_offset = CMS_DIMM_TEMP1_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_DIMM_TEMP1_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_DIMM_TEMP1_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true
+        }
+    },
+    [CMS_SENSOR_DIMM_TEMP2] =
+    {
+        .name = "DIMM_TEMP2",
+        .units = CMS_UNITS_CELSIUS,
+        .max_reg_offset = CMS_DIMM_TEMP2_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_DIMM_TEMP2_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_DIMM_TEMP2_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true
+        }
+    },
+    [CMS_SENSOR_DIMM_TEMP3] =
+    {
+        .name = "DIMM_TEMP3",
+        .units = CMS_UNITS_CELSIUS,
+        .max_reg_offset = CMS_DIMM_TEMP3_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_DIMM_TEMP3_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_DIMM_TEMP3_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true
+        }
+    },
+    [CMS_SENSOR_FAN_SPEED] =
+    {
+        .name = "FAN_SPEED",
+        .units = CMS_UNITS_RPM,
+        .max_reg_offset = CMS_FAN_SPEED_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_FAN_SPEED_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_FAN_SPEED_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true
+        }
+    },
+    [CMS_SENSOR_FAN_TEMP] =
+    {
+        .name = "FAN_TEMP",
+        .units = CMS_UNITS_CELSIUS,
+        .max_reg_offset = CMS_FAN_TEMP_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_FAN_TEMP_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_FAN_TEMP_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true
+        }
+    },
+    [CMS_SENSOR_FPGA_TEMP] =
+    {
+        .name = "FPGA_TEMP",
+        .units = CMS_UNITS_CELSIUS,
+        .max_reg_offset = CMS_FPGA_TEMP_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_FPGA_TEMP_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_FPGA_TEMP_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true,
+            [CMS_SOFTWARE_PROFILE_U45N] = true,
+            [CMS_SOFTWARE_PROFILE_X3] = true,
+            [CMS_SOFTWARE_PROFILE_UL3422] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_GTAVCC] =
+    {
+        .name = "GTAVCC",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_GTAVCC_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_GTAVCC_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_GTAVCC_INS_REG_OFFSET,
+        .supported_cards = {}
+    },
+    [CMS_SENSOR_GTVCC_AUX] =
+    {
+        .name = "GTVCC_AUX",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_GTVCC_AUX_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_GTVCC_AUX_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_GTVCC_AUX_INS_REG_OFFSET,
+        .supported_cards = {}
+    },
+    [CMS_SENSOR_HBM_1V2] =
+    {
+        .name = "HBM_1V2",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_HBM_1V2_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_HBM_1V2_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_HBM_1V2_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true
+        }
+    },
+    [CMS_SENSOR_HBM_1V2_I] =
+    {
+        .name = "HBM_1V2_I",
+        .units = CMS_UNITS_MILLI_AMPS,
+        .max_reg_offset = CMS_HBM_1V2_I_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_HBM_1V2_I_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_HBM_1V2_I_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U55] = true
+        }
+    },
+    [CMS_SENSOR_HBM_TEMP1] =
+    {
+        .name = "HBM_TEMP1",
+        .units = CMS_UNITS_CELSIUS,
+        .max_reg_offset = CMS_HBM_TEMP1_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_HBM_TEMP1_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_HBM_TEMP1_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true
+        }
+    },
+    [CMS_SENSOR_HBM_TEMP2] =
+    {
+        .name = "HBM_TEMP2",
+        .units = CMS_UNITS_CELSIUS,
+        .max_reg_offset = CMS_HBM_TEMP2_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_HBM_TEMP2_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_HBM_TEMP2_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true
+        }
+    },
+    [CMS_SENSOR_MGT0V9AVCC] =
+    {
+        .name = "MGT0V9AVCC",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_MGT0V9AVCC_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_MGT0V9AVCC_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_MGT0V9AVCC_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true,
+            [CMS_SOFTWARE_PROFILE_UL3422] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_MGTAVCC] =
+    {
+        .name = "MGTAVCC",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_MGTAVCC_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_MGTAVCC_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_MGTAVCC_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_UL3422] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CME_SENSOR_MGTAVCC_I] =
+    {
+        .name = "MGTAVCC_I",
+        .units = CMS_UNITS_MILLI_AMPS,
+        .max_reg_offset = CMS_MGTAVCC_I_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_MGTAVCC_I_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_MGTAVCC_I_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_UL3422] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_MGTAVTT] =
+    {
+        .name = "MGTAVTT",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_MGTAVTT_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_MGTAVTT_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_MGTAVTT_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true,
+            [CMS_SOFTWARE_PROFILE_UL3422] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_MGTAVTT_I] =
+    {
+        .name = "MGTAVTT_I",
+        .units = CMS_UNITS_MILLI_AMPS,
+        .max_reg_offset = CMS_MGTAVTT_I_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_MGTAVTT_I_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_MGTAVTT_I_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_UL3422] = true
+        }
+    },
+    [CMS_SENSOR_PEX_3V3_POWER] =
+    {
+        .name = "PEX_3V3_POWER",
+        .units = CMS_UNITS_MILLI_WATTS,
+        .max_reg_offset = CMS_PEX_3V3_POWER_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_PEX_3V3_POWER_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_PEX_3V3_POWER_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U50] = true
+        }
+    },
+    [CMS_SENSOR_PEX_12V_POWER] =
+    {
+        .name = "PEX_12V_POWER",
+        .units = CMS_UNITS_MILLI_WATTS,
+        .max_reg_offset = CMS_PEX_12V_POWER_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_PEX_12V_POWER_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_PEX_12V_POWER_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U50] = true
+        }
+    },
+    [CMS_SENSOR_SE98_TEMP0] =
+    {
+        .name = "SE98_TEMP0",
+        .units = CMS_UNITS_CELSIUS,
+        .max_reg_offset = CMS_SE98_TEMP0_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_SE98_TEMP0_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_SE98_TEMP0_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true,
+            [CMS_SOFTWARE_PROFILE_U45N] = true,
+            [CMS_SOFTWARE_PROFILE_X3] = true,
+            [CMS_SOFTWARE_PROFILE_UL3422] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_SE98_TEMP1] =
+    {
+        .name = "SE98_TEMP1",
+        .units = CMS_UNITS_CELSIUS,
+        .max_reg_offset = CMS_SE98_TEMP1_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_SE98_TEMP1_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_SE98_TEMP1_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true,
+            [CMS_SOFTWARE_PROFILE_U45N] = true,
+            [CMS_SOFTWARE_PROFILE_X3] = true,
+            [CMS_SOFTWARE_PROFILE_UL3422] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_SE98_TEMP2] =
+    {
+        .name = "SE98_TEMP2",
+        .units = CMS_UNITS_CELSIUS,
+        .max_reg_offset = CMS_SE98_TEMP2_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_SE98_TEMP2_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_SE98_TEMP2_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true
+        }
+    },
+    [CMS_SENSOR_SYS_5V5] =
+    {
+        .name = "SYS_5V5",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_SYS_5V5_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_SYS_5V5_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_SYS_5V5_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true
+        }
+    },
+    [CMS_SENSOR_V12_IN_AUX0_I] =
+    {
+        .name = "V12_IN_AUX0_I",
+        .units = CMS_UNITS_MILLI_AMPS,
+        .max_reg_offset = CMS_V12_IN_AUX0_I_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_V12_IN_AUX0_I_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_V12_IN_AUX0_I_INS_REG_OFFSET,
+        .supported_cards = {}
+    },
+    [CMS_SENSOR_V12_IN_AUX1_I] =
+    {
+        .name = "V12_IN_AUX1_I",
+        .units = CMS_UNITS_MILLI_AMPS,
+        .max_reg_offset = CMS_V12_IN_AUX1_I_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_V12_IN_AUX1_I_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_V12_IN_AUX1_I_INS_REG_OFFSET,
+        .supported_cards = {}
+    },
+    [CMS_SENSOR_V12_IN_I] =
+    {
+        .name = "V12_IN_I",
+        .units = CMS_UNITS_MILLI_AMPS,
+        .max_reg_offset = CMS_V12_IN_I_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_V12_IN_I_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_V12_IN_I_INS_REG_OFFSET,
+        .supported_cards = {}
+    },
+    [CMS_SENSOR_VCC0V85] =
+    {
+        .name = "VCC0V85",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_VCC0V85_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VCC0V85_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VCC0V85_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true
+        }
+    },
+    [CMS_SENSOR_VCC1V2_BTM] =
+    {
+        .name = "VCC1V2_BTM",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_VCC1V2_BTM_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VCC1V2_BTM_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VCC1V2_BTM_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true
+        }
+    },
+    [CMS_SENSOR_VCC1V2_I] =
+    {
+        .name = "VCC1V2_I",
+        .units = CMS_UNITS_MILLI_AMPS,
+        .max_reg_offset = CMS_VCC1V2_I_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VCC1V2_I_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VCC1V2_I_INS_REG_OFFSET,
+        .supported_cards = {}
+    },
+    [CMS_SENSOR_VCC1V2_TOP] =
+    {
+        .name = "VCC1V2_TOP",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_VCC1V2_TOP_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VCC1V2_TOP_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VCC1V2_TOP_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_UL3422] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_VCC1V5] =
+    {
+        .name = "VCC1V5",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_VCC1V5_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VCC1V5_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VCC1V5_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_VCC1V8] =
+    {
+        .name = "VCC1V8",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_VCC1V8_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VCC1V8_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VCC1V8_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true,
+            [CMS_SOFTWARE_PROFILE_U45N] = true,
+            [CMS_SOFTWARE_PROFILE_X3] = true,
+            [CMS_SOFTWARE_PROFILE_UL3422] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_VCC3V3] =
+    {
+        .name = "VCC3V3",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_VCC3V3_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VCC3V3_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VCC3V3_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true,
+            [CMS_SOFTWARE_PROFILE_U45N] = true,
+            [CMS_SOFTWARE_PROFILE_X3] = true,
+            [CMS_SOFTWARE_PROFILE_UL3422] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_VCC_5V0] =
+    {
+        .name = "VCC_5V0",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_VCC_5V0_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VCC_5V0_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VCC_5V0_INS_REG_OFFSET,
+        .supported_cards = {}
+    },
+    [CMS_SENSOR_VCCAUX] =
+    {
+        .name = "VCCAUX",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_VCCAUX_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VCCAUX_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VCCAUX_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_UL3422] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_VCCAUX_PMC] =
+    {
+        .name = "VCCAUX_PMC",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_VCCAUX_PMC_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VCCAUX_PMC_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VCCAUX_PMC_INS_REG_OFFSET,
+        .supported_cards = {}
+    },
+    [CMS_SENSOR_VCCINT] =
+    {
+        .name = "VCCINT",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_VCCINT_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VCCINT_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VCCINT_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true,
+            [CMS_SOFTWARE_PROFILE_U45N] = true,
+            [CMS_SOFTWARE_PROFILE_X3] = true,
+            [CMS_SOFTWARE_PROFILE_UL3422] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_VCCINT_I] =
+    {
+        .name = "VCCINT_I",
+        .units = CMS_UNITS_MILLI_AMPS,
+        .max_reg_offset = CMS_VCCINT_I_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VCCINT_I_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VCCINT_I_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U280] = true,
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true,
+            [CMS_SOFTWARE_PROFILE_U45N] = true,
+            [CMS_SOFTWARE_PROFILE_X3] = true,
+            [CMS_SOFTWARE_PROFILE_UL3422] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_VCCINT_IO] =
+    {
+        .name = "VCCINT_IO",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_VCCINT_IO_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VCCINT_IO_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VCCINT_IO_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true
+        }
+    },
+    [CMS_SENSOR_VCCINT_IO_I] =
+    {
+        .name = "VCCINT_IO_I",
+        .units = CMS_UNITS_MILLI_AMPS,
+        .max_reg_offset = CMS_VCCINT_IO_I_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VCCINT_IO_I_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VCCINT_IO_I_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true
+        }
+    },
+    [CMS_SENSOR_VCCINT_POWER] =
+    {
+        .name = "VCCINT_POWER",
+        .units = CMS_UNITS_MILLI_WATTS,
+        .max_reg_offset = CMS_VCCINT_POWER_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VCCINT_POWER_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VCCINT_POWER_INS_REG_OFFSET,
+        .supported_cards = {}
+    },
+    [CMS_SENSOR_VCCINT_TEMP] =
+    {
+        .name = "VCCINT_TEMP",
+        .units = CMS_UNITS_CELSIUS,
+        .max_reg_offset = CMS_VCCINT_TEMP_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VCCINT_TEMP_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VCCINT_TEMP_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U200_U250] = true,
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true,
+            [CMS_SOFTWARE_PROFILE_U45N] = true,
+            [CMS_SOFTWARE_PROFILE_X3] = true,
+            [CMS_SOFTWARE_PROFILE_UL3422] = true,
+            [CMS_SOFTWARE_PROFILE_UL3524] = true
+        }
+    },
+    [CMS_SENSOR_VCCINT_VCU_0V9] =
+    {
+        .name = "VCCINT_VCU_0V9",
+        .units = CMS_UNITS_CELSIUS,
+        .max_reg_offset = CMS_VCCINT_VCU_0V9_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VCCINT_VCU_0V9_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VCCINT_VCU_0V9_INS_REG_OFFSET,
+        .supported_cards = {}
+    },
+    [CMS_SENSOR_VCCRAM] =
+    {
+        .name = "VCCRAM",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_VCCRAM_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VCCRAM_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VCCRAM_INS_REG_OFFSET,
+        .supported_cards = {}
+    },
+    [CMS_SENSOR_VCCSOC] =
+    {
+        .name = "VCCSOC",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_VCCSOC_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VCCSOC_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VCCSOC_INS_REG_OFFSET,
+        .supported_cards = {}
+    },
+    [CMS_SENSOR_VPP2V5] =
+    {
+        .name = "VPP2V5",
+        .units = CMS_UNITS_MILLI_VOLTS,
+        .max_reg_offset = CMS_VPP2V5_MAX_REG_OFFSET,
+        .avg_reg_offset = CMS_VPP2V5_AVG_REG_OFFSET,
+        .ins_reg_offset = CMS_VPP2V5_INS_REG_OFFSET,
+        .supported_cards =
+        {
+            [CMS_SOFTWARE_PROFILE_U50] = true,
+            [CMS_SOFTWARE_PROFILE_U55] = true
+        }
+    },
+
+    /* Derived power sensors.
+     * The units are micro-watts since multiple integer milli-volts by milli-amps. */
+    [CMS_SENSOR_12V_AUX_POWER] =
+    {
+        .name = "12V_AUX_POWER",
+        .units = CMS_UNITS_MICRO_WATTS,
+        .derived_power = true,
+        .voltage_sensor = CMS_SENSOR_12V_AUX,
+        .current_sensor = CMS_SENSOR_12V_AUX_I_IN
+    },
+    [CMS_SENSOR_12V_PEX_POWER] =
+    {
+        .name = "12V_PEX_POWER",
+        .units = CMS_UNITS_MICRO_WATTS,
+        .derived_power = true,
+        .voltage_sensor = CMS_SENSOR_12V_PEX,
+        .current_sensor = CMS_SENSOR_12VPEX_I_IN
+    },
+    [CMS_SENSOR_3V3_PEX_POWER] =
+    {
+        .name = "3V3_PEX_POWER",
+        .units = CMS_UNITS_MICRO_WATTS,
+        .derived_power = true,
+        .voltage_sensor = CMS_SENSOR_3V3_PEX,
+        .current_sensor = CMS_SENSOR_3V3PEX_I_IN
+    },
+    [CMS_SENSOR_3V3_AUX_POWER] =
+    {
+        .name = "3V3_AUX_POWER",
+        .units = CMS_UNITS_MICRO_WATTS,
+        .derived_power = true,
+        .voltage_sensor = CMS_SENSOR_3V3_AUX,
+        .current_sensor = CMS_SENSOR_AUX_3V3_I
+    }
+};
+
+
+/* Field widths for display of sensor values */
+#define CMS_NAME_WIDTH  14
+#define CMS_VALUE_WIDTH 15
+
+
 /**
  * @brief Start a timeout for a CMS operation
  * @details
@@ -600,4 +1515,134 @@ void cms_display_configuration (const xilinx_cms_context_t *const context)
             printf ("\n");
         }
     }
+}
+
+
+/**
+ * @brief Read all CMS sensors
+ * @param[in] context Used to access the CMS
+ * @param[out] collection Contains all the sensors which have been read.
+ */
+void cms_read_sensors (const xilinx_cms_context_t *const context, cms_sensor_collection_t *const collection)
+{
+    memset (collection, 0, sizeof (*collection));
+
+    const uint32_t power_good_ins_reg = read_reg32 (context->host_cms_shared_memory, CMS_POWER_GOOD_INS_REG_OFFSET);
+    collection->power_good = (power_good_ins_reg & CMS_POWER_GOOD_INS_REG_POWER_STATUS) == 0;
+
+    for (cms_sensor_ids_t sensor_id = 0; sensor_id < CMS_SENSOR_ARRAY_SIZE; sensor_id++)
+    {
+        cms_sensor_values_t *const sensor = &collection->sensors[sensor_id];
+        const cms_sensor_definition_t *const definition = &cms_sensor_definitions[sensor_id];
+
+        if (definition->derived_power)
+        {
+            /* Derive the power from other voltage and current sensors */
+            const cms_sensor_values_t *const voltage = &collection->sensors[definition->voltage_sensor];
+            const cms_sensor_values_t *const current = &collection->sensors[definition->current_sensor];
+
+            sensor->valid = voltage->valid && current->valid;
+            if (sensor->valid)
+            {
+                sensor->max = voltage->max * current->max;
+                sensor->average = voltage->average * current->average;
+                sensor->instantaneous = voltage->instantaneous * current->instantaneous;
+            }
+        }
+        else
+        {
+            /* Determine sensor validity */
+            switch (sensor_id)
+            {
+            case CMS_SENSOR_FAN_SPEED:
+            case CMS_SENSOR_FAN_TEMP:
+                /* Qualify the fan sensors by the fan being indicated as present in the card information.
+                 * This is because the cards (software_profile) are available as either:
+                 * - Actively cooled with a fan.
+                 * - Passively cooled without a fan. */
+                sensor->valid = definition->supported_cards[context->software_profile] &&
+                    (context->card_information_sensors[CMS_SNSR_ID_FAN_PRESENCE].data != NULL) &&
+                    (context->card_information_sensors[CMS_SNSR_ID_FAN_PRESENCE].data[0] == 'P');
+                break;
+
+            default:
+                /* Other sensors are validated by the card type */
+                sensor->valid = definition->supported_cards[context->software_profile];
+                break;
+            }
+
+            /* Always read the sensor values, even if not valid for the card.
+             * Since are reading shared memory should be safe, and allows investigation if values are populated even if PG348
+             * indicates not valid for the card. */
+            sensor->max = read_reg32 (context->host_cms_shared_memory, definition->max_reg_offset);
+            sensor->average = read_reg32 (context->host_cms_shared_memory, definition->avg_reg_offset);
+            sensor->instantaneous = read_reg32 (context->host_cms_shared_memory, definition->ins_reg_offset);
+        }
+    }
+}
+
+
+/**
+ * @brief Display a single sensor value, in the appropriate units.
+ * @param[in] units The units for the sensor value
+ * @param[in] value The raw sensor value to be displayed
+ */
+static void cms_display_sensor_value (const cms_sensor_units_t units, const uint32_t value)
+{
+    switch (units)
+    {
+    case CMS_UNITS_MILLI_VOLTS:
+        printf ("%*.3fV", CMS_VALUE_WIDTH - 1, (double) value / 1E3);
+        break;
+
+    case CMS_UNITS_MILLI_AMPS:
+        printf ("%*.3fA", CMS_VALUE_WIDTH - 1, (double) value / 1E3);
+        break;
+
+    case CMS_UNITS_CELSIUS:
+        printf ("%*uC", CMS_VALUE_WIDTH - 1, value);
+        break;
+
+    case CMS_UNITS_RPM:
+        printf ("%*uRPM", CMS_VALUE_WIDTH - 3, value);
+        break;
+
+    case CMS_UNITS_MILLI_WATTS:
+        printf ("%*.3fW", CMS_VALUE_WIDTH - 1, (double) value / 1E3);
+        break;
+
+    case CMS_UNITS_MICRO_WATTS:
+        printf ("%*.3fW", CMS_VALUE_WIDTH - 1, (double) value / 1E6);
+        break;
+    }
+}
+
+
+/**
+ * @brief Display the values of card sensors which are valid
+ * @param[in] collection The sensor values to display
+ */
+void cms_display_sensors (const cms_sensor_collection_t *const collection)
+{
+    printf ("  %*s%*s%*s%*s\n",
+            CMS_NAME_WIDTH, "Sensor",
+            CMS_VALUE_WIDTH, "Max",
+            CMS_VALUE_WIDTH, "Average",
+            CMS_VALUE_WIDTH, "Instantaneous");
+    for (cms_sensor_ids_t sensor_id = 0; sensor_id < CMS_SENSOR_ARRAY_SIZE; sensor_id++)
+    {
+        const cms_sensor_values_t *const sensor = &collection->sensors[sensor_id];
+        const cms_sensor_definition_t *const definition = &cms_sensor_definitions[sensor_id];
+
+        if (sensor->valid)
+        {
+            printf ("  %14s", definition->name);
+            cms_display_sensor_value (definition->units, sensor->max);
+            cms_display_sensor_value (definition->units, sensor->average);
+            cms_display_sensor_value (definition->units, sensor->instantaneous);
+            printf ("\n");
+        }
+    }
+
+    printf ("\nPower %s\n", collection->power_good ? "Good" : "Bad");
 }
