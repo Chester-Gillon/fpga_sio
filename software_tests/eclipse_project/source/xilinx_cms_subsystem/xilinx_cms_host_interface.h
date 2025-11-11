@@ -269,4 +269,17 @@
 
 #define CMS_MAILBOX_PAYLOAD_START_OFFSET   0x4
 
+
+/* Definition of the CMS build information.
+ * While PG348 doesn't describe the build information addresses, the source code of loadsc linked to
+ * https://adaptivesupport.amd.com/s/article/73654?language=en_US has these definitions and validated the value of
+ * CMS_BUILD_INFO_VIV_ID_VERSION. */
+#define CMS_BUILD_INFO_VIV_ID_VERSION      0x00000000
+#define CMS_BUILD_INFO_MAJOR_MINOR_VERSION 0x00000004
+#define CMS_BUILD_INFO_PATCH_CORE_REVISION 0x00000008
+#define CMS_BUILD_INFO_PERFORCE_CL         0x0000000C
+#define CMS_BUILD_INFO_RESERVED_TAG        0x00000010
+#define CMS_BUILD_INFO_SCRATCH             0x00000014
+
+
 #endif /* XILINX_CMS_HOST_INTERFACE_H_ */

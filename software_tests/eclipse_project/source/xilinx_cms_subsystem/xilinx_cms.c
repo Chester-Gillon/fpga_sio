@@ -1188,12 +1188,16 @@ bool cms_initialise_access (xilinx_cms_context_t *const context,
     memset (context, 0, sizeof (*context));
 
     /* Map the registers */
+    const size_t build_info_base_offset                = cms_subsystem_base_offset + 0x02A000;
+    const size_t build_info_frame_size                 = 0x1000;
     const size_t microblaze_reset_register_base_offset = cms_subsystem_base_offset + 0x020000;
     const size_t microblaze_reset_register_frame_size  = 0x4;
     const size_t host_interrupt_controller_base_offset = cms_subsystem_base_offset + 0x022000;
     const size_t host_interrupt_controller_frame_size  = 0x1000;
     const size_t host_cms_shared_memory_base_offset    = cms_subsystem_base_offset + 0x028000;
     const size_t host_cms_shared_memory_frame_size     = 0x2000;
+    context->build_info = map_vfio_registers_block (vfio_device, cms_subsystem_bar_index,
+            build_info_base_offset, build_info_frame_size);
     context->microblaze_reset_register = map_vfio_registers_block (vfio_device, cms_subsystem_bar_index,
             microblaze_reset_register_base_offset, microblaze_reset_register_frame_size);
     context->host_interrupt_controller = map_vfio_registers_block (vfio_device, cms_subsystem_bar_index,
@@ -1201,7 +1205,8 @@ bool cms_initialise_access (xilinx_cms_context_t *const context,
     context->host_cms_shared_memory    = map_vfio_registers_block (vfio_device, cms_subsystem_bar_index,
             host_cms_shared_memory_base_offset, host_cms_shared_memory_frame_size);
 
-    if ((context->microblaze_reset_register != NULL) &&
+    if ((context->build_info != NULL) &&
+        (context->microblaze_reset_register != NULL) &&
         (context->host_interrupt_controller != NULL) &&
         (context->host_cms_shared_memory != NULL))
     {
@@ -1419,7 +1424,42 @@ void cms_display_configuration (const xilinx_cms_context_t *const context)
 {
     printf ("\n  CMS software profile %s\n", cms_software_profile_names[context->software_profile]);
 
-    /* From PG348 the lower 3 bytes seem to be a BCD version. Not sure of the encoding of the most significant byte.
+    /* Display the CMS build information, based upon the source code of the loadsc utility.
+     * The subsystem_id is used by loadsc to check for the presence of the CMS susbsystem before the utility can proceeed. */
+    const uint32_t build_info_viv_id_version = read_reg32 (context->build_info, CMS_BUILD_INFO_VIV_ID_VERSION);
+    const uint32_t version_year       = generic_pci_access_extract_field (build_info_viv_id_version, 0xFFFF0000);
+    const uint32_t version2_half      = generic_pci_access_extract_field (build_info_viv_id_version, 0x0000F000);
+    const uint32_t version3_increment = generic_pci_access_extract_field (build_info_viv_id_version, 0x00000F00);
+    const uint32_t subsystem_id       = generic_pci_access_extract_field (build_info_viv_id_version, 0x000000FF);
+    const uint32_t build_info_major_minor_version = read_reg32 (context->build_info, CMS_BUILD_INFO_MAJOR_MINOR_VERSION);
+    const uint32_t build_info_major = generic_pci_access_extract_field (build_info_major_minor_version, 0x00FF0000);
+    const uint32_t build_info_minor = generic_pci_access_extract_field (build_info_major_minor_version, 0x000000FF);
+    const uint32_t build_info_patch_core_revision = read_reg32 (context->build_info, CMS_BUILD_INFO_PATCH_CORE_REVISION);
+    const uint32_t build_info_perforce_cl = read_reg32 (context->build_info, CMS_BUILD_INFO_PERFORCE_CL);
+    const uint32_t build_info_reserved_tag = read_reg32 (context->build_info, CMS_BUILD_INFO_RESERVED_TAG);
+    const uint32_t build_info_scratch = read_reg32 (context->build_info, CMS_BUILD_INFO_SCRATCH);
+    printf ("  CMS subsystem ID %u\n", subsystem_id);
+    printf ("  CMS Hardware Version Vivado %x.%x", version_year, version2_half);
+    if (version3_increment > 0)
+    {
+        printf (".%x", version3_increment);
+    }
+    printf ("\n");
+    if (build_info_reserved_tag > 0)
+    {
+        const uint32_t reserved_tag_char1 = generic_pci_access_extract_field (build_info_reserved_tag, 0xFF000000);
+        const uint32_t reserved_tag_char2 = generic_pci_access_extract_field (build_info_reserved_tag, 0x00FF0000);
+        const uint32_t reserved_tag_char3 = generic_pci_access_extract_field (build_info_reserved_tag, 0x0000FF00);
+        const uint32_t reserved_tag_char4 = generic_pci_access_extract_field (build_info_reserved_tag, 0x000000FF);
+
+        printf ("  CMS build info reserved tag %c%c%c%c\n", reserved_tag_char1, reserved_tag_char2, reserved_tag_char3, reserved_tag_char4);
+    }
+    printf ("  CMS build info Major %x Minor %x\n", build_info_major, build_info_minor);
+    printf ("  CMS build info patch core revision 0x%08X\n", build_info_patch_core_revision);
+    printf ("  CMS build info perforce CL 0x%08X\n", build_info_perforce_cl);
+    printf ("  CMS build info scratch 0x%08X\n", build_info_scratch);
+
+    /* From PG348 the lower 3 bytes seem to be a BCD version. The loadsc source code says are major.minor.increment
      * Display as both a BCD version and raw hex value. */
     const uint32_t fw_version = read_reg32 (context->host_cms_shared_memory, CMS_FW_VERSION_REG_OFFSET);
     printf ("  CMS firmware version %u.%u.%u (0x%08X)\n",

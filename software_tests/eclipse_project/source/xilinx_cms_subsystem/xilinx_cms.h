@@ -260,6 +260,8 @@ typedef struct
 {
     /* Absolute timeout for a CMS operation */
     struct timespec cms_timeout;
+    /* Mapped to the CMS build information */
+    const uint8_t *build_info;
     /* Mapped to the MicroBlaze reset register in the CMS */
     uint8_t *microblaze_reset_register;
     /* Mapped to the Host Interrupt Controller in the CMS. */
