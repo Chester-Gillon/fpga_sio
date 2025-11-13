@@ -1186,6 +1186,7 @@ bool cms_initialise_access (xilinx_cms_context_t *const context,
     bool success = false;
 
     memset (context, 0, sizeof (*context));
+    context->cms_reset_was_released = false;
 
     /* Map the registers */
     const size_t build_info_base_offset                = cms_subsystem_base_offset + 0x02A000;
@@ -1237,6 +1238,8 @@ bool cms_initialise_access (xilinx_cms_context_t *const context,
 
             /* Now de-assert reset */
             write_reg32 (context->microblaze_reset_register, 0, 0x1);
+            clock_gettime (CLOCK_MONOTONIC, &context->time_cms_reset_released);
+            context->cms_reset_was_released = true;
         }
 
         /* Wait for the CMS REG_MAP to be ready. */
@@ -1619,6 +1622,21 @@ void cms_read_sensors (const xilinx_cms_context_t *const context, cms_sensor_col
             sensor->instantaneous = read_reg32 (context->host_cms_shared_memory, definition->ins_reg_offset);
         }
     }
+
+    /* Record the time since CMS reset was released (if known) */
+    collection->cms_reset_was_released = context->cms_reset_was_released;
+    if (collection->cms_reset_was_released)
+    {
+        struct timespec now;
+        const int64_t ticks_per_ns = 1000000000;
+
+        clock_gettime (CLOCK_MONOTONIC, &now);
+        const int64_t time_cms_reset_released_ns =
+                (context->time_cms_reset_released.tv_sec * ticks_per_ns) + context->time_cms_reset_released.tv_nsec;
+        const int64_t now_ns = (now.tv_sec * ticks_per_ns) + now.tv_nsec;
+
+        collection->secs_since_cms_reset_released = ((double) now_ns - (double) time_cms_reset_released_ns) / 1E9;
+    }
 }
 
 
@@ -1685,4 +1703,8 @@ void cms_display_sensors (const cms_sensor_collection_t *const collection)
     }
 
     printf ("\nPower %s\n", collection->power_good ? "Good" : "Bad");
+    if (collection->secs_since_cms_reset_released)
+    {
+        printf ("%.6f seconds since CMS reset released\n", collection->secs_since_cms_reset_released);
+    }
 }

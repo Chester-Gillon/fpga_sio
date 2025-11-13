@@ -252,6 +252,12 @@ typedef struct
     bool power_good;
     /* The values for all sensors */
     cms_sensor_values_t sensors[CMS_SENSOR_ARRAY_SIZE];
+    /* When true cms_initialise_access() had to release reset of the CMS.
+     * That means the CMS firmware was initialised which resets any previous max and average sensor values. */
+    bool cms_reset_was_released;
+    /* When cms_reset_was_released gives the number of seconds since CMS reset was released that these sensor values
+     * were sampled. */
+    double secs_since_cms_reset_released;
 } cms_sensor_collection_t;
 
 
@@ -278,6 +284,13 @@ typedef struct
     cms_mailbox_t card_information_mailbox;
     /* The sensors in the card information. The data points at the card_information_mailbox */
     cms_card_information_sensor_t card_information_sensors[CMS_SNSR_ID_ARRAY_SIZE];
+    /* When true cms_initialise_access() had to release reset of the CMS.
+     * That means the CMS firmware was initialised which resets any previous max and average sensor values. */
+    bool cms_reset_was_released;
+    /* CLOCK_MONONTONIC time at which the CMS reset was released.
+     * Can be used for diagnostic information for how long ago the max and average sensor values were reset.
+     * Only valid when cms_reset_was_released is true. */
+    struct timespec time_cms_reset_released;
 } xilinx_cms_context_t;
 
 
