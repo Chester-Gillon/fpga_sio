@@ -2,10 +2,13 @@
  * @file qsfp_management_menu.c
  * @date 5 Jan 2025
  * @author Chester Gillon
- * @brief Menu driven program perform QSFP management
+ * @brief Menu driven program perform QSFP management, which uses the IIC IP with a direct connection for I2C interface
  * @details
  *   Written to initially test the QSFP management in the fpga_tests/XCKU5P_DUAL_QSFP_ibert_4.166 design.
  *   Assumes a maximum of one device to manage.
+ *
+ *   The GPIOs were set up for the XCKU5P_DUAL_QSFP board to have a LED for each QSFP port, in addition to the QSFP discrete
+ *   signals.
  *
  *   Implemented as a menu to keep the VFIO device open in case the settings get reset on VFIO device close.
  *   Consider investigating the effect of the PCIe Interface "Reset Source" in the DMA Bridge IP.
@@ -422,6 +425,7 @@ static void qsfp_management_menu (vfio_device_t *const vfio_device)
 
             default:
                 valid_option = false;
+                break;
             }
         }
 

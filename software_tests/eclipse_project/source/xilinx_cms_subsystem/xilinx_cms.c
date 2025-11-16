@@ -1226,7 +1226,17 @@ bool cms_initialise_access (xilinx_cms_context_t *const context,
              * While PG348 indicates HOST_STATUS2_REG is read-only, with a U200 are able to modify the register.
              *
              * Without this clearing of REG_MAP ready it was possible to sample as ready before the CMS firmware had re-initialised
-             * and the card information was read as all empty. */
+             * and the card information was read as all empty.
+             *
+             * Looking at the block diagram for the CMS in Vivado 2025.1:
+             * a. HOST_STATUS2_REG is a implemented as an AXI GPIO, with the GPIO output used as one reset input into the
+             *    MicroBlaze processor.
+             *    A reset to the AXI GPIO puts the output into a defined state.
+             * b. The host_cms_shared_memory is implemented as a dual-port block memory, with one controller for the MicroBlaze
+             *    and one for the host AXI interface.
+             *
+             *    From the documentation a reset to the block memory controller won't initialise the memory contents to a known
+             *    state. Given implemented as block memory, the host software is able to clear HOST_STATUS2_REG. */
             status2_value = read_reg32 (context->host_cms_shared_memory, CMS_HOST_STATUS2_REG_OFFSET);
             if ((status2_value & CMS_REG_MAP_READY_MASK) == CMS_REG_MAP_READY_MASK)
             {
@@ -1386,7 +1396,7 @@ bool cms_initialise_access (xilinx_cms_context_t *const context,
 /**
  * @brief Read the low speed I/O signals for one QSFP module
  * @param[in,out] context The context to use for the read
- * @param[in] cage_select Which SFPDP module to read
+ * @param[in] cage_select Which QSFP module to read
  * @param[out] low_speed_io The I/O signals state
  * @return Returns true if have read the state of I/O signals, or false if an error.
  */
@@ -1414,6 +1424,46 @@ bool cms_read_qsfp_module_low_speed_io (xilinx_cms_context_t *const context, con
         low_speed_io->qsfp_lpmode   = (low_speed_signals & (1u << 1)) != 0;
         low_speed_io->qsfp_reset_l  = (low_speed_signals & (1u << 0)) != 0;
     }
+
+    return success;
+}
+
+
+/**
+ * @brief Write the low speed I/O signals for one QSFP module
+ * @details
+ *   If qsfp_reset_l is written as false (active), then it reads back as true (inactive).
+ *   PG348 says:
+ *     "Writing 0 to QSFP_RESET_L will trigger a module reset"
+ *   Writing qsfp_reset_l can cause IBERT to report some bit errors, so think the CMS firmware asserts the QSFP module reset
+ *   for a fixed duration, before de-activating the reset.
+ * @param[in,out] context The context to use for the write
+ * @param[in] cage_select Which QSFP module to write
+ * @param[in] low_speed The I/O signal state to write
+ * @return Returns true if have written the state of the I/O signals, or false if an error.
+ */
+bool cms_write_qsfp_module_low_speed_io (xilinx_cms_context_t *const context, const uint32_t cage_select,
+                                         const cms_qsfp_low_speed_io_write_data_t *const low_speed_io)
+{
+    cms_mailbox_t mailbox = {0};
+    bool success;
+
+    generic_pci_access_update_field (&mailbox.header, CMS_MAILBOX_HEADER_OPCODE_MASK, CMS_OP_WRITE_MODULE_LOW_SPEED_IO_OPCODE);
+    mailbox.request_fixed_size = true;
+    mailbox.request_payload_size_bytes = 8;
+    mailbox.payload.words[0] = cage_select;
+    mailbox.payload.words[1] = 0;
+    if (low_speed_io->qsfp_lpmode)
+    {
+        mailbox.payload.words[1] |= (1u << 1);
+    }
+    if (low_speed_io->qsfp_reset_l)
+    {
+        mailbox.payload.words[1] |= (1u << 0);
+    }
+    mailbox.response_fixed_size = true;
+    mailbox.response_payload_size_bytes = 0;
+    success = cms_mailbox_transaction (context, &mailbox);
 
     return success;
 }

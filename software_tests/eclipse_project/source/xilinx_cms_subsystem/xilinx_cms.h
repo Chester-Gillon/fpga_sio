@@ -230,6 +230,19 @@ typedef struct
 } cms_qsfp_low_speed_io_read_data_t;
 
 
+/* Low speed IO signals which may be written for one QSFP module.
+ * While MODSEL_L is an output from the CMS IP, PG348 indicates it isn't modifiable by CMS_OP_WRITE_MODULE_LOW_SPEED_IO_OPCODE.
+ * If the host could change MODSEL_L, that could the Satellite firmware from being able to perform I2C communication with the
+ * QSFP module. */
+typedef struct
+{
+    /* false: High Power Mode, true: Low Power Mode */
+    bool qsfp_lpmode;
+    /* false: Reset Active, true: Reset Clear */
+    bool qsfp_reset_l;
+} cms_qsfp_low_speed_io_write_data_t;
+
+
 /* The values for one sensor */
 typedef struct
 {
@@ -294,6 +307,12 @@ typedef struct
 } xilinx_cms_context_t;
 
 
+/* Maximum number of QSFP modules over all card types.
+ * While there are CMS_SENSOR_CAGE_TEMP2 and CMS_SENSOR_CAGE_TEMP3 none of the cards are shown as supporting them hence
+ * set the maximum to 2. */
+#define CMS_MAX_NUM_QSFP_MODULES 2
+
+
 extern const char *const cms_software_profile_names[CMS_SOFTWARE_PROFILE_ARRAY_SIZE];
 extern const uint32_t cms_num_qsfp_modules[CMS_SOFTWARE_PROFILE_ARRAY_SIZE];
 
@@ -304,6 +323,8 @@ bool cms_initialise_access (xilinx_cms_context_t *const context,
 bool cms_mailbox_transaction (xilinx_cms_context_t *const context, cms_mailbox_t *const transaction);
 bool cms_read_qsfp_module_low_speed_io (xilinx_cms_context_t *const context, const uint32_t cage_select,
                                         cms_qsfp_low_speed_io_read_data_t *const low_speed_io);
+bool cms_write_qsfp_module_low_speed_io (xilinx_cms_context_t *const context, const uint32_t cage_select,
+                                         const cms_qsfp_low_speed_io_write_data_t *const low_speed_io);
 void cms_display_configuration (const xilinx_cms_context_t *const context);
 void cms_read_sensors (const xilinx_cms_context_t *const context, cms_sensor_collection_t *const collection);
 void cms_display_sensors (const cms_sensor_collection_t *const collection);
