@@ -55,7 +55,8 @@ const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE] =
     [FPGA_DESIGN_U200_ENUM] = "U200_enum",
     [FPGA_DESIGN_U200_100G_ETHER_SIMPLEX_TX] = "U200_100G_ether_simplex_tx",
     [FPGA_DESIGN_U200_DMA_STREAM_CRC64] = "U200_dma_stream_crc64",
-    [FPGA_DESIGN_U200_IBERT_100G_ETHER] = "U200_ibert_100G_ether"
+    [FPGA_DESIGN_U200_IBERT_100G_ETHER] = "U200_ibert_100G_ether",
+    [FPGA_DESIGN_OPEN_NIC] = "open-nic"
 };
 
 
@@ -310,6 +311,19 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_U200_IBERT_100G_ETHER,
         .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE
+    },
+    [FPGA_DESIGN_OPEN_NIC] =
+    {
+        /* @todo Uses the ID from looking at the QDMA IP settings after building https://github.com/Xilinx/open-nic-shell
+         *       for a Alveo U200.
+         *       The https://github.com/Xilinx/open-nic-shell/blob/main/src/qdma_subsystem/vivado_ip/qdma_no_sriov_au200.tcl
+         *       source file doesn't specify the IDs, so they are probably the QDMA defaults.
+         *       I.e. could clash with other QDMA designs. */
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_VENDOR_ID,
+        .subsystem_device_id = 0x0007,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     }
 };
 
@@ -1189,6 +1203,30 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     candidate_design->cms_subsystem_present = true;
                     candidate_design->cms_subsystem_bar_index = peripherals_bar_index;
                     candidate_design->cms_subsystem_base_offset = 0x0;
+                    design_identified = true;
+                }
+                break;
+
+                case FPGA_DESIGN_OPEN_NIC:
+                {
+                    /* The addresses are taken from comments in
+                     * https://github.com/Xilinx/open-nic-shell/blob/main/src/system_config/system_config_address_map.sv */
+                    const uint32_t peripherals_bar_index = 2;
+                    const size_t sysmon_base_offset               = 0x010000;
+                    const size_t sysmon_frame_size                = 0x002000;
+                    const size_t cms_base_offset                  = 0x300000;
+                    const size_t quad_spi_base_offset             = 0x340000;
+                    const size_t quad_spi_frame_size              = 0x001000;
+
+                    candidate_design->quad_spi_regs =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                    quad_spi_base_offset, quad_spi_frame_size);
+                    candidate_design->sysmon_regs =
+                            map_vfio_registers_block (vfio_device, peripherals_bar_index, sysmon_base_offset, sysmon_frame_size);
+                    candidate_design->num_sysmon_slaves = 2;
+                    candidate_design->cms_subsystem_present = true;
+                    candidate_design->cms_subsystem_bar_index = peripherals_bar_index;
+                    candidate_design->cms_subsystem_base_offset = cms_base_offset;
                     design_identified = true;
                 }
                 break;

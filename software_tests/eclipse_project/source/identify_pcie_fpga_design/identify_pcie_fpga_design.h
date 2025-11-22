@@ -234,6 +234,9 @@ typedef enum
      * d. Access a Quad SPI connected to the FPGA configuration flash. */
     FPGA_DESIGN_U200_IBERT_100G_ETHER,
 
+    /* Xilinx example project https://github.com/Xilinx/open-nic-shell */
+    FPGA_DESIGN_OPEN_NIC,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 
