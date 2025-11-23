@@ -63,6 +63,7 @@ static void display_cmac_registers (const uint8_t *const cmac_registers)
 int main (int argc, char *argv[])
 {
     fpga_designs_t designs;
+    bool keep_open = false;
 
     identify_pcie_fpga_designs (&designs);
 
@@ -84,6 +85,17 @@ int main (int argc, char *argv[])
                 {
                     display_cmac_registers (cmac_registers);
 
+                    /* If RSFEC is disabled, enable it and then re-display the registers */
+                    uint32_t rsfec_config_enable = read_reg32 (cmac_registers, RSFEC_CONFIG_ENABLE_OFFSET);
+                    if ((rsfec_config_enable & RSFEC_CONFIG_ENABLE_CTL_TX_RSFEC_ENABLE_MASK) == 0)
+                    {
+                        printf ("\nEnabling TX RSFEC\n");
+                        rsfec_config_enable |= RSFEC_CONFIG_ENABLE_CTL_TX_RSFEC_ENABLE_MASK;
+                        write_reg32 (cmac_registers, RSFEC_CONFIG_ENABLE_OFFSET, rsfec_config_enable);
+                        display_cmac_registers (cmac_registers);
+                        keep_open = true;
+                    }
+
                     /* If transmit is disabled, enable it and then re-display the registers */
                     uint32_t configuration_tx_reg1 = read_reg32 (cmac_registers, CONFIGURATION_TX_REG1_OFFSET);
                     if ((configuration_tx_reg1 & CONFIGURATION_TX_REG1_CTL_TX_ENABLE_MASK) == 0)
@@ -92,6 +104,14 @@ int main (int argc, char *argv[])
                         configuration_tx_reg1 |= CONFIGURATION_TX_REG1_CTL_TX_ENABLE_MASK;
                         write_reg32 (cmac_registers, CONFIGURATION_TX_REG1_OFFSET, configuration_tx_reg1);
                         display_cmac_registers (cmac_registers);
+                        keep_open = true;
+                    }
+
+                    if (keep_open)
+                    {
+                        /* If changed the settings, pause in case the VFIO close triggers a reset */
+                        printf ("Settings changed. Press return to close the VFIO devices.\n");
+                        getchar ();
                     }
                 }
             }
