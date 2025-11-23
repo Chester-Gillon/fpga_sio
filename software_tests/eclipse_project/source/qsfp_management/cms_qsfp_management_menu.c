@@ -263,6 +263,85 @@ static bool toggle_refclk_selection_gpio (qsfp_management_context_t *const conte
 
 
 /**
+ * @brief Prompt the user for a reference clock frequency plan to set via GPIO outputs.
+ * @details
+ *   While the Alveo U200 suer guide indicates the SI5335A has two different frequencies which in theory means the FS0 bit is
+ *   unused this function allow selection of all combinations of FS[1:0] bits.
+ *
+ *   @todo The https://www.skyworksinc.com/-/media/SkyWorks/SL/documents/public/data-sheets/Si5335.pdf datashet doesn't seem
+ *         to specify if the FS[1:0] bits are sampled synchronously on an RESET edge or asynchronously.
+ *
+ *         This function changes the FS[1:0] while reset is asserted.
+ *
+ *         Changing the frequency plan is not reliable, based upon running U200_ibert_100G_ether:
+ *         a. For QSFP0 can't seem to select 156.250000 MHz.
+ *         b. For QSFP1 sometimes a frequency change doesn't seem to take effect.
+ *         c. Leaving REFCLK_RESET high (asserted) seems to drop either QSFP0 or QSFP1 to 154.176 MHz
+ * @param[in,out] context The context to toggle the signal on
+ * @param[in] module_index Which QSFP module to set the reference clock frequency plan on
+ * @return Returns true when have set the frequency plan, and the new state should be displayed
+ */
+static bool set_refclk_frequency_plan (qsfp_management_context_t *const context, const uint32_t module_index)
+{
+    char text[TEXT_OPTION_LEN];
+    uint32_t frequency_plan;
+    char junk;
+
+    printf ("Select frequency plan: 0=reserved 1=156.250000 MHz 2=161.132812 MHz 3=161.132812 MHz\n");
+    printf (" > ");
+
+    read_option_text (text);
+    const int num_items = sscanf (text, "%u%c", &frequency_plan, &junk);
+    const bool frequency_plan_valid = (num_items == 1) && (frequency_plan < 4);
+
+    if (frequency_plan_valid)
+    {
+        const uint32_t start_bit = module_index * QSFP_REFCLK_SEL_BITS_PER_MODULE;
+        const uint32_t fs0_bit = QSFP_FS0_BIT_OFFSET + start_bit;
+        const uint32_t fs1_bit = QSFP_FS1_BIT_OFFSET + start_bit;
+        const uint32_t reset_bit = QSFP_REFCLK_RESET_BIT_OFFSET + start_bit;
+        uint32_t refclk_selection_gpio = read_reg32 (context->refclk_selection_gpio_input, 0);
+
+        /* Assert reset */
+        refclk_selection_gpio |= 1u << reset_bit;
+        write_reg32 (context->refclk_selection_gpio_output, 0, refclk_selection_gpio);
+
+        /* Set new frequency plan */
+        refclk_selection_gpio &= ~(1u << fs0_bit);
+        refclk_selection_gpio &= ~(1u << fs1_bit);
+        if ((frequency_plan & 0x1) != 0)
+        {
+            refclk_selection_gpio |= 1u << fs0_bit;
+        }
+        if ((frequency_plan & 0x2) != 0)
+        {
+            refclk_selection_gpio |= 1u << fs1_bit;
+        }
+        write_reg32 (context->refclk_selection_gpio_output, 0, refclk_selection_gpio);
+
+        /* Leave reset asserted for at least 1 microsecond.
+         * The SI5335A datasheet gives the "Reset Minimum Pulse Width" as 200 nanoseconds. */
+        const struct timespec reset_delay =
+        {
+            .tv_sec = 0,
+            .tv_nsec = 1000
+        };
+        clock_nanosleep (CLOCK_MONOTONIC, 0, &reset_delay, NULL);
+
+        /* De-assert reset */
+        refclk_selection_gpio &= ~(1u << reset_bit);
+        write_reg32 (context->refclk_selection_gpio_output, 0, refclk_selection_gpio);
+    }
+    else
+    {
+        printf ("Invalid frequency plan\n");
+    }
+
+    return frequency_plan_valid;
+}
+
+
+/**
  * @brief Prompt the user for a QSFP GPIO output signal to toggle for one QSFP module
  * @param[in,out] context The context to toggle the signal on
  * @param[in] module_index Which QSFP module to toggle a QSFP GPIO signal on
@@ -348,6 +427,7 @@ static void qsfp_management_menu (const fpga_design_t *const design)
             if (context.refclk_selection_gpio_output != NULL)
             {
                 printf ("3: Toggle refclk selection output\n");
+                printf ("4: Set refclk frequency plan\n");
             }
             printf ("98: Display menu\n");
             printf ("99: Exit\n");
@@ -389,10 +469,21 @@ static void qsfp_management_menu (const fpga_design_t *const design)
                 break;
 
             case 3:
-                valid_option = (context.refclk_selection_gpio_output != NULL);
+                valid_option = context.refclk_selection_gpio_output != NULL;
                 if (valid_option)
                 {
                     if (toggle_refclk_selection_gpio (&context, module_index))
+                    {
+                        display_qsfp_status (&context);
+                    }
+                }
+                break;
+
+            case 4:
+                valid_option = context.refclk_selection_gpio_output != NULL;
+                if (valid_option)
+                {
+                    if (set_refclk_frequency_plan (&context, module_index))
                     {
                         display_qsfp_status (&context);
                     }
