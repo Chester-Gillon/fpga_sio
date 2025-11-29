@@ -1136,9 +1136,13 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                 {
                     const uint32_t peripherals_bar_index = 0;
                     const uint32_t dma_bridge_bar_index = 2;
-                    const size_t user_access_base_offset = 0x2000;
-                    const size_t user_access_frame_size  = 0x2000;
-
+                    const size_t user_access_base_offset = 0x02000;
+                    const size_t user_access_frame_size  = 0x02000;
+                    const size_t sysmon_base_offset      = 0x04000;
+                    const size_t sysmon_frame_size       = 0x02000;
+                    const size_t quad_spi_base_offset    = 0x06000;
+                    const size_t quad_spi_frame_size     = 0x02000;
+                    const size_t cms_base_offset         = 0x40000;
 
                     candidate_design->dma_bridge_present = true;
                     candidate_design->dma_bridge_bar = dma_bridge_bar_index;
@@ -1146,6 +1150,18 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     candidate_design->user_access =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                     user_access_base_offset, user_access_frame_size);
+                    if (vfio_device->pci_revision_id >= 1)
+                    {
+                        candidate_design->quad_spi_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                        quad_spi_base_offset, quad_spi_frame_size);
+                        candidate_design->sysmon_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index, sysmon_base_offset, sysmon_frame_size);
+                        candidate_design->num_sysmon_slaves = 2;
+                        candidate_design->cms_subsystem_present = true;
+                        candidate_design->cms_subsystem_bar_index = peripherals_bar_index;
+                        candidate_design->cms_subsystem_base_offset = cms_base_offset;
+                    }
                     design_identified = true;
                 }
                 break;

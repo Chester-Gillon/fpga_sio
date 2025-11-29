@@ -195,7 +195,10 @@
 
 /* The FPGA which uses the DMA/Bridge Subsystem to:
  * a. Contain only a AXI peripheral to read the user access timestamp.
- * b. Have a 100G Ethernet simplex transmitter, including control and statistics registers. */
+ * b. Have a 100G Ethernet simplex transmitter, including control and statistics registers.
+ * c. The CMS subsystem for management of the QSFP ports.
+ * d. Access the SYSMON on all 3 SLRs (internal sensors only).
+ * e. Access a Quad SPI connected to the FPGA configuration flash. */
 #define FPGA_SIO_SUBDEVICE_ID_U200_100G_ETHER_SIMPLEX_TX 0x001D
 
 

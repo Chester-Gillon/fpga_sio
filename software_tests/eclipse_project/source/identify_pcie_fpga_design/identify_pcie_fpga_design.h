@@ -218,7 +218,10 @@ typedef enum
 
     /* fpga_tests/U200_100G_ether_simplex_tx which contains:
      * a. DMA/Bridge Subsystem access to one AXI stream which transmits 100G Ethernet.
-     * b. Memory mapped Ethernet including control and statistics registers. */
+     * b. Memory mapped Ethernet including control and statistics registers.
+     * c. The CMS subsystem for management of the QSFP ports.
+     * d. Access the SYSMON on all 3 SLRs (internal sensors only).
+     * e. Access a Quad SPI connected to the FPGA configuration flash. */
     FPGA_DESIGN_U200_100G_ETHER_SIMPLEX_TX,
 
     /* fpga_tests/U200_dma_stream_crc64 which contains:
