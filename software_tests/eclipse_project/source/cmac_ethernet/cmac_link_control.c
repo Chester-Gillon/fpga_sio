@@ -71,56 +71,44 @@ int main (int argc, char *argv[])
     {
         fpga_design_t *const design = &designs.designs[design_index];
 
-        switch (design->design_id)
+        for (uint32_t port_index = 0; port_index < design->num_cmac_ports; port_index++)
         {
-        case FPGA_DESIGN_U200_100G_ETHER_SIMPLEX_TX:
+            uint8_t *const cmac_registers = design->cmac_ports[port_index].cmac_regs;
+
+            if (cmac_registers != NULL)
             {
-                const uint32_t peripherals_bar_index = 0;
-                const uint32_t cmac_registers_base_offset = 0x0000;
-                const uint32_t cmac_registers_frame_size  = 0x2000;
+                display_cmac_registers (cmac_registers);
 
-                uint8_t *const cmac_registers = map_vfio_registers_block (design->vfio_device, peripherals_bar_index,
-                        cmac_registers_base_offset, cmac_registers_frame_size);
-                if (cmac_registers != NULL)
+                /* If RSFEC is disabled, enable it and then re-display the registers */
+                uint32_t rsfec_config_enable = read_reg32 (cmac_registers, RSFEC_CONFIG_ENABLE_OFFSET);
+                if ((rsfec_config_enable & RSFEC_CONFIG_ENABLE_CTL_TX_RSFEC_ENABLE_MASK) == 0)
                 {
+                    printf ("\nEnabling TX RSFEC\n");
+                    rsfec_config_enable |= RSFEC_CONFIG_ENABLE_CTL_TX_RSFEC_ENABLE_MASK;
+                    write_reg32 (cmac_registers, RSFEC_CONFIG_ENABLE_OFFSET, rsfec_config_enable);
                     display_cmac_registers (cmac_registers);
+                    keep_open = true;
+                }
 
-                    /* If RSFEC is disabled, enable it and then re-display the registers */
-                    uint32_t rsfec_config_enable = read_reg32 (cmac_registers, RSFEC_CONFIG_ENABLE_OFFSET);
-                    if ((rsfec_config_enable & RSFEC_CONFIG_ENABLE_CTL_TX_RSFEC_ENABLE_MASK) == 0)
-                    {
-                        printf ("\nEnabling TX RSFEC\n");
-                        rsfec_config_enable |= RSFEC_CONFIG_ENABLE_CTL_TX_RSFEC_ENABLE_MASK;
-                        write_reg32 (cmac_registers, RSFEC_CONFIG_ENABLE_OFFSET, rsfec_config_enable);
-                        display_cmac_registers (cmac_registers);
-                        keep_open = true;
-                    }
-
-                    /* If transmit is disabled, enable it and then re-display the registers */
-                    uint32_t configuration_tx_reg1 = read_reg32 (cmac_registers, CONFIGURATION_TX_REG1_OFFSET);
-                    if ((configuration_tx_reg1 & CONFIGURATION_TX_REG1_CTL_TX_ENABLE_MASK) == 0)
-                    {
-                        printf ("\nSetting TX_ENABLE\n");
-                        configuration_tx_reg1 |= CONFIGURATION_TX_REG1_CTL_TX_ENABLE_MASK;
-                        write_reg32 (cmac_registers, CONFIGURATION_TX_REG1_OFFSET, configuration_tx_reg1);
-                        display_cmac_registers (cmac_registers);
-                        keep_open = true;
-                    }
-
-                    if (keep_open)
-                    {
-                        /* If changed the settings, pause in case the VFIO close triggers a reset */
-                        printf ("Settings changed. Press return to close the VFIO devices.\n");
-                        getchar ();
-                    }
+                /* If transmit is disabled, enable it and then re-display the registers */
+                uint32_t configuration_tx_reg1 = read_reg32 (cmac_registers, CONFIGURATION_TX_REG1_OFFSET);
+                if ((configuration_tx_reg1 & CONFIGURATION_TX_REG1_CTL_TX_ENABLE_MASK) == 0)
+                {
+                    printf ("\nSetting TX_ENABLE\n");
+                    configuration_tx_reg1 |= CONFIGURATION_TX_REG1_CTL_TX_ENABLE_MASK;
+                    write_reg32 (cmac_registers, CONFIGURATION_TX_REG1_OFFSET, configuration_tx_reg1);
+                    display_cmac_registers (cmac_registers);
+                    keep_open = true;
                 }
             }
-            break;
-
-        default:
-            /* This design doesn't have a CMAC */
-            break;
         }
+    }
+
+    if (keep_open)
+    {
+        /* If changed the settings, pause in case the VFIO close triggers a reset */
+        printf ("Settings changed. Press return to close the VFIO devices.\n");
+        getchar ();
     }
 
     close_pcie_fpga_designs (&designs);

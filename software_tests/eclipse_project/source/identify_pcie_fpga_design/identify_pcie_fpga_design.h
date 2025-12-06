@@ -250,6 +250,16 @@ extern const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE];
 extern const uint32_t crc64_stream_tdata_width_bytes[FPGA_DESIGN_ARRAY_SIZE];
 
 
+/* Defines one UltraScale+ 100G Ethernet (CMAC) port.
+ * The Ethernet packet data is assumed to be transfered by the DMA/Bridge Subsystem */
+#define MAX_CMAC_PORTS_PER_DESIGN 2
+typedef struct
+{
+    /* When non-NULL the base of the mapped registers for the control and statistics of the CMAC */
+    uint8_t *cmac_regs;
+} cmac_port_definition_t;
+
+
 /* Defines one identified design */
 typedef struct
 {
@@ -299,6 +309,10 @@ typedef struct
     bool cms_subsystem_present;
     uint32_t cms_subsystem_bar_index;
     size_t cms_subsystem_base_offset;
+    /* The number of CMAC ports in the design */
+    uint32_t num_cmac_ports;
+    /* Defines the CMAC ports in the design. The number of valid entries is given by num_cmac_ports */
+    cmac_port_definition_t cmac_ports[MAX_CMAC_PORTS_PER_DESIGN];
     /* For FPGA_DESIGN_LITEFURY_PROJECT0 or FPGA_DESIGN_NITEFURY_PROJECT0 gives the version of the board design */
     uint32_t board_version;
 } fpga_design_t;

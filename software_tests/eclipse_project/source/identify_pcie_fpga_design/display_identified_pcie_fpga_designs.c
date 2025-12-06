@@ -9,6 +9,8 @@
 #include "xilinx_dma_bridge_transfers.h"
 #include "xilinx_axi_stream_switch.h"
 #include "xilinx_cms.h"
+#include "cmac_axi4_lite_registers.h"
+#include "generic_pci_access.h"
 
 #include <stdlib.h>
 #include <stddef.h>
@@ -228,6 +230,42 @@ static void display_cms (const fpga_design_t *const design)
 }
 
 
+/**
+ * @brief Display information about the CMAC ports in an identified design
+ * @param[in] design The identified design containing the CMS Subsystem
+ */
+static void display_cmac_ports (const fpga_design_t *const design)
+{
+    char peripheral_name[80];
+    const char *const core_mode_names[] =
+    {
+        "CAUI10",
+        "CAUI4",
+        "Runtime Switchable CAUI10",
+        "Runtime Switchable CAUI4"
+    };
+
+    for (uint32_t port_index = 0; port_index < design->num_cmac_ports; port_index++)
+    {
+        const uint8_t *const cmac_regs = design->cmac_ports[port_index].cmac_regs;
+
+        if (cmac_regs != NULL)
+        {
+            const uint32_t core_mode_reg = read_reg32 (cmac_regs, CORE_MODE_REG_OFFSET);
+            const uint32_t core_mode = generic_pci_access_extract_field (core_mode_reg, CORE_MODE_REG_MASK);
+            const uint32_t core_version_reg = read_reg32 (cmac_regs, CORE_VERSION_REG_OFFSET);
+            const uint32_t core_version_minor = generic_pci_access_extract_field (core_version_reg, CORE_VERSION_REG_MINOR_MASK);
+            const uint32_t core_version_major = generic_pci_access_extract_field (core_version_reg, CORE_VERSION_REG_MAJOR_MASK);
+
+            snprintf (peripheral_name, sizeof (peripheral_name), "CMAC port %u", port_index);
+            display_design_present_peripheral (design, peripheral_name, cmac_regs);
+            printf ("    Core mode: %s\n", core_mode_names[core_mode]);
+            printf ("    Core version: %u.%u\n", core_version_major, core_version_minor);
+        }
+    }
+}
+
+
 int main (int argc, char *argv[])
 {
     fpga_designs_t designs;
@@ -276,6 +314,10 @@ int main (int argc, char *argv[])
         if (design->axi_switch_regs != NULL)
         {
             display_axi_switch (design);
+        }
+        if (design->num_cmac_ports > 0)
+        {
+            display_cmac_ports (design);
         }
         if (design->cms_subsystem_present)
         {

@@ -1134,15 +1134,21 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
 
                 case FPGA_DESIGN_U200_100G_ETHER_SIMPLEX_TX:
                 {
-                    const uint32_t peripherals_bar_index = 0;
-                    const uint32_t dma_bridge_bar_index = 2;
-                    const size_t user_access_base_offset = 0x02000;
-                    const size_t user_access_frame_size  = 0x02000;
-                    const size_t sysmon_base_offset      = 0x04000;
-                    const size_t sysmon_frame_size       = 0x02000;
-                    const size_t quad_spi_base_offset    = 0x06000;
-                    const size_t quad_spi_frame_size     = 0x02000;
-                    const size_t cms_base_offset         = 0x40000;
+                    const uint32_t peripherals_bar_index   = 0;
+                    const uint32_t dma_bridge_bar_index    = 2;
+                    const size_t user_access_base_offset   = 0x02000;
+                    const size_t user_access_frame_size    = 0x02000;
+                    const size_t sysmon_base_offset        = 0x04000;
+                    const size_t sysmon_frame_size         = 0x02000;
+                    const size_t quad_spi_base_offset      = 0x06000;
+                    const size_t quad_spi_frame_size       = 0x02000;
+                    const size_t cms_base_offset           = 0x40000;
+                    const size_t cmac_registers_base_offsets[] =
+                    {
+                        0x00000,
+                        0x08000
+                    };
+                    const size_t cmac_registers_frame_size = 0x02000;
 
                     candidate_design->dma_bridge_present = true;
                     candidate_design->dma_bridge_bar = dma_bridge_bar_index;
@@ -1162,6 +1168,15 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                         candidate_design->cms_subsystem_bar_index = peripherals_bar_index;
                         candidate_design->cms_subsystem_base_offset = cms_base_offset;
                     }
+
+                    candidate_design->num_cmac_ports = (vfio_device->pci_revision_id >= 2) ? 2 : 1;
+                    for (uint32_t port_index = 0; port_index < candidate_design->num_cmac_ports; port_index++)
+                    {
+                        candidate_design->cmac_ports[port_index].cmac_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                        cmac_registers_base_offsets[port_index], cmac_registers_frame_size);
+                    }
+
                     design_identified = true;
                 }
                 break;
@@ -1233,6 +1248,12 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     const size_t cms_base_offset                  = 0x300000;
                     const size_t quad_spi_base_offset             = 0x340000;
                     const size_t quad_spi_frame_size              = 0x001000;
+                    const size_t cmac_registers_base_offsets[] =
+                    {
+                        0x008000,
+                        0x00C000
+                    };
+                    const size_t cmac_registers_frame_size        = 0x002000;
 
                     candidate_design->quad_spi_regs =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index,
@@ -1243,6 +1264,15 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     candidate_design->cms_subsystem_present = true;
                     candidate_design->cms_subsystem_bar_index = peripherals_bar_index;
                     candidate_design->cms_subsystem_base_offset = cms_base_offset;
+
+                    candidate_design->num_cmac_ports = 2;
+                    for (uint32_t port_index = 0; port_index < candidate_design->num_cmac_ports; port_index++)
+                    {
+                        candidate_design->cmac_ports[port_index].cmac_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                        cmac_registers_base_offsets[port_index], cmac_registers_frame_size);
+                    }
+
                     design_identified = true;
                 }
                 break;
