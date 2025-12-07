@@ -1146,7 +1146,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     const size_t cmac_registers_base_offsets[] =
                     {
                         0x00000,
-                        0x08000
+                        0x10000
                     };
                     const size_t cmac_registers_frame_size = 0x02000;
 
