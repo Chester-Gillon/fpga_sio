@@ -1,7 +1,7 @@
 # Taken from https://docs.amd.com/r/en-US/pg348-cms-subsystem/Alveo-Card-U200/U250-I/O-Constraints
 #
-# TBD is if the SYSMON I2C interface needs to be connected to allow the CMS to read the FPGA_TEMP
-# sensor, or if their is an external temperature sensor mounted on the heatsink.
+# The CMS can read the FPGA_TEMP sensor without the SYSMON I2C interface being configured.
+# Assume there is an external temperature sensor mounted on the FPGA heatsink which the CMS uses.
 
 # Satellite UART
 set_property PACKAGE_PIN BA19 [get_ports satellite_uart_rxd]
