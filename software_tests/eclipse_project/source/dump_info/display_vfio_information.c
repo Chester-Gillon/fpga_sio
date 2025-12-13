@@ -565,7 +565,15 @@ int main (int argc, char *argv[])
     DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_TYPE1v2_IOMMU);
     DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_DMA_CC_IOMMU);
     DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_EEH);
+/* https://github.com/torvalds/linux/commit/35890f85573c2ebbbf3491dc66f7ee2ad63055af replaced VFIO_TYPE1_NESTING_IOMMU
+ * with __VFIO_RESERVED_TYPE1_NESTING_IOMMU.
+ * Updating an AlmaLinux 9 installation to kernel-headers-5.14.0-611.9.1.el9_7.x86_64 got this change. */
+#ifdef VFIO_TYPE1_NESTING_IOMMU
     DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_TYPE1_NESTING_IOMMU);
+#endif
+#ifdef __VFIO_RESERVED_TYPE1_NESTING_IOMMU
+    DISPLAY_EXTENSION_SUPPORT (container_fd, __VFIO_RESERVED_TYPE1_NESTING_IOMMU);
+#endif
     DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_SPAPR_TCE_v2_IOMMU);
     DISPLAY_EXTENSION_SUPPORT (container_fd, VFIO_NOIOMMU_IOMMU);
 
