@@ -215,4 +215,9 @@
  * d. Access a Quad SPI connected to the FPGA configuration flash. */
 #define FPGA_SIO_SUBDEVICE_ID_U200_IBERT_100G_ETHER 0x001F
 
+
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Have different revisions to investigating enumerating for different link speeds. */
+#define FPGA_SIO_SUBDEVICE_ID_VD100_ENUM 0x0020
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

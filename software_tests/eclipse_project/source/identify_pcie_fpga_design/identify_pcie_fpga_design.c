@@ -56,7 +56,8 @@ const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE] =
     [FPGA_DESIGN_U200_100G_ETHER_SIMPLEX_TX] = "U200_100G_ether_simplex_tx",
     [FPGA_DESIGN_U200_DMA_STREAM_CRC64] = "U200_dma_stream_crc64",
     [FPGA_DESIGN_U200_IBERT_100G_ETHER] = "U200_ibert_100G_ether",
-    [FPGA_DESIGN_OPEN_NIC] = "open-nic"
+    [FPGA_DESIGN_OPEN_NIC] = "open-nic",
+    [FPGA_DESIGN_VD100_ENUM] = "VD100_enum"
 };
 
 
@@ -323,6 +324,14 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_vendor_id = FPGA_SIO_VENDOR_ID,
         .subsystem_device_id = 0x0007,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
+    },
+    [FPGA_DESIGN_VD100_ENUM] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_VD100_ENUM,
         .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     }
 };
@@ -1098,7 +1107,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     const size_t user_access_frame_size  = 0x1000;
 
                     /* DMA bridge configured for "Memory Mapped" but no actual memory connected.
-                     * The following allows x2x_get_num_channels() to return valid results, but attempts to actually
+                     * The following allows x2x_get_num_channels() to return valid results, but if attempts to actually
                      * perform DMA will timeout. */
                     candidate_design->dma_bridge_present = true;
                     candidate_design->dma_bridge_bar = dma_bridge_bar_index;
@@ -1119,7 +1128,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     const size_t user_access_frame_size  = 0x1000;
 
                     /* DMA bridge configured for "Memory Mapped" but no actual memory connected.
-                     * The following allows x2x_get_num_channels() to return valid results, but attempts to actually
+                     * The following allows x2x_get_num_channels() to return valid results, but if attempts to actually
                      * perform DMA will timeout. */
                     candidate_design->dma_bridge_present = true;
                     candidate_design->dma_bridge_bar = dma_bridge_bar_index;
@@ -1276,6 +1285,20 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     design_identified = true;
                 }
                 break;
+
+                case FPGA_DESIGN_VD100_ENUM:
+                    {
+                        const uint32_t dma_bridge_bar_index = 1; /* Due to the peripherals BAR being 32-bit */
+
+                        /* DMA bridge configured for "Memory Mapped" but no actual memory connected.
+                         * The following allows x2x_get_num_channels() to return valid results, but if attempts to actually
+                         * perform DMA will timeout. */
+                        candidate_design->dma_bridge_present = true;
+                        candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                        candidate_design->dma_bridge_memory_size_bytes = 4096;
+                        design_identified = true;
+                    }
+                    break;
 
                 case FPGA_DESIGN_ARRAY_SIZE:
                     /* Shouldn't get here */

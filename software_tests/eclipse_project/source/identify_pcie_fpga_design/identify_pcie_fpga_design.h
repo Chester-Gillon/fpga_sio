@@ -240,6 +240,10 @@ typedef enum
     /* Xilinx example project https://github.com/Xilinx/open-nic-shell */
     FPGA_DESIGN_OPEN_NIC,
 
+    /* fpga_tests/VD100_enum/<designs_with_different_PCIe_configuration> which contains:
+     * a. Have different revisions to investigating enumerating for different link speeds. */
+    FPGA_DESIGN_VD100_ENUM,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 
