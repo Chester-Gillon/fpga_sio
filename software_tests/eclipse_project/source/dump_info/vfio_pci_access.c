@@ -367,7 +367,10 @@ const char *generic_pci_access_text_property (generic_pci_access_device_p const 
         break;
 
     case GENERIC_PCI_ACCESS_PHYSICAL_SLOT:
-        property_text = strdup (vfio_device->pci_physical_slot);
+        if (vfio_device->pci_physical_slot != NULL)
+        {
+            property_text = strdup (vfio_device->pci_physical_slot);
+        }
         break;
     }
 
