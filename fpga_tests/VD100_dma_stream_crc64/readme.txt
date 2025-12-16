@@ -100,3 +100,13 @@ The timing report shows 10 failing, which are all setup on "Intra-Clock Paths - 
 Worst case slack is -0.126 ns
 
 Not obvious runtime failure seen yet.
+
+
+==============================
+
+Added a pcie_timing.xdc constaint file to mark the ch0_txoutclk and clk_pl_0 clocks as asynchronous,
+which removed the Methodology critical warnings.
+
+The timing report still shows 10 setup failures on "Intra-Clock Paths - ch0_txoutclk".
+Worst case slack is now reduced -0.038 ns.
+
