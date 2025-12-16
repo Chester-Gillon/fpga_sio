@@ -63,8 +63,6 @@ b. The xdma_0_support diagram had a gtwiz_freerun_clk which from the documentati
 gen3_x4
 -------
 
-@todo this hasn't yet been committed as wasn't enumerating in the HP Pavilion 590-p0053na desktop.
-
 By default the "DMA /Bridge Subsystem for PCI Express (4.2) IP" was only offering a maximum link speed of either:
 - 2.5 GT/s
 - 5.0 GT/s
@@ -129,8 +127,8 @@ b. Following AR000035682 allow all speeds in both blocka:
 c. Make the following changes:
    - In xdma set maximum link speed to 8 GT/s
    - In pcie set maximum link speed to 8 GT/s and maximum link width to X4
-   - In xdma set revision_id to 01
-   - In pcie set PF revsion_id to 01
+   - In xdma set Revision ID to 01
+   - In pcie set PF Revision ID to 01
 
 
 In the HP Pavilion 590-p0053na desktop couldn't get the gen3_x4 design to enumerate.
@@ -499,4 +497,92 @@ Trace
   L0 (0X10)
   L1 [L1.ENTRY (0X17)
   L1.IDLE (0X18)]]
+
+
+gen4_x4
+-------
+
+Created by copying the gen3_x4/create_project.tcl and:
+1. In the xdma block:
+   - Set maximum link speed to 16.0 GT/s
+   - Set Revision ID to 02
+2. In the pcie block:
+   - Set maximum link speed to 16.0 GT/s
+   - Set maximum link width to x4
+   - Set PF Revision ID to 02
+3. In the pcie_phy block:
+   - Set maximum link speed to 16.0 GT/s
+
+This design enumerated in the HP Pavilion 590-p0053na desktop following a reboot.
+
+As expected the vfio_access library used by display_identified_pcie_fpga_designs warned was using reduce bandwidth:
+[mr_halfword@ryzen-alma release]$ identify_pcie_fpga_design/display_identified_pcie_fpga_designs 
+Opening device 0000:10:00.0 (10ee:b044) with IOMMU group 10
+Enabled bus master for 0000:10:00.0
+Warning: Device device 0000:10:00.0 (10ee:b044) has reduced bandwidth
+         Max width x4 speed 16 GT/s. Negotiated width x4 speed 8 GT/s
+
+Design VD100_enum:
+  PCI device 0000:10:00.0 rev 02 IOMMU group 10
+  DMA bridge bar 1 memory size 0x1000
+  Channel ID  addr_alignment  len_granularity  num_address_bits
+       H2C 0               1                1                64
+       C2H 0               1                1                64
+
+dump_pci_info_pciutils confirms the limitation is the the PCIe root port maximum link speed of 8 GT/s:
+[mr_halfword@ryzen-alma release]$ dump_info/dump_pci_info_pciutils 
+domain=0000 bus=10 dev=00 func=00 rev=02
+  vendor_id=10ee (Xilinx Corporation) device_id=b044 (Device b044) subvendor_id=0002 subdevice_id=0020
+  iommu_group=10
+  driver=vfio-pci
+  control: I/O- Mem+ BusMaster- ParErr- SERR- DisINTx-
+  status: INTx- <ParErr- >TAbort- <TAbort- <MAbort- >SERR- DetParErr-
+  bar[0] base_addr=fd010000 size=1000 is_IO=0 is_prefetchable=0 is_64=0
+  bar[1] base_addr=fd000000 size=10000 is_IO=0 is_prefetchable=0 is_64=0
+  Capabilities: [40] Power Management
+  Capabilities: [70] PCI Express v2 Express Endpoint, MSI 0
+    Link capabilities: Max speed 16 GT/s Max width x4
+    Negotiated link status: Current speed 8 GT/s Width x4
+    Link capabilities2: Supported link speeds 2.5 GT/s 5.0 GT/s 8.0 GT/s 16.0 GT/s
+    DevCap: MaxPayload 1024 bytes PhantFunc 0 Latency L0s Maximum of 64 ns L1 Maximum of 1 μs
+            ExtTag- AttnBtn- AttnInd- PwrInd- RBE+ FLReset- SlotPowerLimit 0.000W
+    DevCtl: CorrErr+ NonFatalErr+ FatalErr+ UnsupReq+
+            RlxdOrd+ ExtTag- PhantFunc- AuxPwr- NoSnoop+
+    DevSta: CorrErr- NonFatalErr- FatalErr- UnsupReq- AuxPwr- TransPend-
+    LnkCap: Port # 0 ASPM not supported
+            L0s Exit Latency More than 4 μs
+            L1 Exit Latency More than 64 μs
+            ClockPM- Surprise- LLActRep- BwNot- ASPMOptComp+
+    LnkCtl: ASPM Disabled RCB 64 bytes Disabled- CommClk+
+            ExtSynch- ClockPM- AutWidDis- BWInt- ABWMgmt-
+    LnkSta: TrErr- Train- SlotClk+ DLActive- BWMgmt- ABWMgmt-
+  domain=0000 bus=00 dev=01 func=01 rev=00
+    vendor_id=1022 (Advanced Micro Devices, Inc. [AMD]) device_id=15d3 (Raven/Raven2 PCIe GPP Bridge [6:0])
+    iommu_group=2
+    driver=pcieport
+    control: I/O+ Mem+ BusMaster+ ParErr- SERR- DisINTx+
+    status: INTx- <ParErr- >TAbort- <TAbort- <MAbort- >SERR- DetParErr-
+    Capabilities: [50] Power Management
+    Capabilities: [58] PCI Express v2 Root Port, MSI 0
+      Link capabilities: Max speed 8 GT/s Max width x8
+      Negotiated link status: Current speed 8 GT/s Width x4
+      Link capabilities2: Supported link speeds 2.5 GT/s 5.0 GT/s 8.0 GT/s
+      DevCap: MaxPayload 512 bytes PhantFunc 0 Latency L0s Maximum of 64 ns L1 Maximum of 1 μs
+              ExtTag+ AttnBtn- AttnInd- PwrInd- RBE+ FLReset- SlotPowerLimit 0.000W
+      DevCtl: CorrErr+ NonFatalErr+ FatalErr+ UnsupReq+
+              RlxdOrd+ ExtTag+ PhantFunc- AuxPwr- NoSnoop+
+      DevSta: CorrErr- NonFatalErr- FatalErr- UnsupReq- AuxPwr- TransPend-
+      LnkCap: Port # 0 ASPM L1
+              L0s Exit Latency More than 4 μs
+              L1 Exit Latency 32 μs to 64 μs
+              ClockPM- Surprise- LLActRep+ BwNot+ ASPMOptComp+
+      LnkCtl: ASPM Disabled RCB 64 bytes Disabled- CommClk+
+              ExtSynch- ClockPM- AutWidDis- BWInt+ ABWMgmt+
+      LnkSta: TrErr- Train- SlotClk+ DLActive+ BWMgmt- ABWMgmt-
+      SltCap: AttnBtn- PwrCtrl- MRL- AttnInd- PwrInd- HotPlug- Surprise-
+              Slot #0 PowerLimit 0.000W Interlock- NoCompl+
+    Capabilities: [a0] Message Signaled Interrupts
+    Capabilities: [c0] Bridge subsystem vendor/device ID
+    Capabilities: [c8] HyperTransport
+
 
