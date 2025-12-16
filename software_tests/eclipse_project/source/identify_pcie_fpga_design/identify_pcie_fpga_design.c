@@ -57,7 +57,8 @@ const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE] =
     [FPGA_DESIGN_U200_DMA_STREAM_CRC64] = "U200_dma_stream_crc64",
     [FPGA_DESIGN_U200_IBERT_100G_ETHER] = "U200_ibert_100G_ether",
     [FPGA_DESIGN_OPEN_NIC] = "open-nic",
-    [FPGA_DESIGN_VD100_ENUM] = "VD100_enum"
+    [FPGA_DESIGN_VD100_ENUM] = "VD100_enum",
+    [FPGA_DESIGN_VD100_DMA_STREAM_CRC64] = "VD100_dma_stream_crc64"
 };
 
 
@@ -333,6 +334,14 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_VD100_ENUM,
         .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
+    },
+    [FPGA_DESIGN_VD100_DMA_STREAM_CRC64] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_VD100_DMA_STREAM_CRC64,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     }
 };
 
@@ -352,8 +361,8 @@ const uint32_t crc64_stream_tdata_width_bytes[FPGA_DESIGN_ARRAY_SIZE] =
     [FPGA_DESIGN_TOSING_160T_DMA_STREAM_CRC64     ] = 16,
     [FPGA_DESIGN_NITEFURY_DMA_STREAM_CRC64        ] = 16,
     [FPGA_DESIGN_AS02MC04_DMA_STREAM_CRC64        ] = 32,
-    [FPGA_DESIGN_U200_DMA_STREAM_CRC64            ] = 64
-
+    [FPGA_DESIGN_U200_DMA_STREAM_CRC64            ] = 64,
+    [FPGA_DESIGN_VD100_DMA_STREAM_CRC64           ] = 32
 };
 
 
@@ -1296,6 +1305,17 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                         candidate_design->dma_bridge_present = true;
                         candidate_design->dma_bridge_bar = dma_bridge_bar_index;
                         candidate_design->dma_bridge_memory_size_bytes = 4096;
+                        design_identified = true;
+                    }
+                    break;
+
+                case FPGA_DESIGN_VD100_DMA_STREAM_CRC64:
+                    {
+                        const uint32_t dma_bridge_bar_index = 0; /* Due to the peripherals BAR not being used */
+
+                        candidate_design->dma_bridge_present = true;
+                        candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                        candidate_design->dma_bridge_memory_size_bytes = 0; /* DMA bridge configured for "AXI Stream" */
                         design_identified = true;
                     }
                     break;

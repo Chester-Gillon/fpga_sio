@@ -244,6 +244,10 @@ typedef enum
      * a. Have different revisions to investigating enumerating for different link speeds. */
     FPGA_DESIGN_VD100_ENUM,
 
+    /* fpga_tests/VD100_dma_stream_crc64 which contains:
+     * a. Access four AXI streams which perform a CRC64 calculation. */
+    FPGA_DESIGN_VD100_DMA_STREAM_CRC64,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 

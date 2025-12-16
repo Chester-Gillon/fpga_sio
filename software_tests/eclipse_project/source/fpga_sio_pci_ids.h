@@ -220,4 +220,9 @@
  * a. Have different revisions to investigating enumerating for different link speeds. */
 #define FPGA_SIO_SUBDEVICE_ID_VD100_ENUM 0x0020
 
+
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Access four AXI streams which perform a CRC64 calculation. */
+#define FPGA_SIO_SUBDEVICE_ID_VD100_DMA_STREAM_CRC64 0x0021
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */
