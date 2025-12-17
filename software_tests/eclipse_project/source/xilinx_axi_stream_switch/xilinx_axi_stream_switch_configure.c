@@ -68,6 +68,17 @@ static const device_routing_t default_stream_loopback[FPGA_DESIGN_ARRAY_SIZE] =
              {.enabled = true, .master_port = 3, .slave_port = 2}
         }
     },
+    [FPGA_DESIGN_VD100_DMA_STREAM_LOOPBACK] =
+    {
+        .num_routes = 4,
+        .routes =
+        {
+             {.enabled = true, .master_port = 0, .slave_port = 1},
+             {.enabled = true, .master_port = 1, .slave_port = 0},
+             {.enabled = true, .master_port = 2, .slave_port = 3},
+             {.enabled = true, .master_port = 3, .slave_port = 2}
+        }
+    },
 
     /* For these designs the output packet length is a fixed size of 8 bytes as in the CRC64 result rather than a looped back
      * copy of the input packet. Adding these designs did allow the stream loopback tests to be run to see what they reported. */

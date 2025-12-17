@@ -245,8 +245,12 @@ typedef enum
     FPGA_DESIGN_VD100_ENUM,
 
     /* fpga_tests/VD100_dma_stream_crc64 which contains:
-     * a. Access four AXI streams which perform a CRC64 calculation. */
+     * a. DMA/Bridge Subsystem access to four AXI streams which perform a CRC64 calculation. */
     FPGA_DESIGN_VD100_DMA_STREAM_CRC64,
+
+    /* fpga_tests/VD100_dma_stream_loopback which contains:
+     * a. DMA/Bridge Subsystem loopback of four AXI streams via a AXI4-Stream Switch with register based routing. */
+    FPGA_DESIGN_VD100_DMA_STREAM_LOOPBACK,
 
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
