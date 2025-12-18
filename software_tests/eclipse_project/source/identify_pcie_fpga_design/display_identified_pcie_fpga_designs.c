@@ -231,6 +231,24 @@ static void display_cms (const fpga_design_t *const design)
 
 
 /**
+ * @brief Display the 96-bit DNA value which uniquely identifies a UltraScale or UltraScale+ plus device
+ * @param[in] design The identified design containing the UltraScale DNA.
+ */
+static void display_ultrascale_dna (const fpga_design_t *const design)
+{
+    uint32_t dna_words[3];
+
+    for (uint32_t dna_word = 0; dna_word < (sizeof (dna_words) / sizeof (dna_words[0])); dna_word++)
+    {
+        dna_words[dna_word] = read_reg32 (design->ultrascale_dna_regs, dna_word * sizeof (uint32_t));
+    }
+
+    /* Order of the words matches that read by JTAG as displayed in the Vivado hardware manager */
+    printf ("  UltraScale DNA: %08X%08X%08X\n", dna_words[0], dna_words[1], dna_words[2]);
+}
+
+
+/**
  * @brief Display information about the CMAC ports in an identified design
  * @param[in] design The identified design containing the CMS Subsystem
  */
@@ -304,6 +322,10 @@ int main (int argc, char *argv[])
 
             format_user_access_timestamp (user_access, formatted_timestamp);
             printf ("  User access build timestamp : %08X - %s\n", user_access, formatted_timestamp);
+        }
+        if (design->ultrascale_dna_regs != NULL)
+        {
+            display_ultrascale_dna (design);
         }
 
         display_design_present_peripheral (design, "Quad SPI", design->quad_spi_regs);

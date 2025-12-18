@@ -325,6 +325,8 @@ typedef struct
     uint32_t num_cmac_ports;
     /* Defines the CMAC ports in the design. The number of valid entries is given by num_cmac_ports */
     cmac_port_definition_t cmac_ports[MAX_CMAC_PORTS_PER_DESIGN];
+    /* When non-NULL the base of the mapped registers used to read the UltraScale DNA */
+    uint8_t *ultrascale_dna_regs;
     /* For FPGA_DESIGN_LITEFURY_PROJECT0 or FPGA_DESIGN_NITEFURY_PROJECT0 gives the version of the board design */
     uint32_t board_version;
 } fpga_design_t;
