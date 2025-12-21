@@ -137,7 +137,8 @@ static void display_dma_bridge (const fpga_design_t *const design)
             transfers[CHANNEL_DIR_H2C], transfers[CHANNEL_DIR_C2H]);
     if (design->dma_bridge_memory_size_bytes > 0)
     {
-        printf ("  DMA bridge bar %u memory size 0x%zx\n", design->dma_bridge_bar, design->dma_bridge_memory_size_bytes);
+        printf ("  DMA bridge bar %u memory base offset 0x%zx size 0x%zx\n",
+                design->dma_bridge_bar, design->dma_bridge_memory_base_address, design->dma_bridge_memory_size_bytes);
     }
     else
     {

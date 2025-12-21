@@ -26,6 +26,10 @@ typedef struct
      * a. A non-zero value means "AXI Memory Mapped".
      * b. A zero values means "AXI Stream". */
     size_t dma_bridge_memory_size_bytes;
+    /* The base address of the memory addressable by the DMA/Bridge Subsystem.
+     * Was added to support Versal systems where the memory is addressed using the System Address Map.
+     * Used by this library to offset the DMA start addresses in card memory. */
+    size_t dma_bridge_memory_base_address;
     /* The minimum aligned size used for the DMA descriptors, for when multiple chained descriptors are needed due to
      * DMA_DESCRIPTOR_MAX_LEN. */
     uint32_t min_size_alignment;

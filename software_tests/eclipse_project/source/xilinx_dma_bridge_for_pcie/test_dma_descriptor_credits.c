@@ -1119,7 +1119,7 @@ static bool test_memory_mapped_descriptor_rings (fpga_designs_t *const designs, 
 
             descriptor->len = (uint32_t) page_size_bytes;
             descriptor->src_adr = h2c_data_mapping.iova + data_offset;
-            descriptor->dst_adr = data_offset;
+            descriptor->dst_adr = design->dma_bridge_memory_base_address + data_offset;
             h2c_ring.next_descriptor_index = (h2c_ring.next_descriptor_index + 1) % h2c_ring.num_descriptors;
         }
         write_reg32 (h2c_ring.x2x_sgdma_regs, X2X_SGDMA_DESCRIPTOR_CREDITS_OFFSET, num_descriptors_this_iteration);
@@ -1141,7 +1141,7 @@ static bool test_memory_mapped_descriptor_rings (fpga_designs_t *const designs, 
                 const uint64_t data_offset = c2h_ring.started_descriptor_count * page_size_bytes;
 
                 descriptor->len = (uint32_t) page_size_bytes;
-                descriptor->src_adr = data_offset;
+                descriptor->src_adr = design->dma_bridge_memory_base_address + data_offset;
                 descriptor->dst_adr = c2h_data_mapping.iova + data_offset;
                 c2h_ring.next_descriptor_index = (c2h_ring.next_descriptor_index + 1) % c2h_ring.num_descriptors;
                 write_reg32 (c2h_ring.x2x_sgdma_regs, X2X_SGDMA_DESCRIPTOR_CREDITS_OFFSET, 1);
@@ -1974,7 +1974,8 @@ int main (int argc, char *argv[])
 
             if (design->dma_bridge_memory_size_bytes > 0)
             {
-                printf ("Testing DMA bridge bar %u memory size 0x%zx\n", design->dma_bridge_bar, design->dma_bridge_memory_size_bytes);
+                printf ("Testing DMA bridge bar %u memory base offset 0x%zx size 0x%zx\n",
+                        design->dma_bridge_bar, design->dma_bridge_memory_base_address, design->dma_bridge_memory_size_bytes);
             }
             else
             {

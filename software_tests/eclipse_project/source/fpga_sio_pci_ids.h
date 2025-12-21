@@ -230,4 +230,9 @@
  * a. Loopback four AXI streams via a AXI4-Stream Switch with register based routing. */
 #define FPGA_SIO_SUBDEVICE_ID_VD100_DMA_STREAM_LOOPBACK 0x0022
 
+
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Access 4GB of DDR4 memory. */
+#define FPGA_SIO_SUBDEVICE_ID_VD100_DMA_DDR4 0x0023
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

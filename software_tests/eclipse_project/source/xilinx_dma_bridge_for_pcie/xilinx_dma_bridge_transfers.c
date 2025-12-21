@@ -490,6 +490,7 @@ void x2x_initialise_transfer_context (x2x_transfer_context_t *const context,
                 context->configuration.data_mapping->iova + context->configuration.host_buffer_start_offset + buffer_offset : 0;
         const uint64_t card_buffer_address =
                 ((context->configuration.bytes_per_buffer > 0) && (context->configuration.dma_bridge_memory_size_bytes > 0)) ?
+                context->configuration.dma_bridge_memory_base_address +
                 context->configuration.card_buffer_start_offset + buffer_offset : 0;
 
         /* DMA_DESCRIPTOR_CONTROL_COMPLETED is used to allow pollmode writeback to detect completion of the descriptor.
@@ -861,7 +862,8 @@ void *x2x_populate_memory_transfer (x2x_transfer_context_t *const context, const
                 dma_descriptor_t *const descriptor = &context->descriptors[descriptor_index];
                 const uint64_t host_buffer_address =
                         context->configuration.data_mapping->iova + host_buffer_offset + bytes_added_to_descriptors;
-                const uint64_t card_buffer_address = card_buffer_offset + bytes_added_to_descriptors;
+                const uint64_t card_buffer_address =
+                        context->configuration.dma_bridge_memory_base_address + card_buffer_offset + bytes_added_to_descriptors;
 
                 descriptor->len = (uint32_t) this_descriptor_len;
                 if (context->configuration.channels_submodule == DMA_SUBMODULE_H2C_CHANNELS)

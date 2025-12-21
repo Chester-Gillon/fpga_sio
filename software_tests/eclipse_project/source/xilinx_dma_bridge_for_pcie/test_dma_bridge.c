@@ -434,6 +434,7 @@ static bool test_stream_loopback_with_fixed_buffers (const fpga_design_t *const 
     const size_t h2c_buffer_size_words = (arg_stream_h2c_mapping_size / arg_stream_h2c_num_descriptors) / sizeof (uint32_t);
     const x2x_transfer_configuration_t h2c_transfer_configuration =
     {
+        .dma_bridge_memory_base_address = design->dma_bridge_memory_base_address,
         .dma_bridge_memory_size_bytes = design->dma_bridge_memory_size_bytes,
         .min_size_alignment = 1, /* Stream has tlast to allow arbitrary number of bytes */
         .num_descriptors = arg_stream_h2c_num_descriptors,
@@ -457,6 +458,7 @@ static bool test_stream_loopback_with_fixed_buffers (const fpga_design_t *const 
     const size_t c2h_buffer_size_words = c2h_aligned_buffer_size_bytes / sizeof (uint32_t);
     const x2x_transfer_configuration_t c2h_transfer_configuration =
     {
+        .dma_bridge_memory_base_address = design->dma_bridge_memory_base_address,
         .dma_bridge_memory_size_bytes = design->dma_bridge_memory_size_bytes,
         .min_size_alignment = 1,
         .num_descriptors = arg_stream_c2h_num_descriptors,
@@ -732,6 +734,7 @@ static bool test_stream_loopback_with_variable_transfers (const fpga_design_t *c
      * as wrap around the H2C and C2H buffers which may be different sizes. */
     const x2x_transfer_configuration_t h2c_transfer_configuration =
     {
+        .dma_bridge_memory_base_address = design->dma_bridge_memory_base_address,
         .dma_bridge_memory_size_bytes = design->dma_bridge_memory_size_bytes,
         .min_size_alignment = 1, /* The card memory is byte addressable */
         .num_descriptors = X2X_SGDMA_MAX_DESCRIPTOR_CREDITS,
@@ -751,6 +754,7 @@ static bool test_stream_loopback_with_variable_transfers (const fpga_design_t *c
 
     const x2x_transfer_configuration_t c2h_transfer_configuration =
     {
+        .dma_bridge_memory_base_address = design->dma_bridge_memory_base_address,
         .dma_bridge_memory_size_bytes = design->dma_bridge_memory_size_bytes,
         .min_size_alignment = 1, /* The card memory is byte addressable */
         .num_descriptors = X2X_SGDMA_MAX_DESCRIPTOR_CREDITS,
@@ -1090,6 +1094,7 @@ static bool test_dma_accessible_memory_with_fixed_buffers (const fpga_design_t *
     /* Populate the transfer configurations to be used */
     const x2x_transfer_configuration_t h2c_transfer_configuration =
     {
+        .dma_bridge_memory_base_address = design->dma_bridge_memory_base_address,
         .dma_bridge_memory_size_bytes = design->dma_bridge_memory_size_bytes,
         .min_size_alignment = 1, /* The card memory is byte addressable */
         .num_descriptors = num_descriptors,
@@ -1108,6 +1113,7 @@ static bool test_dma_accessible_memory_with_fixed_buffers (const fpga_design_t *
 
     const x2x_transfer_configuration_t c2h_transfer_configuration =
     {
+        .dma_bridge_memory_base_address = design->dma_bridge_memory_base_address,
         .dma_bridge_memory_size_bytes = design->dma_bridge_memory_size_bytes,
         .min_size_alignment = 1, /* The card memory is byte addressable */
         .num_descriptors = num_descriptors,
@@ -1329,6 +1335,7 @@ static bool test_dma_accessible_memory_with_variable_transfers (const fpga_desig
     /* Populate the transfer configurations to be used */
     const x2x_transfer_configuration_t h2c_transfer_configuration =
     {
+        .dma_bridge_memory_base_address = design->dma_bridge_memory_base_address,
         .dma_bridge_memory_size_bytes = design->dma_bridge_memory_size_bytes,
         .min_size_alignment = 1, /* The card memory is byte addressable */
         .num_descriptors = num_h2c_descriptors,
@@ -1347,6 +1354,7 @@ static bool test_dma_accessible_memory_with_variable_transfers (const fpga_desig
 
     const x2x_transfer_configuration_t c2h_transfer_configuration =
     {
+        .dma_bridge_memory_base_address = design->dma_bridge_memory_base_address,
         .dma_bridge_memory_size_bytes = design->dma_bridge_memory_size_bytes,
         .min_size_alignment = 1, /* The card memory is byte addressable */
         .num_descriptors = num_c2h_descriptors,
@@ -1715,7 +1723,8 @@ int main (int argc, char *argv[])
                             {
                                 printf (" version 0x%x", design->board_version);
                             }
-                            printf (" with memory size 0x%zx\n", design->dma_bridge_memory_size_bytes);
+                            printf (" with memory base address 0x%zx size 0x%zx\n",
+                                    design->dma_bridge_memory_base_address, design->dma_bridge_memory_size_bytes);
                             printf ("PCI device %s IOMMU group %s\n", design->vfio_device->device_name,
                                     design->vfio_device->group->iommu_group_name);
 

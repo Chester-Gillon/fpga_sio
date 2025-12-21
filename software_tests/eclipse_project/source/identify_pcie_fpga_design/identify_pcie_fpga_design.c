@@ -59,7 +59,8 @@ const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE] =
     [FPGA_DESIGN_OPEN_NIC] = "open-nic",
     [FPGA_DESIGN_VD100_ENUM] = "VD100_enum",
     [FPGA_DESIGN_VD100_DMA_STREAM_CRC64] = "VD100_dma_stream_crc64",
-    [FPGA_DESIGN_VD100_DMA_STREAM_LOOPBACK] = "VD100_dma_stream_loopback"
+    [FPGA_DESIGN_VD100_DMA_STREAM_LOOPBACK] = "VD100_dma_stream_loopback",
+    [FPGA_DESIGN_VD100_DMA_DDR4] = "VD100_dma_ddr4"
 };
 
 
@@ -351,6 +352,14 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_VD100_DMA_STREAM_LOOPBACK,
         .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
+    },
+    [FPGA_DESIGN_VD100_DMA_DDR4] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_VD100_DMA_DDR4,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     }
 };
 
@@ -410,12 +419,14 @@ static bool identify_fury_project0 (vfio_device_t *const vfio_device, fpga_desig
         if (strncmp (pid_string, "LITE", 4) == 0)
         {
             *candidate_design_id = FPGA_DESIGN_LITEFURY_PROJECT0;
+            candidate_design->dma_bridge_memory_base_address = 0;
             candidate_design->dma_bridge_memory_size_bytes = 512UL * 1024 * 1024;
             design_identified = true;
         }
         else if (strncmp (pid_string, "NITE", 4) == 0)
         {
             *candidate_design_id = FPGA_DESIGN_NITEFURY_PROJECT0;
+            candidate_design->dma_bridge_memory_base_address = 0;
             candidate_design->dma_bridge_memory_size_bytes = 1024UL * 1024 * 1024;
             design_identified = true;
         }
@@ -477,6 +488,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
 
                         candidate_design->dma_bridge_present = true;
                         candidate_design->dma_bridge_bar = 0; /* Since the PCIe to AXI Lite Master Interface isn't used */
+                        candidate_design->dma_bridge_memory_base_address = 0;
                         candidate_design->dma_bridge_memory_size_bytes = blkram_0_size_bytes + blkram_1_size_bytes;
                         design_identified = true;
                     }
@@ -519,6 +531,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
 
                         candidate_design->dma_bridge_present = true;
                         candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                        candidate_design->dma_bridge_memory_base_address = 0;
                         candidate_design->dma_bridge_memory_size_bytes = 1024UL * 1024 * 1024;
                         candidate_design->quad_spi_regs =
                                 map_vfio_registers_block (vfio_device, peripherals_bar_index,
@@ -554,6 +567,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
 
                         candidate_design->dma_bridge_present = true;
                         candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                        candidate_design->dma_bridge_memory_base_address = 0;
                         candidate_design->dma_bridge_memory_size_bytes = 8192UL * 1024 * 1024;
 
                         candidate_design->iic_regs =
@@ -584,6 +598,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
 
                         candidate_design->dma_bridge_present = true;
                         candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                        candidate_design->dma_bridge_memory_base_address = 0;
                         candidate_design->dma_bridge_memory_size_bytes = 1024UL * 1024 * 1024;
 
                         candidate_design->quad_spi_regs =
@@ -876,6 +891,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
 
                     candidate_design->dma_bridge_present = true;
                     candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                    candidate_design->dma_bridge_memory_base_address = 0;
                     candidate_design->dma_bridge_memory_size_bytes = 2UL * 1024 * 1024;
                     candidate_design->quad_spi_regs =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index,
@@ -1129,6 +1145,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                      * perform DMA will timeout. */
                     candidate_design->dma_bridge_present = true;
                     candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                    candidate_design->dma_bridge_memory_base_address = 0;
                     candidate_design->dma_bridge_memory_size_bytes = 4096;
 
                     candidate_design->user_access =
@@ -1150,6 +1167,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                      * perform DMA will timeout. */
                     candidate_design->dma_bridge_present = true;
                     candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                    candidate_design->dma_bridge_memory_base_address = 0;
                     candidate_design->dma_bridge_memory_size_bytes = 4096;
 
                     candidate_design->user_access =
@@ -1322,6 +1340,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                          * perform DMA will timeout. */
                         candidate_design->dma_bridge_present = true;
                         candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                        candidate_design->dma_bridge_memory_base_address = 0;
                         candidate_design->dma_bridge_memory_size_bytes = 4096;
                         design_identified = true;
                     }
@@ -1353,6 +1372,18 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                                         axi_switch_base_offset, axi_switch_frame_size);
                         candidate_design->axi_switch_num_master_ports = 4;
                         candidate_design->axi_switch_num_slave_ports = 4;
+                        design_identified = true;
+                    }
+                    break;
+
+                case FPGA_DESIGN_VD100_DMA_DDR4:
+                    {
+                        const uint32_t dma_bridge_bar_index = 0; /* Due to the peripherals BAR not being used */
+
+                        candidate_design->dma_bridge_present = true;
+                        candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                        candidate_design->dma_bridge_memory_base_address = 0x800000000;
+                        candidate_design->dma_bridge_memory_size_bytes   = 0x100000000;
                         design_identified = true;
                     }
                     break;

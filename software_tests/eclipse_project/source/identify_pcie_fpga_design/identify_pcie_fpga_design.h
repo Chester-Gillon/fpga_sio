@@ -252,6 +252,10 @@ typedef enum
      * a. DMA/Bridge Subsystem loopback of four AXI streams via a AXI4-Stream Switch with register based routing. */
     FPGA_DESIGN_VD100_DMA_STREAM_LOOPBACK,
 
+    /* fpga_tests/VD100_dma_ddr4 which contains:
+     * a. DMA/Bridge Subsystem to access 4GB of DDR4 memory. */
+    FPGA_DESIGN_VD100_DMA_DDR4,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 
@@ -288,6 +292,9 @@ typedef struct
      * a. A non-zero value means "AXI Memory Mapped".
      * b. A zero values means "AXI Stream". */
     size_t dma_bridge_memory_size_bytes;
+    /* The base address of the memory addressable by the DMA/Bridge Subsystem.
+     * Was added to support Versal systems where the memory is addressed using the System Address Map. */
+    size_t dma_bridge_memory_base_address;
     /* When non-NULL the base of the mapped registers for the Xilinx Quad SPI present in the design */
     uint8_t *quad_spi_regs;
     /* When non-NULL the base of the mapped registers for the XADC IP present in the design */
