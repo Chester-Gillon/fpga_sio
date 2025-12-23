@@ -14,6 +14,8 @@
 
 #include <pci/pci.h>
 #include <linux/pci_regs.h>
+#include <sys/capability.h>
+
 
 /* Defines the context for the PCI access mechanism using the pciutils library */
 typedef struct generic_pci_access_context_s
@@ -41,6 +43,7 @@ typedef struct generic_pci_access_iterator_s
  */
 generic_pci_access_context_p generic_pci_access_initialise (void)
 {
+    int rc;
     pciutils_pci_access_context_t *const context = calloc (1, sizeof (*context));
 
     /* Initialise using defaults */
@@ -54,6 +57,14 @@ generic_pci_access_context_p generic_pci_access_initialise (void)
 
     /* Scan the entire bus */
     pci_scan_bus (context->pacc);
+
+    cap_t capabilities = cap_get_proc ();
+    cap_flag_value_t capability_flag;
+    rc = cap_get_flag (capabilities, CAP_SYS_ADMIN, CAP_EFFECTIVE, &capability_flag);
+    if ((rc == 0) && (capability_flag != CAP_SET))
+    {
+        printf ("Warning: No CAP_SYS_ADMIN capability on executable, unable to read PCIe capabilities\n");
+    }
 
     return context;
 }

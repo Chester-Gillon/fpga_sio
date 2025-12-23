@@ -18,6 +18,7 @@
 
 #include <pciaccess.h>
 #include <linux/pci_regs.h>
+#include <sys/capability.h>
 
 
 /* Defines the context for the PCI access mechanism using the libpciaccess library */
@@ -54,6 +55,14 @@ generic_pci_access_context_p generic_pci_access_initialise (void)
     {
         fprintf (stderr, "pci_system_init failed\n");
         exit (EXIT_FAILURE);
+    }
+
+    cap_t capabilities = cap_get_proc ();
+    cap_flag_value_t capability_flag;
+    rc = cap_get_flag (capabilities, CAP_SYS_ADMIN, CAP_EFFECTIVE, &capability_flag);
+    if ((rc == 0) && (capability_flag != CAP_SET))
+    {
+        printf ("Warning: No CAP_SYS_ADMIN capability on executable, unable to read PCIe capabilities\n");
     }
 
     return context;
