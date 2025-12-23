@@ -53,6 +53,12 @@
 
 
 /* Defined here if not in the system pci_regs.h. These are a sample, found on PCIe devices but not in the include file */
+#ifndef PCI_EXT_CAP_ID_DLF
+#define PCI_EXT_CAP_ID_DLF  0x25    /* Data Link Feature */
+#endif
+#ifndef PCI_EXT_CAP_ID_PL_16GT
+#define PCI_EXT_CAP_ID_PL_16GT  0x26    /* Physical Layer 16.0 GT/s */
+#endif
 #ifndef PCI_EXT_CAP_ID_LMR
 #define PCI_EXT_CAP_ID_LMR  0x27    /* Lane Margining at Receiver */
 #endif
@@ -556,7 +562,11 @@ static bool display_power_management_capabilities (const uint32_t indent_level, 
         display_flag_prefixed (" PME(", "D0", pm_capabilities, PCI_PM_CAP_PME_D0);
         display_flag_prefixed (",", "D1", pm_capabilities, PCI_PM_CAP_PME_D1);
         display_flag_prefixed (",", "D2", pm_capabilities, PCI_PM_CAP_PME_D2);
+#ifdef PCI_PM_CAP_PME_D3hot
         display_flag_prefixed (",", "D3hot", pm_capabilities, PCI_PM_CAP_PME_D3hot);
+#else
+        display_flag_prefixed (",", "D3hot", pm_capabilities, PCI_PM_CAP_PME_D3);
+#endif
         display_flag_prefixed (",", "D3cold", pm_capabilities, PCI_PM_CAP_PME_D3cold);
         printf (")\n");
 
