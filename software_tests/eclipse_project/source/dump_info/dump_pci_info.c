@@ -52,6 +52,21 @@
 #define PCI_EXP_LNKCAP2_SUPPORTED_SPEEDS 0xfe
 
 
+/* Defined here if not in the system pci_regs.h. These are a sample, found on PCIe devices but not in the include file */
+#ifndef PCI_EXT_CAP_ID_LMR
+#define PCI_EXT_CAP_ID_LMR  0x27    /* Lane Margining at Receiver */
+#endif
+#ifndef PCI_EXT_CAP_ID_PL_32GT
+#define PCI_EXT_CAP_ID_PL_32GT  0x2A    /* Physical Layer 32.0 GT/s */
+#endif
+#ifndef PCI_EXT_CAP_ID_DOE
+#define PCI_EXT_CAP_ID_DOE  0x2E    /* Data Object Exchange */
+#endif
+#ifndef PCI_EXT_CAP_ID_ALT_PROT
+#define PCI_EXT_CAP_ID_ALT_PROT 0x2b    /* Alternate Protocol */
+#endif
+
+
 /*
  * @brief Display one PCIe flag (a single bit) with a prefix
  * @param[in] prefix text to output before the flag
@@ -562,6 +577,110 @@ static bool display_power_management_capabilities (const uint32_t indent_level, 
 
 
 /**
+ * @brief Perform a partial display of extended PCI capabilities.
+ * @param[in] indent_level Amount of indentation at the start of each line of output
+ * @param[in] device Device to read from
+ * @return Returns true on success or false to indicate a failure to read the capabilities
+ */
+static bool display_extended_pci_capabilities (const uint32_t indent_level, generic_pci_access_device_p const device)
+{
+    const char *const capability_id_names[] =
+    {
+        [PCI_EXT_CAP_ID_ERR     ] = "Advanced Error Reporting",
+        [PCI_EXT_CAP_ID_VC      ] = "Virtual Channel Capability",
+        [PCI_EXT_CAP_ID_DSN     ] = "Device Serial Number",
+        [PCI_EXT_CAP_ID_PWR     ] = "Power Budgeting",
+        [PCI_EXT_CAP_ID_RCLD    ] = "Root Complex Link Declaration",
+        [PCI_EXT_CAP_ID_RCILC   ] = "Root Complex Internal Link Control",
+        [PCI_EXT_CAP_ID_RCEC    ] = "Root Complex Event Collector",
+        [PCI_EXT_CAP_ID_MFVC    ] = "Multi-Function VC Capability",
+        [PCI_EXT_CAP_ID_VC9     ] = "Virtual Channel Capability",
+        [PCI_EXT_CAP_ID_RCRB    ] = "Root Complex Register Block",
+        [PCI_EXT_CAP_ID_VNDR    ] = "Vendor-Specific",
+        [PCI_EXT_CAP_ID_CAC     ] = "Config Access - obsolete",
+        [PCI_EXT_CAP_ID_ACS     ] = "Access Control Services",
+        [PCI_EXT_CAP_ID_ARI     ] = "Alternate Routing ID",
+        [PCI_EXT_CAP_ID_ATS     ] = "Address Translation Services",
+        [PCI_EXT_CAP_ID_SRIOV   ] = "Single Root I/O Virtualization",
+        [PCI_EXT_CAP_ID_MRIOV   ] = "Multi Root I/O Virtualization",
+        [PCI_EXT_CAP_ID_MCAST   ] = "Multicast",
+        [PCI_EXT_CAP_ID_PRI     ] = "Page Request Interface",
+        [PCI_EXT_CAP_ID_AMD_XXX ] = "Reserved for AMD",
+        [PCI_EXT_CAP_ID_REBAR   ] = "Resizable BAR",
+        [PCI_EXT_CAP_ID_DPA     ] = "Dynamic Power Allocation",
+        [PCI_EXT_CAP_ID_TPH     ] = "TPH Requester",
+        [PCI_EXT_CAP_ID_LTR     ] = "Latency Tolerance Reporting",
+        [PCI_EXT_CAP_ID_SECPCI  ] = "Secondary PCIe Capability",
+        [PCI_EXT_CAP_ID_PMUX    ] = "Protocol Multiplexing",
+        [PCI_EXT_CAP_ID_PASID   ] = "Process Address Space ID",
+        [PCI_EXT_CAP_ID_DPC     ] = "Downstream Port Containment",
+        [PCI_EXT_CAP_ID_L1SS    ] = "L1 PM Substates",
+        [PCI_EXT_CAP_ID_PTM     ] = "Precision Time Measurement",
+        [PCI_EXT_CAP_ID_DVSEC   ] = "Designated Vendor-Specific",
+        [PCI_EXT_CAP_ID_DLF     ] = "Data Link Feature",
+        [PCI_EXT_CAP_ID_PL_16GT ] = "Physical Layer 16.0 GT/s",
+        [PCI_EXT_CAP_ID_LMR     ] = "Lane Margining at Receiver",
+        [PCI_EXT_CAP_ID_PL_32GT ] = "Physical Layer 32.0 GT/s",
+        [PCI_EXT_CAP_ID_ALT_PROT] = "Alternate Protocol",
+        [PCI_EXT_CAP_ID_DOE     ] = "Data Object Exchange"
+    };
+
+    bool success;
+    bool been_hear[65536] = {false};
+    const uint16_t extended_capabilities_start_offset = 0x100;
+    uint16_t next_capability_offset;
+    uint32_t header;
+
+    /* Iterate over all capabilities. been_hear[] used as protection against infinite loops due to malformed capability lists */
+    next_capability_offset = extended_capabilities_start_offset;
+    success = generic_pci_access_cfg_read_u32 (device, next_capability_offset, &header);
+    while (success && (!been_hear[PCI_EXT_CAP_ID (header)]) && (next_capability_offset != 0) && (PCI_EXT_CAP_ID (header) != 0))
+    {
+        /* Display the capability identity */
+        display_indent (indent_level);
+        printf ("  Capabilities: [%x v%u] ", next_capability_offset, PCI_EXT_CAP_VER (header));
+        display_enumeration (NELEMENTS (capability_id_names), capability_id_names, PCI_EXT_CAP_ID (header));
+
+        /* Perform identify specific decode */
+        switch (PCI_EXT_CAP_ID (header))
+        {
+        case PCI_EXT_CAP_ID_DSN:
+            {
+                uint8_t dsn_byte;
+                bool first_output = true;
+
+                for (uint32_t dsn_offset = PCI_EXT_CAP_DSN_SIZEOF - 1; success && (dsn_offset >= sizeof (header)); dsn_offset--)
+                {
+                    success = generic_pci_access_cfg_read_u8 (device, next_capability_offset + dsn_offset, &dsn_byte);
+                    if (success)
+                    {
+                        printf ("%s%02x", first_output ? " " : "-", dsn_byte);
+                    }
+                    first_output = false;
+                }
+            }
+            printf ("\n");
+            break;
+
+        default:
+            printf ("\n");
+            break;
+        }
+
+        if (success)
+        {
+            /* Advance to next capability */
+            been_hear[PCI_EXT_CAP_ID (header)] = true;
+            next_capability_offset = PCI_EXT_CAP_NEXT (header);
+            success = generic_pci_access_cfg_read_u32 (device, next_capability_offset, &header);
+        }
+    }
+
+    return success;
+}
+
+
+/**
  * @brief Perform a partial display of PCI capabilities
  * @details Used http://web.archive.org/web/20250113031029/https://astralvx.com/storage/2020/11/PCI_Express_Base_4.0_Rev0.3_February19-2014.pdf
  *          as a reference.
@@ -643,6 +762,11 @@ static void display_pci_capabilities (const uint32_t indent_level, generic_pci_a
                     success = generic_pci_access_cfg_read_u8 (device, capability_pointer + PCI_CAP_LIST_NEXT, &capability_pointer);
                 }
             }
+        }
+
+        if (success)
+        {
+            success = display_extended_pci_capabilities (indent_level, device);
         }
     }
 
