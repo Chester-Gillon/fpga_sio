@@ -52,15 +52,29 @@
 #define PCI_EXP_LNKCAP2_SUPPORTED_SPEEDS 0xfe
 
 
+/*
+ * @brief Display one PCIe flag (a single bit) with a prefix
+ * @param[in] prefix text to output before the flag
+ * @param[in] field_name The name of the field displayed
+ * @param[in] register_value The register value
+ * @param[in] field_mask The mask containing the single bit for the field
+ */
+static void display_flag_prefixed (const char *const prefix, const char *const field_name,
+                                   const uint32_t register_value, const uint32_t field_mask)
+{
+    printf ("%s%s%s", prefix, field_name, ((register_value & field_mask) != 0) ? "+" : "-");
+}
+
+
 /**
  * @brief Display one PCIe flag (a single bit) in a similar format to lspci
  * @param[in] field_name The name of the field displayed
  * @param[in] register_value The register value
  * @param[in] field_mask The mask containing the single bit for the field
  */
-static inline void display_flag (const char *const field_name, const uint32_t register_value, const uint32_t field_mask)
+static void display_flag (const char *const field_name, const uint32_t register_value, const uint32_t field_mask)
 {
-    printf (" %s%s", field_name, ((register_value & field_mask) != 0) ? "+" : "-");
+    display_flag_prefixed (" ", field_name, register_value, field_mask);
 }
 
 
@@ -477,8 +491,80 @@ static bool display_pci_express_capabilities (const uint32_t indent_level, gener
 
 
 /**
+ * @brief Display power management capabilities.
+ * @details Used https://lekensteyn.nl/files/docs/PCI_Power_Management_12.pdf as a reference, in addition to the reference
+ *          in display_pci_capabilities().
+ * @param[in] indent Amount of indentation at the start of each line of output
+ * @param[in] device Device to read from
+ * @param[in] capability_pointer Offset for the start of the capabilities to decode.
+ * @return Returns true on success or false to indicate a failure to read the capabilities
+ */
+static bool display_power_management_capabilities (const uint32_t indent_level, generic_pci_access_device_p const device,
+                                                   const uint8_t capability_pointer)
+{
+    bool success;
+    uint16_t pm_capabilities;
+    uint16_t pm_control_status;
+
+    success = generic_pci_access_cfg_read_u16 (device, capability_pointer + PCI_PM_PMC, &pm_capabilities) &&
+              generic_pci_access_cfg_read_u16 (device, capability_pointer + PCI_PM_CTRL, &pm_control_status);
+
+    if (success)
+    {
+        const uint32_t capability_version = generic_pci_access_extract_field (pm_capabilities, PCI_PM_CAP_VER_MASK);
+
+        const char *const aux_current_names[] =
+        {
+            [0] = "0mA",
+            [1] = "55mA",
+            [2] = "100mA",
+            [3] = "160mA",
+            [4] = "220mA",
+            [5] = "270mA",
+            [6] = "320mA",
+            [7] = "375mA"
+        };
+
+        /* Continuation of the capability identification line from the caller */
+        printf (" version %u\n", capability_version);
+
+        /* Display flags */
+        display_indent (indent_level);
+        printf ("    Flags:");
+        display_flag ("PMEClk", pm_capabilities, PCI_PM_CAP_PME_CLOCK);
+        display_flag ("DSI", pm_capabilities, PCI_PM_CAP_DSI);
+        display_flag ("D1", pm_capabilities, PCI_PM_CAP_D1);
+        display_flag ("D2", pm_capabilities, PCI_PM_CAP_D2);
+        printf (" AuxCurrent=");
+        display_enumeration (NELEMENTS (aux_current_names), aux_current_names,
+                generic_pci_access_extract_field (pm_capabilities, PCI_PM_CAP_AUX_POWER));
+        display_flag_prefixed (" PME(", "D0", pm_capabilities, PCI_PM_CAP_PME_D0);
+        display_flag_prefixed (",", "D1", pm_capabilities, PCI_PM_CAP_PME_D1);
+        display_flag_prefixed (",", "D2", pm_capabilities, PCI_PM_CAP_PME_D2);
+        display_flag_prefixed (",", "D3hot", pm_capabilities, PCI_PM_CAP_PME_D3hot);
+        display_flag_prefixed (",", "D3cold", pm_capabilities, PCI_PM_CAP_PME_D3cold);
+        printf (")\n");
+
+        /* Display status */
+        display_indent (indent_level);
+        printf ("    Status:");
+        printf (" D%u", generic_pci_access_extract_field (pm_control_status, PCI_PM_CTRL_STATE_MASK));
+        display_flag ("NoSoftRst", pm_control_status, PCI_PM_CTRL_NO_SOFT_RESET);
+        display_flag ("PME-Enable", pm_control_status, PCI_PM_CTRL_PME_ENABLE);
+        printf (" DSel=%u", generic_pci_access_extract_field (pm_control_status, PCI_PM_CTRL_DATA_SEL_MASK));
+        printf (" DScale=%u", generic_pci_access_extract_field (pm_control_status, PCI_PM_CTRL_DATA_SCALE_MASK));
+        display_flag ("PME", pm_control_status, PCI_PM_CTRL_PME_STATUS);
+        printf ("\n");
+    }
+
+    return success;
+}
+
+
+/**
  * @brief Perform a partial display of PCI capabilities
- * @details Used https://astralvx.com/storage/2020/11/PCI_Express_Base_4.0_Rev0.3_February19-2014.pdf as a reference
+ * @details Used http://web.archive.org/web/20250113031029/https://astralvx.com/storage/2020/11/PCI_Express_Base_4.0_Rev0.3_February19-2014.pdf
+ *          as a reference.
  * @param[in] indent_level Amount of indentation at the start of each line of output
  * @param[in] device Device to read from
  */
@@ -537,6 +623,10 @@ static void display_pci_capabilities (const uint32_t indent_level, generic_pci_a
                 /* Perform identify specific decode */
                 switch (capability_id)
                 {
+                case PCI_CAP_ID_PM:
+                    success = display_power_management_capabilities (indent_level, device, capability_pointer);
+                    break;
+
                 case PCI_CAP_ID_EXP:
                     success = display_pci_express_capabilities (indent_level, device, capability_pointer);
                     break;
