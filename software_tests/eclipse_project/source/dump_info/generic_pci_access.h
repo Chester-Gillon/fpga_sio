@@ -81,7 +81,12 @@ typedef enum
     GENERIC_PCI_ACCESS_DEVICE_NAME,
     GENERIC_PCI_ACCESS_IOMMU_GROUP,
     GENERIC_PCI_ACCESS_DRIVER,
-    GENERIC_PCI_ACCESS_PHYSICAL_SLOT
+    GENERIC_PCI_ACCESS_PHYSICAL_SLOT,
+
+    /* This obtains the single module from the driver.
+     * Whereas lspci uses kmod_module_new_from_lookup() and other functions from libkmod to find all modules which have a match
+     * for the module_alias */
+    GENERIC_PCI_ACCESS_MODULE
 } generic_pci_access_device_text_property_t;
 
 /* One BAR description for a PCI device */

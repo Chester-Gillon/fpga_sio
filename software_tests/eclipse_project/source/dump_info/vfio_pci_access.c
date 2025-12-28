@@ -372,6 +372,11 @@ const char *generic_pci_access_text_property (generic_pci_access_device_p const 
             property_text = strdup (vfio_device->pci_physical_slot);
         }
         break;
+
+    case GENERIC_PCI_ACCESS_MODULE:
+        property_text = pci_sysfs_read_device_symlink_name ((uint32_t) vfio_device->pci_dev->domain, vfio_device->pci_dev->bus,
+                vfio_device->pci_dev->dev, vfio_device->pci_dev->func, "driver/module");
+       break;
     }
 
     return property_text;

@@ -73,6 +73,8 @@
 #endif
 
 
+#define EXTENDED_CAPABILITIES_START_OFFSET 0x100
+
 /*
  * @brief Display one PCIe flag (a single bit) with a prefix
  * @param[in] prefix text to output before the flag
@@ -637,12 +639,11 @@ static bool display_extended_pci_capabilities (const uint32_t indent_level, gene
 
     bool success;
     bool been_hear[65536] = {false};
-    const uint16_t extended_capabilities_start_offset = 0x100;
     uint16_t next_capability_offset;
     uint32_t header;
 
     /* Iterate over all capabilities. been_hear[] used as protection against infinite loops due to malformed capability lists */
-    next_capability_offset = extended_capabilities_start_offset;
+    next_capability_offset = EXTENDED_CAPABILITIES_START_OFFSET;
     success = generic_pci_access_cfg_read_u32 (device, next_capability_offset, &header);
     while (success && (!been_hear[PCI_EXT_CAP_ID (header)]) && (next_capability_offset != 0) && (PCI_EXT_CAP_ID (header) != 0))
     {
@@ -776,7 +777,17 @@ static void display_pci_capabilities (const uint32_t indent_level, generic_pci_a
 
         if (success)
         {
-            success = display_extended_pci_capabilities (indent_level, device);
+            uint32_t header;
+
+            /* Only attempt to display the extended capabilities if can read a valid header, so as to avoid reporting an error
+             * if the device doesn't have any extended capabilities. */
+            if (generic_pci_access_cfg_read_u32 (device, EXTENDED_CAPABILITIES_START_OFFSET, &header))
+            {
+                if (header != 0xffffffff)
+                {
+                    success = display_extended_pci_capabilities (indent_level, device);
+                }
+            }
         }
     }
 
@@ -808,6 +819,7 @@ static void display_pci_device (generic_pci_access_device_p const device, const 
     const char *const iommu_group = generic_pci_access_text_property (device, GENERIC_PCI_ACCESS_IOMMU_GROUP);
     const char *const driver = generic_pci_access_text_property (device, GENERIC_PCI_ACCESS_DRIVER);
     const char *const physical_slot = generic_pci_access_text_property (device, GENERIC_PCI_ACCESS_PHYSICAL_SLOT);
+    const char *const module = generic_pci_access_text_property (device, GENERIC_PCI_ACCESS_MODULE);
 
     if (generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_DOMAIN, &domain) &&
         generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_BUS, &bus) &&
@@ -845,6 +857,12 @@ static void display_pci_device (generic_pci_access_device_p const device, const 
         {
             display_indent (indent_level);
             printf ("  driver=%s\n", driver);
+        }
+
+        if (module != NULL)
+        {
+            display_indent (indent_level);
+            printf ("  module=%s\n", module);
         }
 
         if (physical_slot != NULL)
