@@ -68,3 +68,12 @@ Moved the card to a HP Z4 G4, which stopped the other PCIe errors when Function 
 Attempted to re-enable Function Level Reset. However, the HP Z4 G4 then hung when dump_pci_info_vfio opened the first function in the design.
 Had to hold the power button to force a power off to recover.
 
+What I failed to notice during the initial failed attempt to use FLR was:
+1. Enabling FLR in the QDMA IP enables "FLR Ports". 
+   The user logic is supposed to signal when FLR for a specific function has been completed.
+   In the initial attempt nothing was connected to the FLR ports.
+   The ports are such that the output signals can be looped-back to the input signals, without needing additional user logic.
+2. PG302 describes a "FLR Control Status Register" which is intended to be used to initiate pre-FLR.
+   This is specific to the QDMA IP, rather than part of the PCIe standard, so vfio-pci won't know about it.
+   From PG302 it isn't immediately obvious if a PCIe FLR is received, but the FLR Control Status Register register wasn't used
+   to initiate pre-FLR, if the FLR Port signals are used.
