@@ -169,18 +169,36 @@ static void display_qdma (const fpga_design_t *const design)
 {
     qdma_device_context_t qdma_device;
 
-    if (qdma_identify_device (&qdma_device, design->vfio_device, design->qdma_bridge_bar,
-            design->qdma_memory_base_address, design->qdma_memory_size_bytes))
+    const bool device_supported = qdma_identify_device (&qdma_device, design->vfio_device, design->qdma_bridge_bar,
+            design->qdma_memory_base_address, design->qdma_memory_size_bytes);
+
+    /* Display the version information if found, even if the IP isn't supported */
+    if (qdma_device.version_info.ip_type != QDMA_NONE_IP)
     {
         if (design->qdma_memory_size_bytes > 0)
         {
             printf ("  QDMA bar %u memory base offset 0x%zx size 0x%zx\n",
                     design->qdma_bridge_bar, design->qdma_memory_base_address, design->qdma_memory_size_bytes);
         }
-        printf ("  rtl_version    : %s\n", qdma_device.version_info.qdma_rtl_version_str);
-        printf ("  vivado_release : %s\n", qdma_device.version_info.qdma_vivado_release_id_str);
-        printf ("  ip_type        : %s\n", qdma_device.version_info.qdma_ip_type_str);
-        printf ("  device_type    : %s\n", qdma_device.version_info.qdma_device_type_str);
+        printf ("  rtl_version                      : %s\n", qdma_device.version_info.qdma_rtl_version_str);
+        printf ("  vivado_release                   : %s\n", qdma_device.version_info.qdma_vivado_release_id_str);
+        printf ("  ip_type                          : %s\n", qdma_device.version_info.qdma_ip_type_str);
+        printf ("  device_type                      : %s\n", qdma_device.version_info.qdma_device_type_str);
+
+        if (device_supported)
+        {
+            /* Display the information for a supported device */
+            printf ("  Number of PFs supported          : %u\n", qdma_device.dev_cap.num_pfs);
+            printf ("  Total number of queues supported : %u\n", qdma_device.dev_cap.num_qs);
+            printf ("  MM channels                      : %u\n", qdma_device.dev_cap.mm_channel_max);
+            printf ("  FLR Present                      : %s\n", qdma_device.dev_cap.flr_present ? "yes":"no");
+            printf ("  ST enabled                       : %s\n", qdma_device.dev_cap.st_en ? "yes":"no");
+            printf ("  MM enabled                       : %s\n", qdma_device.dev_cap.mm_en ? "yes":"no");
+            printf ("  Mailbox enabled                  : %s\n", qdma_device.dev_cap.mailbox_en ? "yes":"no");
+            printf ("  MM completion enabled            : %s\n", qdma_device.dev_cap.mm_cmpt_en ? "yes":"no");
+            printf ("  Debug Mode enabled               : %s\n", qdma_device.dev_cap.debug_mode ? "yes":"no");
+            printf ("  Desc Engine Mode                 : %s\n", qdma_desc_eng_mode_names[qdma_device.dev_cap.desc_eng_mode]);
+        }
     }
 }
 
