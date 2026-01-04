@@ -7,7 +7,7 @@
 
 #include "cmac_axi4_lite_registers.h"
 #include "identify_pcie_fpga_design.h"
-#include "generic_pci_access.h"
+#include "vfio_bitops.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -20,42 +20,42 @@
 static void display_cmac_registers (const uint8_t *const cmac_registers)
 {
     const uint32_t core_version_reg = read_reg32 (cmac_registers, CORE_VERSION_REG_OFFSET);
-    printf ("core_version = %u.%u\n", generic_pci_access_extract_field (core_version_reg, CORE_VERSION_REG_MAJOR_MASK),
-            generic_pci_access_extract_field (core_version_reg, CORE_VERSION_REG_MINOR_MASK));
+    printf ("core_version = %u.%u\n", vfio_extract_field_u32 (core_version_reg, CORE_VERSION_REG_MAJOR_MASK),
+            vfio_extract_field_u32 (core_version_reg, CORE_VERSION_REG_MINOR_MASK));
 
     const uint32_t gt_reset_reg = read_reg32 (cmac_registers, GT_RESET_REG_OFFSET);
-    printf ("gt_reset_all = %u\n", generic_pci_access_extract_field (gt_reset_reg, GT_RESET_REG_GT_RESET_ALL_MASK));
+    printf ("gt_reset_all = %u\n", vfio_extract_field_u32 (gt_reset_reg, GT_RESET_REG_GT_RESET_ALL_MASK));
 
     const uint32_t reset_reg = read_reg32 (cmac_registers, RESET_REG_OFFSET);
-    printf ("usr_rx_serdes_reset = %u\n", generic_pci_access_extract_field (reset_reg, RESET_REG_USR_RX_SERDES_RESET_MASK));
-    printf ("usr_rx_reset = %u\n", generic_pci_access_extract_field (reset_reg, RESET_REG_USR_RX_RESET_MASK));
-    printf ("usr_tx_reset = %u\n", generic_pci_access_extract_field (reset_reg, RESET_REG_USR_TX_RESET_MASK));
+    printf ("usr_rx_serdes_reset = %u\n", vfio_extract_field_u32 (reset_reg, RESET_REG_USR_RX_SERDES_RESET_MASK));
+    printf ("usr_rx_reset = %u\n", vfio_extract_field_u32 (reset_reg, RESET_REG_USR_RX_RESET_MASK));
+    printf ("usr_tx_reset = %u\n", vfio_extract_field_u32 (reset_reg, RESET_REG_USR_TX_RESET_MASK));
 
     /* This register is valid for Runtime Switch mode only.
      * When Runtime Switch mode wasn't configured, read back all all ones, which think is invalid. */
     const uint32_t switch_core_mode_reg = read_reg32 (cmac_registers, SWITCH_CORE_MODE_REG_OFFSET);
-    printf ("switch_core_mode_reg = %u\n", generic_pci_access_extract_field (switch_core_mode_reg, SWITCH_CORE_MODE_REG_MASK));
+    printf ("switch_core_mode_reg = %u\n", vfio_extract_field_u32 (switch_core_mode_reg, SWITCH_CORE_MODE_REG_MASK));
 
     const uint32_t configuration_tx_reg1 = read_reg32 (cmac_registers, CONFIGURATION_TX_REG1_OFFSET);
     printf ("configuration_tx_reg1_ctl_tx_enable = %u\n",
-            generic_pci_access_extract_field (configuration_tx_reg1, CONFIGURATION_TX_REG1_CTL_TX_ENABLE_MASK));
+            vfio_extract_field_u32 (configuration_tx_reg1, CONFIGURATION_TX_REG1_CTL_TX_ENABLE_MASK));
     printf ("configuration_tx_reg1_ctl_tx_send_lfi = %u\n",
-            generic_pci_access_extract_field (configuration_tx_reg1, CONFIGURATION_TX_REG1_CTL_TX_SEND_LFI_MASK));
+            vfio_extract_field_u32 (configuration_tx_reg1, CONFIGURATION_TX_REG1_CTL_TX_SEND_LFI_MASK));
     printf ("configuration_tx_reg1_ctl_tx_send_rfi = %u\n",
-            generic_pci_access_extract_field (configuration_tx_reg1, CONFIGURATION_TX_REG1_CTL_TX_SEND_RFI_MASK));
+            vfio_extract_field_u32 (configuration_tx_reg1, CONFIGURATION_TX_REG1_CTL_TX_SEND_RFI_MASK));
     printf ("configuration_tx_reg1_ctl_tx_send_idle = %u\n",
-            generic_pci_access_extract_field (configuration_tx_reg1, CONFIGURATION_TX_REG1_CTL_TX_SEND_IDLE_MASK));
+            vfio_extract_field_u32 (configuration_tx_reg1, CONFIGURATION_TX_REG1_CTL_TX_SEND_IDLE_MASK));
     printf ("configuration_tx_reg1_ctl_tx_test_pattern = %u\n",
-            generic_pci_access_extract_field (configuration_tx_reg1, CONFIGURATION_TX_REG1_CTL_TX_TEST_PATTERN_MASK));
+            vfio_extract_field_u32 (configuration_tx_reg1, CONFIGURATION_TX_REG1_CTL_TX_TEST_PATTERN_MASK));
 
     const uint32_t core_mode_reg = read_reg32 (cmac_registers, CORE_MODE_REG_OFFSET);
-    printf ("core_mode_reg = %u\n", generic_pci_access_extract_field (core_mode_reg, CORE_MODE_REG_MASK));
+    printf ("core_mode_reg = %u\n", vfio_extract_field_u32 (core_mode_reg, CORE_MODE_REG_MASK));
 
     const uint32_t rsfec_config_enable = read_reg32 (cmac_registers, RSFEC_CONFIG_ENABLE_OFFSET);
     printf ("rsfec_config_enable_ctl_rx_rsfec_enable = %u\n",
-            generic_pci_access_extract_field (rsfec_config_enable, RSFEC_CONFIG_ENABLE_CTL_RX_RSFEC_ENABLE_MASK));
+            vfio_extract_field_u32 (rsfec_config_enable, RSFEC_CONFIG_ENABLE_CTL_RX_RSFEC_ENABLE_MASK));
     printf ("rsfec_config_enable_ctl_tx_rsfec_enable = %u\n",
-            generic_pci_access_extract_field (rsfec_config_enable, RSFEC_CONFIG_ENABLE_CTL_TX_RSFEC_ENABLE_MASK));
+            vfio_extract_field_u32 (rsfec_config_enable, RSFEC_CONFIG_ENABLE_CTL_TX_RSFEC_ENABLE_MASK));
 }
 
 

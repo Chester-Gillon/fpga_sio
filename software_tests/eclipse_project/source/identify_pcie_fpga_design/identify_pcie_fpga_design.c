@@ -60,7 +60,9 @@ const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE] =
     [FPGA_DESIGN_VD100_ENUM] = "VD100_enum",
     [FPGA_DESIGN_VD100_DMA_STREAM_CRC64] = "VD100_dma_stream_crc64",
     [FPGA_DESIGN_VD100_DMA_STREAM_LOOPBACK] = "VD100_dma_stream_loopback",
-    [FPGA_DESIGN_VD100_DMA_DDR4] = "VD100_dma_ddr4"
+    [FPGA_DESIGN_VD100_DMA_DDR4] = "VD100_dma_ddr4",
+    [FPGA_DESIGN_VD100_QDMA_DDR4] = "VD100_qdma_ddr4",
+    [FPGA_DESIGN_U200_QDMA_RAM] = "U200_qdma_ram"
 };
 
 
@@ -359,6 +361,22 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_VD100_DMA_DDR4,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
+    },
+    [FPGA_DESIGN_VD100_QDMA_DDR4] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_VD100_QDMA_DDR4,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
+    },
+    [FPGA_DESIGN_U200_QDMA_RAM] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_U200_QDMA_RAM,
         .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     }
 };
@@ -908,10 +926,15 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
 
                 case FPGA_DESIGN_XCKU5P_DUAL_QSFP_QDMA_RAM_QUAD_SPI:
                 {
+                    const uint32_t qdma_bridge_bar_index = 0;
                     const uint32_t peripherals_bar_index = 2;
                     const size_t quad_spi_base_offset    = 0x0000;
                     const size_t quad_spi_frame_size     = 0x1000;
 
+                    candidate_design->qdma_present = true;
+                    candidate_design->qdma_bridge_bar = qdma_bridge_bar_index;
+                    candidate_design->qdma_memory_base_address = 0;
+                    candidate_design->qdma_memory_size_bytes = 2 * 1024 * 1024;
                     candidate_design->quad_spi_regs =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                     quad_spi_base_offset, quad_spi_frame_size);
@@ -1384,6 +1407,36 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                         candidate_design->dma_bridge_bar = dma_bridge_bar_index;
                         candidate_design->dma_bridge_memory_base_address = 0x800000000;
                         candidate_design->dma_bridge_memory_size_bytes   = 0x100000000;
+                        design_identified = true;
+                    }
+                    break;
+
+                case FPGA_DESIGN_VD100_QDMA_DDR4:
+                    {
+                        const uint32_t qdma_bridge_bar_index = 0;
+
+                        candidate_design->qdma_present = true;
+                        candidate_design->qdma_bridge_bar = qdma_bridge_bar_index;
+                        candidate_design->qdma_memory_base_address = 0x800000000;
+                        candidate_design->qdma_memory_size_bytes   = 0x100000000;
+                        design_identified = true;
+                    }
+                    break;
+
+                case FPGA_DESIGN_U200_QDMA_RAM:
+                    {
+                        const uint32_t qdma_bridge_bar_index = 0;
+                        const uint32_t peripherals_bar_index = 2;
+                        const size_t user_access_base_offset = 0x0000;
+                        const size_t user_access_frame_size  = 0x1000;
+
+                        candidate_design->qdma_present = true;
+                        candidate_design->qdma_bridge_bar = qdma_bridge_bar_index;
+                        candidate_design->qdma_memory_base_address = 0x000000;
+                        candidate_design->qdma_memory_size_bytes   = 0x800000;
+                        candidate_design->user_access =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                        user_access_base_offset, user_access_frame_size);
                         design_identified = true;
                     }
                     break;

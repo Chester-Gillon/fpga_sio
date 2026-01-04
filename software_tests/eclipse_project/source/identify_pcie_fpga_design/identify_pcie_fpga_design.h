@@ -256,6 +256,16 @@ typedef enum
      * a. DMA/Bridge Subsystem to access 4GB of DDR4 memory. */
     FPGA_DESIGN_VD100_DMA_DDR4,
 
+    /* fpga_tests/VD100_qdma_ddr4 which contains:
+     * a. QDMA Subsystem to access 4GB of DDR4 memory.
+     * b. Have four functions which are identical (for investigating allocating different queues to each function). */
+    FPGA_DESIGN_VD100_QDMA_DDR4,
+
+    /* fpga_tests/U200_qmda_ram which contains:
+     * a. QDMA Subsystem toa access 8MB of internal memory.
+     * b. GPIO input to read user access FPGA build time. */
+    FPGA_DESIGN_U200_QDMA_RAM,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 
@@ -295,6 +305,15 @@ typedef struct
     /* The base address of the memory addressable by the DMA/Bridge Subsystem.
      * Was added to support Versal systems where the memory is addressed using the System Address Map. */
     size_t dma_bridge_memory_base_address;
+    /* When true the QDMA Subsystem is present.
+     * The actual number of queues can be queried from the Xilinx IP. */
+    bool qdma_present;
+    /* Which BAR contains the QDMA control registers */
+    uint32_t qdma_bridge_bar;
+    /* When non-zero the amount of memory addressed by the QDMA Subsystem. */
+    size_t qdma_memory_size_bytes;
+    /* The base address of the memory addressable by the QDMA Subsystem */
+    size_t qdma_memory_base_address;
     /* When non-NULL the base of the mapped registers for the Xilinx Quad SPI present in the design */
     uint8_t *quad_spi_regs;
     /* When non-NULL the base of the mapped registers for the XADC IP present in the design */

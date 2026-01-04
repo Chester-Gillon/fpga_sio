@@ -9,6 +9,7 @@
  */
 
 #include "generic_pci_access.h"
+#include "vfio_bitops.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -213,7 +214,7 @@ int main (int argc, char *argv[])
         exp_cap_read_u16 (&access, PCI_EXP_FLAGS, &flags);
         if (access.success)
         {
-            const uint32_t device_port_type = generic_pci_access_extract_field (flags, PCI_EXP_FLAGS_TYPE);
+            const uint32_t device_port_type = vfio_extract_field_u32 (flags, PCI_EXP_FLAGS_TYPE);
 
             if ((device_port_type == PCI_EXP_TYPE_ENDPOINT) ||
                 (device_port_type == PCI_EXP_TYPE_LEG_END ) ||
@@ -248,10 +249,10 @@ int main (int argc, char *argv[])
         exp_cap_read_u16 (&access, PCI_EXP_LNKSTA, &link_status);
         exp_cap_read_u16 (&access, PCI_EXP_LNKCTL2, &link_control2);
 
-        current_link_speed = generic_pci_access_extract_field (link_status, PCI_EXP_LNKSTA_SPEED);
-        const uint32_t max_link_speed = generic_pci_access_extract_field (link_capabilities, PCI_EXP_LNKCAP_SPEED);
-        const uint32_t max_link_width = generic_pci_access_extract_field (link_capabilities, PCI_EXP_LNKCAP_WIDTH);
-        const uint32_t original_target_link_speed = generic_pci_access_extract_field (link_control2, PCI_EXP_LNKCTL2_TLS);
+        current_link_speed = vfio_extract_field_u32 (link_status, PCI_EXP_LNKSTA_SPEED);
+        const uint32_t max_link_speed = vfio_extract_field_u32 (link_capabilities, PCI_EXP_LNKCAP_SPEED);
+        const uint32_t max_link_width = vfio_extract_field_u32 (link_capabilities, PCI_EXP_LNKCAP_WIDTH);
+        const uint32_t original_target_link_speed = vfio_extract_field_u32 (link_control2, PCI_EXP_LNKCTL2_TLS);
         if (access.success)
         {
             access.success = access.success &&
@@ -328,7 +329,7 @@ int main (int argc, char *argv[])
             exp_cap_read_u16 (&access, PCI_EXP_LNKSTA, &link_status);
             if (access.success)
             {
-                current_link_speed = generic_pci_access_extract_field (link_status, PCI_EXP_LNKSTA_SPEED);
+                current_link_speed = vfio_extract_field_u32 (link_status, PCI_EXP_LNKSTA_SPEED);
                 printf ("Link status: %04X\n", link_status);
                 printf ("Current link speed: %s\n", link_speed_names[current_link_speed]);
             }

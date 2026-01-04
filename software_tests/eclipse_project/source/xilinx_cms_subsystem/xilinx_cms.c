@@ -9,7 +9,7 @@
 
 #include "xilinx_cms.h"
 #include "xilinx_cms_host_interface.h"
-#include "generic_pci_access.h"
+#include "vfio_bitops.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -1100,7 +1100,7 @@ bool cms_mailbox_transaction (xilinx_cms_context_t *const context, cms_mailbox_t
     /* Write the request to the mailbox */
     const size_t request_payload_size_bytes = ((transaction->request_fixed_size) ?
             transaction->request_payload_size_bytes :
-            generic_pci_access_extract_field (transaction->header, CMS_MAILBOX_HEADER_LENGTH_BYTES_MASK));
+            vfio_extract_field_u32 (transaction->header, CMS_MAILBOX_HEADER_LENGTH_BYTES_MASK));
     const size_t request_payload_size_words = (request_payload_size_bytes + (sizeof (uint32_t) - 1u)) / sizeof (uint32_t);
 
     write_reg32 (context->cms_mailbox_header, 0, transaction->header);
@@ -1152,7 +1152,7 @@ bool cms_mailbox_transaction (xilinx_cms_context_t *const context, cms_mailbox_t
     transaction->response_payload_size_bytes =
             ((transaction->response_fixed_size) ?
             transaction->response_payload_size_bytes :
-            generic_pci_access_extract_field (transaction->header, CMS_MAILBOX_HEADER_LENGTH_BYTES_MASK));
+            vfio_extract_field_u32 (transaction->header, CMS_MAILBOX_HEADER_LENGTH_BYTES_MASK));
     const size_t response_payload_size_words =
             (transaction->response_payload_size_bytes + (sizeof (uint32_t) - 1u)) / sizeof (uint32_t);
 
@@ -1341,7 +1341,7 @@ bool cms_initialise_access (xilinx_cms_context_t *const context,
         context->card_information_mailbox.request_fixed_size = true;
         context->card_information_mailbox.request_payload_size_bytes = 0u;
         context->card_information_mailbox.response_fixed_size = false;
-        generic_pci_access_update_field (&context->card_information_mailbox.header,
+        vfio_update_field_u32 (&context->card_information_mailbox.header,
                 CMS_MAILBOX_HEADER_OPCODE_MASK, CMS_OP_CARD_INFO_REQ_OPCODE);
         success = cms_mailbox_transaction (context, &context->card_information_mailbox);
         if (!success)
@@ -1406,7 +1406,7 @@ bool cms_read_qsfp_module_low_speed_io (xilinx_cms_context_t *const context, con
     cms_mailbox_t mailbox = {0};
     bool success;
 
-    generic_pci_access_update_field (&mailbox.header, CMS_MAILBOX_HEADER_OPCODE_MASK, CMS_OP_READ_MODULE_LOW_SPEED_IO_OPCODE);
+    vfio_update_field_u32 (&mailbox.header, CMS_MAILBOX_HEADER_OPCODE_MASK, CMS_OP_READ_MODULE_LOW_SPEED_IO_OPCODE);
     mailbox.request_fixed_size = true;
     mailbox.request_payload_size_bytes = 4;
     mailbox.payload.words[0] = cage_select;
@@ -1448,7 +1448,7 @@ bool cms_write_qsfp_module_low_speed_io (xilinx_cms_context_t *const context, co
     cms_mailbox_t mailbox = {0};
     bool success;
 
-    generic_pci_access_update_field (&mailbox.header, CMS_MAILBOX_HEADER_OPCODE_MASK, CMS_OP_WRITE_MODULE_LOW_SPEED_IO_OPCODE);
+    vfio_update_field_u32 (&mailbox.header, CMS_MAILBOX_HEADER_OPCODE_MASK, CMS_OP_WRITE_MODULE_LOW_SPEED_IO_OPCODE);
     mailbox.request_fixed_size = true;
     mailbox.request_payload_size_bytes = 8;
     mailbox.payload.words[0] = cage_select;
@@ -1480,13 +1480,13 @@ void cms_display_configuration (const xilinx_cms_context_t *const context)
     /* Display the CMS build information, based upon the source code of the loadsc utility.
      * The subsystem_id is used by loadsc to check for the presence of the CMS susbsystem before the utility can proceeed. */
     const uint32_t build_info_viv_id_version = read_reg32 (context->build_info, CMS_BUILD_INFO_VIV_ID_VERSION);
-    const uint32_t version_year       = generic_pci_access_extract_field (build_info_viv_id_version, 0xFFFF0000);
-    const uint32_t version2_half      = generic_pci_access_extract_field (build_info_viv_id_version, 0x0000F000);
-    const uint32_t version3_increment = generic_pci_access_extract_field (build_info_viv_id_version, 0x00000F00);
-    const uint32_t subsystem_id       = generic_pci_access_extract_field (build_info_viv_id_version, 0x000000FF);
+    const uint32_t version_year       = vfio_extract_field_u32 (build_info_viv_id_version, 0xFFFF0000);
+    const uint32_t version2_half      = vfio_extract_field_u32 (build_info_viv_id_version, 0x0000F000);
+    const uint32_t version3_increment = vfio_extract_field_u32 (build_info_viv_id_version, 0x00000F00);
+    const uint32_t subsystem_id       = vfio_extract_field_u32 (build_info_viv_id_version, 0x000000FF);
     const uint32_t build_info_major_minor_version = read_reg32 (context->build_info, CMS_BUILD_INFO_MAJOR_MINOR_VERSION);
-    const uint32_t build_info_major = generic_pci_access_extract_field (build_info_major_minor_version, 0x00FF0000);
-    const uint32_t build_info_minor = generic_pci_access_extract_field (build_info_major_minor_version, 0x000000FF);
+    const uint32_t build_info_major = vfio_extract_field_u32 (build_info_major_minor_version, 0x00FF0000);
+    const uint32_t build_info_minor = vfio_extract_field_u32 (build_info_major_minor_version, 0x000000FF);
     const uint32_t build_info_patch_core_revision = read_reg32 (context->build_info, CMS_BUILD_INFO_PATCH_CORE_REVISION);
     const uint32_t build_info_perforce_cl = read_reg32 (context->build_info, CMS_BUILD_INFO_PERFORCE_CL);
     const uint32_t build_info_reserved_tag = read_reg32 (context->build_info, CMS_BUILD_INFO_RESERVED_TAG);
@@ -1500,10 +1500,10 @@ void cms_display_configuration (const xilinx_cms_context_t *const context)
     printf ("\n");
     if (build_info_reserved_tag > 0)
     {
-        const uint32_t reserved_tag_char1 = generic_pci_access_extract_field (build_info_reserved_tag, 0xFF000000);
-        const uint32_t reserved_tag_char2 = generic_pci_access_extract_field (build_info_reserved_tag, 0x00FF0000);
-        const uint32_t reserved_tag_char3 = generic_pci_access_extract_field (build_info_reserved_tag, 0x0000FF00);
-        const uint32_t reserved_tag_char4 = generic_pci_access_extract_field (build_info_reserved_tag, 0x000000FF);
+        const uint32_t reserved_tag_char1 = vfio_extract_field_u32 (build_info_reserved_tag, 0xFF000000);
+        const uint32_t reserved_tag_char2 = vfio_extract_field_u32 (build_info_reserved_tag, 0x00FF0000);
+        const uint32_t reserved_tag_char3 = vfio_extract_field_u32 (build_info_reserved_tag, 0x0000FF00);
+        const uint32_t reserved_tag_char4 = vfio_extract_field_u32 (build_info_reserved_tag, 0x000000FF);
 
         printf ("  CMS build info reserved tag %c%c%c%c\n", reserved_tag_char1, reserved_tag_char2, reserved_tag_char3, reserved_tag_char4);
     }

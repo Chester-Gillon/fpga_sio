@@ -10,7 +10,8 @@
 #include "xilinx_axi_stream_switch.h"
 #include "xilinx_cms.h"
 #include "cmac_axi4_lite_registers.h"
-#include "generic_pci_access.h"
+#include "vfio_bitops.h"
+#include "qdma_transfers.h"
 
 #include <stdlib.h>
 #include <stddef.h>
@@ -161,6 +162,30 @@ static void display_dma_bridge (const fpga_design_t *const design)
 
 
 /**
+ * @brief Display information about a "QDMA Subsystem" in an identified design
+ * @param[in] design The identified design containing the QDMA Subsystem
+ */
+static void display_qdma (const fpga_design_t *const design)
+{
+    qdma_device_context_t qdma_device;
+
+    if (qdma_identify_device (&qdma_device, design->vfio_device, design->qdma_bridge_bar,
+            design->qdma_memory_base_address, design->qdma_memory_size_bytes))
+    {
+        if (design->qdma_memory_size_bytes > 0)
+        {
+            printf ("  QDMA bar %u memory base offset 0x%zx size 0x%zx\n",
+                    design->qdma_bridge_bar, design->qdma_memory_base_address, design->qdma_memory_size_bytes);
+        }
+        printf ("  rtl_version    : %s\n", qdma_device.version_info.qdma_rtl_version_str);
+        printf ("  vivado_release : %s\n", qdma_device.version_info.qdma_vivado_release_id_str);
+        printf ("  ip_type        : %s\n", qdma_device.version_info.qdma_ip_type_str);
+        printf ("  device_type    : %s\n", qdma_device.version_info.qdma_device_type_str);
+    }
+}
+
+
+/**
  * @brief Display information about Xilinx AXI4-Stream Switch in an identified design.
  * @details
  *   Displays the enabled routes from master to slave ports.
@@ -271,10 +296,10 @@ static void display_cmac_ports (const fpga_design_t *const design)
         if (cmac_regs != NULL)
         {
             const uint32_t core_mode_reg = read_reg32 (cmac_regs, CORE_MODE_REG_OFFSET);
-            const uint32_t core_mode = generic_pci_access_extract_field (core_mode_reg, CORE_MODE_REG_MASK);
+            const uint32_t core_mode = vfio_extract_field_u32 (core_mode_reg, CORE_MODE_REG_MASK);
             const uint32_t core_version_reg = read_reg32 (cmac_regs, CORE_VERSION_REG_OFFSET);
-            const uint32_t core_version_minor = generic_pci_access_extract_field (core_version_reg, CORE_VERSION_REG_MINOR_MASK);
-            const uint32_t core_version_major = generic_pci_access_extract_field (core_version_reg, CORE_VERSION_REG_MAJOR_MASK);
+            const uint32_t core_version_minor = vfio_extract_field_u32 (core_version_reg, CORE_VERSION_REG_MINOR_MASK);
+            const uint32_t core_version_major = vfio_extract_field_u32 (core_version_reg, CORE_VERSION_REG_MAJOR_MASK);
 
             snprintf (peripheral_name, sizeof (peripheral_name), "CMAC port %u", port_index);
             display_design_present_peripheral (design, peripheral_name, cmac_regs);
@@ -315,6 +340,10 @@ int main (int argc, char *argv[])
         if (design->dma_bridge_present)
         {
             display_dma_bridge (design);
+        }
+        if (design->qdma_present)
+        {
+            display_qdma (design);
         }
         if (design->user_access != NULL)
         {

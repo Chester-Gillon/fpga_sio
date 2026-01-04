@@ -18,6 +18,7 @@
 #include <pci/pci.h>
 
 #include "generic_pci_access.h"
+#include "vfio_bitops.h"
 
 
 /**
@@ -90,7 +91,7 @@ static bool get_physical_slot_from_bridge (generic_pci_access_device_p const dev
 
                 if (slot_implemented)
                 {
-                    *physical_slot_number = generic_pci_access_extract_field (slot_capabilities, PCI_EXP_SLTCAP_PSN);
+                    *physical_slot_number = vfio_extract_field_u32 (slot_capabilities, PCI_EXP_SLTCAP_PSN);
                     if (*physical_slot_number != 0)
                     {
                         got_physical_slot_from_bridge = true;

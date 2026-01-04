@@ -10,7 +10,7 @@
 
 #include "identify_pcie_fpga_design.h"
 #include "xilinx_cms.h"
-#include "generic_pci_access.h"
+#include "vfio_bitops.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -150,11 +150,11 @@ static void display_qsfp_status (qsfp_management_context_t *const context)
             const uint32_t start_bit = module_index * QSFP_REFCLK_SEL_BITS_PER_MODULE;
 
             snprintf (field_values[QSFP_FS0][module_index], field_value_num_bytes, "%u",
-                    generic_pci_access_extract_field (gpio_input, 1u << (start_bit + QSFP_FS0_BIT_OFFSET)));
+                    vfio_extract_field_u32 (gpio_input, 1u << (start_bit + QSFP_FS0_BIT_OFFSET)));
             snprintf (field_values[QSFP_FS1][module_index], field_value_num_bytes, "%u",
-                    generic_pci_access_extract_field (gpio_input, 1u << (start_bit + QSFP_FS1_BIT_OFFSET)));
+                    vfio_extract_field_u32 (gpio_input, 1u << (start_bit + QSFP_FS1_BIT_OFFSET)));
             snprintf (field_values[QSFP_REFCLK_RESET][module_index], field_value_num_bytes, "%u",
-                    generic_pci_access_extract_field (gpio_input, 1u << (start_bit + QSFP_REFCLK_RESET_BIT_OFFSET)));
+                    vfio_extract_field_u32 (gpio_input, 1u << (start_bit + QSFP_REFCLK_RESET_BIT_OFFSET)));
         }
     }
 

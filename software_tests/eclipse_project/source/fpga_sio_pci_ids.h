@@ -235,4 +235,16 @@
  * a. Access 4GB of DDR4 memory. */
 #define FPGA_SIO_SUBDEVICE_ID_VD100_DMA_DDR4 0x0023
 
+
+/* The FPGA which uses the QDMA Subsystem to:
+ * a. Access 4GB of DDR4 memory.
+ * b. Have four functions which are identical (for investigating allocating different queues to each function). */
+#define FPGA_SIO_SUBDEVICE_ID_VD100_QDMA_DDR4 0x0024
+
+
+/* The FPGA which uses the QDMA Subsystem to:
+ * a. Access 8MB of internal memory.
+ * b. GPIO input to read user access FPGA build time. */
+#define FPGA_SIO_SUBDEVICE_ID_U200_QDMA_RAM 0x0025
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

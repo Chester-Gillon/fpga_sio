@@ -41,6 +41,7 @@
 #include <stdio.h>
 
 #include "generic_pci_access.h"
+#include "vfio_bitops.h"
 
 #include "fpga_sio_pci_ids.h"
 
@@ -143,8 +144,8 @@ static void display_enumeration (const size_t enums_array_size, const char *cons
 static void display_slot_power_limit (const uint32_t register_value,
                                       const uint32_t power_value_mask, const uint32_t power_scale_mask)
 {
-    const uint32_t slot_power_limit_value = generic_pci_access_extract_field (register_value, power_value_mask);
-    const uint32_t slot_power_limit_scale = generic_pci_access_extract_field (register_value, power_scale_mask);
+    const uint32_t slot_power_limit_value = vfio_extract_field_u32 (register_value, power_value_mask);
+    const uint32_t slot_power_limit_scale = vfio_extract_field_u32 (register_value, power_scale_mask);
 
     const double slot_power_limit_scales[] =
     {
@@ -213,20 +214,20 @@ static bool display_pci_express_capabilities (const uint32_t indent_level, gener
 
     if (success)
     {
-        const uint32_t capability_version = generic_pci_access_extract_field (flags, PCI_EXP_FLAGS_VERS);
-        const uint32_t device_port_type = generic_pci_access_extract_field (flags, PCI_EXP_FLAGS_TYPE);
-        const uint32_t interrupt_message_number =  generic_pci_access_extract_field (flags, PCI_EXP_FLAGS_IRQ);
+        const uint32_t capability_version = vfio_extract_field_u32 (flags, PCI_EXP_FLAGS_VERS);
+        const uint32_t device_port_type = vfio_extract_field_u32 (flags, PCI_EXP_FLAGS_TYPE);
+        const uint32_t interrupt_message_number =  vfio_extract_field_u32 (flags, PCI_EXP_FLAGS_IRQ);
         const bool slot_implemented = (flags & PCI_EXP_FLAGS_SLOT) != 0;
 
-        const uint32_t max_link_speed = generic_pci_access_extract_field (link_capabilities, PCI_EXP_LNKCAP_SPEED);
-        const uint32_t max_link_width = generic_pci_access_extract_field (link_capabilities, PCI_EXP_LNKCAP_WIDTH);
+        const uint32_t max_link_speed = vfio_extract_field_u32 (link_capabilities, PCI_EXP_LNKCAP_SPEED);
+        const uint32_t max_link_width = vfio_extract_field_u32 (link_capabilities, PCI_EXP_LNKCAP_WIDTH);
 
-        const uint32_t negotiated_link_speed = generic_pci_access_extract_field (link_status, PCI_EXP_LNKSTA_SPEED);
-        const uint32_t negotiated_link_width = generic_pci_access_extract_field (link_status, PCI_EXP_LNKSTA_WIDTH);
+        const uint32_t negotiated_link_speed = vfio_extract_field_u32 (link_status, PCI_EXP_LNKSTA_SPEED);
+        const uint32_t negotiated_link_width = vfio_extract_field_u32 (link_status, PCI_EXP_LNKSTA_WIDTH);
 
-        const uint32_t supported_link_speeds = generic_pci_access_extract_field (link_capabilities2, PCI_EXP_LNKCAP2_SUPPORTED_SPEEDS);
+        const uint32_t supported_link_speeds = vfio_extract_field_u32 (link_capabilities2, PCI_EXP_LNKCAP2_SUPPORTED_SPEEDS);
 
-        const uint32_t physical_slot_number = generic_pci_access_extract_field (slot_capabilities, PCI_EXP_SLTCAP_PSN);
+        const uint32_t physical_slot_number = vfio_extract_field_u32 (slot_capabilities, PCI_EXP_SLTCAP_PSN);
 
         const char *const device_port_type_names[] =
         {
@@ -376,14 +377,14 @@ static bool display_pci_express_capabilities (const uint32_t indent_level, gener
         printf ("    DevCap:");
         printf (" MaxPayload ");
         display_enumeration (NELEMENTS (max_payload_size_names), max_payload_size_names,
-                generic_pci_access_extract_field (device_capabilities, PCI_EXP_DEVCAP_PAYLOAD));
-        printf (" PhantFunc %u", generic_pci_access_extract_field (device_capabilities, PCI_EXP_DEVCAP_PHANTOM));
+                vfio_extract_field_u32 (device_capabilities, PCI_EXP_DEVCAP_PAYLOAD));
+        printf (" PhantFunc %u", vfio_extract_field_u32 (device_capabilities, PCI_EXP_DEVCAP_PHANTOM));
         printf (" Latency L0s ");
         display_enumeration (NELEMENTS (endpoint_l0s_acceptable_latency_names), endpoint_l0s_acceptable_latency_names,
-                generic_pci_access_extract_field (device_capabilities, PCI_EXP_DEVCAP_L0S));
+                vfio_extract_field_u32 (device_capabilities, PCI_EXP_DEVCAP_L0S));
         printf (" L1 ");
         display_enumeration (NELEMENTS (endpoint_l1_acceptable_latency_names), endpoint_l1_acceptable_latency_names,
-                generic_pci_access_extract_field (device_capabilities, PCI_EXP_DEVCAP_L1));
+                vfio_extract_field_u32 (device_capabilities, PCI_EXP_DEVCAP_L1));
         printf ("\n");
         display_indent (indent_level);
         printf ("           ");
@@ -428,19 +429,19 @@ static bool display_pci_express_capabilities (const uint32_t indent_level, gener
         /* Display link capabilities (excluding width and speed displayed above) */
         display_indent (indent_level);
         printf ("    LnkCap:");
-        printf (" Port # %u", generic_pci_access_extract_field (link_capabilities, PCI_EXP_LNKCAP_PN));
+        printf (" Port # %u", vfio_extract_field_u32 (link_capabilities, PCI_EXP_LNKCAP_PN));
         printf (" ASPM ");
-        display_enumeration (NELEMENTS (aspm_names), aspm_names, generic_pci_access_extract_field (link_capabilities, PCI_EXP_LNKCAP_ASPMS));
+        display_enumeration (NELEMENTS (aspm_names), aspm_names, vfio_extract_field_u32 (link_capabilities, PCI_EXP_LNKCAP_ASPMS));
         printf ("\n");
         display_indent (indent_level);
         printf ("            L0s Exit Latency ");
         display_enumeration (NELEMENTS (l0s_exit_latency_names), l0s_exit_latency_names,
-                generic_pci_access_extract_field (link_capabilities, PCI_EXP_LNKCAP_L0SEL));
+                vfio_extract_field_u32 (link_capabilities, PCI_EXP_LNKCAP_L0SEL));
         printf ("\n");
         display_indent (indent_level);
         printf ("            L1 Exit Latency ");
         display_enumeration (NELEMENTS (l1_exit_latency_names), l1_exit_latency_names,
-                generic_pci_access_extract_field (link_capabilities, PCI_EXP_LNKCAP_L1EL));
+                vfio_extract_field_u32 (link_capabilities, PCI_EXP_LNKCAP_L1EL));
         printf ("\n");
         display_indent (indent_level);
         printf ("           ");
@@ -460,7 +461,7 @@ static bool display_pci_express_capabilities (const uint32_t indent_level, gener
         printf ("    LnkCtl:");
         printf (" ASPM ");
         display_enumeration (NELEMENTS (aspm_control_names), aspm_control_names,
-                generic_pci_access_extract_field (link_control, PCI_EXP_LNKCTL_ASPMC));
+                vfio_extract_field_u32 (link_control, PCI_EXP_LNKCTL_ASPMC));
         printf (" RCB %u bytes", (link_control & PCI_EXP_LNKCTL_RCB) != 0 ? 128 : 64);
         display_flag ("Disabled", link_control, PCI_EXP_LNKCTL_LD);
         display_flag ("CommClk", link_control, PCI_EXP_LNKCTL_CCC);
@@ -534,7 +535,7 @@ static bool display_power_management_capabilities (const uint32_t indent_level, 
 
     if (success)
     {
-        const uint32_t capability_version = generic_pci_access_extract_field (pm_capabilities, PCI_PM_CAP_VER_MASK);
+        const uint32_t capability_version = vfio_extract_field_u32 (pm_capabilities, PCI_PM_CAP_VER_MASK);
 
         const char *const aux_current_names[] =
         {
@@ -560,7 +561,7 @@ static bool display_power_management_capabilities (const uint32_t indent_level, 
         display_flag ("D2", pm_capabilities, PCI_PM_CAP_D2);
         printf (" AuxCurrent=");
         display_enumeration (NELEMENTS (aux_current_names), aux_current_names,
-                generic_pci_access_extract_field (pm_capabilities, PCI_PM_CAP_AUX_POWER));
+                vfio_extract_field_u32 (pm_capabilities, PCI_PM_CAP_AUX_POWER));
         display_flag_prefixed (" PME(", "D0", pm_capabilities, PCI_PM_CAP_PME_D0);
         display_flag_prefixed (",", "D1", pm_capabilities, PCI_PM_CAP_PME_D1);
         display_flag_prefixed (",", "D2", pm_capabilities, PCI_PM_CAP_PME_D2);
@@ -575,11 +576,11 @@ static bool display_power_management_capabilities (const uint32_t indent_level, 
         /* Display status */
         display_indent (indent_level);
         printf ("    Status:");
-        printf (" D%u", generic_pci_access_extract_field (pm_control_status, PCI_PM_CTRL_STATE_MASK));
+        printf (" D%u", vfio_extract_field_u32 (pm_control_status, PCI_PM_CTRL_STATE_MASK));
         display_flag ("NoSoftRst", pm_control_status, PCI_PM_CTRL_NO_SOFT_RESET);
         display_flag ("PME-Enable", pm_control_status, PCI_PM_CTRL_PME_ENABLE);
-        printf (" DSel=%u", generic_pci_access_extract_field (pm_control_status, PCI_PM_CTRL_DATA_SEL_MASK));
-        printf (" DScale=%u", generic_pci_access_extract_field (pm_control_status, PCI_PM_CTRL_DATA_SCALE_MASK));
+        printf (" DSel=%u", vfio_extract_field_u32 (pm_control_status, PCI_PM_CTRL_DATA_SEL_MASK));
+        printf (" DScale=%u", vfio_extract_field_u32 (pm_control_status, PCI_PM_CTRL_DATA_SCALE_MASK));
         display_flag ("PME", pm_control_status, PCI_PM_CTRL_PME_STATUS);
         printf ("\n");
     }
