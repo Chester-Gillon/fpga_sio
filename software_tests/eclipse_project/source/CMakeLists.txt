@@ -143,6 +143,7 @@ add_subdirectory ("${PROJECT_SOURCE_DIR}/ddr_throughput")
 add_subdirectory ("${PROJECT_SOURCE_DIR}/cmac_ethernet")
 add_subdirectory ("${PROJECT_SOURCE_DIR}/xilinx_cms_subsystem")
 add_subdirectory ("${PROJECT_SOURCE_DIR}/xilinx_qdma_for_pcie")
+add_subdirectory ("${PROJECT_SOURCE_DIR}/sfp_management")
 
 # Create a file listing all executables linking the vfio_access library, for use by set_exe_vfio_capabilities.sh
 report_all_targets("vfio_access")

@@ -262,9 +262,15 @@ typedef enum
     FPGA_DESIGN_VD100_QDMA_DDR4,
 
     /* fpga_tests/U200_qmda_ram which contains:
-     * a. QDMA Subsystem toa access 8MB of internal memory.
+     * a. QDMA Subsystem to access 8MB of internal memory.
      * b. GPIO input to read user access FPGA build time. */
     FPGA_DESIGN_U200_QDMA_RAM,
+
+    /* fpga_tests/VD100_10G_ether_dual which contains:
+     * a. XDMA access to two AXI4 streams connected to 10 GbE ports in MRMAC.
+     * b. GPIOs for SFP Tx Enable signals.
+    * c. AXI IIC Bus Interface to SFP1 (board only connects the I2C interface to the SFP1 module). */
+    FPGA_DESIGN_VD100_10G_ETHER_DUAL,
 
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;

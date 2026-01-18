@@ -571,6 +571,18 @@ int main (int argc, char *argv[])
                 probe_dual_qsfp_ports (design);
             }
         }
+        else if ((design->iic_regs != NULL) && (design->bit_banged_i2c_gpio_regs == NULL))
+        {
+            if (arg_iic_access_mode == IIC_ACCESS_MODE_BIT_BANGED)
+            {
+                printf ("%s design doesn't support %s access mode\n",
+                        fpga_design_names[design->design_id], iic_access_mode_names[arg_iic_access_mode]);
+            }
+            else
+            {
+                probe_i2c_addresses (design);
+            }
+        }
         else if ((design->iic_regs != NULL) && (design->bit_banged_i2c_gpio_regs != NULL))
         {
             probe_i2c_addresses (design);

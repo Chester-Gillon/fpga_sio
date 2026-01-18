@@ -62,7 +62,8 @@ const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE] =
     [FPGA_DESIGN_VD100_DMA_STREAM_LOOPBACK] = "VD100_dma_stream_loopback",
     [FPGA_DESIGN_VD100_DMA_DDR4] = "VD100_dma_ddr4",
     [FPGA_DESIGN_VD100_QDMA_DDR4] = "VD100_qdma_ddr4",
-    [FPGA_DESIGN_U200_QDMA_RAM] = "U200_qdma_ram"
+    [FPGA_DESIGN_U200_QDMA_RAM] = "U200_qdma_ram",
+    [FPGA_DESIGN_VD100_10G_ETHER_DUAL] = "VD100_10G_ether_dual"
 };
 
 
@@ -377,6 +378,14 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_U200_QDMA_RAM,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
+    },
+    [FPGA_DESIGN_VD100_10G_ETHER_DUAL] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_VD100_10G_ETHER_DUAL,
         .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     }
 };
@@ -1437,6 +1446,22 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                         candidate_design->user_access =
                                 map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                         user_access_base_offset, user_access_frame_size);
+                        design_identified = true;
+                    }
+                    break;
+
+                case FPGA_DESIGN_VD100_10G_ETHER_DUAL:
+                    {
+                        const uint32_t peripherals_bar_index = 0;
+                        const uint32_t dma_bridge_bar_index = 2;
+                        const size_t iic_base_offset      = 0x11000;
+                        const size_t iic_frame_size       = 0x01000;
+
+                        candidate_design->iic_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index, iic_base_offset, iic_frame_size);
+                        candidate_design->dma_bridge_present = true;
+                        candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                        candidate_design->dma_bridge_memory_size_bytes = 0; /* DMA bridge configured for "AXI Stream" */
                         design_identified = true;
                     }
                     break;

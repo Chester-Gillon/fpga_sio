@@ -247,4 +247,11 @@
  * b. GPIO input to read user access FPGA build time. */
 #define FPGA_SIO_SUBDEVICE_ID_U200_QDMA_RAM 0x0025
 
+
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. XDMA access to two AXI4 streams connected to 10 GbE ports in MRMAC.
+ * b. GPIOs for SFP Tx Enable signals.
+ * c. AXI IIC Bus Interface to SFP1 (board only connects the I2C interface to the SFP1 module). */
+#define FPGA_SIO_SUBDEVICE_ID_VD100_10G_ETHER_DUAL 0x0026
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */
