@@ -24,8 +24,7 @@ c. 0x11000 ... 0x11fff
 
 
 For the MRMAC configuration and connectivity:
-1. Create the mrac_10G_dual.bd block diagram, to hide the GT blocks and connections on the top-level diagram.
-   @todo made a typo in the name "mrac" should have been "mrmac".
+1. Create the mrmac_10G_dual.bd block diagram, to hide the GT blocks and connections on the top-level diagram.
 
    Initially attempted to use a hierarchy sub-block, but attempting to run the MRMAC block automation failed when
    the MRMAC was placed on hierarchy sub-block.
@@ -202,9 +201,9 @@ For the MRMAC configuration and connectivity:
       a transmit underrun. FIFO depth 8192, for a total of 32768 bytes so several maximum size frames.
       RAM type set to auto.
 
-   Timing failed on Intra-Clock Paths mrac_10G_dual_0_mrmac_axis_tx_aclk_0 and mrac_10G_dual_0_mrmac_axis_tx_aclk_1:
-   a. For mrac_10G_dual_0_mrmac_axis_tx_aclk_0 Setup Worst Slack -0.695 ns, failing endpoints 662
-   b. For mrac_10G_dual_0_mrmac_axis_tx_aclk_1 Setup Worst Slack -0.837 ns, failing endpoints 1281
+   Timing failed on Intra-Clock Paths mmrac_10G_dual_0_mrmac_axis_tx_aclk_0 and mrmac_10G_dual_0_mrmac_axis_tx_aclk_1:
+   a. For mrmac_10G_dual_0_mrmac_axis_tx_aclk_0 Setup Worst Slack -0.695 ns, failing endpoints 662
+   b. For mrmac_10G_dual_0_mrmac_axis_tx_aclk_1 Setup Worst Slack -0.837 ns, failing endpoints 1281
    c. For both Pulse Width Worst Slack -0.553 ns, failing endpoints 19
       - For URAM Required 2.105 (475 MHz), Actual 1.552 (644 MHz)
       - For BRAM Required 1.626 (625 MHz), Actual 1.552 (644 MHz)
@@ -216,4 +215,24 @@ For the MRMAC configuration and connectivity:
    - Ultra RAM Fmax of 500 MHz for speed grade -1L
 
    Which means with the speed grade neither the Block RAM nor Ultra RAM support running at the 644.531 MRMAC Tx core frequency.
+
+5. Make the following changes for the MRMAC Tx data paths following the timing problems:
+   a. In the MRMAC configuration change both MAC Port0 and Port1 from "Low Latency 32b Non-Segmented" to "Independent 32b Non-Segmented".
+      Since this affects the AXI interface, no need to re-run the Block Automation which added the GT interface.
+   b. Disconnect the MRMAC tx_ts_clk and rx_axi_clk ports from the s_axi_aclk
+   c. Connect the MRMAC tx_axi_clk to tx_alt_serdes_clk (322.2655 MHz)
+   d. Connect the MRMAC rx_axi_clk to rx_alt_serdes_clk (322.2655 MHz)
+   e. PG314 Table 40: Clocks says "tx_axi_clk[0] and rx_axi_clk[0] are shared between Ports 0 and 1".
+      Therefore, create the output port mrmac_axis_tx_aclk_0_1 connected to tx_alt_serdes_clk[0]
+   f. On the top level diagram connect mrmac_axis_tx_aclk_0_1 to the mrmac_axis_tx_aclk input on
+      both mrmac_h2c_stream_0 and mrmac_h2c_stream_1.
+   g. On the mrmac_h2c_stream block diagram edit axis_data_fifo_0, axis_dwidth_converter_0 and axis_data_fifo_1 to enable
+      tlast and tkeep, rather than auto.
+
+      Otherwise, when sourced create_project.tcl:
+      - tlast wasn't configured on axis_data_fifo_0
+      - tlast wasn't configured on axis_dwidth_converter_0
+      - tkeep wasn't configured on axis_data_fifo_1
+
+   Following these changes, the timing was met on the MRMAC Tx data paths.
 
