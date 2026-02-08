@@ -22,6 +22,9 @@ c. 0x11000 ... 0x11fff
    I2C controller for SFP1.
    For some reason, the I2C signals on the VD100 are only connected to SFP1.
 
+The Implementation Strategy has been set to "Performance_AggressiveExplore" in order to allow the timing to be met on the
+PCIe gen4 interface.
+
 
 For the MRMAC configuration and connectivity:
 1. Create the mrmac_10G_dual.bd block diagram, to hide the GT blocks and connections on the top-level diagram.
@@ -235,4 +238,48 @@ For the MRMAC configuration and connectivity:
       - tkeep wasn't configured on axis_data_fifo_1
 
    Following these changes, the timing was met on the MRMAC Tx data paths.
+
+   When looked at the generated code for the axis_data_fifo_0 inside the mrmac_h2c_stream block, saw a xpm_cdc_handshake which
+   thought could cause a performance throughput limit by requiring an Ack from the destination clock domain for every data
+   transfer from the source clock domain.
+
+   As a result modified mrmac_h2c_stream to use a "AXI4-Stream NOC" to perform the clock domain crossing, by connecting a
+   NoC AXI4-Stream master and slave interface. Where the NoC master and slave interfaces take independent clocks and
+   perform packetization and de-packetization.
+
+   On looking at the schematic for the axis_data_fifo_0 the actual implementation uses a XPM_FIFO_AXIS where:
+   - s_aclk is connected to the FIFO wr_clk
+   - s_axis_tvalid is connected to the FIFO wr_en
+   - s_axis_tready is connected to the FIFO full_n
+
+   Therefore, looks OK in that the H2C stream can write to the FIFO until full, rather than as first thought every
+   H2C transfer requiring an Ack'ed data transfer.
+   A simulation or ILA could confirm this.
+
+   For now, keep using the axis_data_fifo_0 for the clock domain crossing, rather than the NoC.
+
+6. For first attempt at implementing MRMAC Tx data paths (H2C streams) created mrmac_c2h_stream block diagram with:
+   a. On the mrmac_10G_dual block create output port mrmac_axis_rx_aclk_0_1 connected to rx_alt_serdes_clk[0]
+      For the same reason as the mrmac_axis_tx_aclk_0_1.
+   b. Add axis_data_fifo_0 to receive the Ethernet packets from the MRMAC. 32-bits clocked by mrmac_axis_rx_aclk_0_1.
+      - Memory type set to Auto.
+      - Depth set to 32768 which is the maximum. Means can store 128 KB.
+      - Enable TKEEP set to Yes.
+      - Enable TLAST set to Yes.
+
+      Only uses the rx_axis_tkeep_user[3:0] from the MRMAC. There is no support to:
+      a. Store the err flag in rx_axis_tkeep_user[8]
+      b. Record if the MRMAC attempt to output packet data when s_axis_tready is de-asserted, meaning receive data will be lost.
+   c. axis_dwidth_converter_0 converts from 32 to 256 bits.
+   d. axis_data_fifo_1 converts from 256 bits at mrmac_axis_rx_aclk_0_1 (322.2655 MHz) to 256 bits at 250 MHz for the XDMA C2H.
+      - Memory type set to Auto.
+      - Depth set to 1024. Means can store 32 KB.
+      - Enable TKEEP set to Yes.
+      - Enable TLAST set to Yes.
+
+   With the MRMAC Tx and Rx data path FIFOs utilisation is at:
+   - 50% for Block RAM
+   - 17% for Ultra RAM
+
+   Therefore, space to increase on-board packet buffering if suffer from packet loss during testing.
 
