@@ -292,6 +292,25 @@ typedef struct
 } cmac_port_definition_t;
 
 
+/* Defines one Versal Multirate Ethernet MAC Subsystem (MRMAC) block.
+ * The Ethernet packet data is assumed to be transferred by the DMA/Bridge Subsystem.
+ * Limitations are:
+ * a. The receive stream can't indicate packets dropped, either completely or partially, due to no free FIFO space.
+ * b. The receive stream can't indicate packets for which receive errors were flagged. */
+#define NUM_MRMAC_PORTS 4
+typedef struct
+{
+    /* When non-NULL the base of the mapped registers for the MRMAC Configuration registers, Status registers, and Statistics counters */
+    uint8_t *regs;
+    /* Indicates which ports can be used to transfer data. Assumes a static configuration of ports and their stream data paths,
+     * rather than run-time re-configuration of the ports to support different data rates.
+     *
+     * Defined as an array index by port number since the used ports may not be adjacent. E.g. when the MRMAC is configured as dual
+     * 50G ports, the used port numbers will be 0 and 2, since each 50G port uses the data path resources for two ports. */
+    bool used_ports[NUM_MRMAC_PORTS];
+} mrmac_block_definition_t;
+
+
 /* Defines one identified design */
 typedef struct
 {
@@ -359,6 +378,8 @@ typedef struct
     cmac_port_definition_t cmac_ports[MAX_CMAC_PORTS_PER_DESIGN];
     /* When non-NULL the base of the mapped registers used to read the UltraScale DNA */
     uint8_t *ultrascale_dna_regs;
+    /* Defines if a MRMAC block is present in the design */
+    mrmac_block_definition_t mrmac;
     /* For FPGA_DESIGN_LITEFURY_PROJECT0 or FPGA_DESIGN_NITEFURY_PROJECT0 gives the version of the board design */
     uint32_t board_version;
 } fpga_design_t;

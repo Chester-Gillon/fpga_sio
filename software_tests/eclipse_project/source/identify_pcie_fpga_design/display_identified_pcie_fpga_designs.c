@@ -12,6 +12,7 @@
 #include "cmac_axi4_lite_registers.h"
 #include "vfio_bitops.h"
 #include "qdma_transfers.h"
+#include "mrmac_axi4_lite_registers.h"
 
 #include <stdlib.h>
 #include <stddef.h>
@@ -294,7 +295,7 @@ static void display_ultrascale_dna (const fpga_design_t *const design)
 
 /**
  * @brief Display information about the CMAC ports in an identified design
- * @param[in] design The identified design containing the CMS Subsystem
+ * @param[in] design The identified design containing the CMAC ports
  */
 static void display_cmac_ports (const fpga_design_t *const design)
 {
@@ -323,6 +324,303 @@ static void display_cmac_ports (const fpga_design_t *const design)
             display_design_present_peripheral (design, peripheral_name, cmac_regs);
             printf ("    Core mode: %s\n", core_mode_names[core_mode]);
             printf ("    Core version: %u.%u\n", core_version_major, core_version_minor);
+        }
+    }
+}
+
+
+/**
+ * @brief Display information about the MRMAC ports in an identified design
+ * @details
+ *   The information displayed is:
+ *   1. The hardware revision of the core. The documentation gives only one expected value. I.e. doesn't appear to have been multiple
+ *      revisions released.
+ *   2. Port configuration for the following, for checking against how the MRMAC should be been configured:
+ *      - Data rate
+ *      - AXI4-stream mode
+ *      - GT quad operating mode
+ *      - FEC mode
+ *   3. The current Tx and Rx realtime status, for checking for link errors.
+ *      @todo Consider also reporting, and then clearing, the latched status. When do that also try and check if the latched status
+ *            is lost when VFIO generates a PCIe hot-reset on opening or closing the device.
+ *            E.g. could remove and then-reinsert the QSFP+ modules while the device is closed and see if receive errors remain latched.
+ * @param[in] design The identified design containing the MRMAC ports
+ */
+static void display_mrmac_ports (const fpga_design_t *const design)
+{
+    const char *const port_data_rate_names[] =
+    {
+        [MRMAC_CTL_DATA_RATE_10GE ] = "10GE",
+        [MRMAC_CTL_DATA_RATE_25GE ] = "25GE",
+        [MRMAC_CTL_DATA_RATE_40GE ] = "40GE",
+        [MRMAC_CTL_DATA_RATE_50GE ] = "50GE",
+        [MRMAC_CTL_DATA_RATE_100GE] = "100GE"
+    };
+
+    /* Lookup for PG314 "Table 4: MRMAC AXI4-Stream Modes":
+     * - Outer index is Port Data Rate field
+     * - Inner index is Port AXI4-Stream Mode field */
+    const char *const axi4_stream_mode_names[][8] =
+    {
+        [MRMAC_CTL_DATA_RATE_100GE] =
+        {
+            [0] = "Low Latency, 256 bits, Non-Segmented",
+            [5] = "Independent, 384 bits, Non-Segmented",
+            [7] = "Independent, 384 bits, Segmented"
+        },
+        [MRMAC_CTL_DATA_RATE_40GE] =
+        {
+            [0] = "Low Latency, 128 bits, Non-Segmented",
+            [5] = "Independent, 256 bits, Non-Segmented"
+        },
+        [MRMAC_CTL_DATA_RATE_50GE] =
+        {
+            [0] = "Low Latency, 128 bits, Non-Segmented",
+            [5] = "Independent, 256 bits, Non-Segmented"
+        },
+        [MRMAC_CTL_DATA_RATE_25GE] =
+        {
+            [0] = "Low Latency, 64 bits, Non-Segmented",
+            [1] = "Independent, 64 bits, Non-Segmented",
+            [5] = "Independent, 128 bits, Non-Segmented"
+        },
+        [MRMAC_CTL_DATA_RATE_10GE] =
+        {
+            [0] = "Low Latency, 32 bits, Non-Segmented",
+            [1] = "Independent, 32 bits, Non-Segmented"
+        }
+    };
+
+    /* Lookup for PG314 "Table 7: GT Quad Operating Modes":
+     * - Outer index is Port Data Rate Field
+     * - Inner index is Port Serdes width
+     *
+     * For some combinations of Port Data Rate and Port Serdes, PG314 gives multiple possible MRMAC Operating Modes.
+     * "OR" is used to indicate when multiple modes are possible, and this lookup table can't indicate the actual mode. */
+    const char *const gt_quad_operating_mode_names[][8] =
+    {
+        [MRMAC_CTL_DATA_RATE_10GE] =
+        {
+            [0] = "10GE Narrow, 10.3125 Gb/s, 16 bits, 644.5313 MHz, NRZ",
+            [4] = "10GE Wide, 10.3125 Gb/s, 32 bits, 322.2656 MHz, NRZ"
+        },
+        [MRMAC_CTL_DATA_RATE_25GE] =
+        {
+            [2] = "25GE Narrow, 25.78125 Gb/s, 40 bits, 644.5313 MHz, NRZ",
+            [6] = "25GE Wide, 25.78125 Gb/s, 80 bits, 322.2656 MHz, NRZ"
+        },
+        [MRMAC_CTL_DATA_RATE_40GE] =
+        {
+            [0] = "40GE XLAUI-4 Narrow, 10.3125 Gb/s, 16 bits, 644.5313 MHz, NRZ",
+            [4] = "40GE XLAUI-4 Wide, 10.3125 Gb/s, 32 bits, 322.2656 MHz, NRZ"
+        },
+        [MRMAC_CTL_DATA_RATE_50GE] =
+        {
+            [2] = "50GE 50GAUI-2 (KP4 FEC) Narrow, 26.5625 Gb/s , 40 bits, 664.062  MHz, NRZ\n    OR "
+                  "50GE LAUI-2 Consortium Narrow,  25.78125 Gb/s, 40 bits, 644.5313 MHz, NRZ",
+            [3] = "50GE 50LAUI-1 Narrow          , 51.5625 Gb/s, 80 bits, 644.531 MHz , PAM4\n    OR "
+                  "50GE 50GAUI-1 (KP4 FEC) Narrow, 53.125 Gb/s,  80 bits, 664.0625 MHz, PAM4",
+            [6] = "50GE 50GAUI-2 (KP4 FEC) Wide, 26.5625 Gb/s,   80 bits, 332.0312 MHz, NRZ\n    OR "
+                  "50GE LAUI-2 Consortium Wide,  25.78125 Gb/s,  80 bits, 322.2656 MHz, NRZ\n    OR "
+                  "50GE 50GAUI-1 Wide,           53.125 Gb/s,   160 bits, 664.0625 MHz, PAM4"
+        },
+        [MRMAC_CTL_DATA_RATE_100GE] =
+        {
+            [2] = "100GE CAUI-4 Narrow,               25.78125 Gb/s, 40 bits, 644.5313 MHz, NRZ\n    OR "
+                  "100GE 100GAUI-4 (KP4 FEC) Narrow,  26.5625 Gb/s,  40 bits, 664.0625 MHz, NRZ\n    OR "
+                  "100GE 100GAUI-1 Narrow,           106.25 Gb/s,   160 bits, 664.0625 MHz, PAM4",
+            [3] = "100GE 100GAUI-2 (KP4 FEC) Narrow, 53.125 Gb/s,  80 bits, 664.0625 MHz, PAM4\n    OR "
+                  "100GE CAUI-2 Narrow,              51.5625 Gb/s, 80 bits, 644.531 MHz,  PAM4",
+            [6] = "100GE CAUI-4 Wide,                 25.78125 Gb/s, 80 bits, 322.2656 MHz,  NRZ\n    OR "
+                  "100GE CAUI-4 (Overclocking) Wide,  28.21 Gb/s,    80 bits, 352.625 MHz,   NRZ\n    OR "
+                  "100GE 100GAUI-4 (KP4 FEC) Wide,    26.5625 Gb/s,  80 bits, 332.0312 MHz,  NRZ\n    OR "
+                  "100GE 100GAUI-2 Wide,              53.125 Gb/s,  160 bits, 332.03125 MHz, PAM4\n    OR "
+                  "100GE 100GAUI-2 (Overclocking),    56.42 Gb/s,   160 bits, 352.625 MHz,   PAM4\n    OR "
+                  "100GE 100GAUI-1 Wide,             106.25 Gb/s,   160 bits, 332.03125 MHz, PAM4"
+        }
+    };
+
+    /* Lookup for PG314 Table 6: FEC Operating Modes:
+     * - Outer index is Port Data Rate Field
+     * - Inner index is Port Serdes width
+     *
+     * 32GFEC entries are not used, since no support for the Flex Interface. */
+    const char *const fec_operating_mode_names[][16] =
+    {
+        [MRMAC_CTL_DATA_RATE_100GE] =
+        {
+            [ 0] = "FEC Disabled",
+            [ 8] = "IEEE 802.3 RS(528,514) FEC",
+            [10] = "IEEE P802.3cd/D3.5 CL91 RS(544,514) FEC",
+            [11] = "ITU-T FlexEO RS(544,514) FEC"
+        },
+        [MRMAC_CTL_DATA_RATE_50GE] =
+        {
+            [ 0] = "FEC Disabled",
+            [ 4] = "25G/50G Ethernet Consortium RS(528,517) FEC",
+            [ 5] = "IEEE 802.3 CL134 RS(544,514) FEC",
+            [15] = "IEEE 802.3 CL74 FEC"
+        },
+        [MRMAC_CTL_DATA_RATE_40GE] =
+        {
+            [ 0] = "FEC Disabled",
+            [13] = "IEEE 802.3 CL74 FEC",
+        },
+        [MRMAC_CTL_DATA_RATE_25GE] =
+        {
+            [ 0] = "FEC Disabled",
+            [ 2] = "25G/50G Ethernet Consortium RS(528,514) FEC",
+            [ 3] = "IEEE 802.3 CL108 RS(528,514) FEC",
+            [14] = "IEEE 802.3 CL74 FEC"
+        },
+        [MRMAC_CTL_DATA_RATE_10GE] =
+        {
+            [ 0] = "FEC Disabled",
+            [12] = "IEEE 802.3 CL74 FEC"
+        }
+    };
+
+    const uint32_t configuration_revision = read_reg32 (design->mrmac.regs, MRMAC_CONFIGURATION_REVISION_REG_OFFSET);
+
+    printf ("  MRMAC configuration revision: 0x%08X\n", configuration_revision);
+    for (uint32_t port_num = 0; port_num < NUM_MRMAC_PORTS; port_num++)
+    {
+        if (design->mrmac.used_ports[port_num])
+        {
+            const uint8_t *const port_regs = &design->mrmac.regs[port_num * MRMAC_PORT_REGS_FRAME_SIZE];
+
+            const uint32_t mode_reg = read_reg32 (port_regs, MRMAC_MODE_REG_OFFSET);
+            const uint32_t port_data_rate = vfio_extract_field_u32 (mode_reg, MRMAC_CTL_DATA_RATE_MASK);
+            const uint32_t port_serdes_width = vfio_extract_field_u32 (mode_reg, MRMAC_CTL_SERDES_WIDTH_MASK);
+            const uint32_t port_axi4_stream_mode = vfio_extract_field_u32 (mode_reg, MRMAC_CTL_AXIS_CFG_MASK);
+
+            const uint32_t configuration_rx_mtu_reg = read_reg32 (port_regs, MRMAC_CONFIGURATION_RX_MTU_OFFSET);
+            const uint32_t rx_min_packet_len = vfio_extract_field_u32 (configuration_rx_mtu_reg, MRMAC_CTL_RX_MIN_PACKET_LEN_MASK);
+            const uint32_t rx_max_packet_len = vfio_extract_field_u32 (configuration_rx_mtu_reg, MRMAC_CTL_RX_MAX_PACKET_LEN_MASK);
+
+            const uint32_t fec_configuration_reg1 = read_reg32 (port_regs, MRMAC_FEC_CONFIGURATION_REG1_OFFSET);
+            const uint32_t port_fec_mode = vfio_extract_field_u32 (fec_configuration_reg1, MRMAC_CTL_FEC_MODE_MASK);
+
+            const uint32_t stat_tx_rt_status_reg1 = read_reg32 (port_regs, MRMAC_STAT_TX_RT_STATUS_REG1_OFFET);
+
+            const uint32_t stat_rx_rt_status_reg1 = read_reg32 (port_regs, MRMAC_STAT_RX_RT_STATUS_REG1_OFFSET);
+
+            printf ("  Port %u:\n", port_num);
+            printf ("    Data rate: ");
+            if ((port_data_rate < VFIO_NELEMENTS (port_data_rate_names)) && (port_data_rate_names[port_data_rate] != NULL))
+            {
+                printf ("%s\n", port_data_rate_names[port_data_rate]);
+            }
+            else
+            {
+                printf ("Unknown (0x%x)\n", port_data_rate);
+            }
+            printf ("    GT Quad Operating mode: ");
+            if ((port_data_rate < VFIO_NELEMENTS (gt_quad_operating_mode_names)) &&
+                (gt_quad_operating_mode_names[port_data_rate][port_serdes_width] != NULL))
+            {
+                printf ("%s\n", gt_quad_operating_mode_names[port_data_rate][port_serdes_width]);
+            }
+            else
+            {
+                printf ("Unknown (0x%x)\n", port_serdes_width);
+            }
+            printf ("    AXI4-Stream Mode: ");
+            if ((port_data_rate < VFIO_NELEMENTS (axi4_stream_mode_names)) &&
+                    (axi4_stream_mode_names[port_data_rate][port_axi4_stream_mode] != NULL))
+            {
+                printf ("%s\n", axi4_stream_mode_names[port_data_rate][port_axi4_stream_mode]);
+            }
+            else
+            {
+                printf ("Unknown (0x%x)\n", port_axi4_stream_mode);
+            }
+
+            printf ("    Rx min packet len: %u\n", rx_min_packet_len);
+            printf ("    Rx max packet len: %u\n", rx_max_packet_len);
+
+            printf ("    FEC Operating Mode: ");
+            if ((port_data_rate < VFIO_NELEMENTS (fec_operating_mode_names)) &&
+                    (fec_operating_mode_names[port_data_rate][port_fec_mode] != NULL))
+            {
+                printf ("%s\n", fec_operating_mode_names[port_data_rate][port_fec_mode]);
+            }
+            else
+            {
+                printf ("Unknown (0x%x)\n", port_fec_mode);
+            }
+
+            printf ("    TX realtime status: 0x%08X\n", stat_tx_rt_status_reg1);
+            printf ("      Port TX local fault            : %u\n",
+                    vfio_extract_field_u32 (stat_tx_rt_status_reg1, MRMAC_STAT_TX_LOCAL_FAULT_MASK));
+            printf ("      Port TX axis underflow         : %u \n",
+                    vfio_extract_field_u32 (stat_tx_rt_status_reg1, MRMAC_STAT_TX_AXIS_UNF_MASK));
+            printf ("      Port TX axis error             : %u\n",
+                    vfio_extract_field_u32 (stat_tx_rt_status_reg1, MRMAC_STAT_TX_AXIS_ERR_MASK));
+            printf ("      Port TX flexif error           : %u\n",
+                    vfio_extract_field_u32 (stat_tx_rt_status_reg1, MRMAC_STAT_TX_FLEXIF_ERR_MASK));
+            printf ("      Port TX pcs bad code           : %u\n",
+                    vfio_extract_field_u32 (stat_tx_rt_status_reg1, MRMAC_STAT_TX_PCS_BAD_CODE_MASK));
+            printf ("      Port TX CL82 CL49 convert error: %u\n",
+                    vfio_extract_field_u32 (stat_tx_rt_status_reg1, MRMAC_STAT_TX_CL82_49_CONVERT_ERR_MASK));
+            printf ("      Port TX flex fifo overflow     : %u\n",
+                    vfio_extract_field_u32 (stat_tx_rt_status_reg1, MRMAC_STAT_TX_FLEX_FIFO_OVF_MASK));
+            printf ("      Port TX flex fifo underflow    : %u\n",
+                    vfio_extract_field_u32 (stat_tx_rt_status_reg1, MRMAC_STAT_TX_FLEX_FIFO_UDF_MASK));
+
+            printf ("    RX realtime status: 0x%08X\n", stat_rx_rt_status_reg1);
+            printf ("      Port RX Status: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_STATUS_MASK));
+            printf ("      Port RX Block Lock: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_BLOCK_LOCK_MASK));
+            printf ("      Port RX aligned: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_ALIGNED_MASK));
+            printf ("      Port RX misaligned: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_MISALIGNED_MASK));
+            printf ("      Port RX aligned error: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_ALIGNED_ERR_MASK));
+            printf ("      Port RX High BER: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_HI_BER_MASK));
+            printf ("      Port RX remote fault: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_REMOTE_FAULT_MASK));
+            printf ("      Port RX local fault: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_LOCAL_FAULT_MASK));
+            printf ("      Port RX internal local fault: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_INTERNAL_LOCAL_FAULT_MASK));
+            printf ("      Port RX received local fault: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_RECEIVED_LOCAL_FAULT_MASK));
+            printf ("      Port RX bad code: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_BAD_CODEMASK));
+            printf ("      Port RX bad preamble: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_BAD_PREAMBLE_MASK));
+            printf ("      Port RX bad SFD: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_BAD_SFD_MASK));
+            printf ("      Port RX got signal ordered set: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_GOT_SIGNAL_OS_MASK));
+            printf ("      Port RX flex if error: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_FLEXIF_ERR_MASK));
+            printf ("      Port RX Framing Error: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_FRAMING_ERR_MASK));
+            printf ("      Port RX Synced: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_SYNCED_MASK));
+            printf ("      Port RX Synced Error: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_SYNCED_ERR_MASK));
+            printf ("      Port RX BIP Error: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_BIP_ERR_MASK));
+            printf ("      Port RX CL49_82 convert error: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_CL49_82_CONVERT_ERR_MASK));
+            printf ("      Port RX pcs bad code: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_PCS_BAD_CODE_MASK));
+            printf ("      Port RX AXIS fifo overflow: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_AXIS_FIFO_OVERFLOW_MASK));
+            printf ("      Port RX AXIS error: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MCMAC_STAT_RX_AXIS_ERR_MASK));
+            printf ("      Port RX invalid start: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_INVALID_START_MASK));
+            printf ("      Port RX flex fifo overflow: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_FLEX_FIFO_OVF_MASK));
+            printf ("      Port RX flex fifo underflow: %u\n",
+                    vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_FLEX_FIFO_UDF_MASK));
         }
     }
 }
@@ -392,6 +690,10 @@ int main (int argc, char *argv[])
         if (design->cms_subsystem_present)
         {
             display_cms (design);
+        }
+        if (design->mrmac.regs != NULL)
+        {
+            display_mrmac_ports (design);
         }
     }
 

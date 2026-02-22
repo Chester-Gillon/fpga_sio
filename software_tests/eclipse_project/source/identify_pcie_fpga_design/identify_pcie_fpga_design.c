@@ -1454,9 +1454,17 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     {
                         const uint32_t peripherals_bar_index = 0;
                         const uint32_t dma_bridge_bar_index = 2;
+                        const size_t mrmac_base_offset    = 0x00000;
+                        const size_t mrmac_frame_size     = 0x10000;
                         const size_t iic_base_offset      = 0x11000;
                         const size_t iic_frame_size       = 0x01000;
 
+                        candidate_design->mrmac.regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index, mrmac_base_offset, mrmac_frame_size);
+                        candidate_design->mrmac.used_ports[0] = true;
+                        candidate_design->mrmac.used_ports[1] = true;
+                        candidate_design->mrmac.used_ports[2] = false;
+                        candidate_design->mrmac.used_ports[3] = false;
                         candidate_design->iic_regs =
                                 map_vfio_registers_block (vfio_device, peripherals_bar_index, iic_base_offset, iic_frame_size);
                         candidate_design->dma_bridge_present = true;

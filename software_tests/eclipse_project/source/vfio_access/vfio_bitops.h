@@ -12,6 +12,10 @@
 #include <strings.h>
 
 
+/* Number of elements in an array */
+#define VFIO_NELEMENTS(array) (sizeof(array) / sizeof(array[0]))
+
+
 /* Create a mask for one bit */
 #define VFIO_BIT(bit_num) (1u << (bit_num))
 
