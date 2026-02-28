@@ -22,6 +22,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <math.h>
 
 #include <linux/ethtool.h>
 
@@ -175,7 +176,8 @@ static iic_transfer_status_t sfp_module_read (sfp_management_registers_t *const 
  * @brief Display SFP module information
  * @details
  *  Currently only displays a sample of values.
- *  As a way of validating the I2C communication, displays the values obtains read in both forward and reverse directions.
+ *  As a way of validating the I2C communication, displays the text values read in both forward and reverse directions.
+ *  As these are fixed values for a given module, should be same for reads in both directions.
  * @param[in,out] management_regs Which SFP port to read from
  */
 static void display_module_information (sfp_management_registers_t *const management_regs)
@@ -212,6 +214,54 @@ static void display_module_information (sfp_management_registers_t *const manage
         printf ("Vendor SN = \"%.*s\" (\"%.*s\")\n",
                 vendor_sn_len, &data_forward[vendor_sn_start],
                 vendor_sn_len, &data_reverse[vendor_sn_start]);
+
+        /* If implemented, display the digital diagnostic monitoring defined by SFF-8472 */
+        const uint32_t diagnostic_monitoring_type = data_forward[92];
+        const bool digital_diagnostic_monitoring_implemented = (diagnostic_monitoring_type & VFIO_BIT (6)) != 0;
+        const bool internally_calibrated = (diagnostic_monitoring_type & VFIO_BIT (5)) != 0;
+        const bool average_receive_power = (diagnostic_monitoring_type & VFIO_BIT (3)) != 0;
+        const bool address_change_required = (diagnostic_monitoring_type & VFIO_BIT (2)) != 0;
+
+        if (digital_diagnostic_monitoring_implemented)
+        {
+            if (address_change_required)
+            {
+                printf ("Address change required for digital diagnostic monitoring - no support in this program\n");
+            }
+            else if (internally_calibrated)
+            {
+                uint8_t digital_diagnostic_monitoring[128];
+
+                status = sfp_module_read (management_regs, 0x51, 0,
+                        sizeof (digital_diagnostic_monitoring), digital_diagnostic_monitoring, NULL);
+                if (status == IIC_TRANSFER_STATUS_SUCCESS)
+                {
+                    /* Units of power are 0.1 micro Watts */
+                    const uint32_t tx_power_int = (digital_diagnostic_monitoring[102] * 256u) + digital_diagnostic_monitoring[103];
+                    const uint32_t rx_power_int = (digital_diagnostic_monitoring[104] * 256u) + digital_diagnostic_monitoring[105];
+                    const double tx_power_mw = (double) tx_power_int / 1E4;
+                    const double rx_power_mw = (double) rx_power_int / 1E4;
+                    const double tx_power_dbm = 10 * log10 (tx_power_mw);
+                    const double rx_power_dbm = 10 * log10 (rx_power_mw);
+
+                    printf ("Measured TX output power: %6.4f mW / %6.2f dBm\n", tx_power_mw, tx_power_dbm);
+                    printf ("Measured RX output power: %6.4f mW / %6.2f dBm (%s)\n", rx_power_mw, rx_power_dbm,
+                            average_receive_power ? "average receiver power" : "Optical modulation amplitude");
+                }
+                else
+                {
+                    printf ("Failed to read digital diagnostic monitoring\n");
+                }
+            }
+            else
+            {
+                printf ("This program only supported internally calibrated digital diagnostic monitoring\n");
+            }
+        }
+        else
+        {
+            printf ("Digital diagnostic monitoring not implemented\n");
+        }
     }
 }
 
