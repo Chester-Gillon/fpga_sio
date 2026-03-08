@@ -94,7 +94,7 @@
 
 
 /* Receive status registers:
- * - MRMAC_STAT_RX_STATUS_REG1_OFFSET is the latched version, and the comments indicste if bits latch high/low
+ * - MRMAC_STAT_RX_STATUS_REG1_OFFSET is the latched version, and the comments indicate if bits latch high/low
  * - MRMAC_STAT_RX_RT_STATUS_REG1_OFFSET is the real-time version */
 #define MRMAC_STAT_RX_STATUS_REG1_OFFSET    0x0744
 #define MRMAC_STAT_RX_RT_STATUS_REG1_OFFSET 0x074C

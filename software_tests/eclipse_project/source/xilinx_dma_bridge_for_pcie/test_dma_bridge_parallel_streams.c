@@ -414,6 +414,7 @@ static void initialise_parallel_streams (stream_test_contexts_t *const context)
         const x2x_transfer_configuration_t h2c_transfer_configuration =
         {
             .dma_bridge_memory_size_bytes = stream_pair->design->dma_bridge_memory_size_bytes,
+            .dma_bridge_memory_base_address = stream_pair->design->dma_bridge_memory_base_address,
             .min_size_alignment = 1, /* The host memory is byte addressable */
             .num_descriptors = context->num_descriptors,
             .channels_submodule = DMA_SUBMODULE_H2C_CHANNELS,
@@ -433,6 +434,7 @@ static void initialise_parallel_streams (stream_test_contexts_t *const context)
         const x2x_transfer_configuration_t c2h_transfer_configuration =
         {
             .dma_bridge_memory_size_bytes = stream_pair->design->dma_bridge_memory_size_bytes,
+            .dma_bridge_memory_base_address = stream_pair->design->dma_bridge_memory_base_address,
             .min_size_alignment = 1, /* The host memory is byte addressable */
             .num_descriptors = context->num_descriptors,
             .channels_submodule = DMA_SUBMODULE_C2H_CHANNELS,

@@ -385,7 +385,7 @@ typedef struct
 } fpga_design_t;
 
 
-/* Contains the FPGA designs which have been identified on the PCIs bus */
+/* Contains the FPGA designs which have been identified on the PCIe bus */
 typedef struct
 {
     /* The underlying VFIO devices which have been opened, based upon the supported PCIe identities supported by this library */

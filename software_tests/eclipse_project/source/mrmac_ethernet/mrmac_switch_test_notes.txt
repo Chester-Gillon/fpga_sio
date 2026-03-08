@@ -1,0 +1,329 @@
+1. Initial testing with VD100_10G_ether_dual
+--------------------------------------------
+
+For this the VD100_10G_ether_dual design was connected to a T1700G-28TQ switch:
+a. VD100 port 0 connected to switch port 27 via DELL PKR0R 10GB RJ-45 SR 30m Transceivers
+b. VD100 port 1 connected to switch port 28 via 10Gtek AXS85-192-M3 is SFP+ 10Gb/s, 10GBase-SR, MMF, 850nm 300M Transceivers,
+   with a multi-mode fibre.
+c. Only one VD100 port connected to the switch at once.
+d. 10G DAC cable between switch ports 25 and 26.
+e. Switch port VLAN configuration:
+   - Port 25 untagged member of VLAN 1025
+   - Port 26 untagged member of VLAN 1026
+   - Ports 27 and 28 tagged members of VLAN 1025-1026
+
+
+Run using port 1, when mrmac_switch_test opened the VFIO device showed some initial missing frames:
+mr_halfword@alder-lake-alma:~/fpga_sio/software_tests/eclipse_project/bin/release$ mrmac_ethernet/mrmac_switch_test -n 1 -p 25,26
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 100.00 (Mbps)
+Limiting max frame rate to 16212.7 Hz, as bit-rate on interface to injection switch exceeds that across all switch ports under test
+Writing per-port counts to 20260308T202221_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 port 1
+Test interval = 10 (secs)
+Frame debug enabled = No
+Press Ctrl-C to stop test at end of next test interval
+
+20:22:31.535
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       162128         154643              0              0              0           7484        16212.8         100.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   S
+    26  S 
+Total test intervals with failures = 1 : last failure NOW
+
+20:22:41.535
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       162127         162128              0              0              0              0        16212.7         100.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 1 : last failure 20:22:31.535
+
+20:22:51.535
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       162127         162127              0              0              0              0        16212.7         100.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 1 : last failure 20:22:31.535
+
+20:23:01.535
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       162127         162127              0              0              0              0        16212.7         100.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 1 : last failure 20:22:31.535
+
+20:23:11.535
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       162127         162127              0              0              0              0        16212.7         100.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 1 : last failure 20:22:31.535
+^C
+20:23:21.535
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       162127         162127              0              0              0              0        16212.7         100.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 1 : last failure 20:22:31.535
+Max pending rx frames = 1656 out of 1656
+
+
+Run using port 0, when mrmac_switch_test opened the VFIO device showed some initial missing frames:
+mr_halfword@alder-lake-alma:~/fpga_sio/software_tests/eclipse_project/bin/release$ mrmac_ethernet/mrmac_switch_test -n 0 -p 25,26
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 100.00 (Mbps)
+Limiting max frame rate to 16212.7 Hz, as bit-rate on interface to injection switch exceeds that across all switch ports under test
+Writing per-port counts to 20260308T202435_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Press Ctrl-C to stop test at end of next test interval
+
+20:24:45.432
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       162128         157561              0              0              0           4566        16212.8         100.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   S
+    26  S 
+Total test intervals with failures = 1 : last failure NOW
+
+20:24:55.432
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       162127         162127              0              0              0              0        16212.7         100.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 1 : last failure 20:24:45.432
+
+20:25:05.432
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       162127         162128              0              0              0              0        16212.7         100.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 1 : last failure 20:24:45.432
+
+20:25:15.432
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       162127         162127              0              0              0              0        16212.7         100.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 1 : last failure 20:24:45.432
+
+20:25:25.432
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       162127         162127              0              0              0              0        16212.7         100.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 1 : last failure 20:24:45.432
+
+20:25:35.432
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       162127         162127              0              0              0              0        16212.7         100.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 1 : last failure 20:24:45.432
+^C
+20:25:45.432
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       162127         162127              0              0              0              0        16212.7         100.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 1 : last failure 20:24:45.432
+Max pending rx frames = 1656 out of 1656
+
+
+Run using port 0, when vfio_multi_process_manager was running and sfp_management_menu already had the device open.
+There were no missed frames:
+when mrmac_switch_test opened the VFIO device showed some initial missing frames:
+mr_halfword@alder-lake-alma:~/fpga_sio/software_tests/eclipse_project/bin/release$ mrmac_ethernet/mrmac_switch_test -n 0 -p 25,26
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 100.00 (Mbps)
+Limiting max frame rate to 16212.7 Hz, as bit-rate on interface to injection switch exceeds that across all switch ports under test
+Writing per-port counts to 20260308T202615_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Press Ctrl-C to stop test at end of next test interval
+
+20:26:25.170
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       162128         162127              0              0              0              0        16212.8         100.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+20:26:35.170
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       162127         162127              0              0              0              0        16212.7         100.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+20:26:45.170
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       162127         162128              0              0              0              0        16212.7         100.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+20:26:55.170
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       162127         162127              0              0              0              0        16212.7         100.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+Max pending rx frames = 4 out of 1656
+
+
+Run using port 0, when vfio_multi_process_manager was running and sfp_management_menu already had the device open,
+and also this time changing the requested per-port requested bit rate to remove the rate limit and try running the 10G
+port at the maximum rate. There were no missed frames, but didn't achieve the full 10G rate:
+mr_halfword@alder-lake-alma:~/fpga_sio/software_tests/eclipse_project/bin/release$ mrmac_ethernet/mrmac_switch_test -n 0 -p 25,26 -r 50000
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 50000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Writing per-port counts to 20260308T211645_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Press Ctrl-C to stop test at end of next test interval
+
+21:16:55.343
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      6821816        6821806              0              0              0              0       682181.6        4207.70
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+21:17:05.343
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      6832535        6832536              0              0              0              0       683253.5        4214.31
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+21:17:15.343
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      6829760        6829760              0              0              0              0       682976.0        4212.60
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+21:17:25.343
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      6831061        6831060              0              0              0              0       683106.1        4213.40
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+Max pending rx frames = 6 out of 1656
+
+
+Therefore, possibly the VFIO open which issues a PCIe Hot-Reset causes a temporary link down event.
+
