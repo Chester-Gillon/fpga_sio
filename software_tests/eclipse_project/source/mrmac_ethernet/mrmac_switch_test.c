@@ -269,7 +269,8 @@ static FILE *console_file;
 
 /* Command line arguments which specify the MRMAC device and port used to send/receive test frames */
 static char arg_mrmac_device_location[PATH_MAX];
-static uint32_t arg_mrmac_port_num;
+static uint32_t arg_mrmac_tx_port_num;
+static uint32_t arg_mrmac_rx_port_num;
 
 
 /* Command line argument which specifies the test interval in seconds, which is the interval over which statistics are
@@ -392,8 +393,11 @@ typedef struct
     fpga_designs_t designs;
     /* The MRMAC design used to send/receive the test frames */
     fpga_design_t *mrmac_design;
-    /* Mapped to the MRMAC port Configuration registers, Status registers, and Statistics counters */
-    uint8_t *mrmac_port_regs;
+    /* Mapped to the MRMAC port Configuration registers, Status registers, and Statistics counters.
+     * Two sets for transmit and receive related registers, to allow for the command line arguments potentially specifying
+     * different MRMAC ports on the same design to be used for transmit and receive. */
+    uint8_t *mrmac_tx_port_regs;
+    uint8_t *mrmac_rx_port_regs;
     /* The number of buffers allocated for transmit and receive, which can be queued for XDMA */
     uint32_t tx_num_buffers;
     uint32_t rx_num_buffers;
@@ -577,11 +581,14 @@ static void report_if_transfer_failed (const x2x_transfer_context_t *const conte
  */
 static void display_usage (const char *const program_name)
 {
-    printf ("Usage %s: [-i <domain>:<bus>:<dev>.<func>] -n <mrmac_port_num> [-t <duration_secs>] [-d] [-p <port_list>] [-r <rate_mbps>] [-g <tx_ipg_value>]\n", program_name);
+    printf ("Usage %s: [-i <domain>:<bus>:<dev>.<func>] -n [<mrmac_port_num>|<mrmac_tx_port_num>:<mrmac_rx_port_num>] [-t <duration_secs>] [-d] [-p <port_list>] [-r <rate_mbps>] [-g <tx_ipg_value>]\n", program_name);
     printf ("\n");
     printf ("  -i only open using VFIO specific PCI device in the event that there is more than\n");
     printf ("     one PCI device which matches the identity filters.\n");
-    printf ("  -n specifies which MRMAC port to use\n");
+    printf ("  -n specifies which MRMAC port to use. May be either:\n");
+    printf ("     - A single number of the port to use for transmit and receive\n");
+    printf ("     - A pair of colon delimited <mrmac_tx_port_num>:<mrmac_rx_port_num>\n");
+    printf ("       to allow independent MRMAC ports to be used for transmit and receive.\n");
     printf ("\n");
     printf ("  -d enables debug mode, where runs just for a single test interval and creates\n");
     printf ("     a CSV file containing the frames sent/received.\n");
@@ -732,6 +739,8 @@ static void read_command_line_arguments (const int argc, char *argv[])
     int option;
     char junk;
     uint32_t port_num;
+    uint32_t tx_port_num;
+    uint32_t rx_port_num;
 
     /* Default to testing all defined switch ports */
     num_tested_port_indices = 0;
@@ -752,12 +761,22 @@ static void read_command_line_arguments (const int argc, char *argv[])
             break;
 
         case 'n':
-            if ((sscanf (optarg, "%" SCNu32 "%c", &port_num, &junk) != 1) || (port_num >= NUM_MRMAC_PORTS))
+            if ((sscanf (optarg, "%" SCNu32 ":%" SCNu32 "%c", &tx_port_num, &rx_port_num, &junk) == 2) &&
+                (tx_port_num < NUM_MRMAC_PORTS) && (rx_port_num < NUM_MRMAC_PORTS))
             {
-                printf ("Error: Invalid MRMAC port num %s\n", optarg);
+                arg_mrmac_tx_port_num = tx_port_num;
+                arg_mrmac_rx_port_num = rx_port_num;
+            }
+            else if ((sscanf (optarg, "%" SCNu32 "%c", &port_num, &junk) == 1) && (port_num < NUM_MRMAC_PORTS))
+            {
+                arg_mrmac_tx_port_num = port_num;
+                arg_mrmac_rx_port_num = port_num;
+            }
+            else
+            {
+                printf ("Error: Invalid MRMAC port(s) %s\n", optarg);
                 exit (EXIT_FAILURE);
             }
-            arg_mrmac_port_num = port_num;
             mrmac_port_num_specified = true;
             break;
 
@@ -807,7 +826,7 @@ static void read_command_line_arguments (const int argc, char *argv[])
     /* Check the expected arguments have been provided */
     if (!mrmac_port_num_specified)
     {
-        printf ("Error: The MRMAC port must be specified\n\n");
+        printf ("Error: The MRMAC port(s) must be specified\n\n");
         display_usage (program_name);
     }
 
@@ -848,10 +867,12 @@ static int64_t get_mrmac_rate_mbps (const frame_tx_rx_thread_context_t *const co
 
     /* Read the statically configured rate from the MRMAC.
      * There is no support in the FPGA user logic nor this software for dynamic rate configuration. */
-    const uint32_t mode_reg = read_reg32 (context->mrmac_port_regs, MRMAC_MODE_REG_OFFSET);
-    const uint32_t port_data_rate = vfio_extract_field_u32 (mode_reg, MRMAC_CTL_DATA_RATE_MASK);
+    const uint32_t tx_mode_reg = read_reg32 (context->mrmac_tx_port_regs, MRMAC_MODE_REG_OFFSET);
+    const uint32_t tx_port_data_rate = vfio_extract_field_u32 (tx_mode_reg, MRMAC_CTL_DATA_RATE_MASK);
+    const uint32_t rx_mode_reg = read_reg32 (context->mrmac_rx_port_regs, MRMAC_MODE_REG_OFFSET);
+    const uint32_t rx_port_data_rate = vfio_extract_field_u32 (rx_mode_reg, MRMAC_CTL_DATA_RATE_MASK);
 
-    switch (port_data_rate)
+    switch (tx_port_data_rate)
     {
     case MRMAC_CTL_DATA_RATE_10GE:
         rate_mbps = 10000;
@@ -879,7 +900,14 @@ static int64_t get_mrmac_rate_mbps (const frame_tx_rx_thread_context_t *const co
         break;
 
     default:
-        console_printf ("Unknown port_data_rate encoding 0x%x\n", port_data_rate);
+        console_printf ("Error: Unknown port_data_rate encoding 0x%x\n", tx_port_data_rate);
+        exit (EXIT_FAILURE);
+    }
+
+    if (rx_port_data_rate != tx_port_data_rate)
+    {
+        console_printf ("Error Rx port data rate 0x%x and Tx port data rate 0x%x differ\n",
+                rx_port_data_rate, tx_port_data_rate);
         exit (EXIT_FAILURE);
     }
 
@@ -895,8 +923,8 @@ static int64_t get_mrmac_rate_mbps (const frame_tx_rx_thread_context_t *const co
     /* Wait for the latched and real-time receive status registers to indicate the link is ready to receive */
     do
     {
-        rx_status = read_reg32 (context->mrmac_port_regs, MRMAC_STAT_RX_STATUS_REG1_OFFSET);
-        rx_rt_status = read_reg32 (context->mrmac_port_regs, MRMAC_STAT_RX_RT_STATUS_REG1_OFFSET);
+        rx_status = read_reg32 (context->mrmac_rx_port_regs, MRMAC_STAT_RX_STATUS_REG1_OFFSET);
+        rx_rt_status = read_reg32 (context->mrmac_rx_port_regs, MRMAC_STAT_RX_RT_STATUS_REG1_OFFSET);
         rx_link_ready = (rx_status == rx_link_ready_status_value) && (rx_rt_status == rx_link_ready_status_value);
 
         if (!rx_link_ready)
@@ -904,7 +932,7 @@ static int64_t get_mrmac_rate_mbps (const frame_tx_rx_thread_context_t *const co
             if (rx_status != rx_link_ready_status_value)
             {
                 /* Write to latched status to clear error indications */
-                write_reg32 (context->mrmac_port_regs, MRMAC_STAT_RX_STATUS_REG1_OFFSET, UINT32_MAX);
+                write_reg32 (context->mrmac_rx_port_regs, MRMAC_STAT_RX_STATUS_REG1_OFFSET, UINT32_MAX);
             }
 
             if (first_wait)
@@ -1022,23 +1050,30 @@ static void open_mrmac_device (frame_tx_rx_thread_context_t *const context)
         printf ("Error: Found %u designs with MRMAC. Use -i option to select a single design\n", num_designs_with_mrmacs);
         exit (EXIT_FAILURE);
     }
-    else if (!context->mrmac_design->mrmac.used_ports[arg_mrmac_port_num])
+    else if (!context->mrmac_design->mrmac.used_ports[arg_mrmac_tx_port_num])
     {
-        printf ("Error: Design %s doesn't have requested MRMAC port %u\n",
-                fpga_design_names[context->mrmac_design->design_id], arg_mrmac_port_num);
+        printf ("Error: Design %s doesn't have requested MRMAC Tx port %u\n",
+                fpga_design_names[context->mrmac_design->design_id], arg_mrmac_tx_port_num);
+        exit (EXIT_FAILURE);
+    }
+    else if (!context->mrmac_design->mrmac.used_ports[arg_mrmac_rx_port_num])
+    {
+        printf ("Error: Design %s doesn't have requested MRMAC Rx port %u\n",
+                fpga_design_names[context->mrmac_design->design_id], arg_mrmac_rx_port_num);
         exit (EXIT_FAILURE);
     }
 
-    context->mrmac_port_regs = &context->mrmac_design->mrmac.regs[arg_mrmac_port_num * MRMAC_PORT_REGS_FRAME_SIZE];
+    context->mrmac_tx_port_regs = &context->mrmac_design->mrmac.regs[arg_mrmac_tx_port_num * MRMAC_PORT_REGS_FRAME_SIZE];
+    context->mrmac_rx_port_regs = &context->mrmac_design->mrmac.regs[arg_mrmac_rx_port_num * MRMAC_PORT_REGS_FRAME_SIZE];
     context->xdma_overall_success = true;
 
-    /* When the MRMAC tx_ipg_value command option is present, write it to the transmit configuration register */
+    /* When the MRMAC tx_ipg_value command line option is present, write it to the transmit configuration register */
     if (arg_tx_ipg_value_specified)
     {
-        uint32_t configuration_tx_reg1 = read_reg32 (context->mrmac_port_regs, MRMAC_CONFIGURATION_TX_REG1_OFFSET);
+        uint32_t configuration_tx_reg1 = read_reg32 (context->mrmac_tx_port_regs, MRMAC_CONFIGURATION_TX_REG1_OFFSET);
 
         vfio_update_field_u32 (&configuration_tx_reg1, MRMAC_CTL_TX_IPG_VALUE, arg_tx_ipg_value);
-        write_reg32 (context->mrmac_port_regs, MRMAC_CONFIGURATION_TX_REG1_OFFSET, configuration_tx_reg1);
+        write_reg32 (context->mrmac_tx_port_regs, MRMAC_CONFIGURATION_TX_REG1_OFFSET, configuration_tx_reg1);
     }
 
     /* Set the number of transmit buffers to the maximum number of ports which can be used by the test.
@@ -1068,7 +1103,7 @@ static void open_mrmac_device (frame_tx_rx_thread_context_t *const context)
         .min_size_alignment = 1, /* The host memory is byte addressable */
         .num_descriptors = context->tx_num_buffers,
         .channels_submodule = DMA_SUBMODULE_H2C_CHANNELS,
-        .channel_id = arg_mrmac_port_num,
+        .channel_id = arg_mrmac_tx_port_num,
         .bytes_per_buffer = vfio_align_cache_line_size (sizeof (ethercat_frame_t)),
         .host_buffer_start_offset = 0, /* Separate host buffer used for transmit and receive transfers */
         .card_buffer_start_offset = 0, /* Not used for AXI stream */
@@ -1095,7 +1130,7 @@ static void open_mrmac_device (frame_tx_rx_thread_context_t *const context)
         .min_size_alignment = 1, /* The host memory is byte addressable */
         .num_descriptors = context->rx_num_buffers,
         .channels_submodule = DMA_SUBMODULE_C2H_CHANNELS,
-        .channel_id = arg_mrmac_port_num,
+        .channel_id = arg_mrmac_rx_port_num,
         .bytes_per_buffer = vfio_align_cache_line_size (sizeof (ethercat_frame_t)),
         .host_buffer_start_offset = 0, /* Separate host buffer used for transmit and receive transfers */
         .card_buffer_start_offset = 0, /* Not used for AXI stream */
@@ -1977,15 +2012,15 @@ int main (int argc, char *argv[])
     }
 
     /* Report the Inter Packet Gap (IPG) the MRMAC transmitter is using */
-    const uint32_t configuration_tx_reg1 = read_reg32 (tx_rx_thread_context->mrmac_port_regs, MRMAC_CONFIGURATION_TX_REG1_OFFSET);
+    const uint32_t configuration_tx_reg1 = read_reg32 (tx_rx_thread_context->mrmac_tx_port_regs, MRMAC_CONFIGURATION_TX_REG1_OFFSET);
     const uint32_t tx_ipg_value = vfio_extract_field_u32 (configuration_tx_reg1, MRMAC_CTL_TX_IPG_VALUE);
     printf ("Tx Inter Packet Gap = %u\n", tx_ipg_value);
 
     /* Report the command line arguments used */
     console_printf ("Writing per-port counts to %s\n", results_summary.per_port_counts_csv_filename);
-    console_printf ("Using design %s device %s port %u\n",
+    console_printf ("Using design %s device %s Tx port %u Rx port %u\n",
             fpga_design_names[tx_rx_thread_context->mrmac_design->design_id],
-            tx_rx_thread_context->mrmac_design->vfio_device->device_name, arg_mrmac_port_num);
+            tx_rx_thread_context->mrmac_design->vfio_device->device_name, arg_mrmac_tx_port_num, arg_mrmac_rx_port_num);
     console_printf ("Test interval = %" PRIi64 " (secs)\n", arg_test_interval_secs);
     console_printf ("Frame debug enabled = %s\n", arg_frame_debug_enabled ? "Yes" : "No");
 

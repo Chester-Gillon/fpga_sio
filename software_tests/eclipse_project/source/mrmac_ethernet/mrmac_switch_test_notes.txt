@@ -621,3 +621,124 @@ However, there was no change to the achieved frame rate for the test.
 
 Did find that the "Port TX IPG value" field is preserved across a PCIe Hot Reset.
 
+
+5. Allow operation with different MRMAC ports used for transmit and receive
+---------------------------------------------------------------------------
+
+The mrmac_switch_test command line options were changed to allow different MRMAC ports to be specified for transmit and receive.
+This is to test MRMAC ports in "simplex" mode.
+
+3 10Gtek AXS85-192-M3 is "SFP+ 10Gb/s, 10GBase-SR, MMF, 850nm 300M" transceivers were used:
+a. One in the T1700G-28TQ switch.
+b. One in each of port 0 and 1 of the VD100
+c. Tx from switch connected to VD100 port 0
+d. Tx from CVD100 port 1 connected to switch Rx.
+
+A successful run using transmit from port 1 and receive from port 0:
+$ mrmac_ethernet/mrmac_switch_test -n 1:0 -p 25,26 -r 5000 
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20260315T204533_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 1 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Press Ctrl-C to stop test at end of next test interval
+
+20:45:46.098
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8010141        8010045              0              0              0              0       801014.1        4940.65
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+20:45:56.098
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8008885        8008886              0              0              0              0       800888.5        4939.88
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+20:46:06.098
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8006048        8006048              0              0              0              0       800604.8        4938.13
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+20:46:16.098
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8006870        8006870              0              0              0              0       800687.0        4938.64
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+20:46:26.098
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8003927        8003926              0              0              0              0       800392.7        4936.82
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+20:46:36.098
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8005434        8005435              0              0              0              0       800543.4        4937.75
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+20:46:46.098
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8004943        8004943              0              0              0              0       800494.3        4937.45
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+Max pending rx frames = 49 out of 1656
+
+As expected, if try using transmit from port 0 and receive on port 1 fails to detect the link being ready:
+$ mrmac_ethernet/mrmac_switch_test -n 0:1 -p 25,26 -r 5000 
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+^C
+
