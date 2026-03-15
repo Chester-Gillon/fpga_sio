@@ -389,3 +389,103 @@ Source  Destination ports --->
 Total test intervals with failures = 0
 Max pending rx frames = 5 out of 1656
 
+
+3. Allow number of queued transmit buffers to be increased when not rate limited
+--------------------------------------------------------------------------------
+
+When testing two 10G ports the achieved bandwidth to the injection switch was 8.4Gbps.
+
+The maximum number of pending transmit frames was limited to the number of ports tested, i.e. 2, regardless of if the
+transmit needed to be rate limited to protect loss in the switch under test.
+
+Adjusted so that:
+a. When rate limited, as before the maximum number of pending transmit frames is the number of tested ports.
+a. When not rate limited the maximum number of pending transmit frames is increased to 48 (NUM_DEFINED_PORTS)
+
+With rate limiting applied,by setting the requested per-port rate just below the actual available bandwidth, get:
+$ mrmac_ethernet/mrmac_switch_test -n 1 -p 25,26 -r 4999.999
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Limiting max frame rate to 810635.4 Hz, as bit-rate on interface to injection switch exceeds that across all switch ports under test
+Writing per-port counts to 20260315T171853_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 port 1
+Test interval = 10 (secs)
+Frame debug enabled = No
+Press Ctrl-C to stop test at end of next test interval
+
+17:19:05.626
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      6935951        6935943              0              0              0              0       693595.1        4278.09
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+17:19:15.626
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      6933257        6933258              0              0              0              0       693325.7        4276.43
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+Max pending rx frames = 5 out of 1656
+
+I.e. total bandwidth of 8552 Mbps.
+
+
+Run without tx rate limiting:
+$ mrmac_ethernet/mrmac_switch_test -n 1 -p 25,26 -r 5000
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Writing per-port counts to 20260315T172329_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 port 1
+Test interval = 10 (secs)
+Frame debug enabled = No
+Press Ctrl-C to stop test at end of next test interval
+
+17:23:41.124
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8007187        8007092              0              0              0              0       800718.7        4938.83
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+17:23:51.124
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8008376        8008376              0              0              0              0       800837.6        4939.57
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+Max pending rx frames = 49 out of 1656
+
+Where:
+a. Total bandwidth has increased to 9876 Mbps
+b. Max pending rx frames has increased from 5 to 49, which is expected now that allow more transmit frames to be queued.
+

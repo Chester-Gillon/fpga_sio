@@ -405,6 +405,8 @@ typedef struct
     int64_t test_interval_end_time;
     /* Optionally used to record frames for debug */
     frame_records_t frame_recording;
+    /* The number of frames which have been queued for transmission are and waiting for completion */
+    uint32_t num_tx_buffers_queued;
     /* Controls the rate at which transmit frames are generated:
      * - When true a timer is used to limit the maximum rate at which frames are transmitted.
      *   This can be used when the available bandwidth on the link to the injection switch exceeds that available to distribute
@@ -1014,13 +1016,10 @@ static void open_mrmac_device (frame_tx_rx_thread_context_t *const context)
     context->mrmac_port_regs = &context->mrmac_design->mrmac.regs[arg_mrmac_port_num * MRMAC_PORT_REGS_FRAME_SIZE];
     context->xdma_overall_success = true;
 
-    /* Limit the burst which can be queued for transmission to the number of ports on the switch under test,
-     * to avoid potentially overloading switch ports if the software gets behind.
-     *
-     * @todo This is only needed when need to limit the transmit frame rate.
-     *       If not limiting the transmit frame rate may prevent generating the maximum frame rate on the interface to the injection
-     *       switch. */
-    context->tx_num_buffers = num_tested_port_indices;
+    /* Set the number of transmit buffers to the maximum number of ports which can be used by the test.
+     * If the transmission is rate limited the maximum number of tx buffers which may be queued at once is limited. */
+    context->tx_num_buffers = NUM_DEFINED_PORTS;
+    context->num_tx_buffers_queued = 0;
 
     /* @todo Is this an over estimate? While smaller may make better use of cache not sure how that works
      *       with XDMA (which has to target memory?).
@@ -1509,6 +1508,8 @@ static void transmit_next_test_frame (frame_tx_rx_thread_context_t *const contex
             context->source_port_offset = 1;
         }
     }
+
+    context->num_tx_buffers_queued++;
 }
 
 
@@ -1525,6 +1526,11 @@ static void *transmit_receive_thread (void *arg)
     const ethercat_frame_t *rx_frame;
     size_t rx_transfer_len;
     bool rx_end_of_packet;
+
+    /* When the transmit is rate limited, set the maximum number of queued frames to the number of tested ports.
+     * This limits the burst which can be queued for transmission to the number of ports on the switch under test,
+     * to avoid potentially overloading switch ports if the software gets behind. */
+    const uint32_t max_queued_tx_frames = context->tx_rate_limited ? num_tested_port_indices : context->tx_num_buffers;
 
     transmit_receive_initialise (context);
 
@@ -1578,10 +1584,12 @@ static void *transmit_receive_thread (void *arg)
          * in case of race conditions for checking transmit/receive XMDA completion. */
         while (x2x_poll_completed_transfer (&context->h2c_transfer, NULL, NULL) != NULL)
         {
+            CHECK_ASSERT (context->num_tx_buffers_queued > 0);
+            context->num_tx_buffers_queued--;
         }
 
         /* Determine if can transmit the next frame */
-        if (x2x_get_num_free_descriptors (&context->h2c_transfer) == 0)
+        if (context->num_tx_buffers_queued == max_queued_tx_frames)
         {
             /* No available transmit buffer */
         }
