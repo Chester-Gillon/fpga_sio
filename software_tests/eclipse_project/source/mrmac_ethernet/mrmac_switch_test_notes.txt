@@ -327,3 +327,65 @@ Max pending rx frames = 6 out of 1656
 
 Therefore, possibly the VFIO open which issues a PCIe Hot-Reset causes a temporary link down event.
 
+
+2. Add logic to wait for link to be ready
+-----------------------------------------
+
+Noticed that a VFIO open or close, which issues a PCIe Hot Reset, caused the link LEDs on the switch to show the links
+go down for about one second and then back up.
+
+Changed mrmac_switch_test to check for the latched receive status indicating the link had gone down to wait for the link
+to be ready to receive and an additional delay for the switch to be ready (as found with dpdk_switch_test).
+
+Following these changes no longer got initial missed frames:
+$ mrmac_ethernet/mrmac_switch_test -n 1 -p 25,26 -r 50000
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 50000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Writing per-port counts to 20260315T153220_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 port 1
+Test interval = 10 (secs)
+Frame debug enabled = No
+Press Ctrl-C to stop test at end of next test interval
+
+15:32:32.116
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      6791948        6791940              0              0              0              0       679194.8        4189.27
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+15:32:42.116
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      6791721        6791722              0              0              0              0       679172.1        4189.13
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+15:32:52.116
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      6774294        6774293              0              0              0              0       677429.4        4178.38
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+Max pending rx frames = 5 out of 1656
+

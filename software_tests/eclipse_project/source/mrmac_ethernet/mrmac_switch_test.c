@@ -809,24 +809,27 @@ static void read_command_line_arguments (const int argc, char *argv[])
 
 /**
  * @brief Get the configured speed of the MRMAC port used for the test into Mbps
- * @todo Is the link down shortly after VFIO has opened the device, if that resets part of the MRMAC?
- *       If so, add a delay waiting for the link to be up.
- *       Also need to determine when the link is considered "up". With a 10G port which uses only one lane the only bits high
- *       when the link was connected to a switch were:
- *       - MRMAC_STAT_RX_STATUS_MASK
- *       - MRMAC_STAT_RX_BLOCK_LOCK_MASK
- *
- *       TBC if when a link use more than one lane (i.e. 40G, 50G or 100G) if the following bits should also be high
- *       for the link to be considered up:
- *       - MRMAC_STAT_RX_ALIGNED_MASK
- *       - MRMAC_STAT_RX_SYNCED_MASK
+ * @details Waits until the receive link is ready
  * @param[in] context The initialised context to obtains the speed from
  * @return The rate for the MRMAC port being used for the test
  */
 static int64_t get_mrmac_rate_mbps (const frame_tx_rx_thread_context_t *const context)
 {
     int64_t rate_mbps = 0;
+    uint32_t num_lanes = 0;
+    uint32_t first_rx_status;
+    uint32_t rx_status;
+    uint32_t rx_rt_status;
+    bool rx_link_ready;
+    const struct timespec hold_off =
+    {
+        .tv_sec = 0,
+        .tv_nsec = 100000000 /* 100 milliseconds */
+    };
+    bool first_wait = true;
 
+    /* Read the statically configured rate from the MRMAC.
+     * There is no support in the FPGA user logic nor this software for dynamic rate configuration. */
     const uint32_t mode_reg = read_reg32 (context->mrmac_port_regs, MRMAC_MODE_REG_OFFSET);
     const uint32_t port_data_rate = vfio_extract_field_u32 (mode_reg, MRMAC_CTL_DATA_RATE_MASK);
 
@@ -834,27 +837,83 @@ static int64_t get_mrmac_rate_mbps (const frame_tx_rx_thread_context_t *const co
     {
     case MRMAC_CTL_DATA_RATE_10GE:
         rate_mbps = 10000;
+        num_lanes = 1;
         break;
 
     case MRMAC_CTL_DATA_RATE_25GE:
         rate_mbps = 25000;
+        num_lanes = 1;
         break;
 
     case MRMAC_CTL_DATA_RATE_40GE:
         rate_mbps = 40000;
+        num_lanes = 4;
         break;
 
     case MRMAC_CTL_DATA_RATE_50GE:
         rate_mbps = 50000;
+        num_lanes = 2;
         break;
 
     case MRMAC_CTL_DATA_RATE_100GE:
         rate_mbps = 100000;
+        num_lanes = 4;
         break;
 
     default:
         console_printf ("Unknown port_data_rate encoding 0x%x\n", port_data_rate);
         exit (EXIT_FAILURE);
+    }
+
+    /* Determine the rx status register value which indicates if the link is ready to receive */
+    uint32_t rx_link_ready_status_value = MRMAC_STAT_RX_STATUS_MASK | MRMAC_STAT_RX_BLOCK_LOCK_MASK;
+    if (num_lanes > 1)
+    {
+        /* The Rx Aligned and Rx Synced bits are only applicable when more than one lane is use.
+         * TBC that is is correct, since initial testing only used 10G and these bits weren't set. */
+        rx_link_ready_status_value |= MRMAC_STAT_RX_ALIGNED_MASK | MRMAC_STAT_RX_SYNCED_MASK;
+    }
+
+    /* Wait for the latched and real-time receive status registers to indicate the link is ready to receive */
+    do
+    {
+        rx_status = read_reg32 (context->mrmac_port_regs, MRMAC_STAT_RX_STATUS_REG1_OFFSET);
+        rx_rt_status = read_reg32 (context->mrmac_port_regs, MRMAC_STAT_RX_RT_STATUS_REG1_OFFSET);
+        rx_link_ready = (rx_status == rx_link_ready_status_value) && (rx_rt_status == rx_link_ready_status_value);
+
+        if (!rx_link_ready)
+        {
+            if (rx_status != rx_link_ready_status_value)
+            {
+                /* Write to latched status to clear error indications */
+                write_reg32 (context->mrmac_port_regs, MRMAC_STAT_RX_STATUS_REG1_OFFSET, UINT32_MAX);
+            }
+
+            if (first_wait)
+            {
+                first_rx_status = rx_status;
+                console_printf ("Waiting to link to be ready to receive. Press Ctrl-C to abort.\n");
+                first_wait = false;
+            }
+            clock_nanosleep (CLOCK_MONOTONIC, 0, &hold_off, NULL);
+        }
+    } while (!rx_link_ready && !test_stop_requested);
+
+    if (rx_link_ready && !first_wait)
+    {
+        /* The reason for this delay is that with an Ethernet connection to a tp-link T1700G-28TQ switch,
+         * if the test was started as soon as the link had come up missed frames were reported for the first
+         * ~0.4 seconds of the test.
+         *
+         * Using the same switch with dpdk_switch_test, and comparing the statistics packet counts in the switch
+         * and those for the DPDK Ethernet device it appears the switch wasn't receiving packets immediately after the
+         * link appeared up to the DPDK Ethernet device. */
+        console_printf ("Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x%08X last 0x%08X)\n",
+                first_rx_status, rx_status);
+        for (uint32_t delay_iter = 0; delay_iter < 20; delay_iter++)
+        {
+            clock_nanosleep (CLOCK_MONOTONIC, 0, &hold_off, NULL);
+        }
     }
 
     return rate_mbps;
