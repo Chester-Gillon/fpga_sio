@@ -489,3 +489,135 @@ Where:
 a. Total bandwidth has increased to 9876 Mbps
 b. Max pending rx frames has increased from 5 to 49, which is expected now that allow more transmit frames to be queued.
 
+
+4. Adjusting the MRMAC transmit Inter Packet Gap (IPG) didn't increase the frame rate
+-------------------------------------------------------------------------------------
+
+CONFIGURATION_TX_REG1 has the 4-bit "Port TX IPG value" field.
+The default is 12.
+
+Added a -g option to allow the IPG to be changed.
+
+Tried running with the minimum:
+$ mrmac_ethernet/mrmac_switch_test -n 1 -p 25,26 -r 5000 -g 0
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 0
+Writing per-port counts to 20260315T190111_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 port 1
+Test interval = 10 (secs)
+Frame debug enabled = No
+Press Ctrl-C to stop test at end of next test interval
+
+19:01:23.585
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8008524        8008428              0              0              0              0       800852.4        4939.66
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+19:01:33.585
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8004846        8004846              0              0              0              0       800484.6        4937.39
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+19:01:43.585
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8010620        8010620              0              0              0              0       801062.0        4940.95
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+19:01:53.584
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8003101        8003102              0              0              0              0       800310.1        4936.31
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+Max pending rx frames = 49 out of 1656
+
+And the maximum:
+$ mrmac_ethernet/mrmac_switch_test -n 1 -p 25,26 -r 5000 -g 15
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 15
+Writing per-port counts to 20260315T190204_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 port 1
+Test interval = 10 (secs)
+Frame debug enabled = No
+Press Ctrl-C to stop test at end of next test interval
+
+19:02:16.468
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8005505        8005410              0              0              0              0       800550.5        4937.80
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+19:02:26.468
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8008037        8008036              0              0              0              0       800803.7        4939.36
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+19:02:36.468
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8005442        8005443              0              0              0              0       800544.2        4937.76
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+Max pending rx frames = 49 out of 1656
+
+
+However, there was no change to the achieved frame rate for the test.
+
+Did find that the "Port TX IPG value" field is preserved across a PCIe Hot Reset.
+

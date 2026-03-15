@@ -289,6 +289,12 @@ static double arg_tested_port_mbps = DEFAULT_TESTED_PORT_MBPS;
 static bool arg_frame_debug_enabled = false;
 
 
+/* Optional command line argument which specifies the MRMAX transmit Inter Packet Gap (IPG) value to be used.
+ * This is the 4 bit MRMAC_CTL_TX_IPG_VALUE register value. */
+static uint32_t arg_tx_ipg_value;
+static bool arg_tx_ipg_value_specified = false;
+
+
 /* Used to store pending receive frames for one source / destination port combination.
  * As frames are transmitted they are stored in, and then removed once received.
  *
@@ -571,7 +577,7 @@ static void report_if_transfer_failed (const x2x_transfer_context_t *const conte
  */
 static void display_usage (const char *const program_name)
 {
-    printf ("Usage %s: [-i <domain>:<bus>:<dev>.<func>] -n <mrmac_port_num> [-t <duration_secs>] [-d] [-p <port_list>] [-r <rate_mbps>]\n", program_name);
+    printf ("Usage %s: [-i <domain>:<bus>:<dev>.<func>] -n <mrmac_port_num> [-t <duration_secs>] [-d] [-p <port_list>] [-r <rate_mbps>] [-g <tx_ipg_value>]\n", program_name);
     printf ("\n");
     printf ("  -i only open using VFIO specific PCI device in the event that there is more than\n");
     printf ("     one PCI device which matches the identity filters.\n");
@@ -588,6 +594,7 @@ static void display_usage (const char *const program_name)
     printf ("     If not specified defaults to all %u defined ports\n", NUM_DEFINED_PORTS);
     printf ("  -r Specifies the bit rate generated on each port on the switch under test,\n");
     printf ("     as a floating point mega bits per second. Default is %g\n", DEFAULT_TESTED_PORT_MBPS);
+    printf (" - g Specified the MRMAC Inter Packet Gap (IPG) value used\n");
 
     exit (EXIT_FAILURE);
 }
@@ -721,7 +728,7 @@ static void read_command_line_arguments (const int argc, char *argv[])
 {
     bool mrmac_port_num_specified = false;
     const char *const program_name = argv[0];
-    const char *const optstring = "i:n:dt:p:r:";
+    const char *const optstring = "i:n:dt:p:r:g:";
     int option;
     char junk;
     uint32_t port_num;
@@ -777,6 +784,15 @@ static void read_command_line_arguments (const int argc, char *argv[])
                 printf ("Error: Invalid <rate_mbps> %s\n", optarg);
                 exit (EXIT_FAILURE);
             }
+            break;
+
+        case 'g':
+            if ((sscanf (optarg, "%u%c", &arg_tx_ipg_value, &junk) != 1) || (arg_tx_ipg_value > 15))
+            {
+                printf ("Error: Invalid <tx_ipg_value> %s\n", optarg);
+                exit (EXIT_FAILURE);
+            }
+            arg_tx_ipg_value_specified = true;
             break;
 
         case '?':
@@ -1015,6 +1031,15 @@ static void open_mrmac_device (frame_tx_rx_thread_context_t *const context)
 
     context->mrmac_port_regs = &context->mrmac_design->mrmac.regs[arg_mrmac_port_num * MRMAC_PORT_REGS_FRAME_SIZE];
     context->xdma_overall_success = true;
+
+    /* When the MRMAC tx_ipg_value command option is present, write it to the transmit configuration register */
+    if (arg_tx_ipg_value_specified)
+    {
+        uint32_t configuration_tx_reg1 = read_reg32 (context->mrmac_port_regs, MRMAC_CONFIGURATION_TX_REG1_OFFSET);
+
+        vfio_update_field_u32 (&configuration_tx_reg1, MRMAC_CTL_TX_IPG_VALUE, arg_tx_ipg_value);
+        write_reg32 (context->mrmac_port_regs, MRMAC_CONFIGURATION_TX_REG1_OFFSET, configuration_tx_reg1);
+    }
 
     /* Set the number of transmit buffers to the maximum number of ports which can be used by the test.
      * If the transmission is rate limited the maximum number of tx buffers which may be queued at once is limited. */
@@ -1950,6 +1975,11 @@ int main (int argc, char *argv[])
         tx_rx_thread_context->tx_rate_limited = false;
         console_printf ("Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test\n");
     }
+
+    /* Report the Inter Packet Gap (IPG) the MRMAC transmitter is using */
+    const uint32_t configuration_tx_reg1 = read_reg32 (tx_rx_thread_context->mrmac_port_regs, MRMAC_CONFIGURATION_TX_REG1_OFFSET);
+    const uint32_t tx_ipg_value = vfio_extract_field_u32 (configuration_tx_reg1, MRMAC_CTL_TX_IPG_VALUE);
+    printf ("Tx Inter Packet Gap = %u\n", tx_ipg_value);
 
     /* Report the command line arguments used */
     console_printf ("Writing per-port counts to %s\n", results_summary.per_port_counts_csv_filename);

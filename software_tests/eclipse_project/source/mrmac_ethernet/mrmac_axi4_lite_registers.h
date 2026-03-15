@@ -67,6 +67,71 @@
 #define MRMAC_CTL_FEC_MODE_MASK VFIO_GENMASK_U32 (3, 0) /* RW DRP */
 
 
+#define MRMAC_CONFIGURATION_TX_REG1_OFFSET 0x100C
+
+#define MRMAC_CTL_TX_ENABLE VFIO_BIT (0) /* Port TX Enable.
+                                            This bit is used to enable the transmission of data when set to 1.
+                                            When set to 0, only idles are transmitted by the MRMAC core.
+                                            This bit should not be set to 1 until the receiver it is sending data to
+                                            that is, the receiver in the other device) is fully aligned and ready to receive data
+                                            (that is, the other device is not sending a remote fault condition).
+                                            Otherwise, loss of data can occur.
+                                            If this bit is set to 0 while a packet is being transmitted, the current packet
+                                            transmission is completed and then the MRMAC core stops transmitting any more packets. */
+#define MRMAC_CTL_TX_FCS_INS_ENABLE VFIO_BIT (1) /* Port  FCS insertion Enable.
+                                                    Enable FCS insertion by the TX core.
+                                                    1 : MRMAC core calculates and adds FCS to the packet.
+                                                    0 : MRMAC core does not add FCS to the packet. */
+#define MRMAC_CTL_TX_IGNORE_FCS VFIO_BIT (2) /* Port FCS error checking Enable.
+                                                Enable FCS error checking at the AXI4-S interface by the TX core.
+                                                This input only has effect when ctl_tx_fcs_ins_enable is 0.
+                                                1 : A packet with bad FCS transmitted is binned as good.
+                                                0 : A packet with bad FCS transmitted is not binned as good.
+                                                The error is flagged on the registers STAT_TX_BAD_FCS, and the packet is transmitted
+                                                as it was received. Statistics are reported as if there was no FCS error. */
+#define MRMAC_CTL_TX_SEND_LFI VFIO_BIT (3) /* Port Transmit Local Fault Indication (LFI) code word.
+                                              If this bit is set as a 1, the TX path only transmits Local Fault code words. */
+#define MRMAC_CTL_TX_SEND_RFI VFIO_BIT (4) /* Port Transmit Remote Fault Indication (RFI) code word.
+                                              If this bit is set as a 1, the TX path only transmits Remote Fault code words.
+                                              This bit should be set to 1 until the RX path is fully aligned and is ready to accept
+                                              data from the link partner. */
+#define MRMAC_CTL_TX_SEND_IDLE VFIO_BIT (5) /* Port Transmit Idle code words.
+                                               If this bit is sampled as a 1, the TX path only transmits Idle code words.
+                                               This bit should be set to 1 when the partner device is sending
+                                               Remote Fault Indication (RFI) code words. */
+#define MRMAC_CTL_TX_IPG_VALUE VFIO_GENMASK_U32 (11,8) /* Port TX IPG value.
+                                                          The ctl_tx_ipg_value defines the target average minimum
+                                                          Inter Packet Gap (IPG, in bytes) inserted between AXI4-S packets.
+                                                          Valid values are 8 to 12. The ctl_tx_ipg_value can also be programmed to
+                                                          a value in the 0 to 7 range, but in that case, it is interpreted as
+                                                          meaning minimal IPG, so only Terminate code word IPG is inserted;
+                                                          no Idles are ever added in that case - and that produces an average IPG
+                                                          of around 4 bytes when random-size packets are transmitted. */
+#define MRMAC_CTL_TX_TEST_PATTERN VFIO_BIT (12) /* Port TX Test pattern generation enable for the TX core.
+                                                   A value of 1 enables test mode as defined in Clause 49.
+                                                   Corresponds to MDIO register bit 3.42.7 as defined in Clause 45.
+                                                   Generates a scrambled idle pattern. */
+#define MRMAC_CTL_TX_TEST_PATTERN_ENABLE VFIO_BIT (13) /* Port TX Test pattern enable for the TX core.
+                                                          A value of 1 enables test mode.
+                                                          Corresponds to MDIO register bit 3.42.2 as defined in Clause 45. */
+#define MRMAC_CTL_TX_TEST_PATTERN_SELECT VFIO_BIT (14) /* Port TX Test pattern select.
+                                                          Corresponds to MDIO register bit 3.42.1 as defined in Clause 45. */
+#define MRMAC_CTL_TX_DATA_PATTERN_SELECT VFIO_BIT (15) /* Port TX Data pattern select.
+                                                          Corresponds to MDIO register bit 3.42.0 as defined in Clause 45. */
+#define MRMAC_CTL_TX_CUSTOM_PREAMBLE_ENABLE VFIO_BIT (16) /* Port TX Custom Preamble Enable.
+                                                             A value of 1 enables the use of tx_preamblein as a custom preamble
+                                                             instead of inserting a standard preamble. */
+#define MRMAC_CTL_TX_CORRUPT_FCS_ON_ERR VFIO_GENMASK_U32 (22,21) /* Port TX Corrupt fcs on error.
+
+                                                                    See "Aborting a Transmission" in PG314 for the encoding. */
+#define MRMAC_CTL_TX_FLEXIF_SELECT VFIO_GENMASK_U32 (26,24) /* Port Flex Interface Transmit Operating Modes.
+                                                               For details please refer PG314 Table 11: Flex Interface Transmit
+                                                               Operating Modes */
+#define MRMAC_CTL_TX_FLEXIF_INPUT_ENABLE VFIO_BIT (27) /* Port TX Flex Interface input enable.
+                                                          A value of 1 enables Flex I/F input for the TX direction (disabling the
+                                                          AXI4-Stream input interface) */
+
+
 /* Transmit status registers:
  * - MRMAC_STAT_TX_STATUS_REG1_OFFSET is the latched version, and the comments indicate if bits latch high/low
  * - MRMAC_STAT_TX_RT_STATUS_REG1_OFFET is the real-time version */
