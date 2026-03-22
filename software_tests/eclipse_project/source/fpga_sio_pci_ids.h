@@ -254,4 +254,10 @@
  * c. AXI IIC Bus Interface to SFP1 (board only connects the I2C interface to the SFP1 module). */
 #define FPGA_SIO_SUBDEVICE_ID_VD100_10G_ETHER_DUAL 0x0026
 
+
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. XDMA access to AXI4 stream connected to 100 GbE port in MRMAC.
+ * b. GPIOs for QSFP signals. */
+#define FPGA_SIO_SUBDEVICE_ID_VMK180_100G_ETHER 0x0027
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */
