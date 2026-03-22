@@ -742,3 +742,66 @@ Enabled bus master for 0000:01:00.0
 Waiting to link to be ready to receive. Press Ctrl-C to abort.
 ^C
 
+
+6. Correct size of transmit frames
+----------------------------------
+
+For the above tests, when tried to generate 5000 Mbps per port bandwidth only got about 4937 Mbps.
+
+Realised that the way open_mrmac_device() configured the XDMA transmit fixed size buffers:
+a. The actual size of each transmit frame was sizeof (ethercat_frame_t) aligned to a multiple a cache line.
+b. Which meant while TEST_PACKET_TOTAL_OCTETS assumed each frame had 1518 bytes were actually transmitted with 1536 bytes.
+
+After correcting the size of the transmitted frames then got the per-port rate up to 4997 Mbps:
+$ mrmac_ethernet/mrmac_switch_test -n 1:0 -p 25,26 -r 5000
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20260322T085928_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 1 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Press Ctrl-C to stop test at end of next test interval
+
+08:59:40.941
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8102323        8102227              0              0              0              0       810232.3        4997.51
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+08:59:50.941
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8104533        8104533              0              0              0              0       810453.3        4998.88
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+09:00:00.941
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8098439        8098440              0              0              0              0       809843.9        4995.12
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+Max pending rx frames = 49 out of 1656
+
