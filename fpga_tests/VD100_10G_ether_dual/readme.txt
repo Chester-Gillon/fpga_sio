@@ -96,6 +96,7 @@ For the MRMAC configuration and connectivity:
       - stat_rx_port3
    i. Delete the pm_rdy port, since just sample the statistics counter registers.
    j. Delete the pm_tick port, since no user logic to request sampling statistics registers.
+      Connect to constant zero.
    k. Delete the tx_preamblein port, since will not be using a custom preamble.
       CONFIGURATION_TX_REGx_0 registers show custom preamble is disabled by default.
    l. Delete the rx_preambleout port, since are not using custom preamble nor preemption.
@@ -258,7 +259,7 @@ For the MRMAC configuration and connectivity:
 
    For now, keep using the axis_data_fifo_0 for the clock domain crossing, rather than the NoC.
 
-6. For first attempt at implementing MRMAC Tx data paths (H2C streams) created mrmac_c2h_stream block diagram with:
+6. For first attempt at implementing MRMAC Rx data paths (C2H streams) created mrmac_c2h_stream block diagram with:
    a. On the mrmac_10G_dual block create output port mrmac_axis_rx_aclk_0_1 connected to rx_alt_serdes_clk[0]
       For the same reason as the mrmac_axis_tx_aclk_0_1.
    b. Add axis_data_fifo_0 to receive the Ethernet packets from the MRMAC. 32-bits clocked by mrmac_axis_rx_aclk_0_1.
