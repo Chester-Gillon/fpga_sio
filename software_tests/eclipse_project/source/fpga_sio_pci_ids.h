@@ -260,4 +260,11 @@
  * b. GPIOs for QSFP signals. */
 #define FPGA_SIO_SUBDEVICE_ID_VMK180_100G_ETHER 0x0027
 
+
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. XDMA access to two AXI4 streams connected to 25 GbE ports in MRMAC.
+ * b. GPIOs for SFP Tx Enable signals.
+ * c. AXI IIC Bus Interface to SFP1 (board only connects the I2C interface to the SFP1 module). */
+#define FPGA_SIO_SUBDEVICE_ID_VD100_25G_ETHER_DUAL 0x0028
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

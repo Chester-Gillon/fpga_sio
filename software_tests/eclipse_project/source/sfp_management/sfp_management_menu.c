@@ -375,6 +375,13 @@ int main (int argc, char *argv[])
             .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
             .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_VD100_10G_ETHER_DUAL,
             .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE
+        },
+        {
+            .vendor_id = FPGA_SIO_VENDOR_ID,
+            .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+            .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+            .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_VD100_25G_ETHER_DUAL,
+            .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE
         }
     };
     const size_t num_filters = sizeof (filters) / sizeof (filters[0]);

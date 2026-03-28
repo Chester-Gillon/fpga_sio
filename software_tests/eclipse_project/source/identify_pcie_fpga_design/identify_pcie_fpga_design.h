@@ -277,6 +277,12 @@ typedef enum
      * b. GPIOs for QSFP signals. */
     FPGA_DESIGN_VMK180_100G_ETHER,
 
+    /* fpga_tests/VD100_25G_ether_dual which contains:
+     * a. XDMA access to two AXI4 streams connected to 25 GbE ports in MRMAC.
+     * b. GPIOs for SFP Tx Enable signals.
+     * c. AXI IIC Bus Interface to SFP1 (board only connects the I2C interface to the SFP1 module). */
+    FPGA_DESIGN_VD100_25G_ETHER_DUAL,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 
