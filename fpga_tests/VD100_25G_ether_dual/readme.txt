@@ -243,3 +243,33 @@ For the MRMAC configuration and connectivity:
         Errors aren't signalled.
       - Constant 0 to port tx_axis_tkeep_user_upper[10:8], which are unused.
 
+5. For implementing MRMAC Rx data paths (C2H streams) created mrmac_c2h_stream block diagram with:
+   a. axis_data_fifo_0  to receive the Ethernet packets from the MRMAC:
+      - FIFO depth: 32768 (this is the maximum, which means can store 512 kB)
+      - Memory type: Auto
+      - Independent clocks: No
+      - Enable packet mode: No
+      - ACLKEN conversion mode: None
+      - TDATA width (bytes): 16
+      - Enable TKEEP: Yes
+      - Enable TLAST: Yes
+   b. For connecting the MRMAC Rx data stream:
+      - Connect port rx_axis_tdata_lower[63:0] to FIFO tdata[63:0]
+      - Connect port rx_axis_tdata_upper[63:0] to FIFO tdata[127:64]
+      - Connect port rx_axis_tkeep_user_lower[7:0] to FIFO tkeep[7:0]
+      - Connect port rx_axis_tkeep_user_lower[7:0] to FIFO tkeep[15:8]
+
+      There is no support to:
+      - Store the err flag in rx_axis_tkeep_user_lower[8]
+      - Record if the MRMAC attempt to output packet data when s_axis_tready is de-asserted, meaning receive data will be lost.
+   c. axis_dwidth_converter_0 converts from 64 to 256 bits.
+   d. axis_data_fifo_1 converts from 256 bits at mrmac_axis_rx_aclk_0_1 (322.2655 MHz) to 256 bits at 250 MHz for the XDMA C2H:
+      - FIFO depth: 1024. Means can store 32 KB.
+      - Memory type: Auto:
+      - Independent clocks: Yes
+      - CDC sync stages: 3 (the default)
+      - ACLKEN conversion mode: No
+      - TDATA width (bytes): 32
+      - Enable TKEEP: Yes
+      - Enable TLAST: Yes
+
