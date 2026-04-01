@@ -632,7 +632,7 @@ This is to test MRMAC ports in "simplex" mode.
 a. One in the T1700G-28TQ switch.
 b. One in each of port 0 and 1 of the VD100
 c. Tx from switch connected to VD100 port 0
-d. Tx from CVD100 port 1 connected to switch Rx.
+d. Tx from VD100 port 1 connected to switch Rx.
 
 A successful run using transmit from port 1 and receive from port 0:
 $ mrmac_ethernet/mrmac_switch_test -n 1:0 -p 25,26 -r 5000 

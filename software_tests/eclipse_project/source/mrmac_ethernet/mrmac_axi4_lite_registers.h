@@ -30,10 +30,24 @@
 #define MRMAC_PORT_REGS_FRAME_SIZE 0x1000
 
 
+#define MRMAC_RESET_REG_OFFSET 0x0004
+
+#define MRMAC_RX_SERDES_RESET VFIO_GENMASK_U32 (3, 0) /* RW Port RX Serdes reset. A write of 1 puts RX PCS lane logic into reset.
+                                                         This is a per-lane reset, where the number of lanes depends upon the
+                                                         port configuration. */
+#define MRMAC_TX_SERDES_RESET VFIO_BIT (4) /* RW Port TX Serdes reset. A write of 1 puts TX PCS lane logic into reset. */
+#define MRMAC_RX_RESET VFIO_BIT (5) /* RW Port RX core reset. A write of 1 puts the RX path in reset. */
+#define MRMAC_TX_RESET VFIO_BIT (6) /* RW Port TX core reset. A write of 1 puts the TX path in reset. */
+#define MRMAC_RX_FLEXIF_RESET VFIO_BIT (7) /* RW Port RX Flex IF reset. A write of 1 puts the RX Flex IF path in reset. */
+#define MRMAC_RX_AXI_RESET VFIO_BIT (8) /* RW Port RX AXI4-Stream reset. A write of 1 puts the RX AXI4-Stream path in reset. */
+#define MRMAC_TX_AXI_RESET VFIO_BIT (9) /* RW Port TX AXI4-Stream reset. A write of 1 puts the TX AXI4-Stream path in reset. */
+
+
 #define MRMAC_MODE_REG_OFFSET  0x0008
 
 /* Port Data Rate. For details please refer Table 2: Port Data Rate. */
 #define MRMAC_CTL_DATA_RATE_MASK VFIO_GENMASK_U32 (2, 0) /* RW DRP */
+#define MRMAC_CTL_DATA_RATE_ARRAY_SIZE 8
 #define MRMAC_CTL_DATA_RATE_10GE  0x0
 #define MRMAC_CTL_DATA_RATE_25GE  0x1
 #define MRMAC_CTL_DATA_RATE_40GE  0x2
@@ -62,9 +76,35 @@
 
 #define MRMAC_FEC_CONFIGURATION_REG1_OFFSET 0x00D0
 
-/* Port FEC operating mode. For details please refer PG314 Table 6: FEC Operating Modes.
- * Haven't defined the values for this, since the meaning depends upon the port data rate. */
-#define MRMAC_CTL_FEC_MODE_MASK VFIO_GENMASK_U32 (3, 0) /* RW DRP */
+#define MRMAC_CTL_FEC_MODE_MASK VFIO_GENMASK_U32 (3, 0) /* RW DRP Port FEC operating mode.
+                                                           For details please refer PG314 Table 6: FEC Operating Modes.
+                                                           Haven't defined the values for this, since the meaning depends upon
+                                                           the port data rate*/
+#define MRMAC_CTL_FEC_MODE_ARRAY_SIZE 16
+#define MRMAC_CTL_RX_FEC_BYPASS_INDICATION VFIO_BIT (4) /* RW DRP Port RSFEC Bypass Indication. Set to ‘1’ to bypass error indication. */
+#define MRMAC_CTL_RX_FEC_BYPASS_CORRECTION VFIO_BIT (5) /* RW DRP Port RSFEC Bypass Correction. RS-FEC correction enable. */
+#define MRMAC_CTL_RX_FEC_TRANSCODE_CLAUSE49 VFIO_BIT (6) /* RW DRP Port RSFEC transcode caluse49.
+                                                            This flag should be set to 1 for modes which require Clause 49 transcoding
+                                                            (25GE, 50GE, Fibre Channel) and set to 0 for modes which require
+                                                            Clause 82 transcoding (100GE). */
+#define MRMAC_CTL_RX_FEC_ALIGNMENT_BYPASS VFIO_BIT (7) /* RW DRP Port RSFEC alignment Bypass */
+#define MRMAC_CTL_TX_FEC_TRANSCODE_BYPASS VFIO_BIT (8) /* RW DRP Port RSFEC tx transcode Bypass. Transcoder bypass mode enable. */
+#define MRMAC_CTL_RX_FEC_TRANSCODE_BYPASS VFIO_BIT (9) /* RW DRP Port RSFEC rx transcode Bypass. Transcoder bypass mode enable */
+#define MRMAC_CTL_RX_FEC_CDC_BYPASS VFIO_BIT (10) /* RW DRP Port RSFEC CDC Bypass.
+                                                     It determines whether the CDC buffers in the FEC alignment logic are enabled (0)
+                                                     or bypassed (1). By default, they are enabled. If CDC has already been performed
+                                                     outside the FEC (e.g. using the GT elastic buffers, or in the fabric) then the
+                                                     clock inputs for all the lanes will be identical (same frequency and phase) and
+                                                     the CDC buffers can safely be bypassed which reduces latency (by ~12ns or so).
+                                                     Otherwise, if each lane has its own recovered clock then the buffers should be
+                                                     enabled. This applies to all multi-lane RS-FEC modes, i.e. 50G and 100G,
+                                                     including FlexO. It’s ignored in 10G, 25G and 40G configurations. */
+#define MRMAC_CTL_RX_FEC_ERRIND_MODE VFIO_BIT (11) /* RW DRP Port RSFEC error ind mode.
+                                                      RS-FEC error indication mode (1=IEEE compliant mode,
+                                                       0=allow simultaneous correction and indication bypass) */
+#define MRMAC_CTL_TX_FEC_FOUR_LANE_PMD VFIO_BIT (12) /* RW DRP Port RSFEC tx four lane PMD.
+                                                        This needs to set to 1 for 100CAUI-4 with RSFEC (it should be set to 0
+                                                        100GAUI-2 and other modes). */
 
 
 #define MRMAC_CONFIGURATION_TX_REG1_OFFSET 0x100C
