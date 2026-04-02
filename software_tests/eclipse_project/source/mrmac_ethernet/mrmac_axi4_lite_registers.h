@@ -272,4 +272,30 @@
                                                                    A value of 1 indicates that the Flex I/F experienced an underflow */
 
 
+/* Receive FEC status registers:
+ * - MRMAC_STAT_RX_FEC_STATUS_REG_OFFSET is the latched version, and the comments indicate if bits latch high/low
+ * - MRMAC_STAT_RX_FEC_RT_STATUS_REG_OFFSET is the real-time version */
+#define MRMAC_STAT_RX_FEC_STATUS_REG_OFFSET    0x0784
+#define MRMAC_STAT_RX_FEC_RT_STATUS_REG_OFFSET 0x0788
+
+#define MRMAC_STAT_RX_FEC_ALIGNED VFIO_BIT (0) /* LL W1C Indicates that the FEC is aligned/deskewed and ready to receive packet data. */
+#define MRMAC_STAT_RX_FEC_HI_SER VFIO_BIT (1) /* LH W1C Indicates that the number of symbol errors in a 8192-codeword window has
+                                                        exceeded the threshold K (417). */
+#define MRMAC_STAT_RX_FEC_LANE_LOCK VFIO_GENMASK_U32 (7,4) /* LL W1C Indicates that the FEC has achieved lane lock on the indicated lane. */
+
+
+/* Transmit FEC status registers:
+ * - MRMAC_STAT_TX_FEC_STATUS_REG_OFFSET is the latched version, and the comments indicate if bits latch high/low
+ * - MRMAC_STAT_TX_FEC_RT_STATUS_REG_OFFSET is the real-time version */
+#define MRMAC_STAT_TX_FEC_STATUS_REG_OFFSET    0x0798
+#define MRMAC_STAT_TX_FEC_RT_STATUS_REG_OFFSET 0x079C
+
+#define MRMAC_STAT_TX_FEC_PCS_LANE_ALIGN VFIO_BIT (0) /* LL W1C Indicates that all the transmit FEC lanes are aligned/ deskewed
+                                                                and ready to transmit data. */
+#define MRMAC_STAT_TX_FEC_PCS_BLOCK_LOCK VFIO_GENMASK_U32 (5,1) /* LL W1C Indicates that the PCS has achieved block lock on the
+                                                                          corresponding lanes. */
+#define MRMAC_STAT_TX_FEC_PCS_AM_LOCK VFIO_GENMASK_U32 (10,6) /* W1C Indicates that all of the PCS lanes have achieved
+                                                                     Alignment Marker lock. */
+
+
 #endif /* MRMAC_AXI4_LITE_REGISTERS_H_ */

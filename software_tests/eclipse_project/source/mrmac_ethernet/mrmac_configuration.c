@@ -243,6 +243,27 @@ static void parse_command_line_arguments (int argc, char *argv[])
 
 
 /**
+ * @brief Get the name for a FEC mode, which has a dependency on port data rate
+ * @param[in] port_regs The MRMAC registers for the port, to be able to read the data rate
+ * @param[in] fec_mode The FEC mode to get the name for
+ */
+static const char *get_fec_mode_name (const uint8_t *const port_regs, const uint32_t fec_mode)
+{
+    const char *fec_mode_name = "unknown";
+    const uint32_t mode_reg = read_reg32 (port_regs, MRMAC_MODE_REG_OFFSET);
+    const uint32_t port_data_rate = vfio_extract_field_u32 (mode_reg, MRMAC_CTL_DATA_RATE_MASK);
+
+    if ((port_data_rate < mrmac_num_fec_operating_mode_names) &&
+        (mrmac_fec_operating_mode_names[port_data_rate][fec_mode] != NULL))
+    {
+        fec_mode_name = mrmac_fec_operating_mode_names[port_data_rate][fec_mode];
+    }
+
+    return fec_mode_name;
+}
+
+
+/**
  * @brief Dump the MRMAC configuration register fields known by this program
  * @param[in,out] designs The FPGA designs to process.
  */
@@ -265,7 +286,12 @@ static void dump_mrmac_config (fpga_designs_t *const designs)
             const uint32_t register_value = read_reg32 (port_regs, config_field->offset);
             const uint32_t field_value = vfio_extract_field_u32 (register_value, config_field->mask);
 
-            printf ("  %s=%u\n", config_field->name, field_value);
+            printf ("  %s=%u", config_field->name, field_value);
+            if (strcmp (config_field->name, "ctl_fec_mode") == 0)
+            {
+                printf (" [%s]", get_fec_mode_name (port_regs, field_value));
+            }
+            printf ("\n");
         }
         design = mrmac_port_iterator_next (&iterator, &port_num);
     }
@@ -324,15 +350,18 @@ static void modify_mrmac_configuration (fpga_designs_t *const designs)
                 {
                     vfio_update_field_u32 (&register_value, config_field->mask, field_modification->value);
                     write_reg32 (port_regs, config_field->offset, register_value);
-                    printf ("Design %s device %s port %u field %s changed from %u -> %u\n",
+                    printf ("Design %s device %s port %u field %s changed from %u [%s] -> %u [%s]\n",
                             fpga_design_names[design->design_id], design->vfio_device->device_name, port_num,
-                            config_field->name, original_field_value, field_modification->value);
+                            config_field->name,
+                            original_field_value, get_fec_mode_name (port_regs, original_field_value),
+                            field_modification->value, get_fec_mode_name (port_regs, field_modification->value));
                 }
                 else
                 {
-                    printf ("Design %s device %s port %u field %s value unchanged at value %u\n",
+                    printf ("Design %s device %s port %u field %s value unchanged at value %u [%s]\n",
                             fpga_design_names[design->design_id], design->vfio_device->device_name, port_num,
-                            config_field->name, field_modification->value);
+                            config_field->name,
+                            field_modification->value, get_fec_mode_name (port_regs, field_modification->value));
                 }
             }
         }

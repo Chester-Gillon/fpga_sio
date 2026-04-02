@@ -332,6 +332,29 @@ void display_mrmac_ports (const fpga_design_t *const design)
                     vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_FLEX_FIFO_OVF_MASK));
             printf ("      Port RX flex fifo underflow: %u\n",
                     vfio_extract_field_u32 (stat_rx_rt_status_reg1, MRMAC_STAT_RX_FLEX_FIFO_UDF_MASK));
+
+            /* Display FEC status if the FEC mode is other than disabled (zero) */
+            if (port_fec_mode != 0)
+            {
+                const uint32_t stat_rx_fec_rt_status_reg = read_reg32 (port_regs, MRMAC_STAT_RX_FEC_RT_STATUS_REG_OFFSET);
+                const uint32_t stat_tx_fec_rt_status_reg = read_reg32 (port_regs, MRMAC_STAT_TX_FEC_RT_STATUS_REG_OFFSET);
+
+                printf ("    RX FEC realtime status: 0x%08X\n", stat_rx_fec_rt_status_reg);
+                printf ("      Slice FEC aligned: %u\n",
+                        vfio_extract_field_u32 (stat_rx_fec_rt_status_reg, MRMAC_STAT_RX_FEC_ALIGNED));
+                printf ("      Slice FEC symbol error: %u\n",
+                        vfio_extract_field_u32 (stat_rx_fec_rt_status_reg, MRMAC_STAT_RX_FEC_HI_SER));
+                printf ("      Slice FEC lane lock: %u\n",
+                        vfio_extract_field_u32 (stat_rx_fec_rt_status_reg, MRMAC_STAT_RX_FEC_LANE_LOCK));
+
+                printf ("    TX FEC realtime status: 0x%08X\n", stat_tx_fec_rt_status_reg);
+                printf ("      FEC PCS aligned: %u\n",
+                        vfio_extract_field_u32 (stat_tx_fec_rt_status_reg, MRMAC_STAT_TX_FEC_PCS_LANE_ALIGN));
+                printf ("      FEC PCS block lock: %u\n",
+                        vfio_extract_field_u32 (stat_tx_fec_rt_status_reg, MRMAC_STAT_TX_FEC_PCS_BLOCK_LOCK));
+                printf ("      FEC PCS alignment marker lock: %u\n",
+                        vfio_extract_field_u32 (stat_tx_fec_rt_status_reg, MRMAC_STAT_TX_FEC_PCS_AM_LOCK));
+            }
         }
     }
 }
