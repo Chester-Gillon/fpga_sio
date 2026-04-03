@@ -10,12 +10,21 @@
  *   This only defines the sub-set of the registers used by the programs, and haven't attempted to define all the registers in the
  *   source spreadsheet.
  *
- *   Apart from MRMAC_CONFIGURATION_REVISION_REG_OFFSET assume all other registers apply to all ports, albeit haven't checked the
- *   spreadsheet to confirm this.
- *
  *   Have used the term "port" rather than "client", since while PG314 used both terms port is used the most.
+ *
+ *   While mrmac-registers-v3-0.xlsx defines the registers for each port individually and includes the port number as a suffix in
+ *   the register name, in this file copied only the definitions for the port 0 registers and removed the port 0 suffix from
+ *   the names.
+ *
+ *   The assumption (TBC) is that the registers can be read for all ports and return "sensible" results.
+ *
+ *   In mrmac-registers-v3-0.xlsx there are some lane or FEC slice specific registers which are defined only in some ports,
+ *   where the number of lanes / FEC slices depends upon the port data rate. Some examples are:
+ *   - STAT_RX_FEC_MAP_REG1_0 for port 0, has fields for lanes 0..3
+ *   - STAT_RX_FEC_MAP_REG1_2 for port 2, has fields for lanes 2..3
+ *
+ *   - MRMAC_STAT_RX_FEC_CORRECTED_CW_3_OFFSET is only marked as present for ports 0 and 3.
  */
-
 #ifndef MRMAC_AXI4_LITE_REGISTERS_H_
 #define MRMAC_AXI4_LITE_REGISTERS_H_
 
@@ -25,8 +34,8 @@
 #define MRMAC_CONFIGURATION_REVISION_REG_OFFSET 0x0000
 
 
-/* The frame size of the registers for each port. The following register are defined once, but are applicable to all ports at
- * an offset of the zero-based port number multiplied by the MRMAC_PORT_REGS_FRAME_SIZE. */
+/* The frame size of the registers for each port. The following registers are defined once, at an offset of the zero-based
+ * port number multiplied by the MRMAC_PORT_REGS_FRAME_SIZE. */
 #define MRMAC_PORT_REGS_FRAME_SIZE 0x1000
 
 
@@ -62,6 +71,28 @@
  * Haven't defined the values for this, since the meaning depends upon the port data rate. */
 #define MRMAC_CTL_AXIS_CFG_MASK VFIO_GENMASK_U32 (11, 9) /* RW DRP */
 
+#define MRMAC_CTL_PCS_RX_TS_EN VFIO_BIT (12) /* RW DRP Port Enable PCS RX timestamp */
+#define MRMAC_CTL_CUSTOM_TX_AMS VFIO_BIT (13) /* RW DRP Port Enable Custom TX ams.
+                                                    Ctl_custom_tx_ams_N (N=0-3): When set to ‘1’, the ctl_custom_tx_ams_N control bit
+                                                    allows user-defined alignment marker (AM) values to be injected for client N
+                                                    frame alignment (configured through ctl_tx_vl_marker_idM, where M=0-19)
+                                                    instead of standard-specified values hard-coded within the MRMAC.
+                                                    Note that there is only one set of configurable AMs, but any number of clients
+                                                    can be configured to use the custom AM values at the same time. */
+#define MRMAC_CTL_CUSTOM_RX_AMS VFIO_BIT (14) /* RW DRP Port Enable Custom RX ams.
+                                                    Ctl_custom_rx_ams_N (N=0-3): When set to ‘1’, the ctl_custom_rx_ams_N control bit
+                                                    allows user-defined alignment marker (AM) values to be used for client N
+                                                    frame alignment (configured through ctl_rx_vl_marker_idM, where M=0-19)
+                                                    instead of standard-specified values hard-coded within the MRMAC.
+                                                    Note that there is only one set of configurable AMs, but any number of clients
+                                                    can be configured to use the custom AM values at the same time. */
+#define MRMAC_CTL_COUNTER_EXTEND VFIO_BIT (15) /* RW DRP Extend Counter */
+#define MRMAC_CTL_SERDES_PASSTHRU VFIO_BIT (16) /* RW DRP Port 0 Serdes Passthrough.
+                                                      Ctl_serdes_passthru_N (N=0-3) : This is a reserved internal feature,
+                                                      not fully tested, and not to be advertised to customers.
+                                                      It should be held to 0 always. */
+#define MRMAC_TICK_REG_MODE_SEL VFIO_BIT (30) /* RW DRP Tick Reg mode Select */
+
 
 #define MRMAC_CONFIGURATION_RX_MTU_OFFSET 0x0014
 
@@ -72,6 +103,14 @@
 /* Port Maximum Packet Length. Any packet longer than this value is considered to be oversized.
  * The allowed value for this register can range from 64 to 16,383. */
 #define MRMAC_CTL_RX_MAX_PACKET_LEN_MASK VFIO_GENMASK_U32 (30, 16) /* RW DRP */
+
+
+/* For requesting a software statistics sample tick */
+#define MRMAC_TICK_REG_OFFSET 0x002C
+#define MRMAC_TICK_REG VFIO_BIT (0) /* RW  Port Tick Register.
+                                           Writing a 1 to the Tick bit will trigger a snapshot of all the Statistics counters into
+                                           their readable registers.
+                                           The bit self-clears, thus only a single write is required by the user input. */
 
 
 #define MRMAC_FEC_CONFIGURATION_REG1_OFFSET 0x00D0
@@ -297,5 +336,162 @@
 #define MRMAC_STAT_TX_FEC_PCS_AM_LOCK VFIO_GENMASK_U32 (10,6) /* W1C Indicates that all of the PCS lanes have achieved
                                                                      Alignment Marker lock. */
 
+
+/* Statistics ready */
+#define MRMAC_STAT_STATISTICS_READY_OFFSET 0x07D8
+#define MRMAC_STAT_STATISTICS_READY VFIO_GENMASK_U32 (1,0) /* W1C After issuing a tick to sample registers can be polled until it
+                                                                  reads 0x3, which indicates the statistics are ready for reading.
+                                                                  Bit 1 indicates that rx statistics are ready,
+                                                                  bit 0 indicates tx statistics are ready. */
+
+/* Statistic counters.
+ * Defines the offset of the LSB registers, since all MSB registers are at an offset of 4 more than the LSB registers.
+ * Checking the port 0 registers in mrmac-registers-v3-0.xlsx shows:
+ * - All LSB registers have 32-bits
+ * - All MSB registers have bits 15:0
+ * - So, 48 bits for each histogram register. Which matches the "Statistics Monitoring" section in PG314. */
+#define MRMAC_STAT_TX_CYCLE_COUNT_OFFSET            0x0800
+#define MRMAC_STAT_TX_FRAME_ERROR_OFFSET            0x0808
+#define MRMAC_STAT_TX_TOTAL_PACKETS_OFFSET          0x0818
+#define MRMAC_STAT_TX_TOTAL_GOOD_PACKETS_OFFSET     0x0820
+#define MRMAC_STAT_TX_TOTAL_BYTES_OFFSET            0x0828
+#define MRMAC_STAT_TX_TOTAL_GOOD_BYTES_OFFSET       0x0830
+#define MRMAC_STAT_TX_PACKET_64_BYTES_OFFSET        0x0838
+#define MRMAC_STAT_TX_PACKET_65_127_BYTES_OFFSET    0x0840
+#define MRMAC_STAT_TX_PACKET_128_255_BYTES_OFFSET   0x0848
+#define MRMAC_STAT_TX_PACKET_256_511_BYTES_OFFSET   0x0850
+#define MRMAC_STAT_TX_PACKET_512_1023_BYTES_OFFSET  0x0858
+#define MRMAC_STAT_TX_PACKET_1024_1518_BYTES_OFFSET 0x0860
+#define MRMAC_STAT_TX_PACKET_1519_1522_BYTES_OFFSET 0x0868
+#define MRMAC_STAT_TX_PACKET_1523_1548_BYTES_OFFSET 0x0870
+#define MRMAC_STAT_TX_PACKET_1549_2047_BYTES_OFFSET 0x0878
+#define MRMAC_STAT_TX_PACKET_2048_4095_BYTES_OFFSET 0x0880
+#define MRMAC_STAT_TX_PACKET_4096_8191_BYTES_OFFSET 0x0888
+#define MRMAC_STAT_TX_PACKET_8192_9215_BYTES_OFFSET 0x0890
+#define MRMAC_STAT_TX_PACKET_LARGE_OFFSET           0x0898
+#define MRMAC_STAT_TX_PACKET_SMALL_OFFSET           0x08A0
+#define MRMAC_STAT_TX_BAD_FCS_OFFSET                0x08D0
+#define MRMAC_STAT_TX_UNICAST_OFFSET                0x08E8
+#define MRMAC_STAT_TX_MULTICAST_OFFSET              0x08F0
+#define MRMAC_STAT_TX_BROADCAST_OFFSET              0x08F8
+#define MRMAC_STAT_TX_VLAN_OFFSET                   0x0900
+#define MRMAC_STAT_TX_PAUSE_OFFSET                  0x0908
+#define MRMAC_STAT_TX_USER_PAUSE_OFFSET             0x0910
+#define MRMAC_STAT_TX_TSN_PREEMPTED_PKT_OFFSET      0x0920
+#define MRMAC_STAT_TX_TSN_FRAGMENT_OFFSET           0x0928
+#define MRMAC_STAT_TX_PCS_BAD_CODE_OFFSET           0x0930
+#define MRMAC_STAT_TX_CL82_49_CONVERT_ERR_OFFSET    0x0938
+#define MRMAC_STAT_TX_ECC_ERR0_OFFSET               0x0940
+#define MRMAC_STAT_TX_ECC_ERR1_OFFSET               0x0948
+
+#define MRMAC_STAT_RX_CYCLE_COUNT_OFFSET            0x0C00
+#define MRMAC_STAT_RX_BIP_ERR_0_OFFSET              0x0C08
+#define MRMAC_STAT_RX_BIP_ERR_1_OFFSET              0x0C10
+#define MRMAC_STAT_RX_BIP_ERR_2_OFFSET              0x0C18
+#define MRMAC_STAT_RX_BIP_ERR_3_OFFSET              0x0C20
+#define MRMAC_STAT_RX_BIP_ERR_4_OFFSET              0x0C28
+#define MRMAC_STAT_RX_BIP_ERR_5_OFFSET              0x0C30
+#define MRMAC_STAT_RX_BIP_ERR_6_OFFSET              0x0C38
+#define MRMAC_STAT_RX_BIP_ERR_7_OFFSET              0x0C40
+#define MRMAC_STAT_RX_BIP_ERR_8_OFFSET              0x0C48
+#define MRMAC_STAT_RX_BIP_ERR_9_OFFSET              0x0C50
+#define MRMAC_STAT_RX_BIP_ERR_10_OFFSET             0x0C58
+#define MRMAC_STAT_RX_BIP_ERR_11_OFFSET             0x0C60
+#define MRMAC_STAT_RX_BIP_ERR_12_OFFSET             0x0C68
+#define MRMAC_STAT_RX_BIP_ERR_13_OFFSET             0x0C70
+#define MRMAC_STAT_RX_BIP_ERR_14_OFFSET             0x0C78
+#define MRMAC_STAT_RX_BIP_ERR_15_OFFSET             0x0C80
+#define MRMAC_STAT_RX_BIP_ERR_16_OFFSET             0x0C88
+#define MRMAC_STAT_RX_BIP_ERR_17_OFFSET             0x0C90
+#define MRMAC_STAT_RX_BIP_ERR_18_OFFSET             0x0C98
+#define MRMAC_STAT_RX_BIP_ERR_19_OFFSET             0x0CA0
+#define MRMAC_STAT_RX_FRAMING_ERR_0_OFFSET          0x0CA8
+#define MRMAC_STAT_RX_FRAMING_ERR_1_OFFSET          0x0CB0
+#define MRMAC_STAT_RX_FRAMING_ERR_2_OFFSET          0x0CB8
+#define MRMAC_STAT_RX_FRAMING_ERR_3_OFFSET          0x0CC0
+#define MRMAC_STAT_RX_FRAMING_ERR_4_OFFSET          0x0CC8
+#define MRMAC_STAT_RX_FRAMING_ERR_5_OFFSET          0x0CD0
+#define MRMAC_STAT_RX_FRAMING_ERR_6_OFFSET          0x0CD8
+#define MRMAC_STAT_RX_FRAMING_ERR_7_OFFSET          0x0CE0
+#define MRMAC_STAT_RX_FRAMING_ERR_8_OFFSET          0x0CE8
+#define MRMAC_STAT_RX_FRAMING_ERR_9_OFFSET          0x0CF0
+#define MRMAC_STAT_RX_FRAMING_ERR_10_OFFSET         0x0CF8
+#define MRMAC_STAT_RX_FRAMING_ERR_11_OFFSET         0x0D00
+#define MRMAC_STAT_RX_FRAMING_ERR_12_OFFSET         0x0D08
+#define MRMAC_STAT_RX_FRAMING_ERR_13_OFFSET         0x0D10
+#define MRMAC_STAT_RX_FRAMING_ERR_14_OFFSET         0x0D18
+#define MRMAC_STAT_RX_FRAMING_ERR_15_OFFSET         0x0D20
+#define MRMAC_STAT_RX_FRAMING_ERR_16_OFFSET         0x0D28
+#define MRMAC_STAT_RX_FRAMING_ERR_17_OFFSET         0x0D30
+#define MRMAC_STAT_RX_FRAMING_ERR_18_OFFSET         0x0D38
+#define MRMAC_STAT_RX_FRAMING_ERR_19_OFFSET         0x0D40
+#define MRMAC_STAT_RX_BAD_CODE_OFFSET               0x0D58
+#define MRMAC_STAT_RX_PCS_BAD_CODE_OFFSET           0x0D60
+#define MRMAC_STAT_RX_INVALID_START_OFFSET          0x0D68
+#define MRMAC_STAT_RX_FEC_CW_0_OFFSET               0x0D70
+#define MRMAC_STAT_RX_FEC_CW_1_OFFSET               0x0D78
+#define MRMAC_STAT_RX_FEC_CW_2_OFFSET               0x0D80
+#define MRMAC_STAT_RX_FEC_CW_3_OFFSET               0x0D88
+#define MRMAC_STAT_RX_FEC_CORRECTED_CW_0_OFFSET     0x0D90
+#define MRMAC_STAT_RX_FEC_CORRECTED_CW_1_OFFSET     0x0D98
+#define MRMAC_STAT_RX_FEC_CORRECTED_CW_2_OFFSET     0x0DA0
+#define MRMAC_STAT_RX_FEC_CORRECTED_CW_3_OFFSET     0x0DA8
+#define MRMAC_STAT_RX_FEC_UNCORRECTED_CW_0_OFFSET   0x0DB0
+#define MRMAC_STAT_RX_FEC_UNCORRECTED_CW_1_OFFSET   0x0DB8
+#define MRMAC_STAT_RX_FEC_UNCORRECTED_CW_2_OFFSET   0x0DC0
+#define MRMAC_STAT_RX_FEC_UNCORRECTED_CW_3_OFFSET   0x0DC8
+#define MRMAC_STAT_RX_FEC_BIT_ERR_0TO1_0_OFFSET     0x0DD0
+#define MRMAC_STAT_RX_FEC_BIT_ERR_0TO1_1_OFFSET     0x0DD8
+#define MRMAC_STAT_RX_FEC_BIT_ERR_0TO1_2_OFFSET     0x0DE0
+#define MRMAC_STAT_RX_FEC_BIT_ERR_0TO1_3_OFFSET     0x0DE8
+#define MRMAC_STAT_RX_FEC_BIT_ERR_1TO0_0_OFFSET     0x0DF0
+#define MRMAC_STAT_RX_FEC_BIT_ERR_1TO0_1_OFFSET     0x0DF8
+#define MRMAC_STAT_RX_FEC_BIT_ERR_1TO0_2_OFFSET     0x0E00
+#define MRMAC_STAT_RX_FEC_BIT_ERR_1TO0_3_OFFSET     0x0E08
+#define MRMAC_STAT_RX_FEC_ERR_COUNT_0_OFFSET        0x0E10
+#define MRMAC_STAT_RX_FEC_ERR_COUNT_1_OFFSET        0x0E18
+#define MRMAC_STAT_RX_FEC_ERR_COUNT_2_OFFSET        0x0E20
+#define MRMAC_STAT_RX_FEC_ERR_COUNT_3_OFFSET        0x0E28
+#define MRMAC_STAT_RX_TOTAL_PACKETS_OFFSET          0x0E30
+#define MRMAC_STAT_RX_TOTAL_GOOD_PACKETS_OFFSET     0x0E38
+#define MRMAC_STAT_RX_TOTAL_BYTES_OFFSET            0x0E40
+#define MRMAC_STAT_RX_TOTAL_GOOD_BYTES_OFFSET       0x0E48
+#define MRMAC_STAT_RX_PACKET_64_BYTES_OFFSET        0x0E50
+#define MRMAC_STAT_RX_PACKET_65_127_BYTES_OFFSET    0x0E58
+
+#define MRMAC_STAT_RX_PACKET_128_255_BYTES_OFFSET   0x0E60
+#define MRMAC_STAT_RX_PACKET_256_511_BYTES_OFFSET   0x0E68
+#define MRMAC_STAT_RX_PACKET_512_1023_BYTES_OFFSET  0x0E70
+#define MRMAC_STAT_RX_PACKET_1024_1518_BYTES_OFFSET 0x0E78
+#define MRMAC_STAT_RX_PACKET_1519_1522_BYTES_OFFSET 0x0E80
+#define MRMAC_STAT_RX_PACKET_1523_1548_BYTES_OFFSET 0x0E88
+#define MRMAC_STAT_RX_PACKET_1549_2047_BYTES_OFFSET 0x0E90
+#define MRMAC_STAT_RX_PACKET_2048_4095_BYTES_OFFSET 0x0E98
+#define MRMAC_STAT_RX_PACKET_4096_8191_BYTES_OFFSET 0x0EA0
+#define MRMAC_STAT_RX_PACKET_8192_9215_BYTES_OFFSET 0x0EA8
+#define MRMAC_STAT_RX_PACKET_LARGE_OFFSET           0x0EB0
+#define MRMAC_STAT_RX_PACKET_SMALL_OFFSET           0x0EB8
+#define MRMAC_STAT_RX_UNDERSIZE_OFFSET              0x0EC0
+#define MRMAC_STAT_RX_FRAGMENT_OFFSET               0x0EC8
+#define MRMAC_STAT_RX_OVERSIZE_OFFSET               0x0ED0
+#define MRMAC_STAT_RX_TOOLONG_OFFSET                0x0ED8
+#define MRMAC_STAT_RX_JABBER_OFFSET                 0x0EE0
+#define MRMAC_STAT_RX_BAD_FCS_OFFSET                0x0EE8
+#define MRMAC_STAT_RX_PACKET_BAD_FCS_OFFSET         0x0EF0
+#define MRMAC_STAT_RX_STOMPED_FCS_OFFSET            0x0EF8
+#define MRMAC_STAT_RX_UNICAST_OFFSET                0x0F00
+#define MRMAC_STAT_RX_MULTICAST_OFFSET              0x0F08
+#define MRMAC_STAT_RX_BROADCAST_OFFSET              0x0F10
+#define MRMAC_STAT_RX_VLAN_OFFSET                   0x0F18
+#define MRMAC_STAT_RX_PAUSE_OFFSET                  0x0F20
+#define MRMAC_STAT_RX_USER_PAUSE_OFFSET             0x0F28
+#define MRMAC_STAT_RX_INRANGEERR_OFFSET             0x0F30
+#define MRMAC_STAT_RX_TRUNCATED_OFFSET              0x0F38
+#define MRMAC_STAT_RX_TEST_PATTERN_MISMATCH_OFFSET  0x0F40
+#define MRMAC_STAT_RX_CL49_82_CONVERT_ERR_OFFSET    0x0F48
+#define MRMAC_STAT_RX_TSN_PREEMPTED_PKT_OFFSET      0x0F50
+#define MRMAC_STAT_RX_TSN_FRAGMENT_OFFSET           0x0F58
+#define MRMAC_STAT_RX_ECC_ERR0_OFFSET               0x0F60
+#define MRMAC_STAT_RX_ECC_ERR1_OFFSET               0x0F68
 
 #endif /* MRMAC_AXI4_LITE_REGISTERS_H_ */

@@ -9,4 +9,7 @@ target_link_libraries (mrmac_switch_test identify_pcie_fpga_design xilinx_dma_br
                                          m pthread)
 
 add_executable (mrmac_configuration "mrmac_configuration.c")
-target_link_libraries (mrmac_configuration mrmac_register_access identify_pcie_fpga_design vfio_access)
+target_link_libraries (mrmac_configuration mrmac_register_access identify_pcie_fpga_design transfer_timing vfio_access)
+
+add_executable (mrmac_statistics "mrmac_statistics.c")
+target_link_libraries (mrmac_statistics mrmac_register_access identify_pcie_fpga_design transfer_timing vfio_access)

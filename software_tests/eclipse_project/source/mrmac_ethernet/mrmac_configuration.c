@@ -77,6 +77,30 @@ static const mrmac_configuration_field_t mrmac_configuration_field_definitions[]
         .offset = MRMAC_FEC_CONFIGURATION_REG1_OFFSET,
         .mask = MRMAC_CTL_TX_FEC_FOUR_LANE_PMD,
         .name = "ctl_tx_fec_four_lane_pmd"
+    },
+
+    /* For testing changing the MTU */
+    {
+        .offset = MRMAC_CONFIGURATION_RX_MTU_OFFSET,
+        .mask = MRMAC_CTL_RX_MIN_PACKET_LEN_MASK,
+        .name = "ctl_rx_min_packet_len"
+    },
+    {
+        .offset = MRMAC_CONFIGURATION_RX_MTU_OFFSET,
+        .mask = MRMAC_CTL_RX_MAX_PACKET_LEN_MASK,
+        .name = "ctl_rx_max_packet_len"
+    },
+
+    /* For testing statistic counters */
+    {
+        .offset = MRMAC_MODE_REG_OFFSET,
+        .mask = MRMAC_CTL_COUNTER_EXTEND,
+        .name = "ctl_counter_extend",
+    },
+    {
+        .offset = MRMAC_MODE_REG_OFFSET,
+        .mask = MRMAC_TICK_REG_MODE_SEL,
+        .name = "tick_reg_mode_sel"
     }
 };
 
@@ -379,6 +403,19 @@ int main (int argc, char *argv[])
 
     /* Open the FPGA designs which have an IOMMU group assigned */
     identify_pcie_fpga_designs (&designs);
+    uint32_t num_mrmac_designs = 0;
+    for (uint32_t design_index = 0; design_index < designs.num_identified_designs; design_index++)
+    {
+        if (designs.designs[design_index].mrmac.regs != NULL)
+        {
+            num_mrmac_designs++;
+        }
+    }
+    if (num_mrmac_designs == 0)
+    {
+        printf ("No MRMAC designs to operate on\n");
+        exit (EXIT_FAILURE);
+    }
 
     modify_mrmac_configuration (&designs);
     if (arg_reset_port)

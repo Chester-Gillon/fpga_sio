@@ -7,7 +7,10 @@
 
 #include "mrmac_register_access.h"
 #include "mrmac_axi4_lite_registers.h"
+#include "transfer_timing.h"
 
+#include <string.h>
+#include <inttypes.h>
 #include <stdio.h>
 
 #include <time.h>
@@ -152,6 +155,163 @@ const char *const mrmac_fec_operating_mode_names[][MRMAC_CTL_FEC_MODE_ARRAY_SIZE
     }
 };
 const uint32_t mrmac_num_fec_operating_mode_names = VFIO_NELEMENTS (mrmac_fec_operating_mode_names);
+
+
+/* Define the register offsets and names for the statistics counters in one MRMAC port.
+ * The MRMAC_STAT_COUNTER_DEF is used to set the name to the same as that of the register offsets without the prefix and suffix.
+ * Where the register offsets names were copied from the mrmac-registers-v3-0.xlsx. This avoids the need to populate the longer
+ * descriptive names for the statistics counters which are in the mrmac-registers-v3-0.xlsx. */
+#define STRINGIFY_HELPER(X) #X
+#define STRINGIFY(X) STRINGIFY_HELPER(X)
+#define MRMAC_STAT_COUNTER_DEF(name_param) {.lsb_offset = MRMAC_STAT_##name_param##_OFFSET, .name = STRINGIFY(name_param)}
+const mrmac_statistics_counter_definition_t mrmac_statistics_counter_definitions[MRMAC_STAT_ARRAY_SIZE] =
+{
+    MRMAC_STAT_COUNTER_DEF(TX_CYCLE_COUNT),
+    MRMAC_STAT_COUNTER_DEF(TX_FRAME_ERROR),
+    MRMAC_STAT_COUNTER_DEF(TX_TOTAL_PACKETS),
+    MRMAC_STAT_COUNTER_DEF(TX_TOTAL_GOOD_PACKETS),
+    MRMAC_STAT_COUNTER_DEF(TX_TOTAL_BYTES),
+    MRMAC_STAT_COUNTER_DEF(TX_TOTAL_GOOD_BYTES),
+    MRMAC_STAT_COUNTER_DEF(TX_PACKET_64_BYTES),
+    MRMAC_STAT_COUNTER_DEF(TX_PACKET_65_127_BYTES),
+    MRMAC_STAT_COUNTER_DEF(TX_PACKET_128_255_BYTES),
+    MRMAC_STAT_COUNTER_DEF(TX_PACKET_256_511_BYTES),
+    MRMAC_STAT_COUNTER_DEF(TX_PACKET_512_1023_BYTES),
+    MRMAC_STAT_COUNTER_DEF(TX_PACKET_1024_1518_BYTES),
+    MRMAC_STAT_COUNTER_DEF(TX_PACKET_1519_1522_BYTES),
+    MRMAC_STAT_COUNTER_DEF(TX_PACKET_1523_1548_BYTES),
+    MRMAC_STAT_COUNTER_DEF(TX_PACKET_1549_2047_BYTES),
+    MRMAC_STAT_COUNTER_DEF(TX_PACKET_2048_4095_BYTES),
+    MRMAC_STAT_COUNTER_DEF(TX_PACKET_4096_8191_BYTES),
+    MRMAC_STAT_COUNTER_DEF(TX_PACKET_8192_9215_BYTES),
+    MRMAC_STAT_COUNTER_DEF(TX_PACKET_LARGE),
+    MRMAC_STAT_COUNTER_DEF(TX_PACKET_SMALL),
+    MRMAC_STAT_COUNTER_DEF(TX_BAD_FCS),
+    MRMAC_STAT_COUNTER_DEF(TX_UNICAST),
+    MRMAC_STAT_COUNTER_DEF(TX_MULTICAST),
+    MRMAC_STAT_COUNTER_DEF(TX_BROADCAST),
+    MRMAC_STAT_COUNTER_DEF(TX_VLAN),
+    MRMAC_STAT_COUNTER_DEF(TX_PAUSE),
+    MRMAC_STAT_COUNTER_DEF(TX_USER_PAUSE),
+    MRMAC_STAT_COUNTER_DEF(TX_TSN_PREEMPTED_PKT),
+    MRMAC_STAT_COUNTER_DEF(TX_TSN_FRAGMENT),
+    MRMAC_STAT_COUNTER_DEF(TX_PCS_BAD_CODE),
+    MRMAC_STAT_COUNTER_DEF(TX_CL82_49_CONVERT_ERR),
+    MRMAC_STAT_COUNTER_DEF(TX_ECC_ERR0),
+    MRMAC_STAT_COUNTER_DEF(TX_ECC_ERR1),
+    MRMAC_STAT_COUNTER_DEF(RX_CYCLE_COUNT),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_0),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_1),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_2),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_3),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_4),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_5),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_6),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_7),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_8),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_9),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_10),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_11),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_12),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_13),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_14),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_15),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_16),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_17),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_18),
+    MRMAC_STAT_COUNTER_DEF(RX_BIP_ERR_19),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_0),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_1),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_2),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_3),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_4),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_5),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_6),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_7),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_8),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_9),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_10),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_11),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_12),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_13),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_14),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_15),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_16),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_17),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_18),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAMING_ERR_19),
+    MRMAC_STAT_COUNTER_DEF(RX_BAD_CODE),
+    MRMAC_STAT_COUNTER_DEF(RX_PCS_BAD_CODE),
+    MRMAC_STAT_COUNTER_DEF(RX_INVALID_START),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_CW_0),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_CW_1),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_CW_2),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_CW_3),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_CORRECTED_CW_0),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_CORRECTED_CW_1),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_CORRECTED_CW_2),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_CORRECTED_CW_3),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_UNCORRECTED_CW_0),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_UNCORRECTED_CW_1),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_UNCORRECTED_CW_2),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_UNCORRECTED_CW_3),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_BIT_ERR_0TO1_0),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_BIT_ERR_0TO1_1),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_BIT_ERR_0TO1_2),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_BIT_ERR_0TO1_3),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_BIT_ERR_1TO0_0),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_BIT_ERR_1TO0_1),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_BIT_ERR_1TO0_2),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_BIT_ERR_1TO0_3),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_ERR_COUNT_0),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_ERR_COUNT_1),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_ERR_COUNT_2),
+    MRMAC_STAT_COUNTER_DEF(RX_FEC_ERR_COUNT_3),
+    MRMAC_STAT_COUNTER_DEF(RX_TOTAL_PACKETS),
+    MRMAC_STAT_COUNTER_DEF(RX_TOTAL_GOOD_PACKETS),
+    MRMAC_STAT_COUNTER_DEF(RX_TOTAL_BYTES),
+    MRMAC_STAT_COUNTER_DEF(RX_TOTAL_GOOD_BYTES),
+    MRMAC_STAT_COUNTER_DEF(RX_PACKET_64_BYTES),
+    MRMAC_STAT_COUNTER_DEF(RX_PACKET_65_127_BYTES),
+    MRMAC_STAT_COUNTER_DEF(RX_PACKET_128_255_BYTES),
+    MRMAC_STAT_COUNTER_DEF(RX_PACKET_256_511_BYTES),
+    MRMAC_STAT_COUNTER_DEF(RX_PACKET_512_1023_BYTES),
+    MRMAC_STAT_COUNTER_DEF(RX_PACKET_1024_1518_BYTES),
+    MRMAC_STAT_COUNTER_DEF(RX_PACKET_1519_1522_BYTES),
+    MRMAC_STAT_COUNTER_DEF(RX_PACKET_1523_1548_BYTES),
+    MRMAC_STAT_COUNTER_DEF(RX_PACKET_1549_2047_BYTES),
+    MRMAC_STAT_COUNTER_DEF(RX_PACKET_2048_4095_BYTES),
+    MRMAC_STAT_COUNTER_DEF(RX_PACKET_4096_8191_BYTES),
+    MRMAC_STAT_COUNTER_DEF(RX_PACKET_8192_9215_BYTES),
+    MRMAC_STAT_COUNTER_DEF(RX_PACKET_LARGE),
+    MRMAC_STAT_COUNTER_DEF(RX_PACKET_SMALL),
+    MRMAC_STAT_COUNTER_DEF(RX_UNDERSIZE),
+    MRMAC_STAT_COUNTER_DEF(RX_FRAGMENT),
+    MRMAC_STAT_COUNTER_DEF(RX_OVERSIZE),
+    MRMAC_STAT_COUNTER_DEF(RX_TOOLONG),
+    MRMAC_STAT_COUNTER_DEF(RX_JABBER),
+    MRMAC_STAT_COUNTER_DEF(RX_BAD_FCS),
+    MRMAC_STAT_COUNTER_DEF(RX_PACKET_BAD_FCS),
+    MRMAC_STAT_COUNTER_DEF(RX_STOMPED_FCS),
+    MRMAC_STAT_COUNTER_DEF(RX_UNICAST),
+    MRMAC_STAT_COUNTER_DEF(RX_MULTICAST),
+    MRMAC_STAT_COUNTER_DEF(RX_BROADCAST),
+    MRMAC_STAT_COUNTER_DEF(RX_VLAN),
+    MRMAC_STAT_COUNTER_DEF(RX_PAUSE),
+    MRMAC_STAT_COUNTER_DEF(RX_USER_PAUSE),
+    MRMAC_STAT_COUNTER_DEF(RX_INRANGEERR),
+    MRMAC_STAT_COUNTER_DEF(RX_TRUNCATED),
+    MRMAC_STAT_COUNTER_DEF(RX_TEST_PATTERN_MISMATCH),
+    MRMAC_STAT_COUNTER_DEF(RX_CL49_82_CONVERT_ERR),
+    MRMAC_STAT_COUNTER_DEF(RX_TSN_PREEMPTED_PKT),
+    MRMAC_STAT_COUNTER_DEF(RX_TSN_FRAGMENT),
+    MRMAC_STAT_COUNTER_DEF(RX_ECC_ERR0),
+    MRMAC_STAT_COUNTER_DEF(RX_ECC_ERR1)
+};
+
+
+/* The monotonic time of the last sample tick for the statistics counters in each MRMAC port */
+static int64_t port_last_sample_tick_times_ns[NUM_MRMAC_PORTS];
 
 
 /**
@@ -447,4 +607,152 @@ void mrmac_reset_port (fpga_design_t *const design, const uint32_t port_num)
     write_reg32 (port_regs, MRMAC_RESET_REG_OFFSET, all_reset_bits);
     clock_nanosleep (CLOCK_MONOTONIC, 0, &reset_duration, NULL);
     write_reg32 (port_regs, MRMAC_RESET_REG_OFFSET, 0);
+}
+
+
+/**
+ * @brief Snapshot the statistic counters for one MRMAC port
+ * @details This uses the MRMAC tick mechanism which snapshots the internal counters. The tick mechanism resets
+ *          the internal counters to zero for the specific port. I.e.:
+ *          a. Each call to this will reset the internal statistics counts for the next sampling interval.
+ *          b. If multiple threads or processes call this function for the same port the counts may under-read.
+ *
+ *          Have split the API into mrmac_snapshot_port_statistics() and mrmac_read_port_statistics() functions to allow counters
+ *          for multiple MRMAC ports to be snapshot'ed as close togther as possible, before later reading the values.
+ * @param[in,out] design Contains the design with the MRMAC
+ * @param[in] Which MRMAC port to snapshot the statistic counters for
+ * @param[in,out] stats The statistics counters
+ */
+void mrmac_snapshot_port_statistics (fpga_design_t *const design, const uint32_t port_num, mrmac_port_statistics_t *const stats)
+{
+    uint8_t *const port_regs = &design->mrmac.regs[port_num * MRMAC_PORT_REGS_FRAME_SIZE];
+
+    stats->design = design;
+    stats->port_num = port_num;
+
+    /* Ensure the port mode register has the required fields:
+     * a. Disable counter extend, since the statistics counter extension port isn't used.
+     * b. Enable tick register mode, since the pm_tick pin isn't used.
+     *
+     * Only write if the current mode register doesn't have the expected value, since a configuration register which preserves
+     * its contents across resets. */
+    const uint32_t current_mode_reg = read_reg32 (port_regs, MRMAC_MODE_REG_OFFSET);
+    uint32_t required_mode_reg;
+
+    required_mode_reg = current_mode_reg;
+    vfio_update_field_u32 (&required_mode_reg, MRMAC_CTL_COUNTER_EXTEND, 0);
+    vfio_update_field_u32 (&required_mode_reg, MRMAC_TICK_REG_MODE_SEL, 1);
+    if (current_mode_reg != required_mode_reg)
+    {
+        write_reg32 (port_regs, MRMAC_MODE_REG_OFFSET, required_mode_reg);
+    }
+
+    /* Clear the statistics ready indication from any previous sample */
+    const uint32_t statistics_ready_reg = read_reg32 (port_regs, MRMAC_STAT_STATISTICS_READY_OFFSET);
+    if (statistics_ready_reg != 0)
+    {
+        write_reg32 (port_regs, MRMAC_STAT_STATISTICS_READY_OFFSET, statistics_ready_reg);
+    }
+
+    /* Snapshot the statistics counters */
+    stats->this_sample_tick_time_ns = get_monotonic_time ();
+    write_reg32 (port_regs, MRMAC_TICK_REG_OFFSET, MRMAC_TICK_REG);
+}
+
+
+/**
+ * @brief Read the statistics counters for one MRMAC port
+ * @details Reads the values of which were snapshot'ed by the previous call to mrmac_snapshot_port_statistics()
+ * @param[in,out] stats On return the statistics counters read from the port
+ */
+void mrmac_read_port_statistics (mrmac_port_statistics_t *const stats)
+{
+    uint8_t *const port_regs = &stats->design->mrmac.regs[stats->port_num * MRMAC_PORT_REGS_FRAME_SIZE];
+    uint32_t statistics_ready_reg;
+
+    /* Wait, with a timeout, for the statistics to be ready to read */
+    const int64_t timeout = stats->this_sample_tick_time_ns + 100000000; /* 100 milliseconds */
+    int64_t now;
+    bool timed_out = false;
+    bool ready = false;
+    do
+    {
+        statistics_ready_reg = read_reg32 (port_regs, MRMAC_STAT_STATISTICS_READY_OFFSET);
+        now = get_monotonic_time ();
+        if ((statistics_ready_reg & MRMAC_STAT_STATISTICS_READY) == MRMAC_STAT_STATISTICS_READY)
+        {
+            ready = true;
+        }
+        else
+        {
+            if (now > timeout)
+            {
+                timed_out = true;
+                printf ("Timed out waiting for statistic counters to be ready\n");
+            }
+        }
+    } while (!timed_out && !ready);
+    stats->ready_duration_ns = now - stats->this_sample_tick_time_ns;
+
+    /* Store the counter values which have been snapshot'ed */
+    for (uint32_t counter_index = 0; counter_index < MRMAC_STAT_ARRAY_SIZE; counter_index++)
+    {
+        const uint32_t counter_lsb_register = read_reg32 (port_regs, mrmac_statistics_counter_definitions[counter_index].lsb_offset);
+        const uint32_t counter_msb_register = read_reg32 (port_regs, mrmac_statistics_counter_definitions[counter_index].lsb_offset + 4);
+
+        stats->counter_values[counter_index] = (((uint64_t) counter_msb_register & 0xffff) << 32) | counter_lsb_register;
+    }
+
+    /* Record the duration between samples on the same port */
+    if (port_last_sample_tick_times_ns[stats->port_num] != 0)
+    {
+        stats->sample_duration_ns = stats->this_sample_tick_time_ns - port_last_sample_tick_times_ns[stats->port_num];
+        stats->sample_duration_valid = true;
+    }
+    else
+    {
+        stats->sample_duration_ns = 0;
+        stats->sample_duration_valid = false;
+    }
+    port_last_sample_tick_times_ns[stats->port_num] = stats->this_sample_tick_time_ns;
+}
+
+
+/**
+ * @brief Display the statistic counters for one MRMAC port
+ * @param[in] stats The statistic counters to display
+ */
+void mrmac_display_port_statistics (const mrmac_port_statistics_t *const stats)
+{
+    uint32_t counter_index;
+
+    /* Find the maximum length of all statistic counter names, to format the output */
+    int max_name_len = 0;
+    for (counter_index = 0; counter_index < MRMAC_STAT_ARRAY_SIZE; counter_index++)
+    {
+        const size_t name_len = strlen (mrmac_statistics_counter_definitions[counter_index].name);
+
+        if (name_len > max_name_len)
+        {
+            max_name_len = (int) name_len;
+        }
+    }
+
+    /* Only display counters with non-zero values for a more compact display */
+    printf ("%s port %u statistics", fpga_design_names[stats->design->design_id], stats->port_num);
+    if (stats->sample_duration_valid)
+    {
+        printf (" (over %.3f secs)", (double) stats->sample_duration_ns / 1E9);
+    }
+    printf (":\n");
+    for (counter_index = 0; counter_index < MRMAC_STAT_ARRAY_SIZE; counter_index++)
+    {
+        const uint64_t counter_value = stats->counter_values[counter_index];
+
+        if (counter_value != 0)
+        {
+            printf ("  %*s: %15" PRIu64 "%s\n", -max_name_len, mrmac_statistics_counter_definitions[counter_index].name,
+                    counter_value, (counter_value == MRMAC_STAT_SATURATED_VALUE) ? " (saturated)" : "");
+        }
+    }
 }
