@@ -12,7 +12,8 @@
 #include "identify_pcie_fpga_design.h"
 
 
-/* The statistics counters maintained by the MRMAC for one port */
+/* The statistics counters maintained by the MRMAC for one port.
+ * This list was taken from port 0. Other ports may not have some of the counters implemented. */
 typedef enum
 {
     MRMAC_STAT_TX_CYCLE_COUNT,
@@ -42,7 +43,7 @@ typedef enum
     MRMAC_STAT_TX_VLAN,
     MRMAC_STAT_TX_PAUSE,
     MRMAC_STAT_TX_USER_PAUSE,
-    MRMAC_STAT_TX_TSN_PREEMPTED,
+    MRMAC_STAT_TX_TSN_PREEMPTED_PKT,
     MRMAC_STAT_TX_TSN_FRAGMENT,
     MRMAC_STAT_TX_PCS_BAD_CODE,
     MRMAC_STAT_TX_CL82_49_CONVERT_ERR,
@@ -138,7 +139,7 @@ typedef enum
     MRMAC_STAT_RX_UNDERSIZE,
     MRMAC_STAT_RX_FRAGMENT,
     MRMAC_STAT_RX_OVERSIZE,
-    MRCMAC_STAT_RX_TOOLONG,
+    MRMAC_STAT_RX_TOOLONG,
     MRMAC_STAT_RX_JABBER,
     MRMAC_STAT_RX_BAD_FCS,
     MRMAC_STAT_RX_PACKET_BAD_FCS,
@@ -172,8 +173,9 @@ typedef enum
 /* Defines one statistic counter */
 typedef struct
 {
-    /* Offset of the LSB counter register */
-    uint32_t lsb_offset;
+    /* Per port offset of the LSB counter register, from the base of the MRMAC registers.
+     * If an offset for a port is zero, means the statistics counter is not implemented for the port. */
+    uint32_t lsb_offsets[NUM_MRMAC_PORTS];
     /* The display name used for the statistics counter */
     const char *name;
 } mrmac_statistics_counter_definition_t;
