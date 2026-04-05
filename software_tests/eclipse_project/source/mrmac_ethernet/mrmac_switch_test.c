@@ -10,6 +10,7 @@
 #include "mrmac_axi4_lite_registers.h"
 #include "xilinx_dma_bridge_transfers.h"
 #include "transfer_timing.h"
+#include "mrmac_register_access.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -300,6 +301,10 @@ static bool arg_tx_ipg_value_specified = false;
 static bool arg_expect_mrmac_loopback;
 
 
+/* Optional command line argument to disable this program from collecting and reporting MRMAC port statistics */
+static bool arg_disable_port_statistics;
+
+
 /* Used to store pending receive frames for one source / destination port combination.
  * As frames are transmitted they are stored in, and then removed once received.
  *
@@ -402,6 +407,13 @@ typedef struct
      * different MRMAC ports on the same design to be used for transmit and receive. */
     uint8_t *mrmac_tx_port_regs;
     uint8_t *mrmac_rx_port_regs;
+    /* The number of MRMAC ports for which statistics are collected */
+    uint32_t num_ports_used_for_statistics;
+    /* The port numbers for which statistics are collected. Number of valid indices is num_ports_used_for_statistics. */
+    uint32_t statistics_port_nums[2];
+    /* The MRMAC port statistics over the duration of the test. Number of valid indices is num_ports_used_for_statistics.
+     * When the transmit and receive ports are different both entries are used. Otherwise only the first entry is used. */
+    mrmac_port_statistics_t port_statistics[2];
     /* The number of buffers allocated for transmit and receive, which can be queued for XDMA */
     uint32_t tx_num_buffers;
     uint32_t rx_num_buffers;
@@ -585,7 +597,7 @@ static void report_if_transfer_failed (const x2x_transfer_context_t *const conte
  */
 static void display_usage (const char *const program_name)
 {
-    printf ("Usage %s: [-i <domain>:<bus>:<dev>.<func>] -n [<mrmac_port_num>|<mrmac_tx_port_num>:<mrmac_rx_port_num>] [-t <duration_secs>] [-d] [-p <port_list>] [-r <rate_mbps>] [-g <tx_ipg_value>] [-l]\n", program_name);
+    printf ("Usage %s: [-i <domain>:<bus>:<dev>.<func>] -n [<mrmac_port_num>|<mrmac_tx_port_num>:<mrmac_rx_port_num>] [-t <duration_secs>] [-d] [-p <port_list>] [-r <rate_mbps>] [-g <tx_ipg_value>] [-l] [-s]\n", program_name);
     printf ("\n");
     printf ("  -i only open using VFIO specific PCI device in the event that there is more than\n");
     printf ("     one PCI device which matches the identity filters.\n");
@@ -611,6 +623,8 @@ static void display_usage (const char *const program_name)
     printf ("     by the switch under test. This means expects to receive the test frames on\n");
     printf ("     from the source VLAN, rather than destination VLAN.\n");
     printf ("     This option allows testing of the MRMAC without needing a switch.\n");
+    printf ("  -s Disable collecting and reporting MRMAC port statistics during the test.\n");
+    printf ("     For when instead running mrmac_statistics for a live update during the test.\n");
 
     exit (EXIT_FAILURE);
 }
@@ -744,7 +758,7 @@ static void read_command_line_arguments (const int argc, char *argv[])
 {
     bool mrmac_port_num_specified = false;
     const char *const program_name = argv[0];
-    const char *const optstring = "i:n:dt:p:r:g:l";
+    const char *const optstring = "i:n:dt:p:r:g:ls";
     int option;
     char junk;
     uint32_t port_num;
@@ -825,6 +839,10 @@ static void read_command_line_arguments (const int argc, char *argv[])
 
         case 'l':
             arg_expect_mrmac_loopback = true;
+            break;
+
+        case 's':
+            arg_disable_port_statistics = true;
             break;
 
         case '?':
@@ -1080,6 +1098,25 @@ static void open_mrmac_device (frame_tx_rx_thread_context_t *const context)
     context->mrmac_rx_port_regs = &context->mrmac_design->mrmac.regs[arg_mrmac_rx_port_num * MRMAC_PORT_REGS_FRAME_SIZE];
     context->xdma_overall_success = true;
 
+    if (arg_disable_port_statistics)
+    {
+        /* Command line has disabled MRMAC statistics collection */
+        context->num_ports_used_for_statistics = 0;
+    }
+    else if (arg_mrmac_tx_port_num == arg_mrmac_rx_port_num)
+    {
+        /* Collect statistics from the same port used for transmit and receive */
+        context->statistics_port_nums[0] = arg_mrmac_tx_port_num;
+        context->num_ports_used_for_statistics = 1;
+    }
+    else
+    {
+        /* Transmit and receive ports are different, so collect statistics for both */
+        context->statistics_port_nums[0] = arg_mrmac_tx_port_num;
+        context->statistics_port_nums[1] = arg_mrmac_rx_port_num;
+        context->num_ports_used_for_statistics = 2;
+    }
+
     /* When the MRMAC tx_ipg_value command line option is present, write it to the transmit configuration register */
     if (arg_tx_ipg_value_specified)
     {
@@ -1245,6 +1282,76 @@ static void reset_frame_test_statistics (frame_test_statistics_t *const statisti
             port_stats->num_valid_rx_frames = 0;
             port_stats->num_missing_rx_frames = 0;
             port_stats->num_tx_frames = 0;
+        }
+    }
+}
+
+
+/**
+ * @brief Collect the MRMAC port statistics
+ * @param[in/out] context Context to get the MRMAC port statistics for
+ */
+static void collect_port_statistics (frame_tx_rx_thread_context_t *const context)
+{
+    uint32_t port_index;
+
+    for (port_index = 0; port_index < context->num_ports_used_for_statistics; port_index++)
+    {
+        mrmac_snapshot_port_statistics (context->mrmac_design, context->statistics_port_nums[port_index],
+                &context->port_statistics[port_index]);
+    }
+
+    for (port_index = 0; port_index < context->num_ports_used_for_statistics; port_index++)
+    {
+        mrmac_read_port_statistics (&context->port_statistics[port_index]);
+    }
+}
+
+
+/**
+ * @brief Display the MRMAC port statistics over the duration of the test
+ * @details This function has copied code from mrmac_display_port_statistics(), since needs to use console_printf() so that the
+ *          output gets saved to the log file.
+ * @param[in] context Context containing the MRMAC port statistics
+ */
+static void display_port_statistics (const frame_tx_rx_thread_context_t *const context)
+{
+    uint32_t counter_index;
+
+    /* Find the maximum length of all statistic counter names, to format the output */
+    int max_name_len = 0;
+    for (counter_index = 0; counter_index < MRMAC_STAT_ARRAY_SIZE; counter_index++)
+    {
+        const size_t name_len = strlen (mrmac_statistics_counter_definitions[counter_index].name);
+
+        if (name_len > max_name_len)
+        {
+            max_name_len = (int) name_len;
+        }
+    }
+
+    for (uint32_t port_index = 0; port_index < context->num_ports_used_for_statistics; port_index++)
+    {
+        const mrmac_port_statistics_t *const stats = &context->port_statistics[port_index];
+
+        /* Only display counters with non-zero values:
+         * a. For a more compact display.
+         * b. To ignore non-implemented counters for a port, for which mrmac_read_port_statistics() stores a zero. */
+        console_printf ("\n%s port %u statistics", fpga_design_names[stats->design->design_id], stats->port_num);
+        if (stats->sample_duration_valid)
+        {
+            console_printf (" (over %.3f secs)", (double) stats->sample_duration_ns / 1E9);
+        }
+        console_printf (":\n");
+        for (counter_index = 0; counter_index < MRMAC_STAT_ARRAY_SIZE; counter_index++)
+        {
+            const uint64_t counter_value = stats->counter_values[counter_index];
+
+            if (counter_value != 0)
+            {
+                console_printf ("  %*s: %15" PRIu64 "%s\n", -max_name_len, mrmac_statistics_counter_definitions[counter_index].name,
+                        counter_value, (counter_value == MRMAC_STAT_SATURATED_VALUE) ? " (saturated)" : "");
+            }
         }
     }
 }
@@ -1616,6 +1723,10 @@ static void *transmit_receive_thread (void *arg)
 
     transmit_receive_initialise (context);
 
+    /* Start statistics collection for the test. The counter values collected here are before the test and the values
+     * will be be overwritten at the end without being used. */
+    collect_port_statistics (context);
+
     /* Run test until requested to exit, or a XMDA error occurs.
      * This gives preference to polling for receipt of test frames, and when no available frame transmits the next test frame.
      * This tries to send frames at the maximum possible rate, and relies upon the poll for frame receipt not causing any
@@ -1712,6 +1823,9 @@ static void *transmit_receive_thread (void *arg)
             context->test_interval_end_time += (arg_test_interval_secs * NSECS_PER_SEC);
         }
     }
+
+    /* Get the statistics for duration of the test */
+    collect_port_statistics (context);
 
     close_mrmac_device (context);
 
@@ -2046,6 +2160,7 @@ int main (int argc, char *argv[])
     console_printf ("Test interval = %" PRIi64 " (secs)\n", arg_test_interval_secs);
     console_printf ("Frame debug enabled = %s\n", arg_frame_debug_enabled ? "Yes" : "No");
     console_printf ("Expect MRMAC loopback = %s\n", arg_expect_mrmac_loopback ? "Yes" : "No");
+    console_printf ("Disable MRMAC port statistics = %s\n", arg_disable_port_statistics ? "Yes" : "No");
 
     /* Create the transmit_receive_thread */
     pthread_t tx_rx_thread_handle;
@@ -2095,6 +2210,7 @@ int main (int argc, char *argv[])
     rc = pthread_join (tx_rx_thread_handle, NULL);
     CHECK_ASSERT (rc == 0);
 
+    display_port_statistics (tx_rx_thread_context);
     console_printf ("Max pending rx frames = %" PRIu32 " out of %" PRIu32 "\n",
             tx_rx_thread_context->statistics.max_pending_rx_frames, tx_rx_thread_context->pending_rx_sequence_numbers_length);
 
