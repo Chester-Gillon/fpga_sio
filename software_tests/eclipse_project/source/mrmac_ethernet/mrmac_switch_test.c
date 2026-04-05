@@ -290,10 +290,14 @@ static double arg_tested_port_mbps = DEFAULT_TESTED_PORT_MBPS;
 static bool arg_frame_debug_enabled = false;
 
 
-/* Optional command line argument which specifies the MRMAX transmit Inter Packet Gap (IPG) value to be used.
+/* Optional command line argument which specifies the MRMAC transmit Inter Packet Gap (IPG) value to be used.
  * This is the 4 bit MRMAC_CTL_TX_IPG_VALUE register value. */
 static uint32_t arg_tx_ipg_value;
 static bool arg_tx_ipg_value_specified = false;
+
+
+/* Optional command line argument to test loopback on the MRMAC ports without needing a switch */
+static bool arg_expect_mrmac_loopback;
 
 
 /* Used to store pending receive frames for one source / destination port combination.
@@ -367,7 +371,7 @@ typedef struct
      * all pending rx sequence numbers are in use.
      *
      * If Rx Unexpected frames are reported and max_pending_rx_frames is MAX_PENDING_RX_FRAMES this suggests the maximum value
-     * should be increased to allow for the latency in the frames being sent by the switches and getting thtough the software. */
+     * should be increased to allow for the latency in the frames being sent by the switches and getting through the software. */
     uint32_t max_pending_rx_frames;
     /* Set true in the final statistics before the transmit/receive thread exits */
     bool final_statistics;
@@ -581,7 +585,7 @@ static void report_if_transfer_failed (const x2x_transfer_context_t *const conte
  */
 static void display_usage (const char *const program_name)
 {
-    printf ("Usage %s: [-i <domain>:<bus>:<dev>.<func>] -n [<mrmac_port_num>|<mrmac_tx_port_num>:<mrmac_rx_port_num>] [-t <duration_secs>] [-d] [-p <port_list>] [-r <rate_mbps>] [-g <tx_ipg_value>]\n", program_name);
+    printf ("Usage %s: [-i <domain>:<bus>:<dev>.<func>] -n [<mrmac_port_num>|<mrmac_tx_port_num>:<mrmac_rx_port_num>] [-t <duration_secs>] [-d] [-p <port_list>] [-r <rate_mbps>] [-g <tx_ipg_value>] [-l]\n", program_name);
     printf ("\n");
     printf ("  -i only open using VFIO specific PCI device in the event that there is more than\n");
     printf ("     one PCI device which matches the identity filters.\n");
@@ -601,7 +605,12 @@ static void display_usage (const char *const program_name)
     printf ("     If not specified defaults to all %u defined ports\n", NUM_DEFINED_PORTS);
     printf ("  -r Specifies the bit rate generated on each port on the switch under test,\n");
     printf ("     as a floating point mega bits per second. Default is %g\n", DEFAULT_TESTED_PORT_MBPS);
-    printf (" - g Specified the MRMAC Inter Packet Gap (IPG) value used\n");
+    printf ("  -g Specifies the MRMAC Inter Packet Gap (IPG) value used.\n");
+    printf ("     This changes a MRMAC configuration register, and the value persists over runs.\n");
+    printf ("  -l Expect the transmit frames to be looped back at the MRMAC ports, rather\n");
+    printf ("     by the switch under test. This means expects to receive the test frames on\n");
+    printf ("     from the source VLAN, rather than destination VLAN.\n");
+    printf ("     This option allows testing of the MRMAC without needing a switch.\n");
 
     exit (EXIT_FAILURE);
 }
@@ -735,7 +744,7 @@ static void read_command_line_arguments (const int argc, char *argv[])
 {
     bool mrmac_port_num_specified = false;
     const char *const program_name = argv[0];
-    const char *const optstring = "i:n:dt:p:r:g:";
+    const char *const optstring = "i:n:dt:p:r:g:l";
     int option;
     char junk;
     uint32_t port_num;
@@ -812,6 +821,10 @@ static void read_command_line_arguments (const int argc, char *argv[])
                 exit (EXIT_FAILURE);
             }
             arg_tx_ipg_value_specified = true;
+            break;
+
+        case 'l':
+            arg_expect_mrmac_loopback = true;
             break;
 
         case '?':
@@ -1457,7 +1470,14 @@ static void handle_pending_rx_frame (frame_tx_rx_thread_context_t *const context
     port_frame_statistics_t *const port_stats =
             &context->statistics.port_frame_statistics[frame_record->source_port_index][frame_record->destination_port_index];
 
-    if (frame_record->vlan_id == test_ports[frame_record->destination_port_index].vlan)
+    const uint16_t expected_vlan = arg_expect_mrmac_loopback ?
+            /* When testing MRMAC loopback expect to receive on the source VLAN */
+            test_ports[frame_record->source_port_index].vlan :
+            /* When testing a switch expect to receive on the destination VLAN, as routing frames via the switch should
+             * have caused the switch to change the VLAN. */
+            test_ports[frame_record->destination_port_index].vlan;
+
+    if (frame_record->vlan_id == expected_vlan)
     {
         /* The frame was received with the VLAN ID for the expected destination port, compare against the pending frames */
         bool pending_match_found = false;
@@ -2025,6 +2045,7 @@ int main (int argc, char *argv[])
             tx_rx_thread_context->mrmac_design->vfio_device->device_name, arg_mrmac_tx_port_num, arg_mrmac_rx_port_num);
     console_printf ("Test interval = %" PRIi64 " (secs)\n", arg_test_interval_secs);
     console_printf ("Frame debug enabled = %s\n", arg_frame_debug_enabled ? "Yes" : "No");
+    console_printf ("Expect MRMAC loopback = %s\n", arg_expect_mrmac_loopback ? "Yes" : "No");
 
     /* Create the transmit_receive_thread */
     pthread_t tx_rx_thread_handle;
