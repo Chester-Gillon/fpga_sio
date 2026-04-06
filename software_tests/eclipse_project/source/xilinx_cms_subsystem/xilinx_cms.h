@@ -243,6 +243,35 @@ typedef struct
 } cms_qsfp_low_speed_io_write_data_t;
 
 
+/* Defines the address used for I2C communication for reading plug in modules */
+typedef struct
+{
+    /* Which module to read */
+    uint32_t cage_select;
+    /* Which module page (0-255) to read */
+    uint32_t page_select;
+    /* When true, use CMIS bank for addressing. Only for DSFP modules */
+    bool cmis_bank_field_valid;
+    /* Which CMIS bank to read (0-31) */
+    uint32_t cmis_bank;
+    /* When true uses I2C Address Field 0xA2, for diagnostic data for SFP+ modules.
+     * When false uses I2C Address Field 0xA0 */
+    bool use_sfp_plus_diagonistic_i2c_address;
+    /* Used for cms_i2c_module_block_read():
+     * - When true reads bytes 128-255 from the upper page.
+     * - When false reads bytes 0-127 from the lower page. */
+    bool upper_page_select;
+    /* Used for cms_i2c_module_byte_read() to select which byte offset to read (0-255) */
+    uint32_t byte_offset;
+} cms_i2s_addressing_t;
+
+
+/* The fixed number of bytes of module data read by cms_i2c_module_block_read().
+ * PG348 suggests the response length is variable, but tests on a U200 found CMS_OP_BLOCK_READ_MODULE_I2C_OPCODE always
+ * says the response contains 128 bytes of module data even if no module is present. */
+#define CMS_I2C_MODULE_PAGE_LEN 128
+
+
 /* The values for one sensor */
 typedef struct
 {
@@ -328,5 +357,9 @@ bool cms_write_qsfp_module_low_speed_io (xilinx_cms_context_t *const context, co
 void cms_display_configuration (const xilinx_cms_context_t *const context);
 void cms_read_sensors (const xilinx_cms_context_t *const context, cms_sensor_collection_t *const collection);
 void cms_display_sensors (const cms_sensor_collection_t *const collection);
+bool cms_i2c_module_block_read (xilinx_cms_context_t *const context, const cms_i2s_addressing_t *const i2c_addressing,
+                                uint8_t data [const CMS_I2C_MODULE_PAGE_LEN]);
+bool cms_i2c_module_byte_read (xilinx_cms_context_t *const context, const cms_i2s_addressing_t *const i2c_addressing,
+                               uint8_t *const data);
 
 #endif /* CMS_SUBSYSTEM_XILINX_CMS_H_ */

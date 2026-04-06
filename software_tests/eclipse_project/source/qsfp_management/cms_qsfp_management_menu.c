@@ -11,11 +11,13 @@
 #include "identify_pcie_fpga_design.h"
 #include "xilinx_cms.h"
 #include "vfio_bitops.h"
+#include "transfer_timing.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <math.h>
 
 
 /* Reference clock selection GPIO bits */
@@ -30,6 +32,16 @@ typedef struct
 {
     /* Used to communicate with the CMS subsystem */
     xilinx_cms_context_t cms_context;
+    /* Controls how the module information is read:
+     * - false uses a block read.
+     * - true uses reads of individual bytes.
+     *
+     * This is for testing for any difference between the two module read mechanisms provided by the CMS. */
+    bool use_module_byte_read;
+    /* Total number of bytes read from a module */
+    size_t total_module_bytes_read;
+    /* Total duration spent reading bytes from module */
+    int64_t total_module_read_time_ns;
     /* The number of QSFP modules on the card, which can be managed by this program */
     uint32_t num_qsfp_modules;
     /* GPIO output used for the QSFP reference clock selection.
@@ -391,6 +403,311 @@ static bool toggle_qsfp_gpio (qsfp_management_context_t *const context, const ui
 
 
 /**
+ * @brief Read one block of I2C module, using either one CMS block read or multiple CMS byte read operations.
+ * @param[in,out] context The context to read the block for.
+ * @param[in] block_i2c_addressing The block to read.
+ * @param[out] data The data of the block read.
+ * @return Returns true if have read the data from the the I2C module, or false if an error.
+ *         With a U200 even with no module fitted have seen the CMS not indicate an error, but undefined data was
+ *         returned.
+ */
+static bool read_module_page (qsfp_management_context_t *const context, const cms_i2s_addressing_t *const block_i2c_addressing,
+                              uint8_t data[const CMS_I2C_MODULE_PAGE_LEN])
+{
+    bool success;
+
+    const int64_t read_start_time = get_monotonic_time ();
+    if (context->use_module_byte_read)
+    {
+        cms_i2s_addressing_t byte_i2c_addressing = *block_i2c_addressing;
+        const uint32_t page_start_byte = block_i2c_addressing->upper_page_select ? CMS_I2C_MODULE_PAGE_LEN : 0;
+
+        success = true;
+        for (uint32_t page_offset = 0; success && (page_offset < CMS_I2C_MODULE_PAGE_LEN); page_offset++)
+        {
+            byte_i2c_addressing.byte_offset = page_start_byte + page_offset;
+            success = cms_i2c_module_byte_read (&context->cms_context, &byte_i2c_addressing, &data[page_offset]);
+        }
+    }
+    else
+    {
+        success = cms_i2c_module_block_read (&context->cms_context, block_i2c_addressing, data);
+    }
+    const int64_t read_end_time = get_monotonic_time ();
+
+    if (success)
+    {
+        context->total_module_bytes_read += CMS_I2C_MODULE_PAGE_LEN;
+        context->total_module_read_time_ns += read_end_time - read_start_time;
+    }
+
+    return success;
+}
+
+
+/**
+ * @brief Verify a check code for fields in a SFF module
+ * @param[in] num_bytes_checked The number of bytes in the check code.
+ * @param[in] data The bytes covered by the check code.
+ * @param[in] expected_sum The expected sum of the bytes in the check code.
+ */
+static bool verify_sff_check_code (const uint32_t num_bytes_checked, const uint8_t data[const num_bytes_checked],
+                                   const uint8_t expected_sum)
+{
+    uint8_t actual_sum = 0;
+
+    for (uint32_t byte_index = 0; byte_index < num_bytes_checked; byte_index++)
+    {
+        actual_sum += data[byte_index];
+    }
+
+    return actual_sum == expected_sum;
+}
+
+
+/**
+ * @brief Display module information as per "SFF-8472 Specification for Management Interface for SFP+"
+ * @param[in,out] context The context to read display the module information for.
+ * @param[in] module_index Which module to display the information for
+ * @param[in] lower_page_zero The page which contains the SFF-8472 base ID fields
+ */
+static void display_sff_8472_module_information (qsfp_management_context_t *const context, const uint32_t module_index,
+                                                 const uint8_t lower_page_zero[const CMS_I2C_MODULE_PAGE_LEN])
+{
+    bool success;
+
+    if (!verify_sff_check_code (63, &lower_page_zero[0], lower_page_zero[63]))
+    {
+        printf ("Base ID check code failed\n");
+    }
+    else if (!verify_sff_check_code (31, &lower_page_zero[64], lower_page_zero[95]))
+    {
+        printf ("Extended ID check code failed\n");
+    }
+    else
+    {
+        const int vendor_name_start = 20;
+        const int vendor_name_len = 16;
+        printf ("Vendor Name = \"%.*s\"\n", vendor_name_len, &lower_page_zero[vendor_name_start]);
+
+        const int vendor_pn_start = 40;
+        const int vendor_pn_len = 16;
+        printf ("Vendor PN = \"%.*s\"\n", vendor_pn_len, &lower_page_zero[vendor_pn_start]);
+
+        const int vendor_rev_start = 56;
+        const int vendor_rev_len = 4;
+        printf ("Vendor rev = \"%.*s\"\n", vendor_rev_len, &lower_page_zero[vendor_rev_start]);
+
+        const int vendor_sn_start = 68;
+        const int vendor_sn_len = 16;
+        printf ("Vendor SN = \"%.*s\"\n", vendor_sn_len, &lower_page_zero[vendor_sn_start]);
+
+        /* If implemented, display the digital diagnostic monitoring defined by SFF-8472 */
+        const uint32_t diagnostic_monitoring_type = lower_page_zero[92];
+        const bool digital_diagnostic_monitoring_implemented = (diagnostic_monitoring_type & VFIO_BIT (6)) != 0;
+        const bool internally_calibrated = (diagnostic_monitoring_type & VFIO_BIT (5)) != 0;
+        const bool average_receive_power = (diagnostic_monitoring_type & VFIO_BIT (3)) != 0;
+        const bool address_change_required = (diagnostic_monitoring_type & VFIO_BIT (2)) != 0;
+
+        if (digital_diagnostic_monitoring_implemented)
+        {
+            if (address_change_required)
+            {
+                printf ("Address change required for digital diagnostic monitoring - no support in this program\n");
+            }
+            else if (internally_calibrated)
+            {
+                uint8_t digital_diagnostic_monitoring[CMS_I2C_MODULE_PAGE_LEN];
+                const cms_i2s_addressing_t diagnostic_monitoring_i2c_addressing =
+                {
+                    .cage_select = module_index,
+                    .page_select = 0,
+                    .cmis_bank_field_valid = false,
+                    .use_sfp_plus_diagonistic_i2c_address = true,
+                    .upper_page_select = false
+                };
+
+                success = read_module_page (context, &diagnostic_monitoring_i2c_addressing, digital_diagnostic_monitoring);
+                if (success)
+                {
+                    /* Units of power are 0.1 micro Watts */
+                    const uint32_t tx_power_int = (digital_diagnostic_monitoring[102] * 256u) + digital_diagnostic_monitoring[103];
+                    const uint32_t rx_power_int = (digital_diagnostic_monitoring[104] * 256u) + digital_diagnostic_monitoring[105];
+                    const double tx_power_mw = (double) tx_power_int / 1E4;
+                    const double rx_power_mw = (double) rx_power_int / 1E4;
+                    const double tx_power_dbm = 10 * log10 (tx_power_mw);
+                    const double rx_power_dbm = 10 * log10 (rx_power_mw);
+
+                    printf ("Measured TX output power: %6.4f mW / %6.2f dBm\n", tx_power_mw, tx_power_dbm);
+                    printf ("Measured RX output power: %6.4f mW / %6.2f dBm (%s)\n", rx_power_mw, rx_power_dbm,
+                            average_receive_power ? "average receiver power" : "Optical modulation amplitude");
+                }
+                else
+                {
+                    printf ("Failed to read digital diagnostic monitoring\n");
+                }
+            }
+            else
+            {
+                printf ("This program only supported internally calibrated digital diagnostic monitoring\n");
+            }
+        }
+        else
+        {
+            printf ("Digital diagnostic monitoring not implemented\n");
+        }
+    }
+}
+
+
+/**
+ * @brief Display module information as per "SFF-8636 Specification for Management Interface for 4-lane Modules and Cables"
+ * @param[in,out] context The context to read display the module information for.
+ * @param[in] module_index Which module to display the information for
+ * @param[in] lower_page_zero The page which contains the SFF-8636 channel monitoring values
+ */
+static void display_sff_8636_module_information (qsfp_management_context_t *const context, const uint32_t module_index,
+                                                 const uint8_t lower_page_zero[const CMS_I2C_MODULE_PAGE_LEN])
+{
+    uint32_t lane;
+    uint8_t identification_page[CMS_I2C_MODULE_PAGE_LEN];
+    bool success;
+
+    const cms_i2s_addressing_t identification_i2c_addressing =
+    {
+        .cage_select = module_index,
+        .page_select = 0,
+        .cmis_bank_field_valid = false,
+        .use_sfp_plus_diagonistic_i2c_address = false,
+        .upper_page_select = true
+    };
+
+    /* Always report the measured Tx and Rx power without checking if implemented since:
+     * a. SFF-8636 doesn't seem to define a field in Diagnostic Monitoring Type to indicate if measured Rx power is provided or not.
+     * b. While the Diagnostic Monitoring Type does have a bit to indicate if measured Tx power is provided, read_module_page()
+     *    doesn't seem to be able to read the identification_page if I2C bytes reads are used. */
+    for (lane = 0; lane < 4; lane++)
+    {
+        const uint32_t msb_byte_index = 50 + (lane * 2);
+        const uint32_t tx_power_int = (lower_page_zero[msb_byte_index] * 256u) + lower_page_zero[msb_byte_index + 1];
+        const double tx_power_mw = (double) tx_power_int / 1E4;
+        const double tx_power_dbm = 10 * log10 (tx_power_mw);
+
+        printf ("Measured Tx%u output power: %6.4f mW / %6.2f dBm\n", lane + 1, tx_power_mw, tx_power_dbm);
+    }
+
+    for (lane = 0; lane < 4; lane++)
+    {
+        const uint32_t msb_byte_index = 34 + (lane * 2);
+        const uint32_t rx_power_int = (lower_page_zero[msb_byte_index] * 256u) + lower_page_zero[msb_byte_index + 1];
+        const double rx_power_mw = (double) rx_power_int / 1E4;
+        const double rx_power_dbm = 10 * log10 (rx_power_mw);
+
+        printf ("Measured Rx%u output power: %6.4f mW / %6.2f dBm\n", lane + 1, rx_power_mw, rx_power_dbm);
+    }
+
+    /* Read and then report the identification information */
+    success = read_module_page (context, &identification_i2c_addressing, identification_page);
+    if (success)
+    {
+        if (!verify_sff_check_code (63, &identification_page[0], identification_page[63]))
+        {
+            printf ("Base ID check code failed\n");
+        }
+        else if (!verify_sff_check_code (31, &identification_page[64], identification_page[95]))
+        {
+            printf ("Extended ID check code failed\n");
+        }
+        else
+        {
+            const int vendor_name_start = 20;
+            const int vendor_name_len = 16;
+            printf ("Vendor Name = \"%.*s\"\n", vendor_name_len, &identification_page[vendor_name_start]);
+
+            const int vendor_pn_start = 40;
+            const int vendor_pn_len = 16;
+            printf ("Vendor PN = \"%.*s\"\n", vendor_pn_len, &identification_page[vendor_pn_start]);
+
+            const int vendor_rev_start = 56;
+            const int vendor_rev_len = 2;
+            printf ("Vendor rev = \"%.*s\"\n", vendor_rev_len, &identification_page[vendor_rev_start]);
+
+            const int vendor_sn_start = 68;
+            const int vendor_sn_len = 16;
+            printf ("Vendor SN = \"%.*s\"\n", vendor_sn_len, &identification_page[vendor_sn_start]);
+        }
+    }
+    else
+    {
+        printf ("Failed to read identification page\n");
+    }
+}
+
+
+/**
+ * @brief Display module information, handling SFP+ or QSFP modules
+ * @details Doesn't attempt to use cms_read_qsfp_module_low_speed_io() to check for the presence of a module before reading
+ *          the information. This is to allow investigation of the CMS error handling.
+ * @param[in,out] context The context to read display the module information for.
+ * @param[in] module_index Which module to display the information for
+ */
+static void display_module_information (qsfp_management_context_t *const context, const uint32_t module_index)
+{
+    cms_i2s_addressing_t i2c_addressing =
+    {
+        .cage_select = module_index
+    };
+    uint8_t lower_page_zero[CMS_I2C_MODULE_PAGE_LEN];
+    bool success;
+
+    context->total_module_bytes_read = 0;
+    context->total_module_read_time_ns = 0;
+
+    /* Read the block which all modules have the module identification type in */
+    i2c_addressing.page_select = 0;
+    i2c_addressing.cmis_bank_field_valid = false;
+    i2c_addressing.use_sfp_plus_diagonistic_i2c_address = false;
+    i2c_addressing.upper_page_select = false;
+    success = read_module_page (context, &i2c_addressing, lower_page_zero);
+
+    if (success)
+    {
+        const uint8_t identifier_value = lower_page_zero[0];
+        switch (identifier_value)
+        {
+        case 0x02:
+            printf ("Module/connector soldered to motherboard (using SFF-8472)\n");
+            display_sff_8472_module_information (context, module_index, lower_page_zero);
+            break;
+
+        case 0x03:
+            printf ("SFP/SFP+/SFP28 and later with SFF-8472 management interface\n");
+            display_sff_8472_module_information (context, module_index, lower_page_zero);
+            break;
+
+        case 0x0D:
+            printf ("QSFP+ or later with SFF-8636 or SFF-8436 management interface\n");
+            display_sff_8636_module_information (context, module_index, lower_page_zero);
+            break;
+
+        case 0x11:
+            printf ("QSFP28 or later with SFF-8636 management interface\n");
+            display_sff_8636_module_information (context, module_index, lower_page_zero);
+            break;
+
+        default:
+            printf ("Unknown module identifier 0x%02x\n", identifier_value);
+            break;
+        }
+    }
+
+    printf ("Read %zu bytes in %.6f seconds using %s\n",
+            context->total_module_bytes_read, (double) context->total_module_read_time_ns / 1E9,
+            context->use_module_byte_read ? "I2C byte read" : "I2C block read");
+}
+
+
+/**
  * @brief Perform the top level menu for QSFP management
  * @param[in] design The design to perform QSFP management for
  */
@@ -424,10 +741,12 @@ static void qsfp_management_menu (const fpga_design_t *const design)
             printf ("0: Select module for control operations\n");
             printf ("1: Display QSFP status\n");
             printf ("2: Toggle QSFP GPIO output\n");
+            printf ("3: Display module information, using block read\n");
+            printf ("4: Display module information, using byte read\n");
             if (context.refclk_selection_gpio_output != NULL)
             {
-                printf ("3: Toggle refclk selection output\n");
-                printf ("4: Set refclk frequency plan\n");
+                printf ("5: Toggle refclk selection output\n");
+                printf ("6: Set refclk frequency plan\n");
             }
             printf ("98: Display menu\n");
             printf ("99: Exit\n");
@@ -469,6 +788,16 @@ static void qsfp_management_menu (const fpga_design_t *const design)
                 break;
 
             case 3:
+                context.use_module_byte_read = false;
+                display_module_information (&context, module_index);
+                break;
+
+            case 4:
+                context.use_module_byte_read = true;
+                display_module_information (&context, module_index);
+                break;
+
+            case 5:
                 valid_option = context.refclk_selection_gpio_output != NULL;
                 if (valid_option)
                 {
@@ -479,7 +808,7 @@ static void qsfp_management_menu (const fpga_design_t *const design)
                 }
                 break;
 
-            case 4:
+            case 6:
                 valid_option = context.refclk_selection_gpio_output != NULL;
                 if (valid_option)
                 {

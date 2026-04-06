@@ -1758,3 +1758,125 @@ void cms_display_sensors (const cms_sensor_collection_t *const collection)
         printf ("%.6f seconds since CMS reset released\n", collection->secs_since_cms_reset_released);
     }
 }
+
+
+/**
+ * @brief Perform a I2C module block read.
+ * @param[in] context Used to access the CMS
+ * @param[in] i2c_addressing Select the address to read the block.
+ * @param[out] data The block of data which has been read. The size of the block read is fixed by the CMS.
+ * @return Returns true if have read the data from the the I2C module, or false if an error.
+ *         With a U200 even with no module fitted have seen the CMS not indicate an error, but undefined data was
+ *         returned.
+ */
+bool cms_i2c_module_block_read (xilinx_cms_context_t *const context, const cms_i2s_addressing_t *const i2c_addressing,
+                                uint8_t data [const CMS_I2C_MODULE_PAGE_LEN])
+{
+    cms_mailbox_t mailbox = {0};
+    uint32_t extended_i2c_addressing;
+    bool success;
+
+    vfio_update_field_u32 (&mailbox.header, CMS_MAILBOX_HEADER_OPCODE_MASK, CMS_OP_BLOCK_READ_MODULE_I2C_OPCODE);
+    mailbox.request_fixed_size = true;
+    mailbox.request_payload_size_bytes = 12;
+    mailbox.payload.words[0] = i2c_addressing->cage_select;
+    mailbox.payload.words[1] = i2c_addressing->page_select;
+
+    /* For a block read the byte_offset input isn't used, since upper_page_select selects the starting byte offset */
+    extended_i2c_addressing = 0;
+    if (i2c_addressing->cmis_bank_field_valid)
+    {
+        vfio_update_field_u32 (&extended_i2c_addressing, CMS_EXT_I2C_ADDR_CMIS_BANK_MASK, i2c_addressing->cmis_bank);
+        vfio_update_field_u32 (&extended_i2c_addressing, CMS_EXT_I2C_ADDR_CMIS_BANK_FIELD_VALID_MASK, 1);
+    }
+    if (i2c_addressing->use_sfp_plus_diagonistic_i2c_address)
+    {
+        vfio_update_field_u32 (&extended_i2c_addressing, CMS_EXT_I2C_ADDR_USE_SFP_PLUS_DIAG_MASK, 1);
+    }
+    if (i2c_addressing->upper_page_select)
+    {
+        vfio_update_field_u32 (&extended_i2c_addressing, CMS_EXT_I2C_ADDR_UPPER_PAGE_SELECT_MASK, 1);
+    }
+    mailbox.payload.words[2] = extended_i2c_addressing;
+
+    /* While PG348 indicates the response size is variable, using a U200:
+     * a. The number of bytes of data in the response is the payload rather than in CMS_MAILBOX_HEADER_LENGTH_BYTES_MASK.
+     * b. The number of bytes is seems fixed at 128. Even with no module actual present still get 128 bytes indicated
+     *    in response, but with the data undefined.
+     *
+     * Therefore set a fixed response size for the call cms_mailbox_transaction() so the response gets copied out. */
+    const uint32_t module_data_start_offset = mailbox.request_payload_size_bytes +
+            sizeof (uint32_t); /* For the response size in bytes */
+    mailbox.response_fixed_size = true;
+    mailbox.response_payload_size_bytes = module_data_start_offset + CMS_I2C_MODULE_PAGE_LEN;
+    success = cms_mailbox_transaction (context, &mailbox);
+
+    /* Check the expected number of bytes indicated in the response */
+    if (success)
+    {
+        const uint32_t response_num_bytes = mailbox.payload.words[3];
+
+        success = response_num_bytes == CMS_I2C_MODULE_PAGE_LEN;
+    }
+
+    if (success)
+    {
+        memcpy (data, &mailbox.payload.bytes[module_data_start_offset], CMS_I2C_MODULE_PAGE_LEN);
+    }
+
+    return success;
+}
+
+
+/**
+ * @brief Perform a I2C module byte read.
+ * @param[in] context Used to access the CMS
+ * @param[in] i2c_addressing Select the address to read the byte.
+ * @param[out] data The data byte which has been read.
+ * @return Returns true if have read the data from the the I2C module, or false if an error.
+ *         With a U200 even with no module fitted have seen the CMS not indicate an error, but undefined data was
+ *         returned.
+ */
+bool cms_i2c_module_byte_read (xilinx_cms_context_t *const context, const cms_i2s_addressing_t *const i2c_addressing,
+                               uint8_t *const data)
+{
+    cms_mailbox_t mailbox = {0};
+    uint32_t extended_i2c_addressing;
+    bool success;
+
+    vfio_update_field_u32 (&mailbox.header, CMS_MAILBOX_HEADER_OPCODE_MASK, CMS_OP_BYTE_READ_MODULE_I2C_OPCODE);
+    mailbox.request_fixed_size = true;
+    mailbox.request_payload_size_bytes = 16;
+    mailbox.payload.words[0] = i2c_addressing->cage_select;
+    mailbox.payload.words[1] = i2c_addressing->page_select;
+
+    /* For a byes read the byte_offset input selects the byte to read.
+     * The upper page select in the request is set consistent to the byte_offset, as per PG348 */
+    extended_i2c_addressing = 0;
+    if (i2c_addressing->cmis_bank_field_valid)
+    {
+        vfio_update_field_u32 (&extended_i2c_addressing, CMS_EXT_I2C_ADDR_CMIS_BANK_MASK, i2c_addressing->cmis_bank);
+        vfio_update_field_u32 (&extended_i2c_addressing, CMS_EXT_I2C_ADDR_CMIS_BANK_FIELD_VALID_MASK, 1);
+    }
+    if (i2c_addressing->use_sfp_plus_diagonistic_i2c_address)
+    {
+        vfio_update_field_u32 (&extended_i2c_addressing, CMS_EXT_I2C_ADDR_USE_SFP_PLUS_DIAG_MASK, 1);
+    }
+    vfio_update_field_u32 (&extended_i2c_addressing, CMS_EXT_I2C_ADDR_UPPER_PAGE_SELECT_MASK,
+            (i2c_addressing->byte_offset >= 128) ? 1 : 0);
+    mailbox.payload.words[2] = extended_i2c_addressing;
+
+    mailbox.payload.words[3] = i2c_addressing->byte_offset;
+
+    mailbox.response_fixed_size = true;
+    mailbox.response_payload_size_bytes = 17;
+
+    success = cms_mailbox_transaction (context, &mailbox);
+
+    if (success)
+    {
+        *data = mailbox.payload.bytes[16];
+    }
+
+    return success;
+}
