@@ -1,0 +1,611 @@
+1. VD100_10G_ether_dual with FEC disabled, external loopback
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The external loopback is via a pair of AXS85-192-M3 10G base-SR transeivers, with a multi-mode fibre.
+
+FEC left disabled which is the default after loading the bitstream.
+
+Loopback from port 0 -> 1:
+mr_halfword@alder-lake-alma:~/fpga_sio/software_tests/eclipse_project/bin/release$ mrmac_ethernet/mrmac_loopback_test -n 0:1
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Waiting to link to be ready to receive.
+Link ready at 10 Gb/s (latched rx_status initial 0x00000180 last 0x00000003)
+Testing VD100_10G_ether_dual Tx port 0 Rx Port 1 with 9537 packet lengths (including FCS) from 64 to 9600 bytes
+VD100_10G_ether_dual port 0 statistics (over 0.111 secs):
+  TX_CYCLE_COUNT           :        71533356
+  TX_TOTAL_PACKETS         :            9537
+  TX_TOTAL_GOOD_PACKETS    :            9537
+  TX_TOTAL_BYTES           :        46082784
+  TX_TOTAL_GOOD_BYTES      :        46082784
+  TX_PACKET_64_BYTES       :               1
+  TX_PACKET_65_127_BYTES   :              63
+  TX_PACKET_128_255_BYTES  :             128
+  TX_PACKET_256_511_BYTES  :             256
+  TX_PACKET_512_1023_BYTES :             512
+  TX_PACKET_1024_1518_BYTES:             495
+  TX_PACKET_1519_1522_BYTES:               4
+  TX_PACKET_1523_1548_BYTES:              26
+  TX_PACKET_1549_2047_BYTES:             499
+  TX_PACKET_2048_4095_BYTES:            2048
+  TX_PACKET_4096_8191_BYTES:            4096
+  TX_PACKET_8192_9215_BYTES:            1024
+  TX_PACKET_LARGE          :             385
+  TX_UNICAST               :            9537
+  RX_CYCLE_COUNT           :        71533357
+VD100_10G_ether_dual port 1 statistics (over 0.111 secs):
+  TX_CYCLE_COUNT           :        71532982
+  RX_CYCLE_COUNT           :        71532982
+  RX_TOTAL_PACKETS         :            9537
+  RX_TOTAL_GOOD_PACKETS    :            9537
+  RX_TOTAL_BYTES           :        46082784
+  RX_TOTAL_GOOD_BYTES      :        46082784
+  RX_PACKET_64_BYTES       :               1
+  RX_PACKET_65_127_BYTES   :              63
+  RX_PACKET_128_255_BYTES  :             128
+  RX_PACKET_256_511_BYTES  :             256
+  RX_PACKET_512_1023_BYTES :             512
+  RX_PACKET_1024_1518_BYTES:             495
+  RX_PACKET_1519_1522_BYTES:               4
+  RX_PACKET_1523_1548_BYTES:              26
+  RX_PACKET_1549_2047_BYTES:             499
+  RX_PACKET_2048_4095_BYTES:            2048
+  RX_PACKET_4096_8191_BYTES:            4096
+  RX_PACKET_8192_9215_BYTES:            1024
+  RX_PACKET_LARGE          :             385
+  RX_UNICAST               :            9537
+Total byte including FCS: 46082784
+Loopback test: PASS
+
+Loopback from port 1 -> 0:
+mr_halfword@alder-lake-alma:~/fpga_sio/software_tests/eclipse_project/bin/release$ mrmac_ethernet/mrmac_loopback_test -n 1:0
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Waiting to link to be ready to receive.
+Link ready at 10 Gb/s (latched rx_status initial 0x00000180 last 0x00000003)
+Testing VD100_10G_ether_dual Tx port 1 Rx Port 0 with 9537 packet lengths (including FCS) from 64 to 9600 bytes
+VD100_10G_ether_dual port 1 statistics (over 0.108 secs):
+  TX_CYCLE_COUNT           :        69477939
+  TX_TOTAL_PACKETS         :            9537
+  TX_TOTAL_GOOD_PACKETS    :            9537
+  TX_TOTAL_BYTES           :        46082784
+  TX_TOTAL_GOOD_BYTES      :        46082784
+  TX_PACKET_64_BYTES       :               1
+  TX_PACKET_65_127_BYTES   :              63
+  TX_PACKET_128_255_BYTES  :             128
+  TX_PACKET_256_511_BYTES  :             256
+  TX_PACKET_512_1023_BYTES :             512
+  TX_PACKET_1024_1518_BYTES:             495
+  TX_PACKET_1519_1522_BYTES:               4
+  TX_PACKET_1523_1548_BYTES:              26
+  TX_PACKET_1549_2047_BYTES:             499
+  TX_PACKET_2048_4095_BYTES:            2048
+  TX_PACKET_4096_8191_BYTES:            4096
+  TX_PACKET_8192_9215_BYTES:            1024
+  TX_PACKET_LARGE          :             385
+  TX_UNICAST               :            9537
+  RX_CYCLE_COUNT           :        69477940
+VD100_10G_ether_dual port 0 statistics (over 0.108 secs):
+  TX_CYCLE_COUNT           :        69477669
+  RX_CYCLE_COUNT           :        69477669
+  RX_TOTAL_PACKETS         :            9537
+  RX_TOTAL_GOOD_PACKETS    :            9537
+  RX_TOTAL_BYTES           :        46082784
+  RX_TOTAL_GOOD_BYTES      :        46082784
+  RX_PACKET_64_BYTES       :               1
+  RX_PACKET_65_127_BYTES   :              63
+  RX_PACKET_128_255_BYTES  :             128
+  RX_PACKET_256_511_BYTES  :             256
+  RX_PACKET_512_1023_BYTES :             512
+  RX_PACKET_1024_1518_BYTES:             495
+  RX_PACKET_1519_1522_BYTES:               4
+  RX_PACKET_1523_1548_BYTES:              26
+  RX_PACKET_1549_2047_BYTES:             499
+  RX_PACKET_2048_4095_BYTES:            2048
+  RX_PACKET_4096_8191_BYTES:            4096
+  RX_PACKET_8192_9215_BYTES:            1024
+  RX_PACKET_LARGE          :             385
+  RX_UNICAST               :            9537
+Total byte including FCS: 46082784
+Loopback test: PASS
+
+
+2. VD100_10G_ether_dual with FEC enabled, external loopback
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Enabled FEC with:
+$ mrmac_ethernet/mrmac_configuration ctl_fec_mode=12
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 0 field ctl_fec_mode changed from 0 [FEC Disabled] -> 12 [IEEE 802.3 CL74 FEC]
+Design VD100_10G_ether_dual device 0000:01:00.0 port 1 field ctl_fec_mode changed from 0 [FEC Disabled] -> 12 [IEEE 802.3 CL74 FEC]
+
+Loopback from port 0 -> 1:
+mr_halfword@alder-lake-alma:~/fpga_sio/software_tests/eclipse_project/bin/release$ mrmac_ethernet/mrmac_loopback_test -n 0:1
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Waiting to link to be ready to receive.
+Link ready at 10 Gb/s (latched rx_status initial 0x00000180 last 0x00000003)
+Testing VD100_10G_ether_dual Tx port 0 Rx Port 1 with 9537 packet lengths (including FCS) from 64 to 9600 bytes
+VD100_10G_ether_dual port 0 statistics (over 0.113 secs):
+  TX_CYCLE_COUNT           :        73133356
+  TX_TOTAL_PACKETS         :            9537
+  TX_TOTAL_GOOD_PACKETS    :            9537
+  TX_TOTAL_BYTES           :        46082784
+  TX_TOTAL_GOOD_BYTES      :        46082784
+  TX_PACKET_64_BYTES       :               1
+  TX_PACKET_65_127_BYTES   :              63
+  TX_PACKET_128_255_BYTES  :             128
+  TX_PACKET_256_511_BYTES  :             256
+  TX_PACKET_512_1023_BYTES :             512
+  TX_PACKET_1024_1518_BYTES:             495
+  TX_PACKET_1519_1522_BYTES:               4
+  TX_PACKET_1523_1548_BYTES:              26
+  TX_PACKET_1549_2047_BYTES:             499
+  TX_PACKET_2048_4095_BYTES:            2048
+  TX_PACKET_4096_8191_BYTES:            4096
+  TX_PACKET_8192_9215_BYTES:            1024
+  TX_PACKET_LARGE          :             385
+  TX_UNICAST               :            9537
+  RX_CYCLE_COUNT           :        73133355
+  RX_FEC_CW_0              :          554041
+VD100_10G_ether_dual port 1 statistics (over 0.113 secs):
+  TX_CYCLE_COUNT           :        73133046
+  RX_CYCLE_COUNT           :        73133047
+  RX_FEC_CW_0              :          554039
+  RX_TOTAL_PACKETS         :            9537
+  RX_TOTAL_GOOD_PACKETS    :            9537
+  RX_TOTAL_BYTES           :        46082784
+  RX_TOTAL_GOOD_BYTES      :        46082784
+  RX_PACKET_64_BYTES       :               1
+  RX_PACKET_65_127_BYTES   :              63
+  RX_PACKET_128_255_BYTES  :             128
+  RX_PACKET_256_511_BYTES  :             256
+  RX_PACKET_512_1023_BYTES :             512
+  RX_PACKET_1024_1518_BYTES:             495
+  RX_PACKET_1519_1522_BYTES:               4
+  RX_PACKET_1523_1548_BYTES:              26
+  RX_PACKET_1549_2047_BYTES:             499
+  RX_PACKET_2048_4095_BYTES:            2048
+  RX_PACKET_4096_8191_BYTES:            4096
+  RX_PACKET_8192_9215_BYTES:            1024
+  RX_PACKET_LARGE          :             385
+  RX_UNICAST               :            9537
+Total byte including FCS: 46082784
+Loopback test: PASS
+
+Loopback from port 1 -> 0:
+mr_halfword@alder-lake-alma:~/fpga_sio/software_tests/eclipse_project/bin/release$ mrmac_ethernet/mrmac_loopback_test -n 1:0
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Waiting to link to be ready to receive.
+Link ready at 10 Gb/s (latched rx_status initial 0x00000180 last 0x00000003)
+Testing VD100_10G_ether_dual Tx port 1 Rx Port 0 with 9537 packet lengths (including FCS) from 64 to 9600 bytes
+VD100_10G_ether_dual port 1 statistics (over 0.112 secs):
+  TX_CYCLE_COUNT           :        72031294
+  TX_TOTAL_PACKETS         :            9537
+  TX_TOTAL_GOOD_PACKETS    :            9537
+  TX_TOTAL_BYTES           :        46082784
+  TX_TOTAL_GOOD_BYTES      :        46082784
+  TX_PACKET_64_BYTES       :               1
+  TX_PACKET_65_127_BYTES   :              63
+  TX_PACKET_128_255_BYTES  :             128
+  TX_PACKET_256_511_BYTES  :             256
+  TX_PACKET_512_1023_BYTES :             512
+  TX_PACKET_1024_1518_BYTES:             495
+  TX_PACKET_1519_1522_BYTES:               4
+  TX_PACKET_1523_1548_BYTES:              26
+  TX_PACKET_1549_2047_BYTES:             499
+  TX_PACKET_2048_4095_BYTES:            2048
+  TX_PACKET_4096_8191_BYTES:            4096
+  TX_PACKET_8192_9215_BYTES:            1024
+  TX_PACKET_LARGE          :             385
+  TX_UNICAST               :            9537
+  RX_CYCLE_COUNT           :        72031294
+  RX_FEC_CW_0              :          545692
+VD100_10G_ether_dual port 0 statistics (over 0.112 secs):
+  TX_CYCLE_COUNT           :        72030942
+  RX_CYCLE_COUNT           :        72030943
+  RX_FEC_CW_0              :          545689
+  RX_TOTAL_PACKETS         :            9537
+  RX_TOTAL_GOOD_PACKETS    :            9537
+  RX_TOTAL_BYTES           :        46082784
+  RX_TOTAL_GOOD_BYTES      :        46082784
+  RX_PACKET_64_BYTES       :               1
+  RX_PACKET_65_127_BYTES   :              63
+  RX_PACKET_128_255_BYTES  :             128
+  RX_PACKET_256_511_BYTES  :             256
+  RX_PACKET_512_1023_BYTES :             512
+  RX_PACKET_1024_1518_BYTES:             495
+  RX_PACKET_1519_1522_BYTES:               4
+  RX_PACKET_1523_1548_BYTES:              26
+  RX_PACKET_1549_2047_BYTES:             499
+  RX_PACKET_2048_4095_BYTES:            2048
+  RX_PACKET_4096_8191_BYTES:            4096
+  RX_PACKET_8192_9215_BYTES:            1024
+  RX_PACKET_LARGE          :             385
+  RX_UNICAST               :            9537
+Total byte including FCS: 46082784
+Loopback test: PASS
+
+
+3. VD100_25G_ether_dual with FEC enabled and failed attempt to use loopback with RTXM330-203 25G-base LR
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+After loading VD100_25G_ether_dual the FEC operating mode was disabled, so enabled it:
+$ mrmac_ethernet/mrmac_configuration --dump
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Design VD100_25G_ether_dual device 0000:01:00.0 port 0:
+  ctl_fec_mode=0 [FEC Disabled]
+  ctl_rx_fec_transcode_clause49=1
+  ctl_tx_fec_four_lane_pmd=0
+  ctl_rx_min_packet_len=64
+  ctl_rx_max_packet_len=9600
+  ctl_counter_extend=0
+  tick_reg_mode_sel=0
+Design VD100_25G_ether_dual device 0000:01:00.0 port 1:
+  ctl_fec_mode=0 [FEC Disabled]
+  ctl_rx_fec_transcode_clause49=1
+  ctl_tx_fec_four_lane_pmd=0
+  ctl_rx_min_packet_len=64
+  ctl_rx_max_packet_len=9600
+  ctl_counter_extend=0
+  tick_reg_mode_sel=0
+$ mrmac_ethernet/mrmac_configuration ctl_fec_mode=3
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Design VD100_25G_ether_dual device 0000:01:00.0 port 0 field ctl_fec_mode changed from 0 [FEC Disabled] -> 3 [IEEE 802.3 CL108 RS(528,514) FEC]
+Design VD100_25G_ether_dual device 0000:01:00.0 port 1 field ctl_fec_mode changed from 0 [FEC Disabled] -> 3 [IEEE 802.3 CL108 RS(528,514) FEC]
+
+Fitted a RTXM330-203 25G-base LR transceiver to port 0 with a single mode fibre loopback.
+No SFP+ module fitted in port 1.
+
+Receive power OK:
+Module identifier = 0x03 (0x03)
+Vendor Name = "WTD             " ("WTD             ")
+Vendor PN = "RTXM330-203     " ("RTXM330-203     ")
+Vendor rev = "2.0 " ("2.0 ")
+Vendor SN = "BP194803320288  " ("BP194803320288  ")
+Measured TX output power: 0.7400 mW /  -1.31 dBm
+Measured RX output power: 0.4162 mW /  -3.81 dBm (average receiver power)
+
+But link isn't up with a high BER reported by the MRMAC:
+$ identify_pcie_fpga_design/display_identified_pcie_fpga_designs 
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+
+Design VD100_25G_ether_dual:
+  PCI device 0000:01:00.0 rev 00 IOMMU group 12
+  DMA bridge bar 2 AXI Stream
+  Channel ID  addr_alignment  len_granularity  num_address_bits
+       H2C 0               1                1                64
+       H2C 1               1                1                64
+       C2H 0               1                1                64
+       C2H 1               1                1                64
+  IIC registers at bar 0 offset 0x11000
+  MRMAC configuration revision: 0x00000001
+  Port 0:
+    Data rate: 25GE
+    GT Quad Operating mode: 25GE Wide, 25.78125 Gb/s, 80 bits, 322.2656 MHz, NRZ
+    AXI4-Stream Mode: Independent, 128 bits, Non-Segmented
+    Rx min packet len: 64
+    Rx max packet len: 9600
+    FEC Operating Mode: IEEE 802.3 CL108 RS(528,514) FEC
+    fec_configuration_reg1: 0x00000043
+      ctl_fec_mode=3
+      ctl_rx_fec_bypass_indication=0 ctl_rx_fec_bypass_correction=0
+      ctl_rx_fec_transcode_clause49=1
+      ctl_rx_fec_alignment_bypass=0 ctl_tx_fec_transcode_bypass=0
+      ctl_rx_fec_transcode_bypass=0 ctl_rx_fec_cdc_bypass=0
+      ctl_rx_fec_errind_mode=0 ctl_tx_fec_four_lane_pmd=0
+    TX realtime status: 0x00000000
+      Port TX local fault            : 0
+      Port TX axis underflow         : 0 
+      Port TX axis error             : 0
+      Port TX flexif error           : 0
+      Port TX pcs bad code           : 0
+      Port TX CL82 CL49 convert error: 0
+      Port TX flex fifo overflow     : 0
+      Port TX flex fifo underflow    : 0
+    RX realtime status: 0x000001A2
+      Port RX Status: 0
+      Port RX Block Lock: 1
+      Port RX aligned: 0
+      Port RX misaligned: 0
+      Port RX aligned error: 0
+      Port RX High BER: 1
+      Port RX remote fault: 0
+      Port RX local fault: 1
+      Port RX internal local fault: 1
+      Port RX received local fault: 0
+      Port RX bad code: 0
+      Port RX bad preamble: 0
+      Port RX bad SFD: 0
+      Port RX got signal ordered set: 0
+      Port RX flex if error: 0
+      Port RX Framing Error: 0
+      Port RX Synced: 0
+      Port RX Synced Error: 0
+      Port RX BIP Error: 0
+      Port RX CL49_82 convert error: 0
+      Port RX pcs bad code: 0
+      Port RX AXIS fifo overflow: 0
+      Port RX AXIS error: 0
+      Port RX invalid start: 0
+      Port RX flex fifo overflow: 0
+      Port RX flex fifo underflow: 0
+    RX FEC realtime status: 0x00000011
+      Slice FEC aligned: 1
+      Slice FEC symbol error: 0
+      Slice FEC lane lock: 1
+    TX FEC realtime status: 0x000007FF
+      FEC PCS aligned: 1
+      FEC PCS block lock: 31
+      FEC PCS alignment marker lock: 31
+  Port 1:
+    Data rate: 25GE
+    GT Quad Operating mode: 25GE Wide, 25.78125 Gb/s, 80 bits, 322.2656 MHz, NRZ
+    AXI4-Stream Mode: Independent, 128 bits, Non-Segmented
+    Rx min packet len: 64
+    Rx max packet len: 9600
+    FEC Operating Mode: IEEE 802.3 CL108 RS(528,514) FEC
+    fec_configuration_reg1: 0x00000043
+      ctl_fec_mode=3
+      ctl_rx_fec_bypass_indication=0 ctl_rx_fec_bypass_correction=0
+      ctl_rx_fec_transcode_clause49=1
+      ctl_rx_fec_alignment_bypass=0 ctl_tx_fec_transcode_bypass=0
+      ctl_rx_fec_transcode_bypass=0 ctl_rx_fec_cdc_bypass=0
+      ctl_rx_fec_errind_mode=0 ctl_tx_fec_four_lane_pmd=0
+    TX realtime status: 0x00000000
+      Port TX local fault            : 0
+      Port TX axis underflow         : 0 
+      Port TX axis error             : 0
+      Port TX flexif error           : 022:30:07.429 collection number 3
+      Port TX pcs bad code           : 0
+      Port TX CL82 CL49 convert error: 0
+      Port TX flex fifo overflow     : 0
+      Port TX flex fifo underflow    : 0
+    RX realtime status: 0x00000180
+      Port RX Status: 0
+      Port RX Block Lock: 0
+      Port RX aligned: 0
+      Port RX misaligned: 0
+      Port RX aligned error: 0
+      Port RX High BER: 0
+      Port RX remote fault: 0
+      Port RX local fault: 1
+      Port RX internal local fault: 1
+      Port RX received local fault: 0
+      Port RX bad code: 0
+      Port RX bad preamble: 0
+      Port RX bad SFD: 0
+      Port RX got signal ordered set: 0
+      Port RX flex if error: 0
+      Port RX Framing Error: 0
+      Port RX Synced: 0
+      Port RX Synced Error: 0
+      Port RX BIP Error: 0
+      Port RX CL49_82 convert error: 0
+      Port RX pcs bad code: 0
+      Port RX AXIS fifo overflow: 0
+      Port RX AXIS error: 0
+      Port RX invalid start: 0
+      Port RX flex fifo overflow: 0
+      Port RX flex fifo underflow: 0
+    RX FEC realtime status: 0x00000000
+      Slice FEC aligned: 0
+      Slice FEC symbol error: 0
+      Slice FEC lane lock: 0
+    TX FEC realtime status: 0x000007FF
+      FEC PCS aligned: 1
+      FEC PCS block lock: 31
+    FEC PCS alignment marker lock: 31
+
+And MRMAC statistics indicate FEC uncorrectable errors:
+  22:30:01.659 collection number 2
+VD100_25G_ether_dual port 0 statistics (over 10.000 secs):
+  TX_CYCLE_COUNT           :      6445326055
+  RX_CYCLE_COUNT           :      6445326056
+  RX_FRAMING_ERR_0         :         5452261
+  RX_BAD_CODE              :            7107
+  RX_INVALID_START         :              11
+  RX_FEC_CW_0              :        48773772
+  RX_FEC_CORRECTED_CW_0    :        45484254
+  RX_FEC_UNCORRECTED_CW_0  :          454141
+  RX_FEC_BIT_ERR_0TO1_0    :        47605545
+  RX_FEC_BIT_ERR_1TO0_0    :        87760397
+  RX_FEC_ERR_COUNT_0       :       135308340
+
+VD100_25G_ether_dual port 1 statistics (over 10.000 secs):
+  TX_CYCLE_COUNT           :      6445324065
+  RX_CYCLE_COUNT           :      6440241242
+
+
+4. VD100_25G_ether_dual with FEC enabled with Near-end PMA loopback enbabled
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use the Vivado Hardware Manager to enable "Near-end PMA" loopback for port 0.
+
+The link for port 0 is now up:
+$ identify_pcie_fpga_design/display_identified_pcie_fpga_designs 
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+
+Design VD100_25G_ether_dual:
+  PCI device 0000:01:00.0 rev 00 IOMMU group 12
+  DMA bridge bar 2 AXI Stream
+  Channel ID  addr_alignment  len_granularity  num_address_bits
+       H2C 0               1                1                64
+       H2C 1               1                1                64
+       C2H 0               1                1                64
+       C2H 1               1                1                64
+  IIC registers at bar 0 offset 0x11000
+  MRMAC configuration revision: 0x00000001
+  Port 0:
+    Data rate: 25GE
+    GT Quad Operating mode: 25GE Wide, 25.78125 Gb/s, 80 bits, 322.2656 MHz, NRZ
+    AXI4-Stream Mode: Independent, 128 bits, Non-Segmented
+    Rx min packet len: 64
+    Rx max packet len: 9600
+    FEC Operating Mode: IEEE 802.3 CL108 RS(528,514) FEC
+    fec_configuration_reg1: 0x00000043
+      ctl_fec_mode=3
+      ctl_rx_fec_bypass_indication=0 ctl_rx_fec_bypass_correction=0
+      ctl_rx_fec_transcode_clause49=1
+      ctl_rx_fec_alignment_bypass=0 ctl_tx_fec_transcode_bypass=0
+      ctl_rx_fec_transcode_bypass=0 ctl_rx_fec_cdc_bypass=0
+      ctl_rx_fec_errind_mode=0 ctl_tx_fec_four_lane_pmd=0
+    TX realtime status: 0x00000000
+      Port TX local fault            : 0
+      Port TX axis underflow         : 0 
+      Port TX axis error             : 0
+      Port TX flexif error           : 0
+      Port TX pcs bad code           : 0
+      Port TX CL82 CL49 convert error: 0
+      Port TX flex fifo overflow     : 0
+      Port TX flex fifo underflow    : 0
+    RX realtime status: 0x00000003
+      Port RX Status: 1
+      Port RX Block Lock: 1
+      Port RX aligned: 0
+      Port RX misaligned: 0
+      Port RX aligned error: 0
+      Port RX High BER: 0
+      Port RX remote fault: 0
+      Port RX local fault: 0
+      Port RX internal local fault: 0
+      Port RX received local fault: 0
+      Port RX bad code: 0
+      Port RX bad preamble: 0
+      Port RX bad SFD: 0
+      Port RX got signal ordered set: 0
+      Port RX flex if error: 0
+      Port RX Framing Error: 0
+      Port RX Synced: 0
+      Port RX Synced Error: 0
+      Port RX BIP Error: 0
+      Port RX CL49_82 convert error: 0
+      Port RX pcs bad code: 0
+      Port RX AXIS fifo overflow: 0
+      Port RX AXIS error: 0
+      Port RX invalid start: 0
+      Port RX flex fifo overflow: 0
+      Port RX flex fifo underflow: 0
+    RX FEC realtime status: 0x00000011
+      Slice FEC aligned: 1
+      Slice FEC symbol error: 0
+      Slice FEC lane lock: 1
+    TX FEC realtime status: 0x000007FF
+      FEC PCS aligned: 1
+      FEC PCS block lock: 31
+      FEC PCS alignment marker lock: 31
+  Port 1:
+    Data rate: 25GE
+    GT Quad Operating mode: 25GE Wide, 25.78125 Gb/s, 80 bits, 322.2656 MHz, NRZ
+    AXI4-Stream Mode: Independent, 128 bits, Non-Segmented
+    Rx min packet len: 64
+    Rx max packet len: 9600
+    FEC Operating Mode: IEEE 802.3 CL108 RS(528,514) FEC
+    fec_configuration_reg1: 0x00000043
+      ctl_fec_mode=3
+      ctl_rx_fec_bypass_indication=0 ctl_rx_fec_bypass_correction=0
+      ctl_rx_fec_transcode_clause49=1
+      ctl_rx_fec_alignment_bypass=0 ctl_tx_fec_transcode_bypass=0
+      ctl_rx_fec_transcode_bypass=0 ctl_rx_fec_cdc_bypass=0
+      ctl_rx_fec_errind_mode=0 ctl_tx_fec_four_lane_pmd=0
+    TX realtime status: 0x00000000
+      Port TX local fault            : 0
+      Port TX axis underflow         : 0 
+      Port TX axis error             : 0
+      Port TX flexif error           : 0
+      Port TX pcs bad code           : 0
+      Port TX CL82 CL49 convert error: 0
+      Port TX flex fifo overflow     : 0
+      Port TX flex fifo underflow    : 0
+    RX realtime status: 0x00000180
+      Port RX Status: 0
+      Port RX Block Lock: 0
+      Port RX aligned: 0
+      Port RX misaligned: 0
+      Port RX aligned error: 0
+      Port RX High BER: 0
+      Port RX remote fault: 0
+      Port RX local fault: 1
+      Port RX internal local fault: 1
+      Port RX received local fault: 0
+      Port RX bad code: 0
+      Port RX bad preamble: 0
+      Port RX bad SFD: 0
+      Port RX got signal ordered set: 0
+      Port RX flex if error: 0
+      Port RX Framing Error: 0
+      Port RX Synced: 0
+      Port RX Synced Error: 0
+      Port RX BIP Error: 0
+      Port RX CL49_82 convert error: 0
+      Port RX pcs bad code: 0
+      Port RX AXIS fifo overflow: 0
+      Port RX AXIS error: 0
+      Port RX invalid start: 0
+      Port RX flex fifo overflow: 0
+      Port RX flex fifo underflow: 0
+    RX FEC realtime status: 0x00000000
+      Slice FEC aligned: 0
+      Slice FEC symbol error: 0
+      Slice FEC lane lock: 0
+    TX FEC realtime status: 0x000007FF
+      FEC PCS aligned: 1
+      FEC PCS block lock: 31
+      FEC PCS alignment marker lock: 31
+
+Could then perform a successful loopback test from port 0 -> 0:
+mr_halfword@alder-lake-alma:~/fpga_sio/software_tests/eclipse_project/bin/release$ mrmac_ethernet/mrmac_loopback_test -n 0
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Waiting to link to be ready to receive.
+Link ready at 25 Gb/s (latched rx_status initial 0x00000180 last 0x00000003)
+Testing VD100_25G_ether_dual Tx port 0 Rx Port 0 with 9537 packet lengths (including FCS) from 64 to 9600 bytes
+VD100_25G_ether_dual port 0 statistics (over 0.063 secs):
+  TX_CYCLE_COUNT           :        40899638
+  TX_TOTAL_PACKETS         :            9537
+  TX_TOTAL_GOOD_PACKETS    :            9537
+  TX_TOTAL_BYTES           :        46082784
+  TX_TOTAL_GOOD_BYTES      :        46082784
+  TX_PACKET_64_BYTES       :               1
+  TX_PACKET_65_127_BYTES   :              63
+  TX_PACKET_128_255_BYTES  :             128
+  TX_PACKET_256_511_BYTES  :             256
+  TX_PACKET_512_1023_BYTES :             512
+  TX_PACKET_1024_1518_BYTES:             495
+  TX_PACKET_1519_1522_BYTES:               4
+  TX_PACKET_1523_1548_BYTES:              26
+  TX_PACKET_1549_2047_BYTES:             499
+  TX_PACKET_2048_4095_BYTES:            2048
+  TX_PACKET_4096_8191_BYTES:            4096
+  TX_PACKET_8192_9215_BYTES:            1024
+  TX_PACKET_LARGE          :             385
+  TX_UNICAST               :            9537
+  RX_CYCLE_COUNT           :        40899639
+  RX_FEC_CW_0              :          309846
+  RX_TOTAL_PACKETS         :            9537
+  RX_TOTAL_GOOD_PACKETS    :            9537
+  RX_TOTAL_BYTES           :        46082784
+  RX_TOTAL_GOOD_BYTES      :        46082784
+  RX_PACKET_64_BYTES       :               1
+  RX_PACKET_65_127_BYTES   :              63
+  RX_PACKET_128_255_BYTES  :             128
+  RX_PACKET_256_511_BYTES  :             256
+  RX_PACKET_512_1023_BYTES :             512
+  RX_PACKET_1024_1518_BYTES:             495
+  RX_PACKET_1519_1522_BYTES:               4
+  RX_PACKET_1523_1548_BYTES:              26
+  RX_PACKET_1549_2047_BYTES:             499
+  RX_PACKET_2048_4095_BYTES:            2048
+  RX_PACKET_4096_8191_BYTES:            4096
+  RX_PACKET_8192_9215_BYTES:            1024
+  RX_PACKET_LARGE          :             385
+  RX_UNICAST               :            9537
+Total byte including FCS: 46082784
+Loopback test: PASS
+

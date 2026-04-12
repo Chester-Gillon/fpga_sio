@@ -13,3 +13,7 @@ target_link_libraries (mrmac_configuration mrmac_register_access identify_pcie_f
 
 add_executable (mrmac_statistics "mrmac_statistics.c")
 target_link_libraries (mrmac_statistics mrmac_register_access identify_pcie_fpga_design transfer_timing vfio_access)
+
+add_executable (mrmac_loopback_test "mrmac_loopback_test.c")
+target_link_libraries (mrmac_loopback_test mrmac_register_access identify_pcie_fpga_design xilinx_dma_bridge_transfers
+                                           transfer_timing vfio_access)
