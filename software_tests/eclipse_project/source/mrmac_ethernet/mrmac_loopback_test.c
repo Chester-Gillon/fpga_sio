@@ -17,6 +17,7 @@
 #include "mrmac_register_access.h"
 
 #include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 #include <stdio.h>
 
