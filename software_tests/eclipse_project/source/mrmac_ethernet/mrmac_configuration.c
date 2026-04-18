@@ -47,7 +47,30 @@ static const struct option command_line_options[] =
     {NULL, 0, NULL, 0}
 };
 
+
+/**
+ * @brief Get the name for a FEC mode, which has a dependency on port data rate
+ * @param[in] port_regs The MRMAC registers for the port, to be able to read the data rate
+ * @param[in] fec_mode The FEC mode to get the name for
+ */
+static const char *get_fec_mode_name (const uint8_t *const port_regs, const uint32_t fec_mode)
+{
+    const char *fec_mode_name = "unknown";
+    const uint32_t mode_reg = read_reg32 (port_regs, MRMAC_MODE_REG_OFFSET);
+    const uint32_t port_data_rate = vfio_extract_field_u32 (mode_reg, MRMAC_CTL_DATA_RATE_MASK);
+
+    if ((port_data_rate < mrmac_num_fec_operating_mode_names) && (fec_mode < MRMAC_CTL_FEC_MODE_ARRAY_SIZE) &&
+        (mrmac_fec_operating_mode_names[port_data_rate][fec_mode] != NULL))
+    {
+        fec_mode_name = mrmac_fec_operating_mode_names[port_data_rate][fec_mode];
+    }
+
+    return fec_mode_name;
+}
+
+
 /* Defines one configuration register field which this program can modify */
+typedef const char *(get_field_enumeration_t)(const uint8_t *const port_regs, const uint32_t field_value);
 typedef struct
 {
     /* The offset to the configuration register for the port */
@@ -56,6 +79,8 @@ typedef struct
     uint32_t mask;
     /* The name for the configuration field used for the command line arguments and display */
     const char *name;
+    /* Optional function to get the field enumeration name for the field value */
+    get_field_enumeration_t *const get_field_enumeration;
 } mrmac_configuration_field_t;
 
 /* Defines all the configuration fields which can be modified by this program */
@@ -66,29 +91,34 @@ static const mrmac_configuration_field_t mrmac_configuration_field_definitions[]
     {
         .offset = MRMAC_FEC_CONFIGURATION_REG1_OFFSET,
         .mask = MRMAC_CTL_FEC_MODE_MASK,
-        .name = "ctl_fec_mode"
+        .name = "ctl_fec_mode",
+        .get_field_enumeration = get_fec_mode_name
     },
     {
         .offset = MRMAC_FEC_CONFIGURATION_REG1_OFFSET,
         .mask = MRMAC_CTL_RX_FEC_TRANSCODE_CLAUSE49,
-        .name = "ctl_rx_fec_transcode_clause49"
+        .name = "ctl_rx_fec_transcode_clause49",
+        .get_field_enumeration = NULL,
     },
     {
         .offset = MRMAC_FEC_CONFIGURATION_REG1_OFFSET,
         .mask = MRMAC_CTL_TX_FEC_FOUR_LANE_PMD,
-        .name = "ctl_tx_fec_four_lane_pmd"
+        .name = "ctl_tx_fec_four_lane_pmd",
+        .get_field_enumeration = NULL
     },
 
     /* For testing changing the MTU */
     {
         .offset = MRMAC_CONFIGURATION_RX_MTU_OFFSET,
         .mask = MRMAC_CTL_RX_MIN_PACKET_LEN_MASK,
-        .name = "ctl_rx_min_packet_len"
+        .name = "ctl_rx_min_packet_len",
+        .get_field_enumeration = NULL
     },
     {
         .offset = MRMAC_CONFIGURATION_RX_MTU_OFFSET,
         .mask = MRMAC_CTL_RX_MAX_PACKET_LEN_MASK,
-        .name = "ctl_rx_max_packet_len"
+        .name = "ctl_rx_max_packet_len",
+        .get_field_enumeration = NULL,
     },
 
     /* For testing statistic counters */
@@ -96,11 +126,13 @@ static const mrmac_configuration_field_t mrmac_configuration_field_definitions[]
         .offset = MRMAC_MODE_REG_OFFSET,
         .mask = MRMAC_CTL_COUNTER_EXTEND,
         .name = "ctl_counter_extend",
+        .get_field_enumeration = NULL
     },
     {
         .offset = MRMAC_MODE_REG_OFFSET,
         .mask = MRMAC_TICK_REG_MODE_SEL,
-        .name = "tick_reg_mode_sel"
+        .name = "tick_reg_mode_sel",
+        .get_field_enumeration = NULL
     }
 };
 
@@ -267,23 +299,21 @@ static void parse_command_line_arguments (int argc, char *argv[])
 
 
 /**
- * @brief Get the name for a FEC mode, which has a dependency on port data rate
- * @param[in] port_regs The MRMAC registers for the port, to be able to read the data rate
- * @param[in] fec_mode The FEC mode to get the name for
+ * @brief Display a configuration field value
+ * @details Always displays the numeric value. Displays the enumeration value if a decode function is provided
+ * @param[in] config_field Definition of the configuration field to display
+ * @param[in] port_regs Base of the MRMAC port registers, to pass to a decode function in case the enumeration name depends
+ *                      upon other fields.
+ * @param[in] The numeric field value to display.
  */
-static const char *get_fec_mode_name (const uint8_t *const port_regs, const uint32_t fec_mode)
+static void display_field_value (const mrmac_configuration_field_t *const config_field, const uint8_t *const port_regs,
+                                 const uint32_t field_value)
 {
-    const char *fec_mode_name = "unknown";
-    const uint32_t mode_reg = read_reg32 (port_regs, MRMAC_MODE_REG_OFFSET);
-    const uint32_t port_data_rate = vfio_extract_field_u32 (mode_reg, MRMAC_CTL_DATA_RATE_MASK);
-
-    if ((port_data_rate < mrmac_num_fec_operating_mode_names) &&
-        (mrmac_fec_operating_mode_names[port_data_rate][fec_mode] != NULL))
+    printf ("%u", field_value);
+    if (config_field->get_field_enumeration != NULL)
     {
-        fec_mode_name = mrmac_fec_operating_mode_names[port_data_rate][fec_mode];
+        printf (" [%s]", config_field->get_field_enumeration (port_regs, field_value));
     }
-
-    return fec_mode_name;
 }
 
 
@@ -311,9 +341,9 @@ static void dump_mrmac_config (fpga_designs_t *const designs)
             const uint32_t field_value = vfio_extract_field_u32 (register_value, config_field->mask);
 
             printf ("  %s=%u", config_field->name, field_value);
-            if (strcmp (config_field->name, "ctl_fec_mode") == 0)
+            if (config_field->get_field_enumeration != NULL)
             {
-                printf (" [%s]", get_fec_mode_name (port_regs, field_value));
+                printf (" [%s]", config_field->get_field_enumeration (port_regs, field_value));
             }
             printf ("\n");
         }
@@ -374,18 +404,21 @@ static void modify_mrmac_configuration (fpga_designs_t *const designs)
                 {
                     vfio_update_field_u32 (&register_value, config_field->mask, field_modification->value);
                     write_reg32 (port_regs, config_field->offset, register_value);
-                    printf ("Design %s device %s port %u field %s changed from %u [%s] -> %u [%s]\n",
+                    printf ("Design %s device %s port %u field %s changed from ",
                             fpga_design_names[design->design_id], design->vfio_device->device_name, port_num,
-                            config_field->name,
-                            original_field_value, get_fec_mode_name (port_regs, original_field_value),
-                            field_modification->value, get_fec_mode_name (port_regs, field_modification->value));
+                            config_field->name);
+                    display_field_value (config_field, port_regs, original_field_value);
+                    printf (" -> ");
+                    display_field_value (config_field, port_regs, field_modification->value);
+                    printf ("\n");
                 }
                 else
                 {
-                    printf ("Design %s device %s port %u field %s value unchanged at value %u [%s]\n",
+                    printf ("Design %s device %s port %u field %s value unchanged at value ",
                             fpga_design_names[design->design_id], design->vfio_device->device_name, port_num,
-                            config_field->name,
-                            field_modification->value, get_fec_mode_name (port_regs, field_modification->value));
+                            config_field->name);
+                    display_field_value (config_field, port_regs, field_modification->value);
+                    printf ("\n");
                 }
             }
         }

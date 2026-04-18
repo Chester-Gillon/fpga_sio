@@ -1,9 +1,11 @@
-1. VD100_10G_ether_dual with FEC disabled, external loopback
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1. VD100_10G_ether_dual with FEC disabled, external loopback, default MTU
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The external loopback is via a pair of AXS85-192-M3 10G base-SR transeivers, with a multi-mode fibre.
 
 FEC left disabled which is the default after loading the bitstream.
+
+ctl_rx_max_packet_len is 9600, which is the default after loading the bitstream.
 
 Loopback from port 0 -> 1:
 mr_halfword@alder-lake-alma:~/fpga_sio/software_tests/eclipse_project/bin/release$ mrmac_ethernet/mrmac_loopback_test -n 0:1
@@ -110,8 +112,8 @@ Total byte including FCS: 46082784
 Loopback test: PASS
 
 
-2. VD100_10G_ether_dual with FEC enabled, external loopback
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2. VD100_10G_ether_dual with FEC enabled, external loopback, default MTU
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Enabled FEC with:
 $ mrmac_ethernet/mrmac_configuration ctl_fec_mode=12
@@ -422,8 +424,8 @@ VD100_25G_ether_dual port 1 statistics (over 10.000 secs):
   RX_CYCLE_COUNT           :      6440241242
 
 
-4. VD100_25G_ether_dual with FEC enabled with Near-end PMA loopback enbabled
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+4. VD100_25G_ether_dual with FEC enabled with Near-end PMA loopback enabled
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Use the Vivado Hardware Manager to enable "Near-end PMA" loopback for port 0.
 
@@ -607,5 +609,72 @@ VD100_25G_ether_dual port 0 statistics (over 0.063 secs):
   RX_PACKET_LARGE          :             385
   RX_UNICAST               :            9537
 Total byte including FCS: 46082784
+Loopback test: PASS
+
+
+5. VD100_10G_ether_dual with FEC enabled, external loopback, maximum MTU
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Used mrmac_configuration to set ctl_rx_max_packet_len to the maximum allowed by the field value, and also enable FEC:
+$ mrmac_ethernet/mrmac_configuration ctl_rx_max_packet_len=32767 ctl_fec_mode=12
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 0 field ctl_fec_mode changed from 0 [FEC Disabled] -> 12 [IEEE 802.3 CL74 FEC]
+Design VD100_10G_ether_dual device 0000:01:00.0 port 0 field ctl_rx_max_packet_len changed from 9600 -> 32767
+Design VD100_10G_ether_dual device 0000:01:00.0 port 1 field ctl_fec_mode changed from 0 [FEC Disabled] -> 12 [IEEE 802.3 CL74 FEC]
+Design VD100_10G_ether_dual device 0000:01:00.0 port 1 field ctl_rx_max_packet_len changed from 9600 -> 32767
+
+Loopback test passed:
+$ mrmac_ethernet/mrmac_loopback_test -n 0:1
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 12
+Enabled bus master for 0000:01:00.0
+Waiting to link to be ready to receive.
+Link ready at 10 Gb/s (latched rx_status initial 0x00000180 last 0x00000003)
+Testing VD100_10G_ether_dual Tx port 0 Rx Port 1 with 32704 packet lengths (including FCS) from 64 to 32767 bytes
+VD100_10G_ether_dual port 0 statistics (over 1.016 secs):
+  TX_CYCLE_COUNT           :       654884286
+  TX_TOTAL_PACKETS         :           32704
+  TX_TOTAL_GOOD_PACKETS    :           32704
+  TX_TOTAL_BYTES           :       536852512
+  TX_TOTAL_GOOD_BYTES      :       402626592
+  TX_PACKET_64_BYTES       :               1
+  TX_PACKET_65_127_BYTES   :              63
+  TX_PACKET_128_255_BYTES  :             128
+  TX_PACKET_256_511_BYTES  :             256
+  TX_PACKET_512_1023_BYTES :             512
+  TX_PACKET_1024_1518_BYTES:             495
+  TX_PACKET_1519_1522_BYTES:               4
+  TX_PACKET_1523_1548_BYTES:              26
+  TX_PACKET_1549_2047_BYTES:             499
+  TX_PACKET_2048_4095_BYTES:            2048
+  TX_PACKET_4096_8191_BYTES:            4096
+  TX_PACKET_8192_9215_BYTES:            1024
+  TX_PACKET_LARGE          :           23552
+  TX_UNICAST               :           32704
+  RX_CYCLE_COUNT           :       654884285
+  RX_FEC_CW_0              :         4961244
+VD100_10G_ether_dual port 1 statistics (over 1.016 secs):
+  TX_CYCLE_COUNT           :       654883992
+  RX_CYCLE_COUNT           :       654883992
+  RX_FEC_CW_0              :         4961242
+  RX_TOTAL_PACKETS         :           32704
+  RX_TOTAL_GOOD_PACKETS    :           32704
+  RX_TOTAL_BYTES           :       536852512
+  RX_TOTAL_GOOD_BYTES      :       402626592
+  RX_PACKET_64_BYTES       :               1
+  RX_PACKET_65_127_BYTES   :              63
+  RX_PACKET_128_255_BYTES  :             128
+  RX_PACKET_256_511_BYTES  :             256
+  RX_PACKET_512_1023_BYTES :             512
+  RX_PACKET_1024_1518_BYTES:             495
+  RX_PACKET_1519_1522_BYTES:               4
+  RX_PACKET_1523_1548_BYTES:              26
+  RX_PACKET_1549_2047_BYTES:             499
+  RX_PACKET_2048_4095_BYTES:            2048
+  RX_PACKET_4096_8191_BYTES:            4096
+  RX_PACKET_8192_9215_BYTES:            1024
+  RX_PACKET_LARGE          :           23552
+  RX_UNICAST               :           32704
+Total byte including FCS: 536852512
 Loopback test: PASS
 
