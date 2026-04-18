@@ -172,12 +172,33 @@ static iic_transfer_status_t sfp_module_read (sfp_management_registers_t *const 
     return status;
 }
 
+
+/**
+ * @brief Verify a check code for fields in a SFF module
+ * @param[in] num_bytes_checked The number of bytes in the check code.
+ * @param[in] data The bytes covered by the check code.
+ * @param[in] expected_sum The expected sum of the bytes in the check code.
+ */
+static bool verify_sff_check_code (const uint32_t num_bytes_checked, const uint8_t data[const num_bytes_checked],
+                                   const uint8_t expected_sum)
+{
+    uint8_t actual_sum = 0;
+
+    for (uint32_t byte_index = 0; byte_index < num_bytes_checked; byte_index++)
+    {
+        actual_sum += data[byte_index];
+    }
+
+    return actual_sum == expected_sum;
+}
+
+
 /**
  * @brief Display SFP module information
  * @details
- *  Currently only displays a sample of values.
- *  As a way of validating the I2C communication, displays the text values read in both forward and reverse directions.
- *  As these are fixed values for a given module, should be same for reads in both directions.
+ *  Displays a sample of values defined by "SFF-8472 Specification for Management Interface for SFP+".
+ *  As a way of validating the I2C communication, reads the lower page with the identification in both directions
+ *  and verifies the SFF check code for both read directions.
  * @param[in,out] management_regs Which SFP port to read from
  */
 static void display_module_information (sfp_management_registers_t *const management_regs)
@@ -189,78 +210,114 @@ static void display_module_information (sfp_management_registers_t *const manage
     status = sfp_module_read (management_regs, 0x50, 0, sizeof (data_forward), data_forward, data_reverse);
     if (status == IIC_TRANSFER_STATUS_SUCCESS)
     {
-        printf ("Module identifier = 0x%02x (0x%02x)\n", data_forward[0], data_reverse[0]);
-
-        const int vendor_name_start = 20;
-        const int vendor_name_len = 16;
-        printf ("Vendor Name = \"%.*s\" (\"%.*s\")\n",
-                vendor_name_len, &data_forward[vendor_name_start],
-                vendor_name_len, &data_reverse[vendor_name_start]);
-
-        const int vendor_pn_start = 40;
-        const int vendor_pn_len = 16;
-        printf ("Vendor PN = \"%.*s\" (\"%.*s\")\n",
-                vendor_pn_len, &data_forward[vendor_pn_start],
-                vendor_pn_len, &data_reverse[vendor_pn_start]);
-
-        const int vendor_rev_start = 56;
-        const int vendor_rev_len = 4;
-        printf ("Vendor rev = \"%.*s\" (\"%.*s\")\n",
-                vendor_rev_len, &data_forward[vendor_rev_start],
-                vendor_rev_len, &data_reverse[vendor_rev_start]);
-
-        const int vendor_sn_start = 68;
-        const int vendor_sn_len = 16;
-        printf ("Vendor SN = \"%.*s\" (\"%.*s\")\n",
-                vendor_sn_len, &data_forward[vendor_sn_start],
-                vendor_sn_len, &data_reverse[vendor_sn_start]);
-
-        /* If implemented, display the digital diagnostic monitoring defined by SFF-8472 */
-        const uint32_t diagnostic_monitoring_type = data_forward[92];
-        const bool digital_diagnostic_monitoring_implemented = (diagnostic_monitoring_type & VFIO_BIT (6)) != 0;
-        const bool internally_calibrated = (diagnostic_monitoring_type & VFIO_BIT (5)) != 0;
-        const bool average_receive_power = (diagnostic_monitoring_type & VFIO_BIT (3)) != 0;
-        const bool address_change_required = (diagnostic_monitoring_type & VFIO_BIT (2)) != 0;
-
-        if (digital_diagnostic_monitoring_implemented)
+        if (!verify_sff_check_code (63, &data_forward[0], data_forward[63]))
         {
-            if (address_change_required)
-            {
-                printf ("Address change required for digital diagnostic monitoring - no support in this program\n");
-            }
-            else if (internally_calibrated)
-            {
-                uint8_t digital_diagnostic_monitoring[128];
+            printf ("Base ID forward check code failed\n");
+        }
+        else if (!verify_sff_check_code (31, &data_forward[64], data_forward[95]))
+        {
+            printf ("Extended ID forward check code failed\n");
+        }
+        if (!verify_sff_check_code (63, &data_reverse[0], data_reverse[63]))
+        {
+            printf ("Base ID reverse check code failed\n");
+        }
+        else if (!verify_sff_check_code (31, &data_reverse[64], data_reverse[95]))
+        {
+            printf ("Extended ID reverse check code failed\n");
+        }
+        else
+        {
+            printf ("Module identifier = 0x%02x\n", data_forward[0]);
 
-                status = sfp_module_read (management_regs, 0x51, 0,
-                        sizeof (digital_diagnostic_monitoring), digital_diagnostic_monitoring, NULL);
-                if (status == IIC_TRANSFER_STATUS_SUCCESS)
+            const int vendor_name_start = 20;
+            const int vendor_name_len = 16;
+            printf ("Vendor Name = \"%.*s\"\n",
+                    vendor_name_len, &data_forward[vendor_name_start]);
+
+            const int vendor_pn_start = 40;
+            const int vendor_pn_len = 16;
+            printf ("Vendor PN = \"%.*s\"\n",
+                    vendor_pn_len, &data_forward[vendor_pn_start]);
+
+            const int vendor_rev_start = 56;
+            const int vendor_rev_len = 4;
+            printf ("Vendor rev = \"%.*s\"\n",
+                    vendor_rev_len, &data_forward[vendor_rev_start]);
+
+            const int vendor_sn_start = 68;
+            const int vendor_sn_len = 16;
+            printf ("Vendor SN = \"%.*s\"\n",
+                    vendor_sn_len, &data_forward[vendor_sn_start]);
+
+            /* If implemented, display the digital diagnostic monitoring defined by SFF-8472 */
+            const uint32_t diagnostic_monitoring_type = data_forward[92];
+            const bool digital_diagnostic_monitoring_implemented = (diagnostic_monitoring_type & VFIO_BIT (6)) != 0;
+            const bool internally_calibrated = (diagnostic_monitoring_type & VFIO_BIT (5)) != 0;
+            const bool average_receive_power = (diagnostic_monitoring_type & VFIO_BIT (3)) != 0;
+            const bool address_change_required = (diagnostic_monitoring_type & VFIO_BIT (2)) != 0;
+
+            if (digital_diagnostic_monitoring_implemented)
+            {
+                if (address_change_required)
                 {
-                    /* Units of power are 0.1 micro Watts */
-                    const uint32_t tx_power_int = (digital_diagnostic_monitoring[102] * 256u) + digital_diagnostic_monitoring[103];
-                    const uint32_t rx_power_int = (digital_diagnostic_monitoring[104] * 256u) + digital_diagnostic_monitoring[105];
-                    const double tx_power_mw = (double) tx_power_int / 1E4;
-                    const double rx_power_mw = (double) rx_power_int / 1E4;
-                    const double tx_power_dbm = 10 * log10 (tx_power_mw);
-                    const double rx_power_dbm = 10 * log10 (rx_power_mw);
+                    printf ("Address change required for digital diagnostic monitoring - no support in this program\n");
+                }
+                else if (internally_calibrated)
+                {
+                    uint8_t digital_diagnostic_monitoring[128];
 
-                    printf ("Measured TX output power: %6.4f mW / %6.2f dBm\n", tx_power_mw, tx_power_dbm);
-                    printf ("Measured RX output power: %6.4f mW / %6.2f dBm (%s)\n", rx_power_mw, rx_power_dbm,
-                            average_receive_power ? "average receiver power" : "Optical modulation amplitude");
+                    status = sfp_module_read (management_regs, 0x51, 0,
+                            sizeof (digital_diagnostic_monitoring), digital_diagnostic_monitoring, NULL);
+                    if (status == IIC_TRANSFER_STATUS_SUCCESS)
+                    {
+                        /* Units of power are 0.1 micro Watts */
+                        const uint32_t tx_power_int = (digital_diagnostic_monitoring[102] * 256u) + digital_diagnostic_monitoring[103];
+                        const uint32_t rx_power_int = (digital_diagnostic_monitoring[104] * 256u) + digital_diagnostic_monitoring[105];
+                        const double tx_power_mw = (double) tx_power_int / 1E4;
+                        const double rx_power_mw = (double) rx_power_int / 1E4;
+                        const double tx_power_dbm = 10 * log10 (tx_power_mw);
+                        const double rx_power_dbm = 10 * log10 (rx_power_mw);
+
+                        printf ("Measured TX output power: %6.4f mW / %6.2f dBm\n", tx_power_mw, tx_power_dbm);
+                        printf ("Measured RX output power: %6.4f mW / %6.2f dBm (%s)\n", rx_power_mw, rx_power_dbm,
+                                average_receive_power ? "average receiver power" : "Optical modulation amplitude");
+
+                        /* Temperature is 15 bits plus sign bit, with least significant bit representing 1/256 Celsius */
+                        const uint32_t temperature_msb = digital_diagnostic_monitoring[96];
+                        const uint32_t temperature_lsb = digital_diagnostic_monitoring[97];
+                        double temperature_celsuis = ((double) (((temperature_msb & 0x7f) *256u) + temperature_lsb)) / 256.0;
+                        if ((temperature_msb & 0x80) != 0)
+                        {
+                            temperature_celsuis = -temperature_celsuis;
+                        }
+                        printf ("Temperature: %.3f °C\n", temperature_celsuis);
+
+                        /* Units of supply voltage are 100 microvolts */
+                        const uint32_t vcc_int = (digital_diagnostic_monitoring[98] * 256u) + digital_diagnostic_monitoring[99];
+                        const double vcc_volts = (double) vcc_int / 1E4;
+                        printf ("Vcc: %.4f V\n", vcc_volts);
+
+                        /* Units of TX bias current at 2uA */
+                        const uint32_t tx_bias_current_int =
+                                (digital_diagnostic_monitoring[100] * 256u) + digital_diagnostic_monitoring[101];
+                        const double tx_bias_current_milliamps = (double) tx_bias_current_int / 500.0;
+                        printf ("TX bias current: %.3f mA\n", tx_bias_current_milliamps);
+                    }
+                    else
+                    {
+                        printf ("Failed to read digital diagnostic monitoring\n");
+                    }
                 }
                 else
                 {
-                    printf ("Failed to read digital diagnostic monitoring\n");
+                    printf ("This program only supported internally calibrated digital diagnostic monitoring\n");
                 }
             }
             else
             {
-                printf ("This program only supported internally calibrated digital diagnostic monitoring\n");
+                printf ("Digital diagnostic monitoring not implemented\n");
             }
-        }
-        else
-        {
-            printf ("Digital diagnostic monitoring not implemented\n");
         }
     }
 }
