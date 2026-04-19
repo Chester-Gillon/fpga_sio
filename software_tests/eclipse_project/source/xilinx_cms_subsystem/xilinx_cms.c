@@ -15,6 +15,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <unistd.h>
+
 
 /* The integer encodings in the PROFILE_NAME_REG for each software profile */
 static uint32_t cms_software_profile_encodings[CMS_SOFTWARE_PROFILE_ARRAY_SIZE] =
@@ -1088,6 +1090,7 @@ bool cms_mailbox_transaction (xilinx_cms_context_t *const context, cms_mailbox_t
 {
     uint32_t control_reg;
     uint32_t word_index;
+    const uint32_t max_attempts = 5;
 
     /* Check for availability of the mailbox */
     control_reg = read_reg32 (context->host_cms_shared_memory, CMS_CONTROL_REG_OFFSET);
@@ -1097,54 +1100,73 @@ bool cms_mailbox_transaction (xilinx_cms_context_t *const context, cms_mailbox_t
         return false;
     }
 
-    /* Write the request to the mailbox */
-    const size_t request_payload_size_bytes = ((transaction->request_fixed_size) ?
-            transaction->request_payload_size_bytes :
-            vfio_extract_field_u32 (transaction->header, CMS_MAILBOX_HEADER_LENGTH_BYTES_MASK));
-    const size_t request_payload_size_words = (request_payload_size_bytes + (sizeof (uint32_t) - 1u)) / sizeof (uint32_t);
-
-    write_reg32 (context->cms_mailbox_header, 0, transaction->header);
-    for (word_index = 0; word_index < request_payload_size_words; word_index++)
+    uint32_t attempt = 0;
+    for (;;)
     {
-        write_reg32 (context->cms_mailbox_payload, word_index * sizeof (uint32_t), transaction->payload.words[word_index]);
-    }
+        /* Write the request to the mailbox */
+        const size_t request_payload_size_bytes = ((transaction->request_fixed_size) ?
+                transaction->request_payload_size_bytes :
+                vfio_extract_field_u32 (transaction->header, CMS_MAILBOX_HEADER_LENGTH_BYTES_MASK));
+        const size_t request_payload_size_words = (request_payload_size_bytes + (sizeof (uint32_t) - 1u)) / sizeof (uint32_t);
 
-    /* Notify the CMS of the request */
-    control_reg |= CMS_CONTROL_REG_MAILBOX_MESSAGE_STATUS;
-    write_reg32 (context->host_cms_shared_memory, CMS_CONTROL_REG_OFFSET, control_reg);
-
-    /* Wait for CMS response, indicated by the message status bit clearing */
-    bool response_available = false;
-    cms_start_timeout (context);
-    do
-    {
-        control_reg = read_reg32 (context->host_cms_shared_memory, CMS_CONTROL_REG_OFFSET);
-        if ((control_reg & CMS_CONTROL_REG_MAILBOX_MESSAGE_STATUS) == 0)
+        write_reg32 (context->cms_mailbox_header, 0, transaction->header);
+        for (word_index = 0; word_index < request_payload_size_words; word_index++)
         {
-            response_available = true;
+            write_reg32 (context->cms_mailbox_payload, word_index * sizeof (uint32_t), transaction->payload.words[word_index]);
         }
-        else if (cms_check_for_timeout (context))
+
+        /* Notify the CMS of the request */
+        control_reg |= CMS_CONTROL_REG_MAILBOX_MESSAGE_STATUS;
+        write_reg32 (context->host_cms_shared_memory, CMS_CONTROL_REG_OFFSET, control_reg);
+
+        /* Wait for CMS response, indicated by the message status bit clearing */
+        bool response_available = false;
+        cms_start_timeout (context);
+        do
         {
-            printf ("Timeout waiting for CMS mailbox response for header=0x%08X\n", transaction->header);
+            control_reg = read_reg32 (context->host_cms_shared_memory, CMS_CONTROL_REG_OFFSET);
+            if ((control_reg & CMS_CONTROL_REG_MAILBOX_MESSAGE_STATUS) == 0)
+            {
+                response_available = true;
+            }
+            else if (cms_check_for_timeout (context))
+            {
+                printf ("Timeout waiting for CMS mailbox response for header=0x%08X\n", transaction->header);
+                return false;
+            }
+        } while (!response_available);
+
+        /* Check if the transaction completed without error */
+        transaction->host_msg_error_reg = read_reg32 (context->host_cms_shared_memory, CMS_HOST_MSG_ERROR_REG_OFFSET);
+        if (transaction->host_msg_error_reg != 0)
+        {
+            /* As per https://github.com/esnet/esnet-smartnic-fw/blob/main/libopennic/src/cms.c#L428, which references
+             * https://adaptivesupport.amd.com/s/article/000034270?language=en_US, insert a re-try if the transaction
+             * failed with a CMS_HOST_MSG_QSFP_FAIL error. */
+            const uint32_t cms_msg_error_QSFP_FAIL = 0xA;
+            const bool retry = (transaction->host_msg_error_reg == cms_msg_error_QSFP_FAIL) && (attempt < max_attempts);
+            const char *const suffix = retry ? " (retrying)" : "";
+
+            printf ("CMS mailbox for header=0x%08X failed with ", transaction->header);
+            if ((transaction->host_msg_error_reg < cms_num_host_msg_error_reg_names) &&
+                (cms_host_msg_error_reg_names[transaction->host_msg_error_reg]) != NULL)
+            {
+                printf ("error %s%s\n", cms_host_msg_error_reg_names[transaction->host_msg_error_reg], suffix);
+            }
+            else
+            {
+                printf ("unknown error 0x%08X%s\n", transaction->host_msg_error_reg, suffix);
+            }
+
+            if (retry)
+            {
+                usleep(100 * 1000);
+                attempt++;
+                continue;
+            }
             return false;
         }
-    } while (!response_available);
-
-    /* Check if the transaction completed without error */
-    transaction->host_msg_error_reg = read_reg32 (context->host_cms_shared_memory, CMS_HOST_MSG_ERROR_REG_OFFSET);
-    if (transaction->host_msg_error_reg != 0)
-    {
-        printf ("CMS mailbox for header=0x%08X failed with ", transaction->header);
-        if ((transaction->host_msg_error_reg < cms_num_host_msg_error_reg_names) &&
-            (cms_host_msg_error_reg_names[transaction->host_msg_error_reg]) != NULL)
-        {
-            printf ("error %s\n", cms_host_msg_error_reg_names[transaction->host_msg_error_reg]);
-        }
-        else
-        {
-            printf ("unknown error 0x%08X\n", transaction->host_msg_error_reg);
-        }
-        return false;
+        break;
     }
 
     /* Copy the response from the mailbox */

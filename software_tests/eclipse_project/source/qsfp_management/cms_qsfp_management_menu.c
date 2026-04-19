@@ -450,14 +450,27 @@ static bool read_module_page (qsfp_management_context_t *const context, const cm
  * @param[in] num_bytes_checked The number of bytes in the check code.
  * @param[in] data The bytes covered by the check code.
  * @param[in] expected_sum The expected sum of the bytes in the check code.
+ * @oaram[out] num_all_zeros_bytes The number of bytes in data which are all zeros.
+ * @param[out] num_all_ones_bytes The number of bytes in data which are all ones.
  */
 static bool verify_sff_check_code (const uint32_t num_bytes_checked, const uint8_t data[const num_bytes_checked],
-                                   const uint8_t expected_sum)
+                                   const uint8_t expected_sum,
+                                   uint32_t *const num_all_zeros_bytes, uint32_t *const num_all_ones_bytes)
 {
     uint8_t actual_sum = 0;
 
+    *num_all_zeros_bytes = 0;
+    *num_all_ones_bytes = 0;
     for (uint32_t byte_index = 0; byte_index < num_bytes_checked; byte_index++)
     {
+        if (data[byte_index] == 0)
+        {
+            (*num_all_zeros_bytes)++;
+        }
+        else if (data[byte_index] == 0xff)
+        {
+            (*num_all_ones_bytes)++;
+        }
         actual_sum += data[byte_index];
     }
 
@@ -475,14 +488,16 @@ static void display_sff_8472_module_information (qsfp_management_context_t *cons
                                                  const uint8_t lower_page_zero[const CMS_I2C_MODULE_PAGE_LEN])
 {
     bool success;
+    uint32_t num_all_zeros_bytes;
+    uint32_t num_all_ones_bytes;
 
-    if (!verify_sff_check_code (63, &lower_page_zero[0], lower_page_zero[63]))
+    if (!verify_sff_check_code (63, &lower_page_zero[0], lower_page_zero[63], &num_all_zeros_bytes, &num_all_ones_bytes))
     {
-        printf ("Base ID check code failed\n");
+        printf ("Base ID check code failed (num 0x00=%u, num 0xff=%u)\n", num_all_zeros_bytes, num_all_ones_bytes);
     }
-    else if (!verify_sff_check_code (31, &lower_page_zero[64], lower_page_zero[95]))
+    else if (!verify_sff_check_code (31, &lower_page_zero[64], lower_page_zero[95], &num_all_zeros_bytes, &num_all_ones_bytes))
     {
-        printf ("Extended ID check code failed\n");
+        printf ("Extended ID check code failed (num 0x00=%u, num 0xff=%u)\n", num_all_zeros_bytes, num_all_ones_bytes);
     }
     else
     {
@@ -541,6 +556,23 @@ static void display_sff_8472_module_information (qsfp_management_context_t *cons
                     printf ("Measured TX output power: %6.4f mW / %6.2f dBm\n", tx_power_mw, tx_power_dbm);
                     printf ("Measured RX input power: %6.4f mW / %6.2f dBm (%s)\n", rx_power_mw, rx_power_dbm,
                             average_receive_power ? "average receiver power" : "Optical modulation amplitude");
+
+                    /* Temperature is 16 bit twos-complement, with least significant bit representing 1/256 Celsius */
+                    const int16_t temperature_int =
+                            (int16_t) ((digital_diagnostic_monitoring[96] * 256u) + digital_diagnostic_monitoring[97]);
+                    const double temperature_celsuis = (double) temperature_int / 256.0;
+                    printf ("Temperature: %.3f °C\n", temperature_celsuis);
+
+                    /* Units of supply voltage are 100 microvolts */
+                    const uint32_t vcc_int = (digital_diagnostic_monitoring[98] * 256u) + digital_diagnostic_monitoring[99];
+                    const double vcc_volts = (double) vcc_int / 1E4;
+                    printf ("Vcc: %.4f V\n", vcc_volts);
+
+                    /* Units of TX bias current are 2uA */
+                    const uint32_t tx_bias_current_int =
+                            (digital_diagnostic_monitoring[100] * 256u) + digital_diagnostic_monitoring[101];
+                    const double tx_bias_current_milliamps = (double) tx_bias_current_int / 500.0;
+                    printf ("TX bias current: %.3f mA\n", tx_bias_current_milliamps);
                 }
                 else
                 {
@@ -572,6 +604,8 @@ static void display_sff_8636_module_information (qsfp_management_context_t *cons
     uint32_t lane;
     uint8_t identification_page[CMS_I2C_MODULE_PAGE_LEN];
     bool success;
+    uint32_t num_all_zeros_bytes;
+    uint32_t num_all_ones_bytes;
 
     const cms_i2s_addressing_t identification_i2c_addressing =
     {
@@ -632,13 +666,15 @@ static void display_sff_8636_module_information (qsfp_management_context_t *cons
     success = read_module_page (context, &identification_i2c_addressing, identification_page);
     if (success)
     {
-        if (!verify_sff_check_code (63, &identification_page[0], identification_page[63]))
+        if (!verify_sff_check_code (63, &identification_page[0], identification_page[63],
+                &num_all_zeros_bytes, &num_all_ones_bytes))
         {
-            printf ("Base ID check code failed\n");
+            printf ("Base ID check code failed (num 0x00=%u, num 0xff=%u)\n", num_all_zeros_bytes, num_all_ones_bytes);
         }
-        else if (!verify_sff_check_code (31, &identification_page[64], identification_page[95]))
+        else if (!verify_sff_check_code (31, &identification_page[64], identification_page[95],
+                &num_all_zeros_bytes, &num_all_ones_bytes))
         {
-            printf ("Extended ID check code failed\n");
+            printf ("Extended ID check code failed (num 0x00=%u, num 0xff=%u)\n", num_all_zeros_bytes, num_all_ones_bytes);
         }
         else
         {
