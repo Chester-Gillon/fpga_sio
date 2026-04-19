@@ -280,7 +280,7 @@ static void display_module_information (sfp_management_registers_t *const manage
                         const double rx_power_dbm = 10 * log10 (rx_power_mw);
 
                         printf ("Measured TX output power: %6.4f mW / %6.2f dBm\n", tx_power_mw, tx_power_dbm);
-                        printf ("Measured RX output power: %6.4f mW / %6.2f dBm (%s)\n", rx_power_mw, rx_power_dbm,
+                        printf ("Measured RX input power: %6.4f mW / %6.2f dBm (%s)\n", rx_power_mw, rx_power_dbm,
                                 average_receive_power ? "average receiver power" : "Optical modulation amplitude");
 
                         /* Temperature is 16 bit twos-complement, with least significant bit representing 1/256 Celsius */
