@@ -582,12 +582,13 @@ static void display_sff_8636_module_information (qsfp_management_context_t *cons
         .upper_page_select = true
     };
 
-    /* Always report the measured Tx and Rx power without checking if implemented since:
+    /* Always report the measured Tx power, TX bias current and Rx power without checking if implemented since:
      * a. SFF-8636 doesn't seem to define a field in Diagnostic Monitoring Type to indicate if measured Rx power is provided or not.
      * b. While the Diagnostic Monitoring Type does have a bit to indicate if measured Tx power is provided, read_module_page()
      *    doesn't seem to be able to read the identification_page if I2C bytes reads are used. */
     for (lane = 0; lane < 4; lane++)
     {
+        /* Units of power are 0.1 micro Watts */
         const uint32_t msb_byte_index = 50 + (lane * 2);
         const uint32_t tx_power_int = (lower_page_zero[msb_byte_index] * 256u) + lower_page_zero[msb_byte_index + 1];
         const double tx_power_mw = (double) tx_power_int / 1E4;
@@ -598,6 +599,17 @@ static void display_sff_8636_module_information (qsfp_management_context_t *cons
 
     for (lane = 0; lane < 4; lane++)
     {
+        /* Units of TX bias current are 2uA */
+        const uint32_t msb_byte_index = 42 + (lane * 2);
+        const uint32_t tx_bias_current_int = (lower_page_zero[msb_byte_index] * 256u) + lower_page_zero[msb_byte_index + 1];
+        const double tx_bias_current_milliamps = (double) tx_bias_current_int / 500.0;
+
+        printf ("Tx%u bias current: %.3f mA\n", lane + 1, tx_bias_current_milliamps);
+    }
+
+    for (lane = 0; lane < 4; lane++)
+    {
+        /* Units of power are 0.1 micro Watts */
         const uint32_t msb_byte_index = 34 + (lane * 2);
         const uint32_t rx_power_int = (lower_page_zero[msb_byte_index] * 256u) + lower_page_zero[msb_byte_index + 1];
         const double rx_power_mw = (double) rx_power_int / 1E4;
@@ -605,6 +617,16 @@ static void display_sff_8636_module_information (qsfp_management_context_t *cons
 
         printf ("Measured Rx%u output power: %6.4f mW / %6.2f dBm\n", lane + 1, rx_power_mw, rx_power_dbm);
     }
+
+    /* Temperature is 16 bit twos-complement, with least significant bit representing 1/256 Celsius */
+    const int16_t temperature_int = (int16_t) ((lower_page_zero[22] * 256u) + lower_page_zero[23]);
+    const double temperature_celsuis = (double) temperature_int / 256.0;
+    printf ("Temperature: %.3f °C\n", temperature_celsuis);
+
+    /* Units of supply voltage are 100 microvolts */
+    const uint32_t vcc_int = (lower_page_zero[26] * 256u) + lower_page_zero[27];
+    const double vcc_volts = (double) vcc_int / 1E4;
+    printf ("Vcc: %.4f V\n", vcc_volts);
 
     /* Read and then report the identification information */
     success = read_module_page (context, &identification_i2c_addressing, identification_page);

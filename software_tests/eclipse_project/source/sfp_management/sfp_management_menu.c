@@ -283,14 +283,10 @@ static void display_module_information (sfp_management_registers_t *const manage
                         printf ("Measured RX output power: %6.4f mW / %6.2f dBm (%s)\n", rx_power_mw, rx_power_dbm,
                                 average_receive_power ? "average receiver power" : "Optical modulation amplitude");
 
-                        /* Temperature is 15 bits plus sign bit, with least significant bit representing 1/256 Celsius */
-                        const uint32_t temperature_msb = digital_diagnostic_monitoring[96];
-                        const uint32_t temperature_lsb = digital_diagnostic_monitoring[97];
-                        double temperature_celsuis = ((double) (((temperature_msb & 0x7f) *256u) + temperature_lsb)) / 256.0;
-                        if ((temperature_msb & 0x80) != 0)
-                        {
-                            temperature_celsuis = -temperature_celsuis;
-                        }
+                        /* Temperature is 16 bit twos-complement, with least significant bit representing 1/256 Celsius */
+                        const int16_t temperature_int =
+                                (int16_t) ((digital_diagnostic_monitoring[96] * 256u) + digital_diagnostic_monitoring[97]);
+                        const double temperature_celsuis = (double) temperature_int / 256.0;
                         printf ("Temperature: %.3f °C\n", temperature_celsuis);
 
                         /* Units of supply voltage are 100 microvolts */
@@ -298,7 +294,7 @@ static void display_module_information (sfp_management_registers_t *const manage
                         const double vcc_volts = (double) vcc_int / 1E4;
                         printf ("Vcc: %.4f V\n", vcc_volts);
 
-                        /* Units of TX bias current at 2uA */
+                        /* Units of TX bias current are 2uA */
                         const uint32_t tx_bias_current_int =
                                 (digital_diagnostic_monitoring[100] * 256u) + digital_diagnostic_monitoring[101];
                         const double tx_bias_current_milliamps = (double) tx_bias_current_int / 500.0;
