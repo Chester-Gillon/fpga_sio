@@ -195,7 +195,7 @@ typedef struct
     /* Set when sample_duration_ns is valid, which will be after the 2nd and subsequent call to mrmac_snapshot_port_statistics()
      * for a given port. */
     bool sample_duration_valid;
-    /* The counter values read from the MRAC statistic registers. */
+    /* The counter values read from the MRMAC statistic registers. */
     uint64_t counter_values[MRMAC_STAT_ARRAY_SIZE];
     /* The duration in nanoseconds waiting for the statistics counters to be ready after a tick.
      * Maintained for investigating how long takes, since PG314 doesn't indicate how long should take. */

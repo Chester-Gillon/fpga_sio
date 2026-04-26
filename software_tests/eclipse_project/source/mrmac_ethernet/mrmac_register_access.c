@@ -356,7 +356,7 @@ const mrmac_statistics_counter_definition_t mrmac_statistics_counter_definitions
 
 
 /* The monotonic time of the last sample tick for the statistics counters in each MRMAC port */
-static int64_t port_last_sample_tick_times_ns[NUM_MRMAC_PORTS];
+static int64_t port_last_sample_tick_times_ns[MAX_VFIO_DEVICES][NUM_MRMAC_PORTS];
 
 
 /**
@@ -663,7 +663,7 @@ void mrmac_reset_port (fpga_design_t *const design, const uint32_t port_num)
  *          b. If multiple threads or processes call this function for the same port the counts may under-read.
  *
  *          Have split the API into mrmac_snapshot_port_statistics() and mrmac_read_port_statistics() functions to allow counters
- *          for multiple MRMAC ports to be snapshot'ed as close togther as possible, before later reading the values.
+ *          for multiple MRMAC ports to be snapshot'ed as close together as possible, before later reading the values.
  * @param[in,out] design Contains the design with the MRMAC
  * @param[in] Which MRMAC port to snapshot the statistic counters for
  * @param[in,out] stats The statistics counters
@@ -760,9 +760,10 @@ void mrmac_read_port_statistics (mrmac_port_statistics_t *const stats)
     }
 
     /* Record the duration between samples on the same port */
-    if (port_last_sample_tick_times_ns[stats->port_num] != 0)
+    if (port_last_sample_tick_times_ns[stats->design->design_index][stats->port_num] != 0)
     {
-        stats->sample_duration_ns = stats->this_sample_tick_time_ns - port_last_sample_tick_times_ns[stats->port_num];
+        stats->sample_duration_ns =
+                stats->this_sample_tick_time_ns - port_last_sample_tick_times_ns[stats->design->design_index][stats->port_num];
         stats->sample_duration_valid = true;
     }
     else
@@ -770,7 +771,7 @@ void mrmac_read_port_statistics (mrmac_port_statistics_t *const stats)
         stats->sample_duration_ns = 0;
         stats->sample_duration_valid = false;
     }
-    port_last_sample_tick_times_ns[stats->port_num] = stats->this_sample_tick_time_ns;
+    port_last_sample_tick_times_ns[stats->design->design_index][stats->port_num] = stats->this_sample_tick_time_ns;
 }
 
 

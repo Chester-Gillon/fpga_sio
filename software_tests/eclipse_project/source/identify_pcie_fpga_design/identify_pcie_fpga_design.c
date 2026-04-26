@@ -18,6 +18,7 @@
 #include "fpga_sio_pci_ids.h"
 
 #include <string.h>
+#include <stddef.h>
 #include <stdio.h>
 
 
@@ -65,7 +66,8 @@ const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE] =
     [FPGA_DESIGN_U200_QDMA_RAM] = "U200_qdma_ram",
     [FPGA_DESIGN_VD100_10G_ETHER_DUAL] = "VD100_10G_ether_dual",
     [FPGA_DESIGN_VMK180_100G_ETHER] = "VMK180_100G_ether",
-    [FPGA_DESIGN_VD100_25G_ETHER_DUAL] = "VD100_25G_ether_dual"
+    [FPGA_DESIGN_VD100_25G_ETHER_DUAL] = "VD100_25G_ether_dual",
+    [FPGA_DESIGN_U200_100G_ETHER_DUPLEX] = "U200_100G_ether_duplex"
 };
 
 
@@ -404,6 +406,14 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_VD100_25G_ETHER_DUAL,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
+    },
+    [FPGA_DESIGN_U200_100G_ETHER_DUPLEX] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_U200_100G_ETHER_DUPLEX,
         .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     }
 };
@@ -1269,9 +1279,14 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     candidate_design->num_cmac_ports = (vfio_device->pci_revision_id >= 2) ? 2 : 1;
                     for (uint32_t port_index = 0; port_index < candidate_design->num_cmac_ports; port_index++)
                     {
-                        candidate_design->cmac_ports[port_index].cmac_regs =
-                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
-                                        cmac_registers_base_offsets[port_index], cmac_registers_frame_size);
+                        cmac_port_definition_t *const port_def = &candidate_design->cmac_ports[port_index];
+
+                        port_def->cmac_regs = map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                cmac_registers_base_offsets[port_index], cmac_registers_frame_size);
+                        port_def->configured_features[CMAC_FEATURE_PACKET_RX] = false;
+                        port_def->configured_features[CMAC_FEATURE_PACKET_TX] = true;
+                        port_def->configured_features[CMAC_FEATURE_RS_FEC   ] = true;
+                        port_def->configured_features[CMAC_FEATURE_TX_OTN   ] = false;
                     }
 
                     if (vfio_device->pci_revision_id >= 3)
@@ -1372,9 +1387,14 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     candidate_design->num_cmac_ports = 2;
                     for (uint32_t port_index = 0; port_index < candidate_design->num_cmac_ports; port_index++)
                     {
-                        candidate_design->cmac_ports[port_index].cmac_regs =
-                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
-                                        cmac_registers_base_offsets[port_index], cmac_registers_frame_size);
+                        cmac_port_definition_t *const port_def = &candidate_design->cmac_ports[port_index];
+
+                        port_def->cmac_regs = map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                cmac_registers_base_offsets[port_index], cmac_registers_frame_size);
+                        port_def->configured_features[CMAC_FEATURE_PACKET_RX] = true;
+                        port_def->configured_features[CMAC_FEATURE_PACKET_TX] = true;
+                        port_def->configured_features[CMAC_FEATURE_RS_FEC   ] = true;
+                        port_def->configured_features[CMAC_FEATURE_TX_OTN   ] = false;
                     }
 
                     design_identified = true;
@@ -1537,6 +1557,63 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     }
                     break;
 
+                case FPGA_DESIGN_U200_100G_ETHER_DUPLEX:
+                    {
+                        const uint32_t peripherals_bar_index    = 0;
+                        const uint32_t dma_bridge_bar_index     = 2;
+                        const size_t user_access_base_offset    = 0x02000;
+                        const size_t user_access_frame_size     = 0x02000;
+                        const size_t sysmon_base_offset         = 0x04000;
+                        const size_t sysmon_frame_size          = 0x02000;
+                        const size_t quad_spi_base_offset       = 0x06000;
+                        const size_t quad_spi_frame_size        = 0x02000;
+                        const size_t ultrascale_dna_base_offset = 0x08000;
+                        const size_t ultrascale_dna_frame_size  = 0x01000;
+                        const size_t cms_base_offset            = 0x40000;
+                        const size_t cmac_registers_base_offsets[] =
+                        {
+                            0x00000,
+                            0x10000
+                        };
+                        const size_t cmac_registers_frame_size  = 0x02000;
+
+                        candidate_design->dma_bridge_present = true;
+                        candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                        candidate_design->dma_bridge_memory_size_bytes = 0; /* DMA bridge configured for "AXI Stream" */
+                        candidate_design->user_access =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                        user_access_base_offset, user_access_frame_size);
+                        candidate_design->quad_spi_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                        quad_spi_base_offset, quad_spi_frame_size);
+                        candidate_design->sysmon_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index, sysmon_base_offset, sysmon_frame_size);
+                        candidate_design->num_sysmon_slaves = 2;
+                        candidate_design->cms_subsystem_present = true;
+                        candidate_design->cms_subsystem_bar_index = peripherals_bar_index;
+                        candidate_design->cms_subsystem_base_offset = cms_base_offset;
+
+                        candidate_design->num_cmac_ports = 2;
+                        for (uint32_t port_index = 0; port_index < candidate_design->num_cmac_ports; port_index++)
+                        {
+                            cmac_port_definition_t *const port_def = &candidate_design->cmac_ports[port_index];
+
+                            port_def->cmac_regs = map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                    cmac_registers_base_offsets[port_index], cmac_registers_frame_size);
+                            port_def->configured_features[CMAC_FEATURE_PACKET_RX] = true;
+                            port_def->configured_features[CMAC_FEATURE_PACKET_TX] = true;
+                            port_def->configured_features[CMAC_FEATURE_RS_FEC   ] = true;
+                            port_def->configured_features[CMAC_FEATURE_TX_OTN   ] = false;
+                        }
+
+                        candidate_design->ultrascale_dna_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                        ultrascale_dna_base_offset, ultrascale_dna_frame_size);
+
+                        design_identified = true;
+                    }
+                    break;
+
                 case FPGA_DESIGN_ARRAY_SIZE:
                     /* Shouldn't get here */
                     design_identified = false;
@@ -1548,6 +1625,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
             {
                 candidate_design->design_id = candidate_design_id;
                 candidate_design->vfio_device = vfio_device;
+                candidate_design->design_index = designs->num_identified_designs;
                 designs->num_identified_designs++;
             }
             else
@@ -1599,4 +1677,56 @@ void format_user_access_timestamp (const uint32_t user_access,
 
     snprintf (formatted_timestamp, USER_ACCESS_TIMESTAMP_LEN, "%02u/%02u/%04u %02u:%02u:%02u",
             day, month, year + epoch_year, hour, minute, second);
+}
+
+
+/**
+ * @brief Display information about a peripheral which is present in an identified design
+ * @param[in] design The identified design to check for the peripheral
+ * @param[in] peripheral_name The name of the peripheral
+ * @param[in] peripheral_mapped_base If non-NULL the mapped base of the peripheral which is present in the design.
+ */
+void display_design_present_peripheral (const fpga_design_t *const design,
+                                        const char *const peripheral_name, const uint8_t *const peripheral_mapped_base)
+{
+    if (peripheral_mapped_base != NULL)
+    {
+        /* The peripheral is present since its registers are mapped.
+         * Search to find the offset into which BAR the registers are mapped to. */
+        bool found_bar;
+        uint32_t bar_number;
+        ptrdiff_t bar_offset;
+
+        found_bar = false;
+        bar_number = 0;
+        bar_offset = 0;
+        while (!found_bar && (bar_number < PCI_STD_NUM_BARS))
+        {
+            if (design->vfio_device->mapped_bars[bar_number] != NULL)
+            {
+                const uint8_t *const mapped_bar_start = design->vfio_device->mapped_bars[bar_number];
+                const uint8_t *const mapped_bar_end = &mapped_bar_start[design->vfio_device->regions_info[bar_number].size];
+
+                if ((peripheral_mapped_base >= mapped_bar_start) && (peripheral_mapped_base < mapped_bar_end))
+                {
+                    bar_offset = peripheral_mapped_base - mapped_bar_start;
+                    found_bar = true;
+                }
+            }
+
+            if (!found_bar)
+            {
+                bar_number++;
+            }
+        }
+
+        if (found_bar)
+        {
+            printf ("  %s registers at bar %u offset 0x%lx\n", peripheral_name, bar_number, bar_offset);
+        }
+        else
+        {
+            printf ("  %s register at mapped address %p (unable to identify bar)\n", peripheral_name, peripheral_mapped_base);
+        }
+    }
 }

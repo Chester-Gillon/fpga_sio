@@ -198,7 +198,8 @@
  * b. Have two 100G Ethernet simplex transmitters, including control and statistics registers.
  * c. The CMS subsystem for management of the QSFP ports.
  * d. Access the SYSMON on all 3 SLRs (internal sensors only).
- * e. Access a Quad SPI connected to the FPGA configuration flash. */
+ * e. Access a Quad SPI connected to the FPGA configuration flash.
+ * f. Access registers used to read the UltraScale DNA. */
 #define FPGA_SIO_SUBDEVICE_ID_U200_100G_ETHER_SIMPLEX_TX 0x001D
 
 
@@ -266,5 +267,15 @@
  * b. GPIOs for SFP Tx Enable signals.
  * c. AXI IIC Bus Interface to SFP1 (board only connects the I2C interface to the SFP1 module). */
 #define FPGA_SIO_SUBDEVICE_ID_VD100_25G_ETHER_DUAL 0x0028
+
+
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Contain only a AXI peripheral to read the user access timestamp.
+ * b. Have two 100G Ethernet full duplex ports, including control and statistics registers.
+ * c. The CMS subsystem for management of the QSFP ports.
+ * d. Access the SYSMON on all 3 SLRs (internal sensors only).
+ * e. Access a Quad SPI connected to the FPGA configuration flash.
+ * f. Access registers used to read the UltraScale DNA. */
+#define FPGA_SIO_SUBDEVICE_ID_U200_100G_ETHER_DUPLEX 0x0029
 
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

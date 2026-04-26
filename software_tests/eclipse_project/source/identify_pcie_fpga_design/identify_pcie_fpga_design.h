@@ -221,7 +221,8 @@ typedef enum
      * b. Memory mapped Ethernet including control and statistics registers.
      * c. The CMS subsystem for management of the QSFP ports.
      * d. Access the SYSMON on all 3 SLRs (internal sensors only).
-     * e. Access a Quad SPI connected to the FPGA configuration flash. */
+     * e. Access a Quad SPI connected to the FPGA configuration flash.
+     * f. Access registers used to read the UltraScale DNA. */
     FPGA_DESIGN_U200_100G_ETHER_SIMPLEX_TX,
 
     /* fpga_tests/U200_dma_stream_crc64 which contains:
@@ -283,6 +284,15 @@ typedef enum
      * c. AXI IIC Bus Interface to SFP1 (board only connects the I2C interface to the SFP1 module). */
     FPGA_DESIGN_VD100_25G_ETHER_DUAL,
 
+    /* fpga_tests/U200_100G_ether_duplex which contains:
+    * a. DMA/Bridge Subsystem access to two AXI streams which transmit/receive 100G Ethernet.
+    * b. Memory mapped Ethernet including control and statistics registers.
+    * c. The CMS subsystem for management of the QSFP ports.
+    * d. Access the SYSMON on all 3 SLRs (internal sensors only).
+    * e. Access a Quad SPI connected to the FPGA configuration flash.
+    * f. Access registers used to read the UltraScale DNA. */
+    FPGA_DESIGN_U200_100G_ETHER_DUPLEX,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 
@@ -293,6 +303,19 @@ extern const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE];
 extern const uint32_t crc64_stream_tdata_width_bytes[FPGA_DESIGN_ARRAY_SIZE];
 
 
+/* The possible CMAC features which be configured for a port, to allow the software to determine supported operations.
+ * Can't find any CMAC registers which indicate which features are configured, so specified for the design. */
+typedef enum
+{
+    CMAC_FEATURE_PACKET_RX, /* Operation is Duplex or Simplex RX */
+    CMAC_FEATURE_PACKET_TX, /* Operation is Duplex or Simplex TX */
+    CMAC_FEATURE_RS_FEC,
+    CMAC_FEATURE_TX_OTN,
+
+    CMAC_FEATURE_ARRAY_SIZE
+} cmac_port_configured_features_t;
+
+
 /* Defines one UltraScale+ 100G Ethernet (CMAC) port.
  * The Ethernet packet data is assumed to be transfered by the DMA/Bridge Subsystem */
 #define MAX_CMAC_PORTS_PER_DESIGN 2
@@ -300,6 +323,8 @@ typedef struct
 {
     /* When non-NULL the base of the mapped registers for the control and statistics of the CMAC */
     uint8_t *cmac_regs;
+    /* Which features are configured in the design */
+    bool configured_features[CMAC_FEATURE_ARRAY_SIZE];
 } cmac_port_definition_t;
 
 
@@ -327,6 +352,8 @@ typedef struct
 {
     /* The enumeration for the design */
     fpga_design_id_t design_id;
+    /* This index into fpga_designs_t.designs[] this entry is for. For use by code which needs arrays per-design. */
+    uint32_t design_index;
     /* Points at the underlying VFIO device */
     vfio_device_t *vfio_device;
     /* When true the DMA/Bridge Subsystem is present.
@@ -413,6 +440,8 @@ void close_pcie_fpga_designs (fpga_designs_t *const designs);
 void display_possible_fpga_designs (void);
 void format_user_access_timestamp (const uint32_t user_access,
                                    char formatted_timestamp[const USER_ACCESS_TIMESTAMP_LEN]);
+void display_design_present_peripheral (const fpga_design_t *const design,
+                                        const char *const peripheral_name, const uint8_t *const peripheral_mapped_base);
 
 
 #endif /* IDENTIFY_PCIE_FPGA_DESIGN_H_ */

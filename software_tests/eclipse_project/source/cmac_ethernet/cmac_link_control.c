@@ -73,32 +73,55 @@ int main (int argc, char *argv[])
 
         for (uint32_t port_index = 0; port_index < design->num_cmac_ports; port_index++)
         {
-            uint8_t *const cmac_registers = design->cmac_ports[port_index].cmac_regs;
+            const cmac_port_definition_t *const port_def = &design->cmac_ports[port_index];
+            uint8_t *const cmac_registers = port_def->cmac_regs;
 
             if (cmac_registers != NULL)
             {
                 display_cmac_registers (cmac_registers);
 
-                /* If RSFEC is disabled, enable it and then re-display the registers */
-                uint32_t rsfec_config_enable = read_reg32 (cmac_registers, RSFEC_CONFIG_ENABLE_OFFSET);
-                if ((rsfec_config_enable & RSFEC_CONFIG_ENABLE_CTL_TX_RSFEC_ENABLE_MASK) == 0)
+                if (port_def->configured_features[CMAC_FEATURE_RS_FEC])
                 {
-                    printf ("\nEnabling TX RSFEC\n");
-                    rsfec_config_enable |= RSFEC_CONFIG_ENABLE_CTL_TX_RSFEC_ENABLE_MASK;
-                    write_reg32 (cmac_registers, RSFEC_CONFIG_ENABLE_OFFSET, rsfec_config_enable);
-                    display_cmac_registers (cmac_registers);
-                    keep_open = true;
+                    /* If RSFEC is disabled, enable it and then re-display the registers */
+                    uint32_t rsfec_config_enable = read_reg32 (cmac_registers, RSFEC_CONFIG_ENABLE_OFFSET);
+
+                    if (port_def->configured_features[CMAC_FEATURE_PACKET_RX])
+                    {
+                        if ((rsfec_config_enable & RSFEC_CONFIG_ENABLE_CTL_RX_RSFEC_ENABLE_MASK) == 0)
+                        {
+                            printf ("\nEnabling RX RSFEC\n");
+                            rsfec_config_enable |= RSFEC_CONFIG_ENABLE_CTL_RX_RSFEC_ENABLE_MASK;
+                            write_reg32 (cmac_registers, RSFEC_CONFIG_ENABLE_OFFSET, rsfec_config_enable);
+                            display_cmac_registers (cmac_registers);
+                            keep_open = true;
+                        }
+                    }
+
+                    if (port_def->configured_features[CMAC_FEATURE_PACKET_TX])
+                    {
+                        if ((rsfec_config_enable & RSFEC_CONFIG_ENABLE_CTL_TX_RSFEC_ENABLE_MASK) == 0)
+                        {
+                            printf ("\nEnabling TX RSFEC\n");
+                            rsfec_config_enable |= RSFEC_CONFIG_ENABLE_CTL_TX_RSFEC_ENABLE_MASK;
+                            write_reg32 (cmac_registers, RSFEC_CONFIG_ENABLE_OFFSET, rsfec_config_enable);
+                            display_cmac_registers (cmac_registers);
+                            keep_open = true;
+                        }
+                    }
                 }
 
-                /* If transmit is disabled, enable it and then re-display the registers */
-                uint32_t configuration_tx_reg1 = read_reg32 (cmac_registers, CONFIGURATION_TX_REG1_OFFSET);
-                if ((configuration_tx_reg1 & CONFIGURATION_TX_REG1_CTL_TX_ENABLE_MASK) == 0)
+                if (port_def->configured_features[CMAC_FEATURE_PACKET_TX])
                 {
-                    printf ("\nSetting TX_ENABLE\n");
-                    configuration_tx_reg1 |= CONFIGURATION_TX_REG1_CTL_TX_ENABLE_MASK;
-                    write_reg32 (cmac_registers, CONFIGURATION_TX_REG1_OFFSET, configuration_tx_reg1);
-                    display_cmac_registers (cmac_registers);
-                    keep_open = true;
+                    /* If transmit is disabled, enable it and then re-display the registers */
+                    uint32_t configuration_tx_reg1 = read_reg32 (cmac_registers, CONFIGURATION_TX_REG1_OFFSET);
+                    if ((configuration_tx_reg1 & CONFIGURATION_TX_REG1_CTL_TX_ENABLE_MASK) == 0)
+                    {
+                        printf ("\nSetting TX_ENABLE\n");
+                        configuration_tx_reg1 |= CONFIGURATION_TX_REG1_CTL_TX_ENABLE_MASK;
+                        write_reg32 (cmac_registers, CONFIGURATION_TX_REG1_OFFSET, configuration_tx_reg1);
+                        display_cmac_registers (cmac_registers);
+                        keep_open = true;
+                    }
                 }
             }
         }

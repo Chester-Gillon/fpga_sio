@@ -13,6 +13,7 @@
 #include "vfio_bitops.h"
 #include "qdma_transfers.h"
 #include "mrmac_register_access.h"
+#include "cmac_register_access.h"
 
 #include <stdlib.h>
 #include <stddef.h>
@@ -46,58 +47,6 @@ static void parse_command_line_arguments (int argc, char *argv[])
             break;
         }
         option = getopt (argc, argv, optstring);
-    }
-}
-
-
-/**
- * @brief Display information about a peripheral which is present in an identified design
- * @param[in] design The identified design to check for the peripheral
- * @param[in] peripheral_name The name of the peripheral
- * @param[in] peripheral_mapped_base If non-NULL the mapped base of the peripheral which is present in the design.
- */
-static void display_design_present_peripheral (const fpga_design_t *const design,
-                                               const char *const peripheral_name, const uint8_t *const peripheral_mapped_base)
-{
-    if (peripheral_mapped_base != NULL)
-    {
-        /* The peripheral is present since its registers are mapped.
-         * Search to find the offset into which BAR the registers are mapped to. */
-        bool found_bar;
-        uint32_t bar_number;
-        ptrdiff_t bar_offset;
-
-        found_bar = false;
-        bar_number = 0;
-        bar_offset = 0;
-        while (!found_bar && (bar_number < PCI_STD_NUM_BARS))
-        {
-            if (design->vfio_device->mapped_bars[bar_number] != NULL)
-            {
-                const uint8_t *const mapped_bar_start = design->vfio_device->mapped_bars[bar_number];
-                const uint8_t *const mapped_bar_end = &mapped_bar_start[design->vfio_device->regions_info[bar_number].size];
-
-                if ((peripheral_mapped_base >= mapped_bar_start) && (peripheral_mapped_base < mapped_bar_end))
-                {
-                    bar_offset = peripheral_mapped_base - mapped_bar_start;
-                    found_bar = true;
-                }
-            }
-
-            if (!found_bar)
-            {
-                bar_number++;
-            }
-        }
-
-        if (found_bar)
-        {
-            printf ("  %s registers at bar %u offset 0x%lx\n", peripheral_name, bar_number, bar_offset);
-        }
-        else
-        {
-            printf ("  %s register at mapped address %p (unable to identify bar)\n", peripheral_name, peripheral_mapped_base);
-        }
     }
 }
 
@@ -290,42 +239,6 @@ static void display_ultrascale_dna (const fpga_design_t *const design)
 
     /* Order of the words matches that read by JTAG as displayed in the Vivado hardware manager */
     printf ("  UltraScale DNA: %08X%08X%08X\n", dna_words[0], dna_words[1], dna_words[2]);
-}
-
-
-/**
- * @brief Display information about the CMAC ports in an identified design
- * @param[in] design The identified design containing the CMAC ports
- */
-static void display_cmac_ports (const fpga_design_t *const design)
-{
-    char peripheral_name[80];
-    const char *const core_mode_names[] =
-    {
-        "CAUI10",
-        "CAUI4",
-        "Runtime Switchable CAUI10",
-        "Runtime Switchable CAUI4"
-    };
-
-    for (uint32_t port_index = 0; port_index < design->num_cmac_ports; port_index++)
-    {
-        const uint8_t *const cmac_regs = design->cmac_ports[port_index].cmac_regs;
-
-        if (cmac_regs != NULL)
-        {
-            const uint32_t core_mode_reg = read_reg32 (cmac_regs, CORE_MODE_REG_OFFSET);
-            const uint32_t core_mode = vfio_extract_field_u32 (core_mode_reg, CORE_MODE_REG_MASK);
-            const uint32_t core_version_reg = read_reg32 (cmac_regs, CORE_VERSION_REG_OFFSET);
-            const uint32_t core_version_minor = vfio_extract_field_u32 (core_version_reg, CORE_VERSION_REG_MINOR_MASK);
-            const uint32_t core_version_major = vfio_extract_field_u32 (core_version_reg, CORE_VERSION_REG_MAJOR_MASK);
-
-            snprintf (peripheral_name, sizeof (peripheral_name), "CMAC port %u", port_index);
-            display_design_present_peripheral (design, peripheral_name, cmac_regs);
-            printf ("    Core mode: %s\n", core_mode_names[core_mode]);
-            printf ("    Core version: %u.%u\n", core_version_major, core_version_minor);
-        }
-    }
 }
 
 
