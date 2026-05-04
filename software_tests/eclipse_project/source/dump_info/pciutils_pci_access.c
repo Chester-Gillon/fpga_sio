@@ -403,6 +403,19 @@ bool generic_pci_access_uint_property (generic_pci_access_device_p const generic
         *value = cfg_u8;
         break;
 
+    case GENERIC_PCI_ACCESS_NUMA_NODE:
+        available = fill_uint_property (device, PCI_FILL_NUMA_NODE);
+        if (available && (device->numa_node >= 0))
+        {
+            *value = (uint32_t) device->numa_node;
+        }
+        else
+        {
+            /* Assume a negative NUMA node means not defined */
+            available = false;
+        }
+        break;
+
     case GENERIC_PCI_ACCESS_SUBVENDOR_ID:
         if (generic_pci_access_cfg_read_u8 (generic_device, PCI_HEADER_TYPE, &cfg_u8))
         {

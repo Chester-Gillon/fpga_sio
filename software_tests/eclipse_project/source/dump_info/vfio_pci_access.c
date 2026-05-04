@@ -287,6 +287,11 @@ bool generic_pci_access_uint_property (generic_pci_access_device_p const generic
         available = true;
         *value = vfio_device->pci_subsystem_device_id;
         break;
+
+    case GENERIC_PCI_ACCESS_NUMA_NODE:
+        available = vfio_device->numa_node_defined;
+        *value = vfio_device->numa_node;
+        break;
     }
 
     return available;

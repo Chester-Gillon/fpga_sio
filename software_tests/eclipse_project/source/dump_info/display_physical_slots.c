@@ -123,6 +123,7 @@ int main (int argc, char *argv[])
     uint32_t subdevice_id;
     uint32_t revision_id;
     uint32_t physical_slot_number;
+    uint32_t numa_node;
 
     const generic_pci_access_filter_t any_device =
     {
@@ -148,6 +149,7 @@ int main (int argc, char *argv[])
         {
             const char *const physical_slot_from_sysfs = generic_pci_access_text_property (device, GENERIC_PCI_ACCESS_PHYSICAL_SLOT);
             const bool got_physical_slot_from_bridge = get_physical_slot_from_bridge (device, &physical_slot_number);
+            const bool numa_node_defined = generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_NUMA_NODE, &numa_node);
 
             if ((physical_slot_from_sysfs != NULL) || got_physical_slot_from_bridge)
             {
@@ -171,6 +173,10 @@ int main (int argc, char *argv[])
                 if (got_physical_slot_from_bridge)
                 {
                     printf ("    physical slot from bridge: #%u\n", physical_slot_number);
+                }
+                if (numa_node_defined)
+                {
+                    printf ("    NUMA node: %u\n", numa_node);
                 }
 
                 printf ("\n");

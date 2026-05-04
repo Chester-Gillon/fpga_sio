@@ -362,6 +362,22 @@ bool generic_pci_access_uint_property (generic_pci_access_device_p const generic
         *value = device->revision;
         break;
 
+    case GENERIC_PCI_ACCESS_NUMA_NODE:
+        {
+            int numa_node;
+            if (pci_sysfs_read_device_int_property (device->domain, device->bus, device->dev, device->func,
+                    "numa_node", &numa_node))
+            {
+                /* Assume a negative NUMA node means not defined */
+                if (numa_node >= 0)
+                {
+                    *value = (uint32_t) numa_node;
+                    available = true;
+                }
+            }
+        }
+        break;
+
     case GENERIC_PCI_ACCESS_SUBVENDOR_ID:
         if (generic_pci_access_cfg_read_u8 (generic_device, PCI_HEADER_TYPE, &cfg_u8))
         {

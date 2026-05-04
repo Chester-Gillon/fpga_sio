@@ -816,11 +816,13 @@ static void display_pci_device (generic_pci_access_device_p const device, const 
     uint32_t subvendor_id;
     uint32_t subdevice_id;
     uint32_t revision_id;
+    uint32_t numa_node;
     generic_pci_access_mem_region_t regions[PCI_STD_NUM_BARS];
     const char *const iommu_group = generic_pci_access_text_property (device, GENERIC_PCI_ACCESS_IOMMU_GROUP);
     const char *const driver = generic_pci_access_text_property (device, GENERIC_PCI_ACCESS_DRIVER);
     const char *const physical_slot = generic_pci_access_text_property (device, GENERIC_PCI_ACCESS_PHYSICAL_SLOT);
     const char *const module = generic_pci_access_text_property (device, GENERIC_PCI_ACCESS_MODULE);
+    const bool numa_node_defined = generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_NUMA_NODE, &numa_node);
 
     if (generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_DOMAIN, &domain) &&
         generic_pci_access_uint_property (device, GENERIC_PCI_ACCESS_BUS, &bus) &&
@@ -870,6 +872,12 @@ static void display_pci_device (generic_pci_access_device_p const device, const 
         {
             display_indent (indent_level);
             printf ("  physical_slot=%s\n", physical_slot);
+        }
+
+        if (numa_node_defined)
+        {
+            display_indent (indent_level);
+            printf ("  numa_node=%u\n", numa_node);
         }
 
         uint16_t cmd;

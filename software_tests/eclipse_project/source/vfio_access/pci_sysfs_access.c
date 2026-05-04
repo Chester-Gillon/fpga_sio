@@ -48,6 +48,36 @@ char *pci_sysfs_read_device_symlink_name (const uint32_t domain, const uint32_t 
 
 
 /**
+ * @brief Read an integer property value of a PCI device
+ * @param[in] domain, bus, dev, func Identifies the PCI device
+ * @param[in] property_name The name of the property, which is a filename inside the PCI device directory
+ * @param[out] property_value The property value read.
+ * @return True if the property value could be read, or false otherwise.
+ */
+bool pci_sysfs_read_device_int_property (const uint32_t domain, const uint32_t bus, const uint32_t dev, const uint32_t func,
+                                          const char *const property_name, int *const property_value)
+{
+    char device_pathname[PATH_MAX];
+    FILE *property_file;
+    bool property_available = false;
+
+    *property_value = 0;
+    snprintf (device_pathname, sizeof (device_pathname), "/sys/bus/pci/devices/%04x:%02x:%02x.%x/%s",
+            domain, bus, dev, func, property_name);
+    property_file = fopen (device_pathname, "r");
+    if (property_file != NULL)
+    {
+        const int num_items = fscanf (property_file, "%d", property_value);
+        property_available = num_items == 1;
+
+        fclose (property_file);
+    }
+
+    return property_available;
+}
+
+
+/**
  * @brief Obtain the physical slot of a PCI device
  * @details
  *   This searches the /sys/bus/pci/slots sysfs directory, to find an address which matches that of the PCI device.
