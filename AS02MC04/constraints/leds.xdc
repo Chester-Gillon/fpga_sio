@@ -14,3 +14,4 @@ set_property IOSTANDARD LVCMOS18 [get_ports {LED_G[0]}]
 set_property IOSTANDARD LVCMOS18 [get_ports LED_HEART]
 set_property IOSTANDARD LVCMOS18 [get_ports {LED_R[0]}]
 
+
