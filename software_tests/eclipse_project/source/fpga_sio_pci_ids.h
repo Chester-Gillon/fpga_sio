@@ -185,7 +185,7 @@
 
 /* The FPGA which uses the DMA/Bridge Subsystem to:
  * a. Contain only a AXI peripheral to read the user access timestamp.
- * b. Have different revisions to investigating to enumerate for x8 width. */
+ * b. Have different revisions for investigating how to enumerate for x8 width. */
 #define FPGA_SIO_SUBDEVICE_ID_AS02MC04_ENUM 0x001B
 
 /* The FPGA which uses the DMA/Bridge Subsystem to:
@@ -277,5 +277,10 @@
  * e. Access a Quad SPI connected to the FPGA configuration flash.
  * f. Access registers used to read the UltraScale DNA. */
 #define FPGA_SIO_SUBDEVICE_ID_U200_100G_ETHER_DUPLEX 0x0029
+
+/* The FPGA which uses the QDMA Subsystem to:
+ * a. Contain only a AXI peripheral to read the user access timestamp.
+ * b. Have different revisions for investigating how to enumerate for x8 width. */
+#define FPGA_SIO_SUBDEVICE_ID_AS02MC04_QDMA_ENUM 0x002A
 
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

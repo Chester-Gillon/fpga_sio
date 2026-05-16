@@ -208,7 +208,7 @@ typedef enum
 
     /* fpga_tests/AS02MC04_enum/<designs_with_different_PCIe_configuration> which contains:
      * a. DMA/Bridge Subsystem to contain only a AXI peripheral to read the user access timestamp.
-     * b. Have different revisions to investigating to enumerate for x8 width. */
+     * b. Have different revisions for investigating how to enumerate for x8 width. */
     FPGA_DESIGN_AS02MC04_ENUM,
 
     /* fpga_tests/U200_enum/<designs_with_different_PCIe_configuration> which contains:
@@ -292,6 +292,11 @@ typedef enum
     * e. Access a Quad SPI connected to the FPGA configuration flash.
     * f. Access registers used to read the UltraScale DNA. */
     FPGA_DESIGN_U200_100G_ETHER_DUPLEX,
+
+    /* fpga_tests/AS02MC04_qdma_enum/<designs_with_different_PCIe_configuration> which contains:
+     * a. QDMA Subsystem to contain only a AXI peripheral to read the user access timestamp.
+     * b. Have different revisions to investigating to enumerate for x8 width. */
+    FPGA_DESIGN_AS02MC04_QDMA_ENUM,
 
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
