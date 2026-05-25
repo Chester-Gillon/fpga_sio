@@ -283,4 +283,10 @@
  * b. Have different revisions for investigating how to enumerate for x8 width. */
 #define FPGA_SIO_SUBDEVICE_ID_AS02MC04_QDMA_ENUM 0x002A
 
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. XDMA access to AXI4 streams connected to one 40 GbE port in MRMAC.
+ * b. GPIOs for SFP Tx Enable signals.
+ * c. AXI IIC Bus Interface to SFP1 (board only connects the I2C interface to the SFP1 module). */
+#define FPGA_SIO_SUBDEVICE_ID_VD100_40G_ETHER 0x002B
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

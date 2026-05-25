@@ -298,6 +298,12 @@ typedef enum
      * b. Have different revisions to investigating to enumerate for x8 width. */
     FPGA_DESIGN_AS02MC04_QDMA_ENUM,
 
+    /* fpga_tests/VD100_40G_ether which contains:
+     * a. XDMA access to AXI4 streams connected to one 40 GbE port in MRMAC.
+     * b. GPIOs for SFP Tx Enable signals.
+     * c. AXI IIC Bus Interface to SFP1 (board only connects the I2C interface to the SFP1 module). */
+    FPGA_DESIGN_VD100_40G_ETHER,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 
