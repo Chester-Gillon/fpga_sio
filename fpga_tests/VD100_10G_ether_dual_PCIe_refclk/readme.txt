@@ -323,3 +323,122 @@ Which shows:
 a. SlotClk+ in endpoint link status
 b. CommClk+ in endpoint link control
 
+
+3. Still doesn't interoperate with switch when used in a HP Pavilion 590-p0053na desktop disabled Slot Clock
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Disabled Slot Slot in the PCIe endpoint. Changed in the following places:
+- xdma_0
+- pcie_phy (named phy_async_en)
+- pcie
+
+Initially only tried to change xdma_0 and pcie_phy, but the enumerated endpoint still had SlotClk+.
+After changing the pcie block the enumerated endpoint changed to SlotClk-. Not sure if all 3 places need to change.
+
+The RX_PPM_OFFSET on the PCIe GTY settings was changed from 0 to 600, which ties in with the PCIe reference clock being +/- 300 PPM
+when Spread Spectrum Clocking is disabled.
+
+The result of the change:
+[mr_halfword@ryzen-alma ~]$ cd ~/fpga_sio/software_tests/eclipse_project/bin/release/
+[mr_halfword@ryzen-alma release]$ dump_info/dump_pci_info_pciutils 
+domain=0000 bus=10 dev=00 func=00 rev=00
+  vendor_id=10ee (Xilinx Corporation) device_id=b044 (Device b044) subvendor_id=0002 subdevice_id=0026
+  iommu_group=10
+  driver=vfio-pci
+  module=vfio_pci
+  control: I/O- Mem- BusMaster- ParErr- SERR- DisINTx-
+  status: INTx- <ParErr- >TAbort- <TAbort- <MAbort- >SERR- DetParErr-
+  bar[0] base_addr=f0400000 size=20000 is_IO=0 is_prefetchable=1 is_64=1
+  bar[2] base_addr=f0420000 size=10000 is_IO=0 is_prefetchable=1 is_64=1
+  Capabilities: [40] Power Management version 3
+    Flags: PMEClk- DSI- D1- D2- AuxCurrent=0mA PME(D0-,D1-,D2-,D3hot-,D3cold+)
+    Status: D3 NoSoftRst+ PME-Enable- DSel=0 DScale=0 PME-
+  Capabilities: [70] PCI Express v2 Express Endpoint, MSI 0
+    Link capabilities: Max speed 16 GT/s Max width x4
+    Negotiated link status: Current speed 8 GT/s Width x4
+    Link capabilities2: Supported link speeds 2.5 GT/s 5.0 GT/s 8.0 GT/s 16.0 GT/s
+    DevCap: MaxPayload 1024 bytes PhantFunc 0 Latency L0s Maximum of 64 ns L1 Maximum of 1 μs
+            ExtTag+ AttnBtn- AttnInd- PwrInd- RBE+ FLReset- SlotPowerLimit 0.000W
+    DevCtl: CorrErr+ NonFatalErr+ FatalErr+ UnsupReq+
+            RlxdOrd+ ExtTag+ PhantFunc- AuxPwr- NoSnoop+
+    DevSta: CorrErr+ NonFatalErr- FatalErr- UnsupReq+ AuxPwr- TransPend-
+    LnkCap: Port # 0 ASPM not supported
+            L0s Exit Latency More than 4 μs
+            L1 Exit Latency More than 64 μs
+            ClockPM- Surprise- LLActRep- BwNot- ASPMOptComp+
+    LnkCtl: ASPM Disabled RCB 64 bytes Disabled- CommClk-
+            ExtSynch- ClockPM- AutWidDis- BWInt- ABWMgmt-
+    LnkSta: TrErr- Train- SlotClk- DLActive- BWMgmt- ABWMgmt-
+  Capabilities: [100 v1] Advanced Error Reporting
+  Capabilities: [1c0 v1] Secondary PCIe Capability
+  Capabilities: [1f0 v1] Virtual Channel Capability
+  Capabilities: [3a0 v1] Data Link Feature
+  Capabilities: [3b0 v1] Physical Layer 16.0 GT/s
+  Capabilities: [400 v1] Lane Margining at Receiver
+  domain=0000 bus=00 dev=01 func=01 rev=00
+    vendor_id=1022 (Advanced Micro Devices, Inc. [AMD]) device_id=15d3 (Raven/Raven2 PCIe GPP Bridge [6:0])
+    iommu_group=2
+    driver=pcieport
+    control: I/O+ Mem+ BusMaster+ ParErr- SERR- DisINTx+
+    status: INTx- <ParErr- >TAbort- <TAbort- <MAbort- >SERR- DetParErr-
+    Capabilities: [50] Power Management version 3
+      Flags: PMEClk- DSI- D1- D2- AuxCurrent=0mA PME(D0+,D1-,D2-,D3hot+,D3cold+)
+      Status: D0 NoSoftRst- PME-Enable- DSel=0 DScale=0 PME-
+    Capabilities: [58] PCI Express v2 Root Port, MSI 0
+      Link capabilities: Max speed 8 GT/s Max width x8
+      Negotiated link status: Current speed 8 GT/s Width x4
+      Link capabilities2: Supported link speeds 2.5 GT/s 5.0 GT/s 8.0 GT/s
+      DevCap: MaxPayload 512 bytes PhantFunc 0 Latency L0s Maximum of 64 ns L1 Maximum of 1 μs
+              ExtTag+ AttnBtn- AttnInd- PwrInd- RBE+ FLReset- SlotPowerLimit 0.000W
+      DevCtl: CorrErr+ NonFatalErr+ FatalErr+ UnsupReq+
+              RlxdOrd+ ExtTag+ PhantFunc- AuxPwr- NoSnoop+
+      DevSta: CorrErr- NonFatalErr- FatalErr- UnsupReq- AuxPwr- TransPend-
+      LnkCap: Port # 0 ASPM L1
+              L0s Exit Latency More than 4 μs
+              L1 Exit Latency 32 μs to 64 μs
+              ClockPM- Surprise- LLActRep+ BwNot+ ASPMOptComp+
+      LnkCtl: ASPM Disabled RCB 64 bytes Disabled- CommClk-
+              ExtSynch- ClockPM- AutWidDis- BWInt+ ABWMgmt+
+      LnkSta: TrErr- Train- SlotClk+ DLActive+ BWMgmt- ABWMgmt-
+      SltCap: AttnBtn- PwrCtrl- MRL- AttnInd- PwrInd- HotPlug- Surprise-
+              Slot #0 PowerLimit 0.000W Interlock- NoCompl+
+    Capabilities: [a0] Message Signaled Interrupts
+    Capabilities: [c0] Bridge subsystem vendor/device ID
+    Capabilities: [c8] HyperTransport
+    Capabilities: [100 v1] Vendor-Specific
+    Capabilities: [150 v2] Advanced Error Reporting
+    Capabilities: [270 v1] Secondary PCIe Capability
+    Capabilities: [2a0 v1] Access Control Services
+    Capabilities: [370 v1] L1 PM Substates
+
+Which shows:
+a. SlotClk- as the status on the endpoint, showing had an effect.
+b. CommClk- as the link control on both the endpoint and root port, showing as expected the common clock configuration has been disabled.
+c. SlotClk+ as the status on the root port.
+
+Selecting SlotClk- on the PCIe endpoint hasn't changed the symptoms.
+
+Trying a DAC cable between the MRMAC port and the T1700G-28TQ switch:
+1. The link was still reported as down on the switch.
+2. The RX realtime status for the MRMAC port was still either 0x00000043 or 0x00000180
+3. The MRAC receive statistics still report framing errors, bad codes and bad FCS:
+VD100_10G_ether_dual port 1 statistics (over 9.999 secs):
+  TX_CYCLE_COUNT           :      6432720703
+  RX_CYCLE_COUNT           :      6445557866
+  RX_FRAMING_ERR_0         :        12830879
+  RX_BAD_CODE              :        12282172
+  RX_INVALID_START         :            2677
+  RX_TOTAL_PACKETS         :             110
+  RX_TOTAL_BYTES           :           26408
+  RX_PACKET_128_255_BYTES  :              66
+  RX_PACKET_256_511_BYTES  :              43
+  RX_PACKET_SMALL          :               1
+  RX_FRAGMENT              :               1
+  RX_BAD_FCS               :             110
+  RX_PACKET_BAD_FCS        :             109
+
+If connect a DAC cable between the two MRMAC ports, both ports are up and mrmac_switch_test and mrmac_loopback_test
+run successfully.
+
+This suggests an issue with the PCIe reference clock having potentially jitter or a larger PPM than allowed by 10 GbE.
+
