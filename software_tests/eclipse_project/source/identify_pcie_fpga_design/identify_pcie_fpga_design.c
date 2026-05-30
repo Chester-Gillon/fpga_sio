@@ -1186,14 +1186,16 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
 
                 case FPGA_DESIGN_AS02MC04_DMA_STREAM_CRC64:
                 {
-                    const uint32_t peripherals_bar_index = 0;
-                    const uint32_t dma_bridge_bar_index = 2;
-                    const size_t quad_spi_base_offset    = 0x0000;
-                    const size_t quad_spi_frame_size     = 0x1000;
-                    const size_t sysmon_base_offset      = 0x1000;
-                    const size_t sysmon_frame_size       = 0x1000;
-                    const size_t user_access_base_offset = 0x2000;
-                    const size_t user_access_frame_size  = 0x1000;
+                    const uint32_t peripherals_bar_index    = 0;
+                    const uint32_t dma_bridge_bar_index     = 2;
+                    const size_t quad_spi_base_offset       = 0x0000;
+                    const size_t quad_spi_frame_size        = 0x1000;
+                    const size_t sysmon_base_offset         = 0x1000;
+                    const size_t sysmon_frame_size          = 0x1000;
+                    const size_t user_access_base_offset    = 0x2000;
+                    const size_t user_access_frame_size     = 0x1000;
+                    const size_t ultrascale_dna_base_offset = 0x3000;
+                    const size_t ultrascale_dna_frame_size  = 0x1000;
 
                     candidate_design->dma_bridge_present = true;
                     candidate_design->dma_bridge_bar = dma_bridge_bar_index;
@@ -1207,6 +1209,12 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     candidate_design->user_access =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                     user_access_base_offset, user_access_frame_size);
+                    if (vfio_device->pci_revision_id >= 1)
+                    {
+                        candidate_design->ultrascale_dna_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                        ultrascale_dna_base_offset, ultrascale_dna_frame_size);
+                    }
                     design_identified = true;
                 }
                 break;
