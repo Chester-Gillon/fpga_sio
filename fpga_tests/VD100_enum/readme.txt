@@ -586,3 +586,35 @@ domain=0000 bus=10 dev=00 func=00 rev=02
     Capabilities: [c8] HyperTransport
 
 
+gen2_x4_sfp_ref_clk
+-------------------
+
+This is a version of gen2_x4, but attempting to use a nonstandard PCIe reference clock frequency of 156.25 MHz, 
+from the oscillator on the GT quad for the SFP+ ports rather than the 100 MHz reference clock from the PCIe slot.
+
+Changes are:
+1. Untick "Enable Slot Clock Configuration" in the XDMA configuration, since the PCIe reference clock
+   will now be asynchronous to the slot clock.
+2. In the pcie_phy set "Async Mode" to SRIS. 
+   https://adaptivesupport.amd.com/s/question/0D54U00008qJY2KSAW/for-async-mode-in-pcie-phy-ip-select-sris-or-srns-?language=en_US
+   describes SRIS mode as:
+     "In SRIS mode, the reference clocks for the PCIe transmitter and receiver can be independently spread-spectrum clocked (SSC).
+      This means that each clock can have its own spread-spectrum modulation, which helps in reducing electromagnetic interference (EMI)."
+
+   Selected SRIS mode since not sure if the PCIe root port will have spread-spectrum modulation enabled or not.
+3. In xdma_0_support/gtwiz_versal_0:
+   a. In Interface Configuration change "Transceiver Configs Interface 0" from AUTO to MANUAL
+   b. In Transceiver Configs Interface 0 change the "Requested Reference Clock (MHz)" from 100 to 156.250.
+      Do for the TX and RX configurations on both:
+      - CONFIG0 which is for gen1 speed 2.5 Gb/s
+      - CONFIG1 which is for gen2 speed 5 Gb/s
+
+The design failed to enumerate.
+
+On checking the xdma_0_support block diagram created by the Block Automation realised:
+a. The pcie_refclk input is connected via utility buffers to the pcie_phy and pcie block.
+b. The gtrefclk output from the pcie_phy block is connected to the gtwiz_versal_0 QUAD0_GTREFCLK0 input.
+   The gtrefclk output from the pcie_phy block has a 100 MHz clock.
+
+This attempted design is flawed, since GTQUAD isn't creating the clocks for the pcie_phy and pcie blocks.
+
