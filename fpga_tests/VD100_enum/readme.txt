@@ -656,3 +656,41 @@ Design VD100_enum:
        H2C 0               1                1                64
        C2H 0               1                1                64
 
+
+VD100_enum/gen4_x4_sfp_ref_clk
+------------------------------
+
+
+This is a version of gen4_x4_direct_gt_refclk, but attempting to use a nonstandard PCIe reference clock frequency of 156.25 MHz, 
+from the oscillator on the GT quad for the SFP+ ports rather than the 100 MHz reference clock from the PCIe slot.
+
+Changes are:
+1. Untick "Enable Slot Clock Configuration" in the XDMA configuration, since the PCIe reference clock
+   will now be asynchronous to the slot clock.
+2. In the pcie_phy set "Async Mode" to SRIS. 
+   https://adaptivesupport.amd.com/s/question/0D54U00008qJY2KSAW/for-async-mode-in-pcie-phy-ip-select-sris-or-srns-?language=en_US
+   describes SRIS mode as:
+     "In SRIS mode, the reference clocks for the PCIe transmitter and receiver can be independently spread-spectrum clocked (SSC).
+      This means that each clock can have its own spread-spectrum modulation, which helps in reducing electromagnetic interference (EMI)."
+
+   Selected SRIS mode since not sure if the PCIe root port will have spread-spectrum modulation enabled or not.
+3. In xdma_0_support/gtwiz_versal_0:
+   a. In Interface Configuration change "Transceiver Configs Interface 0" from AUTO to MANUAL
+   b. In Transceiver Configs Interface 0 change the "Requested Reference Clock (MHz)" from 100 to 156.250.
+      Do for the TX and RX configurations on both:
+      - CONFIG0 which is for gen1 speed 2.5 Gb/s
+      - CONFIG1 which is for gen2 speed 5 Gb/s
+      - CONFIG2 which is for gen3 speed 8 Gb/s
+      - CONFIG3 which is for gen4 speed 16 Gb/s
+
+The design failed to enumerate. PCIe debugger showed Quad_103 lanes at 0 Gbps and zero state transitions.
+
+In gtwiz_versal there are some PCIe specific options:
+a. Wrapper Configuration -> Interface Configuration has "PCIe Enable" which is ticked.
+b. Structural Options -> Options to enable individual ports -> Miscellaneous Ports has the following ticked:
+   - pcieltssm
+   - ch0_pcierstb .. ch3_pcierstb
+
+PG442 "Versal Adaptive SoC Transceiver Subsystem v1.0 Product Guide" doesn't seem to define what the above structural options do.
+Not sure if the transceivers have some fixed possible reference clock frequency options for PCIe, or failed to correctly
+change the expected reference clock frequency settings.
