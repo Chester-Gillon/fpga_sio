@@ -622,18 +622,24 @@ This attempted design is flawed, since GTQUAD isn't creating the clocks for the 
 gen4_x4_direct_gt_refclk
 ------------------------
 
-Looking at the GT related clocks for the pcie and pcie_phy blocks:
-1. The pcie block generated code didn't show sys_clk_gt being used.
+Looking at the reference clocks for the pcie and pcie_phy blocks:
+1. The pcie block generated code:
+   a. Didn't show sys_clk_gt being used.
+   b. The sys_clk is only used to synchronise the sys_reset input.
 2. The pcie_phy generated code:
    a. Didn't show the phy_refclk and phy_gtrefclk inputs being used internally.
    b. The gtrefclk output is just assigned to the phy_gtrefclk input.
 
+
 Compared to gen4_x4 the modifications were:
-a. Connect the gtwiz_versal_0 QUAD0_GTREFCLK0 input to the IBUF_OUT output from the refclk_ibuf.
+1. Connect the gtwiz_versal_0 QUAD0_GTREFCLK0 input to the IBUF_OUT output from the refclk_ibuf.
    I.e. avoid passing through the pcie_phy block.
-b. Connect the following input clocks to a constant zero. The clocks are unused, and this prevented validation errors:
+2. Connect the following input clocks to a constant zero. The clocks are unused, and this prevented validation errors:
    - sys_clk_gt on pcie block
    - phy_refclk and phy_gtrefclk on pcie_phy block
+3. Use the gtwiz_freerun_clk input, which is 99.999001 MHz as the source for pcie sys_clk.
+   Replace the BUTG GT utility buffer with a BUFGCE utility buffer, to allow for the different type of clock for sys_clk.
+   Still used the BUFG_GT_CE input to enable the sys_clk.
 
 The design enumerated in a HP Pavilion 590-p0053na desktop, and was usable. The PCIe root port only supports PCIe gen 3,
 so the warning about reduced bandwidth is expected:
