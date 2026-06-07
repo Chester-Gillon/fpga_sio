@@ -618,3 +618,35 @@ b. The gtrefclk output from the pcie_phy block is connected to the gtwiz_versal_
 
 This attempted design is flawed, since GTQUAD isn't creating the clocks for the pcie_phy and pcie blocks.
 
+
+gen4_x4_direct_gt_refclk
+------------------------
+
+Looking at the GT related clocks for the pcie and pcie_phy blocks:
+1. The pcie block generated code didn't show sys_clk_gt being used.
+2. The pcie_phy generated code:
+   a. Didn't show the phy_refclk and phy_gtrefclk inputs being used internally.
+   b. The gtrefclk output is just assigned to the phy_gtrefclk input.
+
+Compared to gen4_x4 the modifications were:
+a. Connect the gtwiz_versal_0 QUAD0_GTREFCLK0 input to the IBUF_OUT output from the refclk_ibuf.
+   I.e. avoid passing through the pcie_phy block.
+b. Connect the following input clocks to a constant zero. The clocks are unused, and this prevented validation errors:
+   - sys_clk_gt on pcie block
+   - phy_refclk and phy_gtrefclk on pcie_phy block
+
+The design enumerated in a HP Pavilion 590-p0053na desktop, and was usable. The PCIe root port only supports PCIe gen 3,
+so the warning about reduced bandwidth is expected:
+$ ~/fpga_sio/software_tests/eclipse_project/bin/release/identify_pcie_fpga_design/display_identified_pcie_fpga_designs 
+Opening device 0000:10:00.0 (10ee:b044) with IOMMU group 9
+Enabled bus master for 0000:10:00.0
+Warning: Device device 0000:10:00.0 (10ee:b044) has reduced bandwidth
+         Max width x4 speed 16 GT/s. Negotiated width x4 speed 8 GT/s
+
+Design VD100_enum:
+  PCI device 0000:10:00.0 rev 04 IOMMU group 9
+  DMA bridge bar 1 memory base offset 0x0 size 0x1000
+  Channel ID  addr_alignment  len_granularity  num_address_bits
+       H2C 0               1                1                64
+       C2H 0               1                1                64
+
