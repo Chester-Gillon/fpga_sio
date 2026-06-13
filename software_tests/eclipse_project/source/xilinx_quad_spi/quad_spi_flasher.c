@@ -241,6 +241,30 @@ static void display_spi_flash_information (const fpga_design_t *const design)
     printf ("Flash Size Bytes=%u  Page Size Bytes=%u  Num Address Bytes=%u\n",
             controller.flash_size_bytes, controller.page_size_bytes, controller.num_address_bytes);
 
+    const sfdp_parameter_table_t *basic;
+    switch (controller.flash_type)
+    {
+    case QUAD_SPI_FLASH_MICRON_N25QU256:
+    case QUAD_SPI_FLASH_MICRON_MT25QU128:
+    case QUAD_SPI_FLASH_MICRON_MT25QU256:
+    case QUAD_SPI_FLASH_MICRON_MT25QU01G:
+        basic = &controller.micron_25q_params.basic;
+        break;
+
+    case QUAD_SPI_FLASH_MACRONIX_MX25L128:
+        basic = &controller.mx25l128_params.basic;
+        break;
+
+    default:
+        basic = NULL;
+        break;
+    }
+
+    if (basic != NULL)
+    {
+        printf ("SFDP basic parameters major_revision=%u minor_revision=%u\n", basic->major_revision, basic->minor_revision);
+    }
+
     //@todo make these command line options
     if (false)
     {

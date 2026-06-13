@@ -33,10 +33,12 @@
 /* Contains names for quad_spi_flash_t */
 const char *const quad_spi_flash_names[] =
 {
-    [QUAD_SPI_FLASH_SPANSION_S25FL_A]  = "Spansion S25FL_A",
-    [QUAD_SPI_FLASH_MICRON_N25Q256A]   = "Micron N25Q256A",
-    [QUAD_SPI_FLASH_MACRONIX_MX25L128] = "Macronix MX25L128",
-    [QUAD_SPI_FLASH_MICRON_MT25QU01G]  = "Micron MT25QU01G"
+    [QUAD_SPI_FLASH_SPANSION_S25FL_A ] = "Spansion S25FL_A",
+    [QUAD_SPI_FLASH_MICRON_N25QU256  ] = "Micron N25QU256",
+    [QUAD_SPI_FLASH_MICRON_MT25QU128 ] = "Micron MT25QU128",
+    [QUAD_SPI_FLASH_MICRON_MT25QU256 ] = "Micron MT25QU256",
+    [QUAD_SPI_FLASH_MICRON_MT25QU01G ] = "Micron MT25QU01G",
+    [QUAD_SPI_FLASH_MACRONIX_MX25L128] = "Macronix MX25L128"
 };
 
 
@@ -766,19 +768,40 @@ static bool quad_spi_identify_spansion_s25fl_a (quad_spi_controller_context_t *c
 
 
 /**
- * @brief Identify the information to use a Micron N25Q256A Quad SPI flash.
- * @details Used the datasheet:
+ * @brief Identify the information to use a Micron 25Q series Quad SPI flash
+ * @details Used the datasheets:
  *          https://media-www.micron.com/-/media/client/global/documents/products/data-sheet/nor-flash/serial-nor/n25q/n25q_256mb_1_8v.pdf
+ *          https://www.micron.com/content/dam/micron/global/secure/products/data-sheet/nor-flash/serial-nor/mt25q/die-rev-b/mt25q-qlkt-u-01g-bbb-0.pdf
+ *          https://www.micron.com/content/dam/micron/global/secure/products/data-sheet/nor-flash/serial-nor/mt25q/die-rev-a/mt25q-qlhs-u-128-aba-0.pdf
  *
- *          The assumption is that the device is in "Extended SPI protocol" mode with the command entered on DQ0 only.
- *          If the device has been placed in "Dual SPI protocol" or "Quad SPI protocol" modes then wouldn't be able to identify
- *          the device as the Quad SPI core always issues commands on DQ0 only.
+ *          And the technical note:
+ *          https://www.micron.com/content/dam/micron/global/secure/products/technical-note/nor-flash/tn2506-sfdp-for-mt25q.pdf
  * @param[in/out] controller The controller being initialised.
  * @return Returns true if have identified a supported Quad SPI flash or false otherwise.
  */
-static bool quad_spi_identify_micron_n25q256a (quad_spi_controller_context_t *const controller)
+static bool quad_spi_identify_micron_25q (quad_spi_controller_context_t *const controller)
 {
-    micron_n25q256a_parameters_t *const my_params = &controller->n25q256a_params;
+    micron_25q_parameters_t *const my_params = &controller->micron_25q_params;
+
+    /* Perform an initial identification using the memory interface type and density. */
+    const uint8_t micron_memory_interface_type_1p8v = 0xbb;
+    if ((controller->memory_interface_type == micron_memory_interface_type_1p8v) && (controller->density == 0x18))
+    {
+        controller->flash_type = QUAD_SPI_FLASH_MICRON_MT25QU128;
+    }
+    else if ((controller->memory_interface_type == micron_memory_interface_type_1p8v) && (controller->density == 0x19))
+    {
+        /* May be changed to QUAD_SPI_FLASH_MICRON_N25QU256 after checking the SFDP Basic Parameter table */
+        controller->flash_type = QUAD_SPI_FLASH_MICRON_MT25QU256;
+    }
+    else if ((controller->memory_interface_type = micron_memory_interface_type_1p8v) && (controller->density == 0x21))
+    {
+        controller->flash_type = QUAD_SPI_FLASH_MICRON_MT25QU01G;
+    }
+    else
+    {
+        return false;
+    }
 
     if (!quad_spi_read_serial_flash_discoverable_parameters (controller, sizeof (my_params->sfdp), my_params->sfdp))
     {
@@ -795,7 +818,7 @@ static bool quad_spi_identify_micron_n25q256a (quad_spi_controller_context_t *co
         return false;
     }
 
-    /* The N25Q256A only implemented version 1.0 of the SFDP Basic Parameter table with 9 words,
+    /* The N25QU256 only implemented version 1.0 of the SFDP Basic Parameter table with 9 words,
      * unlike the most recent version 1.8 in JESD216F.02 which has 23 words. */
     const uint32_t min_basic_parameter_table_length = 9;
     if (!quad_spi_find_sfdp_parameter_table (&my_params->basic, sizeof (my_params->sfdp), my_params->sfdp,
@@ -827,78 +850,24 @@ static bool quad_spi_identify_micron_n25q256a (quad_spi_controller_context_t *co
      * and so the mode bits are not sampled by the flash. */
     controller->perform_mode_bit_reset_after_read = false;
 
-    /* The SFDP Basic Parameter table revision in the N25Q256A doesn't contain word 11 with the Page Size,
-     * so use the value from the datasheet. */
-    controller->page_size_bytes = 256;
-
-    return true;
-}
-
-
-/**
- * @brief Identify the information to use a MT25QU01G Quad SPI flash
- * @details Used the datasheet:
- *          https://www.micron.com/content/dam/micron/global/secure/products/data-sheet/nor-flash/serial-nor/mt25q/die-rev-b/mt25q-qlkt-u-01g-bbb-0.pdf
- *
- *          And the technical note:
- *          https://www.micron.com/content/dam/micron/global/secure/products/technical-note/nor-flash/tn2506-sfdp-for-mt25q.pdf
- * @param[in/out] controller The controller being initialised.
- * @return Returns true if have identified a supported Quad SPI flash or false otherwise.
- */
-static bool quad_spi_identify_micron_mt25qu01g (quad_spi_controller_context_t *const controller)
-{
-    micron_mt25qu01g_parameters_t *const my_params = &controller->mt25qu01g_params;
-
-    if (!quad_spi_read_serial_flash_discoverable_parameters (controller, sizeof (my_params->sfdp), my_params->sfdp))
+    const uint32_t min_parameter_table_length_for_page_size = 16; /* For version 1.6 */
+    if (my_params->basic.parameter_table_length >= min_parameter_table_length_for_page_size)
     {
-        return false;
+        /* Determine the page size for programming */
+        const uint32_t page_size_log2 = quad_spi_extract_sfdp_field (&my_params->basic, 11, 4, 4);
+        controller->page_size_bytes = 1u << page_size_log2;
     }
-    if (!quad_spi_read_reg8 (controller, XSPI_OPCODE_READ_VOLATILE_CONFIGURATION_REGISTER,
-            &my_params->volatile_configuration_register))
+    else
     {
-        return false;
+        /* The SFDP Basic Parameter table doesn't contain word 11 with the Page Size, so use a default value
+         * so use the value from a datasheet. */
+        if (controller->flash_type == QUAD_SPI_FLASH_MICRON_MT25QU256)
+        {
+            /* Change type to the older device, based upon the lower revision SFDP Basic Parameter table */
+            controller->flash_type = QUAD_SPI_FLASH_MICRON_N25QU256;
+        }
+        controller->page_size_bytes = 256;
     }
-    if (!quad_spi_read_le_reg16 (controller, XSPI_OPCODE_MICRON_READ_NONVOLATILE_CONFIGURATION_REGISTER,
-            &my_params->nonvolatile_configuration_register))
-    {
-        return false;
-    }
-
-    /* The MT25QU01G only implemented version 1.6 of the SFDP Basic Parameter table with 16 words,
-     * unlike the most recent version 1.8 in JESD216F.02 which has 23 words. */
-    const uint32_t min_basic_parameter_table_length = 16;
-    if (!quad_spi_find_sfdp_parameter_table (&my_params->basic, sizeof (my_params->sfdp), my_params->sfdp,
-            SFDP_JEDEC_BASIC_PARAMETER_ID, &my_params->sfdp_populated_len))
-    {
-        return false;
-    }
-    else if (my_params->basic.parameter_table_length < min_basic_parameter_table_length)
-    {
-        printf ("SFDP basic parameter length only %u\n", my_params->basic.parameter_table_length);
-        return false;
-    }
-
-    /* Determine flash information from the SFDP */
-    quad_spi_sfdp_determine_flash_size (controller, &my_params->basic);
-    if (!quad_spi_sfdp_determine_erase_sectors (controller, &my_params->basic))
-    {
-        return false;
-    }
-
-    /* Use Quad IO read with the number of dummy bytes looked up from the SFDP. */
-    const uint32_t qaud_io_read_mode_clock_cycles = quad_spi_extract_sfdp_field (&my_params->basic, 3, 3, 5);
-    const uint32_t quad_io_read_dummy_cycles = quad_spi_extract_sfdp_field (&my_params->basic, 3, 5, 0);
-    const uint32_t num_quad_io_cycles_per_byte = 2;
-    controller->read_num_dummy_bytes = (qaud_io_read_mode_clock_cycles + quad_io_read_dummy_cycles) / num_quad_io_cycles_per_byte;
-    controller->read_opcode = XSPI_OPCODE_QUAD_IO_READ_4_BYTE_ADDRESS;
-
-    /* It is assumed that XIP mode is disabled in the volatile configuration and non-volatile configure registers,
-     * and so the mode bits are not sampled by the flash. */
-    controller->perform_mode_bit_reset_after_read = false;
-
-    /* Determine the page size for programming */
-    const uint32_t page_size_log2 = quad_spi_extract_sfdp_field (&my_params->basic, 11, 4, 4);
-    controller->page_size_bytes = 1u << page_size_log2;
 
     return true;
 }
@@ -1027,16 +996,7 @@ static bool quad_spi_identify_supported_flash (quad_spi_controller_context_t *co
         break;
 
     case MANUFACTURER_ID_MICRON:
-        if ((controller->memory_interface_type == 0xbb) && (controller->density == 0x19))
-        {
-            controller->flash_type = QUAD_SPI_FLASH_MICRON_N25Q256A;
-            supported = quad_spi_identify_micron_n25q256a (controller);
-        }
-        else if ((controller->memory_interface_type = 0xbb) && (controller->density == 0x21))
-        {
-            controller->flash_type = QUAD_SPI_FLASH_MICRON_MT25QU01G;
-            supported = quad_spi_identify_micron_mt25qu01g (controller);
-        }
+        supported = quad_spi_identify_micron_25q (controller);
         break;
 
     case MANUFACTURER_ID_MACRONIX:
@@ -1287,21 +1247,18 @@ void quad_spi_dump_raw_parameters (quad_spi_controller_context_t *const controll
         cfi_vendor_specific = controller->s25fl_a_params.vendor_specific;
         break;
 
-    case QUAD_SPI_FLASH_MICRON_N25Q256A:
-        parameters = controller->n25q256a_params.sfdp;
-        parameters_len_bytes = controller->n25q256a_params.sfdp_populated_len;
+    case QUAD_SPI_FLASH_MICRON_N25QU256:
+    case QUAD_SPI_FLASH_MICRON_MT25QU128:
+    case QUAD_SPI_FLASH_MICRON_MT25QU256:
+    case QUAD_SPI_FLASH_MICRON_MT25QU01G:
+        parameters = controller->micron_25q_params.sfdp;
+        parameters_len_bytes = controller->micron_25q_params.sfdp_populated_len;
         parameters_name = "SFDP";
         break;
 
     case QUAD_SPI_FLASH_MACRONIX_MX25L128:
         parameters = controller->mx25l128_params.sfdp;
         parameters_len_bytes = controller->mx25l128_params.sfdp_populated_len;
-        parameters_name = "SFDP";
-        break;
-
-    case QUAD_SPI_FLASH_MICRON_MT25QU01G:
-        parameters = controller->mt25qu01g_params.sfdp;
-        parameters_len_bytes = controller->mt25qu01g_params.sfdp_populated_len;
         parameters_name = "SFDP";
         break;
     }
