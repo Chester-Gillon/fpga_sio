@@ -69,7 +69,8 @@ const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE] =
     [FPGA_DESIGN_VD100_25G_ETHER_DUAL] = "VD100_25G_ether_dual",
     [FPGA_DESIGN_U200_100G_ETHER_DUPLEX] = "U200_100G_ether_duplex",
     [FPGA_DESIGN_AS02MC04_QDMA_ENUM] = "AS02MC04_qdma_enum",
-    [FPGA_DESIGN_VD100_40G_ETHER] = "VD100_40G_ether"
+    [FPGA_DESIGN_VD100_40G_ETHER] = "VD100_40G_ether",
+    [FPGA_DESIGN_XCKU5P_SINGLE_QSFP_DMA_STREAM_LOOPBACK] = "XCKU5P_SINGLE_QSFP_dma_stream_loopback"
 };
 
 
@@ -432,6 +433,14 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_VD100_40G_ETHER,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
+    },
+    [FPGA_DESIGN_XCKU5P_SINGLE_QSFP_DMA_STREAM_LOOPBACK] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_XCKU5P_SINGLE_QSFP_DMA_STREAM_LOOPBACK,
         .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     }
 };
@@ -1678,6 +1687,45 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                         candidate_design->dma_bridge_present = true;
                         candidate_design->dma_bridge_bar = dma_bridge_bar_index;
                         candidate_design->dma_bridge_memory_size_bytes = 0; /* DMA bridge configured for "AXI Stream" */
+                        design_identified = true;
+                    }
+                    break;
+
+                case FPGA_DESIGN_XCKU5P_SINGLE_QSFP_DMA_STREAM_LOOPBACK:
+                    {
+                        const uint32_t peripherals_bar_index    = 0;
+                        const uint32_t dma_bridge_bar_index     = 2;
+                        const size_t quad_spi_base_offset       = 0x0000;
+                        const size_t quad_spi_frame_size        = 0x1000;
+                        const size_t sysmon_base_offset         = 0x1000;
+                        const size_t sysmon_frame_size          = 0x1000;
+                        const size_t user_access_base_offset    = 0x2000;
+                        const size_t user_access_frame_size     = 0x1000;
+                        const size_t axi_switch_base_offset     = 0x3000;
+                        const size_t axi_switch_frame_size      = 0x1000;
+                        const size_t ultrascale_dna_base_offset = 0x4000;
+                        const size_t ultrascale_dna_frame_size  = 0x1000;
+
+                        candidate_design->dma_bridge_present = true;
+                        candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                        candidate_design->dma_bridge_memory_size_bytes = 0; /* DMA bridge configured for "AXI Stream" */
+                        candidate_design->quad_spi_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                        quad_spi_base_offset, quad_spi_frame_size);
+                        candidate_design->sysmon_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index, sysmon_base_offset, sysmon_frame_size);
+                        candidate_design->num_sysmon_slaves = 0;
+                        candidate_design->user_access =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                        user_access_base_offset, user_access_frame_size);
+                        candidate_design->axi_switch_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                        axi_switch_base_offset, axi_switch_frame_size);
+                        candidate_design->axi_switch_num_master_ports = 4;
+                        candidate_design->axi_switch_num_slave_ports = 4;
+                        candidate_design->ultrascale_dna_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                        ultrascale_dna_base_offset, ultrascale_dna_frame_size);
                         design_identified = true;
                     }
                     break;

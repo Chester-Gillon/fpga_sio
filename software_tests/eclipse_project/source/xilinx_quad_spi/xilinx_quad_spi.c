@@ -844,7 +844,8 @@ static bool quad_spi_identify_micron_25q (quad_spi_controller_context_t *const c
     const uint32_t quad_io_read_dummy_cycles = quad_spi_extract_sfdp_field (&my_params->basic, 3, 5, 0);
     const uint32_t num_quad_io_cycles_per_byte = 2;
     controller->read_num_dummy_bytes = (qaud_io_read_mode_clock_cycles + quad_io_read_dummy_cycles) / num_quad_io_cycles_per_byte;
-    controller->read_opcode = XSPI_OPCODE_QUAD_IO_READ_4_BYTE_ADDRESS;
+    controller->read_opcode = (uint8_t) quad_spi_extract_sfdp_field (&my_params->basic, 3, 8, 8);
+    quad_spi_select_opcode_for_address_size (controller, &controller->read_opcode);
 
     /* It is assumed that XIP mode is disabled in the volatile configuration and non-volatile configure registers,
      * and so the mode bits are not sampled by the flash. */

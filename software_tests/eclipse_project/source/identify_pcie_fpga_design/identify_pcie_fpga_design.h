@@ -98,8 +98,8 @@ typedef enum
     /* fpga_tests/XCKU5P_DUAL_QSFP_dma_stream_loopback which contains:
      * a. DMA/Bridge Subsystem loopback of four AXI streams via a AXI4-Stream Switch with register based routing.
      * b. Quad SPI connected to the configuration flash.
-     * c. XADC
-     */
+     * c. Access the SYSMON (internal sensors only).
+     * d. GPIO input to read user access FPGA build time. */
     FPGA_DESIGN_XCKU5P_DUAL_QSFP_DMA_STREAM_LOOPBACK,
 
     /* fpga_tests/XCKU5P_DUAL_QSFP_dma_ram which contains:
@@ -303,6 +303,14 @@ typedef enum
      * b. GPIOs for SFP Tx Enable signals.
      * c. AXI IIC Bus Interface to SFP1 (board only connects the I2C interface to the SFP1 module). */
     FPGA_DESIGN_VD100_40G_ETHER,
+
+    /* fpga_tests/XCKU5P_SINGLE_QSFP_dma_stream_loopback which contains:
+     * a. DMA/Bridge Subsystem loopback of four AXI streams via a AXI4-Stream Switch with register based routing.
+     * b. Quad SPI connected to the configuration flash.
+     * c. Access the SYSMON (internal sensors only).
+     * d. GPIO input to read user access FPGA build time.
+     * e. Access registers used to read the UltraScale DNA. */
+    FPGA_DESIGN_XCKU5P_SINGLE_QSFP_DMA_STREAM_LOOPBACK,
 
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;

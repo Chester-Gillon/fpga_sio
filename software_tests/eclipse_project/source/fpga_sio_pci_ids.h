@@ -289,4 +289,12 @@
  * c. AXI IIC Bus Interface to SFP1 (board only connects the I2C interface to the SFP1 module). */
 #define FPGA_SIO_SUBDEVICE_ID_VD100_40G_ETHER 0x002B
 
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Loopback of four AXI streams via a AXI4-Stream Switch with register based routing.
+ * b. Quad SPI connected to the configuration flash.
+ * c. Access the SYSMON (internal sensors only).
+ * d. GPIO input to read user access FPGA build time.
+ * e. Access registers used to read the UltraScale DNA. */
+#define FPGA_SIO_SUBDEVICE_ID_XCKU5P_SINGLE_QSFP_DMA_STREAM_LOOPBACK 0x002C
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */
