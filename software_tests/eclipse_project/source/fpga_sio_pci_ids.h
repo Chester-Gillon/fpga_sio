@@ -297,4 +297,13 @@
  * e. Access registers used to read the UltraScale DNA. */
 #define FPGA_SIO_SUBDEVICE_ID_XCKU5P_SINGLE_QSFP_DMA_STREAM_LOOPBACK 0x002C
 
+
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Access 4GB of DDR4 memory.
+ * b. Quad SPI connected to the configuration flash.
+ * c. Access the SYSMON (internal sensors only).
+ * d. GPIO input to read user access FPGA build time.
+ * e. Access registers used to read the UltraScale DNA. */
+#define FPGA_SIO_SUBDEVICE_ID_XCKU5P_SINGLE_QSFP_DMA_DDR4 0x002D
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

@@ -78,7 +78,7 @@ static void parse_command_line_arguments (int argc, char *argv[])
 
         case '?':
         default:
-            printf ("Usage %s [-d <pci_device_location>] [-o <reset_duration_floating_point_secs>]\n", argv[0]);
+            printf ("Usage %s [-d <pci_device_location>] [-r <reset_duration_floating_point_secs>]\n", argv[0]);
             exit (EXIT_FAILURE);
             break;
         }
@@ -275,6 +275,20 @@ int main (int argc, char *argv[])
             {
                 const uint32_t peripherals_bar_index = 0;
                 const size_t gpio_reset_control_base_offset = 0x3000;
+                const size_t gpio_reset_control_frame_size  = 0x1000;
+
+                gpio_reset_control_regs =
+                        map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                gpio_reset_control_base_offset, gpio_reset_control_frame_size);
+            }
+            break;
+
+        case FPGA_DESIGN_XCKU5P_SINGLE_QSFP_DMA_DDR4:
+            /* In this design CLOCKING_WIZARD_LOCKED_MASK is not actually used, and is fixed high at the GPIO input
+             * for compatibility with FPGA_DESIGN_TOSING_160T_DMA_DDR3 */
+            {
+                const uint32_t peripherals_bar_index = 0;
+                const size_t gpio_reset_control_base_offset = 0x4000;
                 const size_t gpio_reset_control_frame_size  = 0x1000;
 
                 gpio_reset_control_regs =

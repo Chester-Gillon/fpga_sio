@@ -312,6 +312,14 @@ typedef enum
      * e. Access registers used to read the UltraScale DNA. */
     FPGA_DESIGN_XCKU5P_SINGLE_QSFP_DMA_STREAM_LOOPBACK,
 
+    /* fpga_tests/XCKU5P_SINGLE_QSFP_dma_ddr4 which contains:
+     * a. DMA/Bridge Subsystem to Access 4GB of DDR4 memory.
+     * b. Quad SPI connected to the configuration flash.
+     * c. Access the SYSMON (internal sensors only).
+     * d. GPIO input to read user access FPGA build time.
+     * e. Access registers used to read the UltraScale DNA. */
+    FPGA_DESIGN_XCKU5P_SINGLE_QSFP_DMA_DDR4,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 
