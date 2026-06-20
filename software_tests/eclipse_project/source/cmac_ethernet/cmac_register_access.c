@@ -12,6 +12,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
 
 
 #define STRINGIFY_HELPER(X) #X
@@ -369,4 +370,94 @@ void cmac_display_port_statistics (const cmac_port_statistics_t *const stats)
                     counter_value, (counter_value == CMAC_STAT_SATURATED_VALUE) ? " (saturated)" : "");
         }
     }
+}
+
+
+/**
+ * @brief Initialise an iterator for CMAC ports
+ * @param[out] iterator The initialised iterator
+ * @param[in] designs The designs to iterate over
+ * @param[in] port_num_filter Optional port number filter
+ * @param[in] port_num_filter_specified If true, the iterator will only return port number which are present and match port_num_filter
+ */
+void cmac_port_iterator_initialise (cmac_port_iterator_t *const iterator, fpga_designs_t *const designs,
+                                    const uint32_t port_num_filter, const bool port_num_filter_specified)
+{
+    iterator->designs = designs;
+    iterator->current_design_index = 0;
+    iterator->current_port_index = 0;
+    iterator->port_num_filter = port_num_filter;
+    iterator->port_num_filter_specified = port_num_filter_specified;
+}
+
+
+/**
+ * @brief Get the next CMAC port to processed by an iterator
+ * @param[in,out] iterator The iterator to advance
+ * @param[out] port_num The next port number to be processed
+ * @return If non-NULL the design containing the next CMAC port to process.
+ *         If NULL the iterator is complete.
+ */
+fpga_design_t *cmac_port_iterator_next (cmac_port_iterator_t *const iterator, uint32_t *const port_num)
+{
+    fpga_design_t *available_design = NULL;
+
+    *port_num = 0;
+    while ((available_design == NULL) && (iterator->current_design_index < iterator->designs->num_identified_designs))
+    {
+        if (iterator->designs->designs[iterator->current_design_index].num_cmac_ports > 0)
+        {
+            const bool port_num_wanted = (!iterator->port_num_filter_specified) ||
+                    (iterator->port_num_filter_specified && (iterator->current_port_index == iterator->port_num_filter));
+
+            if (port_num_wanted)
+            {
+                /* Have found a wanted CMAC port to return */
+                available_design = &iterator->designs->designs[iterator->current_design_index];
+                *port_num = iterator->current_port_index;
+            }
+
+            /* Advance the iterator to the next possible port / design */
+            iterator->current_port_index++;
+            if (iterator->current_port_index == iterator->designs->designs[iterator->current_design_index].num_cmac_ports)
+            {
+                iterator->current_port_index = 0;
+                iterator->current_design_index++;
+            }
+        }
+        else
+        {
+            /* Skip design with no CMAC */
+            iterator->current_design_index++;
+        }
+    }
+
+    return available_design;
+}
+
+
+/**
+ * @brief Reset a CMAC port
+ * @details This asserts all reset bits for the port, as is intended following a configuration change rather than recovering
+ *          from a specific error.
+ * @param[in,out] design Contains the design with the CMAC
+ * @param[in] Which CMAC port to reset.
+ */
+void cmac_reset_port (fpga_design_t *const design, const uint32_t port_num)
+{
+    uint8_t *const port_regs = design->cmac_ports[port_num].cmac_regs;
+
+    /* Apply reset for 100 microseconds, in the absence of any minimum reset duration in the CMAC documentation */
+    const struct timespec reset_duration =
+    {
+        .tv_sec = 0,
+        .tv_nsec = 100000
+    };
+
+    write_reg32 (port_regs, GT_RESET_REG_OFFSET, GT_RESET_REG_GT_RESET_ALL_MASK);
+    write_reg32 (port_regs, RESET_REG_OFFSET,
+            RESET_REG_USR_RX_SERDES_RESET_MASK | RESET_REG_USR_RX_RESET_MASK | RESET_REG_USR_TX_RESET_MASK);
+    clock_nanosleep (CLOCK_MONOTONIC, 0, &reset_duration, NULL);
+    write_reg32 (port_regs, GT_RESET_REG_OFFSET, 0);
+    write_reg32 (port_regs, RESET_REG_OFFSET, 0);
 }

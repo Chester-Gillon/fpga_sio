@@ -26,3 +26,6 @@ target_link_libraries (cmac_link_control identify_pcie_fpga_design vfio_access)
 
 add_executable (cmac_statistics "cmac_statistics.c")
 target_link_libraries (cmac_statistics cmac_register_access identify_pcie_fpga_design transfer_timing vfio_access)
+
+add_executable (cmac_configuration "cmac_configuration.c")
+target_link_libraries (cmac_configuration cmac_register_access identify_pcie_fpga_design transfer_timing vfio_access)

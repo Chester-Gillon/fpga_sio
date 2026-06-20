@@ -178,6 +178,22 @@ typedef struct
 } cmac_port_statistics_t;
 
 
+/* Specifies an iterator for operating on CMAC ports.
+ * No device filter, since can be handled via vfio_add_pci_device_location_filter() */
+typedef struct
+{
+    /* The opened FPGA designs */
+    fpga_designs_t *designs;
+    /* Current design index for the iterator */
+    uint32_t current_design_index;
+    /* Current port on current_design_index for the iterator */
+    uint32_t current_port_index;
+    /* Optional filter for only a single port */
+    uint32_t port_num_filter;
+    bool port_num_filter_specified;
+} cmac_port_iterator_t;
+
+
 extern const cmac_statistics_counter_definition_t cmac_statistics_counter_definitions[CMAC_STAT_ARRAY_SIZE];
 
 
@@ -185,6 +201,10 @@ void display_cmac_ports (const fpga_design_t *const design);
 void cmac_snapshot_port_statistics (fpga_design_t *const design, const uint32_t port_num, cmac_port_statistics_t *const stats);
 void cmac_read_port_statistics (cmac_port_statistics_t *const stats);
 void cmac_display_port_statistics (const cmac_port_statistics_t *const stats);
+void cmac_port_iterator_initialise (cmac_port_iterator_t *const iterator, fpga_designs_t *const designs,
+                                    const uint32_t port_num_filter, const bool port_num_filter_specified);
+fpga_design_t *cmac_port_iterator_next (cmac_port_iterator_t *const iterator, uint32_t *const port_num);
+void cmac_reset_port (fpga_design_t *const design, const uint32_t port_num);
 
 
 #endif /* CMAC_REGISTER_ACCESS_H_ */
