@@ -148,6 +148,11 @@ static void reset_ddr3 (uint8_t *const gpio_reset_control_regs)
     /* The GPIO value which indicates the reset is complete, with the clocks locked and the DDR3 init calibration complete */
     const uint32_t reset_complete_value = CLOCKING_WIZARD_LOCKED_MASK | MMCM_LOCKED_MASK | INIT_CAL_COMPLETE_MASK;
 
+    /* Mask of all the GPIO bits related to reset control. Added since FPGA_DESIGN_U200_DMA_DDR4 has additional GPIO inputs
+     * connected to the RDIMM alert_n signals. */
+    const uint32_t reset_signals_mask = CLOCKING_WIZARD_RESET_MASK | CLOCKING_WIZARD_LOCKED_MASK | MMCM_LOCKED_MASK |
+            INIT_CAL_COMPLETE_MASK | UI_CLK_SYNC_RST_MASK;
+
     /* Use a 10 second timeout for the initialisation failing to complete */
     const int64_t initialisation_timeout = deassert_reset_time + (10000000000L);
 
@@ -182,7 +187,7 @@ static void reset_ddr3 (uint8_t *const gpio_reset_control_regs)
         now = get_monotonic_time ();
         record_reset_signal_changes (gpio_reset_control_regs, reset_control_mask);
         timedout = now >= initialisation_timeout;
-        reset_complete = reset_signals_history[reset_signals_history_len - 1].reg_value == reset_complete_value;
+        reset_complete = (reset_signals_history[reset_signals_history_len - 1].reg_value & reset_signals_mask) == reset_complete_value;
     } while (!timedout && !reset_complete);
 
     if (timedout)
@@ -289,6 +294,20 @@ int main (int argc, char *argv[])
             {
                 const uint32_t peripherals_bar_index = 0;
                 const size_t gpio_reset_control_base_offset = 0x4000;
+                const size_t gpio_reset_control_frame_size  = 0x1000;
+
+                gpio_reset_control_regs =
+                        map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                gpio_reset_control_base_offset, gpio_reset_control_frame_size);
+            }
+            break;
+
+        case FPGA_DESIGN_U200_DMA_DDR4:
+            /* In this design CLOCKING_WIZARD_LOCKED_MASK is not actually used, and is fixed high at the GPIO input
+             * for compatibility with FPGA_DESIGN_TOSING_160T_DMA_DDR3 */
+            {
+                const uint32_t peripherals_bar_index = 0;
+                const size_t gpio_reset_control_base_offset = 0x9000;
                 const size_t gpio_reset_control_frame_size  = 0x1000;
 
                 gpio_reset_control_regs =
