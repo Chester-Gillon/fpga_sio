@@ -29,8 +29,11 @@
 #include <unistd.h>
 
 
-/* Use a single fixed transfer timeout, to stop the test from hanging */
-#define TRANSFER_TIMEOUT_SECS 10
+/* Use a single fixed transfer timeout, to stop the test from hanging.
+ * Increased from 10 to 60 seconds to stop timing out with FPGA_DESIGN_U200_DMA_DDR4 when tested with the
+ * dma_bridge_memory_base_address option used to test with accesses not aligned to the DDR4 data bus width,
+ * which forces ECC read-modify-write accesses and slows down the transfer rate. */
+#define TRANSFER_TIMEOUT_SECS 60
 
 /** Delimiter for comma-separated command line arguments */
 #define DELIMITER ","
@@ -49,7 +52,13 @@ typedef struct
 /* The list of different tests which can be performed */
 typedef enum
 {
-    /* Perform a write/read test of DMA accessible memory using a pair of channels, using fixed size buffers */
+    /* Perform a write/read test of DMA accessible memory using a pair of channels, using fixed size buffers.
+     * Host memory required is twice that of the card memory since:
+     * a. Creates a source and destination buffer in host memory, each of the same size as the card memory.
+     * b. Fills the source buffer in host memory with a test pattern.
+     * c. Transfers the host source buffer to card memory using DMA.
+     * d. Transfers the card memory to host destination buffer using DMA.
+     * e. Verifies the test pattern in the host destination buffer. */
     DMA_TEST_MEMORY_FIXED_BUFFERS,
     /* Perform a DMA test of a pair of AXI streams which are looped-back, using fixed size buffers.
      * The software starts each C2H transfer. */
@@ -58,11 +67,16 @@ typedef enum
      * The C2H DMA runs continuously, without software having to start each C2H transfer. */
     DMA_TEST_STREAM_FIXED_BUFFERS_C2H_CONTINUOUS,
     /* Perform a write/read test of DMA accessible memory using a pair of channels, and transfers in which
-     * the descriptors are modified before use. */
+     * the descriptors are modified before use.
+     * Host memory required is twice that of the card memory, for same reason as DMA_TEST_MEMORY_FIXED_BUFFERS. */
     DMA_TEST_MEMORY_VARIABLE_TRANSFERS,
     /* Perform a DMA test of a pair of AXI streams which are looped-back, and transfers in which the
      * descriptors are modified before use. */
     DMA_TEST_STREAM_VARIABLE_TRANSFERS,
+    /* Perform a write/read test of DMA accessible memory using a pair of channels, using a single host buffer
+     * which is smaller than the card memory. For use when the host memory available is less than twice the card memory
+     * such that DMA_TEST_MEMORY_FIXED_BUFFERS and DMA_TEST_MEMORY_VARIABLE_TRANSFERS can't be used. */
+    DMA_TEST_MEMORY_HOST_CHUNKS,
 
     DMA_TEST_ARRAY_SIZE
 } dma_test_t;
@@ -74,7 +88,8 @@ static const char *const dma_test_names[DMA_TEST_ARRAY_SIZE] =
     [DMA_TEST_STREAM_FIXED_BUFFERS] = "stream_fixed_buffers",
     [DMA_TEST_STREAM_FIXED_BUFFERS_C2H_CONTINUOUS] = "stream_fixed_buffers_c2h_continuous",
     [DMA_TEST_MEMORY_VARIABLE_TRANSFERS] = "memory_variable_transfers",
-    [DMA_TEST_STREAM_VARIABLE_TRANSFERS] = "stream_variable_transfers"
+    [DMA_TEST_STREAM_VARIABLE_TRANSFERS] = "stream_variable_transfers",
+    [DMA_TEST_MEMORY_HOST_CHUNKS] = "memory_host_chunks"
 };
 
 /* Identifies which tests use AXI streams, as opposed to DMA accessible memory */
@@ -93,7 +108,8 @@ static bool arg_enabled_tests[DMA_TEST_ARRAY_SIZE] =
     [DMA_TEST_STREAM_FIXED_BUFFERS] = true,
     [DMA_TEST_STREAM_FIXED_BUFFERS_C2H_CONTINUOUS] = true,
     [DMA_TEST_MEMORY_VARIABLE_TRANSFERS] = true,
-    [DMA_TEST_STREAM_VARIABLE_TRANSFERS] = true
+    [DMA_TEST_STREAM_VARIABLE_TRANSFERS] = true,
+    [DMA_TEST_MEMORY_HOST_CHUNKS] = true
 };
 
 
@@ -133,6 +149,17 @@ static size_t arg_c2h_transfer_length = 0x10000000;
 /* Command line argument which specifies the width of the AXI streams, which controls C2H transfer alignment */
 static size_t arg_stream_axi_width_bytes = 16;
 
+/* Command line argument which specifies the divisor on the card memory size to get the host buffer size
+ * used for DMA_TEST_MEMORY_HOST_CHUNKS */
+static size_t arg_host_buffer_divisor = 4;
+
+
+/* Command line arguments for overriding the definition of DMA accessible memory for the design */
+static size_t arg_dma_bridge_memory_base_address;
+static bool arg_dma_bridge_memory_base_address_specified;
+static size_t arg_dma_bridge_memory_size_bytes;
+static bool arg_dma_bridge_memory_size_bytes_specified;
+
 
 /** The command line options for this program, in the format passed to getopt_long().
  *  Only long arguments are supported */
@@ -149,6 +176,9 @@ static const struct option command_line_options[] =
     {"enabled_tests", required_argument, NULL, 0},
     {"transfer_length", required_argument, NULL, 0},
     {"stream_axi_width_bytes", required_argument, NULL, 0},
+    {"host_buffer_divisor", required_argument, NULL, 0},
+    {"dma_bridge_memory_base_address", required_argument, NULL, 0},
+    {"dma_bridge_memory_size_bytes", required_argument, NULL, 0},
     {NULL, 0, NULL, 0}
 };
 
@@ -206,6 +236,14 @@ static void display_usage (void)
     printf ("  Sets the AXI stream width, used as the alignment for C2H stream transfers.\n");
     printf ("  The reason is a packet which is split across multiple C2H descriptors aligns\n");
     printf ("  each write except the one with EOP to the AXI stream width.\n");
+    printf ("--host_buffer_divisor <divisor>\n");
+    printf ("  Specifies the divisor on the card memory size to get the host buffer size\n");
+    printf ("  used for DMA_TEST_MEMORY_HOST_CHUNKS.\n");
+    printf ("--dma_bridge_memory_base_address <address>\n");
+    printf ("  Overrides the dma_bridge_memory_base_address specified for the design.\n");
+    printf ("  To either reduce the memory tested, or investigate accessing non-existent memory\n");
+    printf ("--dma_bridge_memory_size_bytes <size>\n");
+    printf ("  Overrides the dma_bridge_memory_size_bytes specified for the design.\n");
     printf ("--enabled_tests <comma separated test names>\n");
     printf ("  Selects which tests are enabled. Possible tests are:\n");
     for (dma_test_t dma_test = 0; dma_test < DMA_TEST_ARRAY_SIZE; dma_test++)
@@ -364,6 +402,33 @@ static void parse_command_line_arguments (int argc, char *argv[])
                     printf ("Invalid %s %s\n", optdef->name, optarg);
                     exit (EXIT_FAILURE);
                 }
+            }
+            else if (strcmp (optdef->name, "host_buffer_divisor") == 0)
+            {
+                if ((sscanf (optarg, "%zu%c", &arg_host_buffer_divisor, &junk) != 1) || (arg_host_buffer_divisor == 0))
+                {
+                    printf ("Invalid %s %s\n", optdef->name, optarg);
+                    exit (EXIT_FAILURE);
+                }
+            }
+            else if (strcmp (optdef->name, "dma_bridge_memory_base_address") == 0)
+            {
+                if (sscanf (optarg, "%zi%c", &arg_dma_bridge_memory_base_address, &junk) != 1)
+                {
+                    printf ("Invalid %s %s\n", optdef->name, optarg);
+                    exit (EXIT_FAILURE);
+                }
+                arg_dma_bridge_memory_base_address_specified = true;
+            }
+            else if (strcmp (optdef->name, "dma_bridge_memory_size_bytes") == 0)
+            {
+                if ((sscanf (optarg, "%zi%c", &arg_dma_bridge_memory_size_bytes, &junk) != 1) ||
+                    (arg_dma_bridge_memory_size_bytes == 0))
+                {
+                    printf ("Invalid %s %s\n", optdef->name, optarg);
+                    exit (EXIT_FAILURE);
+                }
+                arg_dma_bridge_memory_size_bytes_specified = true;
             }
             else
             {
@@ -1591,6 +1656,216 @@ static bool test_dma_accessible_memory_with_variable_transfers (const fpga_desig
 
 
 /**
+ * @brief Perform a write/read test of DMA accessible memory using a pair of channels, with a single host buffer
+ * @details
+ *   Using a single host buffer allows testing of card memory which is larger than twice the host memory,
+ *   for which test_dma_accessible_memory_with_fixed_buffers() or test_dma_accessible_memory_with_variable_transfers()
+ *   would have insufficient memory.
+ * @param[in] design The design containing the DMA bridge to test
+ * @param[in/out] vfio_device The device containing the DMA bridge to test
+ * @param[in] h2c_channel_id Which channel to use for H2C transfers
+ * @param[in] c2h_channel_id Which channel to use for C2H transfers
+ * @return Returns true if the test passed, or false otherwise
+ */
+static bool test_dma_accessible_memory_in_chunks (const fpga_design_t *const design, vfio_device_t *const vfio_device,
+                                                  const uint32_t h2c_channel_id, const uint32_t c2h_channel_id)
+{
+    vfio_dma_mapping_t descriptors_mapping;
+    vfio_dma_mapping_t data_mapping;
+    x2x_transfer_context_t h2c_transfer;
+    x2x_transfer_context_t c2h_transfer;
+    transfer_timing_t populate_test_pattern_timing;
+    transfer_timing_t verify_test_pattern_timing;
+    transfer_timing_t h2c_transfer_timing;
+    transfer_timing_t c2h_transfer_timing;
+    bool success;
+
+    /* Calculate the host buffer size from the card memory size and command line argument for the divisor.
+     * The host buffer is always a complete number of 32-bit words, but may not be a multiple of the memory bus width,
+     * in order to allow testing of partial writes to the memory bus (when wider than 32-bits). */
+    const size_t card_memory_size_words = design->dma_bridge_memory_size_bytes / sizeof (uint32_t);
+    const size_t host_buffer_size_words = card_memory_size_words / arg_host_buffer_divisor;
+    const size_t host_buffer_size_bytes = host_buffer_size_words * sizeof (uint32_t);
+
+    const uint32_t num_descriptors_for_host_buffer = x2x_num_descriptors_for_transfer_len (host_buffer_size_bytes);
+
+    /* Populate the transfer configurations to be used */
+    const x2x_transfer_configuration_t h2c_transfer_configuration =
+    {
+        .dma_bridge_memory_base_address = design->dma_bridge_memory_base_address,
+        .dma_bridge_memory_size_bytes = design->dma_bridge_memory_size_bytes,
+        .min_size_alignment = 1, /* The card memory is byte addressable */
+        .num_descriptors = num_descriptors_for_host_buffer,
+        .channels_submodule = DMA_SUBMODULE_H2C_CHANNELS,
+        .channel_id = h2c_channel_id,
+        .bytes_per_buffer = 0, /* Length and offsets set before each each transfer */
+        .host_buffer_start_offset = 0,
+        .card_buffer_start_offset = 0,
+        .timeout_seconds = TRANSFER_TIMEOUT_SECS,
+        .vfio_device = vfio_device,
+        .bar_index = design->dma_bridge_bar,
+        .descriptors_mapping = &descriptors_mapping,
+        .data_mapping = &data_mapping,
+        .overall_success = &success
+    };
+
+    const x2x_transfer_configuration_t c2h_transfer_configuration =
+    {
+        .dma_bridge_memory_base_address = design->dma_bridge_memory_base_address,
+        .dma_bridge_memory_size_bytes = design->dma_bridge_memory_size_bytes,
+        .min_size_alignment = 1, /* The card memory is byte addressable */
+        .num_descriptors = num_descriptors_for_host_buffer,
+        .channels_submodule = DMA_SUBMODULE_C2H_CHANNELS,
+        .channel_id = c2h_channel_id,
+        .bytes_per_buffer = 0, /* Length and offsets set before each each transfer */
+        .host_buffer_start_offset = 0,
+        .card_buffer_start_offset = 0,
+        .timeout_seconds = TRANSFER_TIMEOUT_SECS,
+        .vfio_device = vfio_device,
+        .bar_index = design->dma_bridge_bar,
+        .descriptors_mapping = &descriptors_mapping,
+        .data_mapping = &data_mapping,
+        .overall_success = &success
+    };
+
+    printf ("\nTesting using 0x%zx byte host buffers with %u descriptors:\n", host_buffer_size_bytes, num_descriptors_for_host_buffer);
+    printf ("  H2C channel %u\n", h2c_channel_id);
+    printf ("  C2H channel %u\n", c2h_channel_id);
+
+    /* Create read/write mapping for DMA descriptors */
+    const size_t descriptors_allocation_size = x2x_get_descriptor_allocation_size (&h2c_transfer_configuration) +
+            x2x_get_descriptor_allocation_size (&c2h_transfer_configuration);
+    allocate_vfio_dma_mapping (vfio_device, &descriptors_mapping, descriptors_allocation_size,
+            VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
+
+    /* Read/write mapping used by device, for a maximum of the host buffer */
+    allocate_vfio_dma_mapping (vfio_device, &data_mapping, host_buffer_size_bytes,
+            VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE, arg_buffer_allocation);
+
+    success = (descriptors_mapping.buffer.vaddr != NULL) &&
+              (data_mapping.buffer.vaddr        != NULL);
+
+    if (success)
+    {
+        uint32_t populate_test_pattern = 0;
+        uint32_t verify_test_pattern = 0;
+        uint32_t *const host_words = data_mapping.buffer.vaddr;
+        size_t total_card_words_transferred;
+        size_t word_index;
+        uint32_t *h2c_buffer;
+        uint32_t *c2h_buffer;
+
+        initialise_transfer_timing (&populate_test_pattern_timing, "populate test pattern", host_buffer_size_bytes);
+        initialise_transfer_timing (&verify_test_pattern_timing, "verify test pattern", host_buffer_size_bytes);
+        initialise_transfer_timing (&h2c_transfer_timing, "host-to-card DMA", host_buffer_size_bytes);
+        initialise_transfer_timing (&c2h_transfer_timing, "card-to-host DMA", host_buffer_size_bytes);
+
+        /* Initialise the transfers */
+        x2x_initialise_transfer_context (&h2c_transfer, &h2c_transfer_configuration);
+        x2x_initialise_transfer_context (&c2h_transfer, &c2h_transfer_configuration);
+
+        /* Fill the card memory with the test pattern */
+        total_card_words_transferred = 0;
+        while (success && (total_card_words_transferred < card_memory_size_words))
+        {
+            const size_t remaining_words = card_memory_size_words - total_card_words_transferred;
+            const size_t words_this_transfer = (remaining_words < host_buffer_size_words) ? remaining_words : host_buffer_size_words;
+            const size_t bytes_this_transfer = words_this_transfer * sizeof (uint32_t);
+
+            /* Fill host buffer with next chunk of test pattern to be transfered */
+            transfer_time_start (&populate_test_pattern_timing);
+            for (word_index = 0; word_index < words_this_transfer; word_index++)
+            {
+                host_words[word_index] = populate_test_pattern;
+                linear_congruential_generator32 (&populate_test_pattern);
+            }
+            transfer_time_stop (&populate_test_pattern_timing);
+
+            /* Transfer current chunk in host memory to the card */
+            const uint64_t host_buffer_offset = 0;
+            const uint64_t card_buffer_offset = total_card_words_transferred * sizeof (uint32_t);
+            h2c_buffer = x2x_populate_memory_transfer (&h2c_transfer, bytes_this_transfer, host_buffer_offset, card_buffer_offset);
+            X2X_ASSERT (&h2c_transfer, h2c_buffer != NULL);
+            transfer_time_start (&h2c_transfer_timing);
+            x2x_start_populated_descriptors (&h2c_transfer);
+            do
+            {
+                h2c_buffer = x2x_poll_completed_transfer (&h2c_transfer, NULL, NULL);
+            } while (success && (h2c_buffer == NULL));
+            transfer_time_stop (&h2c_transfer_timing);
+
+            total_card_words_transferred += words_this_transfer;
+        }
+
+        /* Read back the card memory, in chunks, and verify the test pattern */
+        total_card_words_transferred = 0;
+        while (success && (total_card_words_transferred < card_memory_size_words))
+        {
+            const size_t remaining_words = card_memory_size_words - total_card_words_transferred;
+            const size_t words_this_transfer = (remaining_words < host_buffer_size_words) ? remaining_words : host_buffer_size_words;
+            const size_t bytes_this_transfer = words_this_transfer * sizeof (uint32_t);
+
+            /* Transfer current chunk from card memory to the host */
+            const uint64_t host_buffer_offset = 0;
+            const uint64_t card_buffer_offset = total_card_words_transferred * sizeof (uint32_t);
+            c2h_buffer = x2x_populate_memory_transfer (&c2h_transfer, bytes_this_transfer, host_buffer_offset, card_buffer_offset);
+            X2X_ASSERT (&c2h_transfer, h2c_buffer != NULL);
+            transfer_time_start (&c2h_transfer_timing);
+            x2x_start_populated_descriptors (&c2h_transfer);
+            do
+            {
+                c2h_buffer = x2x_poll_completed_transfer (&c2h_transfer, NULL, NULL);
+            } while (success && (c2h_buffer == NULL));
+            transfer_time_stop (&c2h_transfer_timing);
+
+            /* Verify that the chunk in the host buffer has the expected contents */
+            transfer_time_start (&verify_test_pattern_timing);
+            for (word_index = 0; success && word_index < words_this_transfer; word_index++)
+            {
+                if (host_words[word_index] != verify_test_pattern)
+                {
+                    x2x_record_failure (&c2h_transfer, "DDR word[%zu] actual=0x%" PRIx32 " expected=0x%" PRIx32,
+                            total_card_words_transferred + word_index, host_words[word_index], verify_test_pattern);
+                    success = false;
+                }
+                linear_congruential_generator32 (&verify_test_pattern);
+            }
+            transfer_time_stop (&verify_test_pattern_timing);
+
+            total_card_words_transferred += words_this_transfer;
+        }
+
+        x2x_finalise_transfer_context (&h2c_transfer);
+        x2x_finalise_transfer_context (&c2h_transfer);
+
+        if (success)
+        {
+            display_transfer_timing_statistics (&populate_test_pattern_timing);
+            display_transfer_timing_statistics (&h2c_transfer_timing);
+            display_transfer_timing_statistics (&c2h_transfer_timing);
+            display_transfer_timing_statistics (&verify_test_pattern_timing);
+            printf ("TEST PASS\n");
+        }
+        else
+        {
+            printf ("TEST FAIL:\n");
+            report_if_transfer_failed (&h2c_transfer);
+            report_if_transfer_failed (&c2h_transfer);
+        }
+    }
+    else
+    {
+        printf ("TEST FAIL : allocate_vfio_dma_mapping()\n");
+    }
+
+    free_vfio_dma_mapping (&data_mapping);
+    free_vfio_dma_mapping (&descriptors_mapping);
+
+    return success;
+}
+
+
+/**
  * @brief Perform one DMA bridge test which is enabled and supported by a design
  * @param[in] dma_test Which test to perform
  * @param[in] design The design containing the DMA bridge to test
@@ -1632,6 +1907,10 @@ static bool perform_enabled_test (const dma_test_t dma_test,
         success = test_stream_loopback_with_variable_transfers (design, vfio_device, h2c_channel_id, c2h_channel_id);
         break;
 
+    case DMA_TEST_MEMORY_HOST_CHUNKS:
+        success = test_dma_accessible_memory_in_chunks (design, vfio_device, h2c_channel_id, c2h_channel_id);
+        break;
+
     default:
         /* Shouldn't get here */
         success = false;
@@ -1639,6 +1918,45 @@ static bool perform_enabled_test (const dma_test_t dma_test,
     }
 
     return success;
+}
+
+
+/**
+ * @brief Process optional command line options which allow overriding the rage of DMA accessible memory tested.
+ * @details
+ *   Called before any tests on the design. The only modification prevented, via the command line option validation,
+ *   is zeroing the dma_bridge_memory_size_bytes. Since zeroing that would indicate the design uses streams.
+ * @param[in/out] design The design, which might have its DMA accessible memory definition tested
+ */
+static void allow_override_of_dma_accessible_memory_tested (fpga_design_t *const design)
+{
+    const size_t original_dma_bridge_memory_base_address = design->dma_bridge_memory_base_address;
+    const size_t original_dma_bridge_memory_size_bytes = design->dma_bridge_memory_size_bytes;
+    const size_t original_end_address = original_dma_bridge_memory_base_address + original_dma_bridge_memory_size_bytes - 1;
+
+    if (arg_dma_bridge_memory_base_address_specified &&
+            (arg_dma_bridge_memory_base_address != original_dma_bridge_memory_base_address))
+    {
+        design->dma_bridge_memory_base_address = arg_dma_bridge_memory_base_address;
+        printf ("Overriding dma_bridge_memory_base_address 0x%zx -> 0x%zx\n",
+                original_dma_bridge_memory_base_address, design->dma_bridge_memory_base_address);
+    }
+
+    if (arg_dma_bridge_memory_size_bytes_specified &&
+            (arg_dma_bridge_memory_size_bytes != original_dma_bridge_memory_size_bytes))
+    {
+        design->dma_bridge_memory_size_bytes = arg_dma_bridge_memory_size_bytes;
+        printf ("Overriding dma_bridge_memory_size_bytes 0x%zx -> 0x%zx\n",
+                original_dma_bridge_memory_size_bytes, design->dma_bridge_memory_size_bytes);
+    }
+
+    const size_t new_end_address = design->dma_bridge_memory_base_address + design->dma_bridge_memory_size_bytes - 1;
+    if ((design->dma_bridge_memory_base_address < original_dma_bridge_memory_base_address) ||
+        (new_end_address > original_end_address))
+    {
+        printf ("Warning: Overridden DMA accessible memory is outside of that specified for the design.\n");
+        printf ("         Tests are expected to fail.\n");
+    }
 }
 
 
@@ -1681,6 +1999,11 @@ int main (int argc, char *argv[])
         if (design->dma_bridge_present)
         {
             const bool design_uses_stream = design->dma_bridge_memory_size_bytes == 0;
+
+            if (!design_uses_stream)
+            {
+                allow_override_of_dma_accessible_memory_tested (design);
+            }
 
             x2x_get_num_channels (vfio_device, design->dma_bridge_bar, design->dma_bridge_memory_size_bytes,
                     &num_h2c_channels, &num_c2h_channels, NULL, NULL);
