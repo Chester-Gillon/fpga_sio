@@ -54,11 +54,15 @@ typedef enum
 {
     /* Perform a write/read test of DMA accessible memory using a pair of channels, using fixed size buffers.
      * Host memory required is twice that of the card memory since:
-     * a. Creates a source and destination buffer in host memory, each of the same size as the card memory.
-     * b. Fills the source buffer in host memory with a test pattern.
-     * c. Transfers the host source buffer to card memory using DMA.
-     * d. Transfers the card memory to host destination buffer using DMA.
-     * e. Verifies the test pattern in the host destination buffer. */
+     * 1. Creates a source and destination buffer in host memory, each of the same size as the card memory.
+     * 2. Fills the source buffer in host memory with a test pattern.
+     * 3. Overlaps:
+     *    a. Transferring the host source buffer to card memory using DMA.
+     *    b. Transferring the card memory to host destination buffer using DMA.
+     *    C2H transfers can start when the H2C transfer is complete.
+     *    I.e. can read the card memory before has been complete written.
+     *    As a result, may not detect high order broken address bits.
+     * 4. Verifies the test pattern in the host destination buffer. */
     DMA_TEST_MEMORY_FIXED_BUFFERS,
     /* Perform a DMA test of a pair of AXI streams which are looped-back, using fixed size buffers.
      * The software starts each C2H transfer. */
@@ -75,7 +79,9 @@ typedef enum
     DMA_TEST_STREAM_VARIABLE_TRANSFERS,
     /* Perform a write/read test of DMA accessible memory using a pair of channels, using a single host buffer
      * which is smaller than the card memory. For use when the host memory available is less than twice the card memory
-     * such that DMA_TEST_MEMORY_FIXED_BUFFERS and DMA_TEST_MEMORY_VARIABLE_TRANSFERS can't be used. */
+     * such that DMA_TEST_MEMORY_FIXED_BUFFERS and DMA_TEST_MEMORY_VARIABLE_TRANSFERS can't be used.
+     *
+     * The entire card memory is written before being read back. */
     DMA_TEST_MEMORY_HOST_CHUNKS,
 
     DMA_TEST_ARRAY_SIZE

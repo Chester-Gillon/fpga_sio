@@ -1798,8 +1798,32 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
 
                         candidate_design->dma_bridge_present = true;
                         candidate_design->dma_bridge_bar = dma_bridge_bar_index;
-                        candidate_design->dma_bridge_memory_base_address = 0;
-                        candidate_design->dma_bridge_memory_size_bytes = 64UL * 1024UL * 1024UL * 1024UL;
+                        switch (vfio_device->pci_revision_id)
+                        {
+                        case 0:
+                            /* The original revision which uses all 4 DDR4 channels for 64GB */
+                            candidate_design->dma_bridge_memory_base_address = 0;
+                            candidate_design->dma_bridge_memory_size_bytes = 64UL * 1024UL * 1024UL * 1024UL;
+                            break;
+
+                        case 1:
+                            /* Only uses DDR4 channels 0 and 1 */
+                            candidate_design->dma_bridge_memory_base_address = 0;
+                            candidate_design->dma_bridge_memory_size_bytes = 32UL * 1024UL * 1024UL * 1024UL;
+                            break;
+
+                        case 2:
+                            /* Only uses DDR4 channels 2 and 3 */
+                            candidate_design->dma_bridge_memory_base_address = 32UL * 1024UL * 1024UL * 1024UL;
+                            candidate_design->dma_bridge_memory_size_bytes = 32UL * 1024UL * 1024UL * 1024UL;
+                            break;
+
+                        case 3:
+                            /* Only uses DDR4 channel 0 */
+                            candidate_design->dma_bridge_memory_base_address = 0;
+                            candidate_design->dma_bridge_memory_size_bytes = 16UL * 1024UL * 1024UL * 1024UL;
+                            break;
+                        }
                         candidate_design->user_access =
                                 map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                         user_access_base_offset, user_access_frame_size);
