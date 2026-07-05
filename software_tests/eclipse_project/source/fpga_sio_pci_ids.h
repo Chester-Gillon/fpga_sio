@@ -316,4 +316,12 @@
  * g. Access registers used to read the UltraScale DNA. */
 #define FPGA_SIO_SUBDEVICE_ID_U200_DMA_DDR4 0x002E
 
+
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Contain only a AXI peripheral to read the user access timestamp.
+ *
+ * No support for this in the rest of the code, as the board this was for didn't enumerate on the PCIe bus
+ * and therefore unable to test. */
+#define FPGA_SIO_SUBDEVICE_ID_LOGSYS_70T_ENUM 0x002F
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

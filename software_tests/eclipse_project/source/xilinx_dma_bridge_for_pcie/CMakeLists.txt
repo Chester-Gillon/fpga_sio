@@ -34,3 +34,7 @@ add_executable (crc64_stream_latency "crc64_stream_latency.c")
 target_link_libraries (crc64_stream_latency xilinx_dma_bridge_transfers transfer_timing
                        xilinx_axi_stream_switch_configure xilinx_axi_stream_switch
                        identify_pcie_fpga_design xilinx_xadc xilinx_sysmon vfio_access)
+
+add_executable (test_dma_bridge_memory_addressing "test_dma_bridge_memory_addressing.c")
+target_link_libraries (test_dma_bridge_memory_addressing xilinx_dma_bridge_transfers transfer_timing
+                       identify_pcie_fpga_design vfio_access)
