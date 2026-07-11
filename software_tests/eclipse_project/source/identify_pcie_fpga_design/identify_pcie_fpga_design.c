@@ -58,6 +58,7 @@ const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE] =
     [FPGA_DESIGN_U200_DMA_STREAM_CRC64] = "U200_dma_stream_crc64",
     [FPGA_DESIGN_U200_IBERT_100G_ETHER] = "U200_ibert_100G_ether",
     [FPGA_DESIGN_OPEN_NIC] = "open-nic",
+    [FPGA_DESIGN_XCKU5P_PCIE_DDR4_ETH] = "XCKU5P_PCIe_DDR4_ETH",
     [FPGA_DESIGN_VD100_ENUM] = "VD100_enum",
     [FPGA_DESIGN_VD100_DMA_STREAM_CRC64] = "VD100_dma_stream_crc64",
     [FPGA_DESIGN_VD100_DMA_STREAM_LOOPBACK] = "VD100_dma_stream_loopback",
@@ -328,13 +329,16 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_U200_IBERT_100G_ETHER,
         .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE
     },
-    [FPGA_DESIGN_OPEN_NIC] =
+    [FPGA_DESIGN_OPEN_NIC...FPGA_DESIGN_XCKU5P_PCIE_DDR4_ETH] =
     {
         /* @todo Uses the ID from looking at the QDMA IP settings after building https://github.com/Xilinx/open-nic-shell
          *       for a Alveo U200.
          *       The https://github.com/Xilinx/open-nic-shell/blob/main/src/qdma_subsystem/vivado_ip/qdma_no_sriov_au200.tcl
          *       source file doesn't specify the IDs, so they are probably the QDMA defaults.
-         *       I.e. could clash with other QDMA designs. */
+         *       I.e. could clash with other QDMA designs.
+         *
+         *       The XDMA based FPGA_DESIGN_XCKU5P_PCIE_DDR4_ETH design match these values. There is later code to
+         *       performs checks to find the actual design. */
         .vendor_id = FPGA_SIO_VENDOR_ID,
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_vendor_id = FPGA_SIO_VENDOR_ID,
@@ -578,6 +582,35 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
         {
             if (vfio_device_pci_filter_match (vfio_device, &fpga_design_pci_filters[candidate_design_id]))
             {
+                /* Handle designs using default Xilinx identities, to determine the actual design */
+                switch (candidate_design_id)
+                {
+                case FPGA_DESIGN_OPEN_NIC:
+                case FPGA_DESIGN_XCKU5P_PCIE_DDR4_ETH:
+                    switch (vfio_device->pci_dev->device_id)
+                    {
+                    case 0x903f:
+                    case 0x913f:
+                        /* The design has two physical functions with different device IDs */
+                        candidate_design_id = FPGA_DESIGN_OPEN_NIC;
+                        break;
+
+                    case 0x9038:
+                        candidate_design_id = FPGA_DESIGN_XCKU5P_PCIE_DDR4_ETH;
+                        break;
+
+                    default:
+                        /* Identification of aliased fpga_design_pci_filters[] failed, so cause to be unknown */
+                        candidate_design_id = FPGA_DESIGN_ARRAY_SIZE;
+                        break;
+                    }
+                    break;
+
+                default:
+                    /* Not a design with aliased identities */
+                    break;
+                }
+
                 switch (candidate_design_id)
                 {
                 case FPGA_DESIGN_DMA_BLKRAM:
@@ -1450,6 +1483,18 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                         port_def->configured_features[CMAC_FEATURE_TX_OTN   ] = false;
                     }
 
+                    design_identified = true;
+                }
+                break;
+
+                case FPGA_DESIGN_XCKU5P_PCIE_DDR4_ETH:
+                {
+                    const uint32_t dma_bridge_bar_index = 0;
+
+                    candidate_design->dma_bridge_present = true;
+                    candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                    candidate_design->dma_bridge_memory_base_address = 0;
+                    candidate_design->dma_bridge_memory_size_bytes = 2048UL * 1024 * 1024;
                     design_identified = true;
                 }
                 break;

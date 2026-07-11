@@ -576,7 +576,7 @@ static bool test_memory_addressing (const fpga_design_t *const design, vfio_devi
                         /* Memory element contents has changed for unidentified reason */
                         test_context->readback_status[readback_index] = ELEMENT_READBACK_INCORRECT;
                         test_context->content_success = false;
-                        printf ("Following write to address 0x%zx, element at address 0x%zx changed incorrect contents from 0x%zx 0z%zx -> 0x%zx 0z%zx\n",
+                        printf ("Following write to address 0x%zx, element at address 0x%zx changed incorrect contents from 0x%zx 0x%zx -> 0x%zx 0x%zx\n",
                                 test_context->write_elements[written_element_index].address,
                                 test_context->write_elements[readback_index].address,
                                 test_context->previous_readback[readback_index].address,

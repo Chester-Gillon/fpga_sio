@@ -241,6 +241,10 @@ typedef enum
     /* Xilinx example project https://github.com/Xilinx/open-nic-shell */
     FPGA_DESIGN_OPEN_NIC,
 
+    /* Example for the XCKU5P_SINGLE_QSFP board, which was programmed into flash on delivery. Contains:
+     * a. DMA/Bridge Subsystem access to 2GB of DDR4 memory. */
+    FPGA_DESIGN_XCKU5P_PCIE_DDR4_ETH,
+
     /* fpga_tests/VD100_enum/<designs_with_different_PCIe_configuration> which contains:
      * a. Have different revisions to investigating enumerating for different link speeds. */
     FPGA_DESIGN_VD100_ENUM,
