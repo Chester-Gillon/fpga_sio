@@ -1,0 +1,95 @@
+This is a modified version of U200_dma_ddr4 created by:
+1. Copying the U200_dma_ddr4/create_project.tcl file and manually editing the project prefix to U200_dma_ddr4_32G
+2. Initially attempted to create /U200/custom_memparts.csv which was a modified version of
+   /opt/Xilinx/2025.2/data/ip/xilinx/mem_v1_4/csv/ddr4_sdram/memparts.csv
+   Modifications were:
+   a. Copy the MTA18ASF1G72PZ-2G1 row, which is the required density but PC4-2133.
+   b. In the new row:
+      - Change the part name to MTA18ASF1G72PZ-2G3
+      - Copy the following columns from the MTA18ASF2G72PZ-2G3:
+        - Memory speed grade
+        - Min period
+        - Max period
+        - Model speed grade
+   c. In theory, had created the new MTA18ASF1G72PZ-2G3 which has the density for a 8 GB RDIMM with x4 components, and a speed of PC4-2400.
+   d. However, when attempted to import and use the custom_memparts.csv had errors:
+      - When tried to import the custom_memparts.csv got numerous errors for the parts which hadn't modified. E.g.:
+         [Mig 66-120] Custom Part (MT40A4G4FSE-083E) with parameter: Data mask having value: 1 is invalid. 
+         The valid value for Data mask is 0 when Memory component width is 4.
+      - Deleting all rows in the custom_memparts.csv except those for the MTA18ASF1G72PZ and MTA18ASF2G72PZ RDIMMs then allowed the file
+        to be imported and the new MTA18ASF1G72PZ-2G3 selected in the ddr4_0 IP configuration.
+      - However, when attempted to refresh the block containers got errors:
+          ERROR: [IP_Flow 19-3461] Value '12' is out of the range for parameter 'C0.DDR4 CasWriteLatency(C0.DDR4_CasWriteLatency)' for BD Cell 'ddr4_0' . Valid values are - 14, 18
+          ERROR: [BD 41-274] U200_ddr4_channel_inst_0_ddr4_0_0 (xilinx.com:ip:ddr4:2.2) could not be created.
+          ERROR: [BD 41-2320] Could not instantiate U200_ddr4_channel into <U200_dma_ddr4_32G> because of the following reason:
+          * 
+          ERROR: [BD 41-6] ddr4_0 does not have a port called c0_ddr4_ui_clk
+      - On inspection, the memparts.csv copied from the Vivado IP directory has fewer columns that the custom_parts_ddr4_2016_4_and_above.csv on
+        "63462 - UltraScale/UltraScale+ Memory IP - Sample CSV data file for creating Custom Parts" 
+        https://adaptivesupport.amd.com/s/article/63462?language=en_US
+   d. Delete all rows in the custom_memparts.csv except those for the MTA18ASF1G72PZ and MTA18ASF2G72PZ RDIMMs
+3. Created multiple_boards/custom_parts_ddr4_2016_4_and_above.csv based upon the example downloaded above. Added a new row with the columns set as:
+    a. Part type: RDIMMs
+    b. Part name: MTA18ASF1G72PZ-2G3
+    c. Copy the following from MTA18ASF1G72PZ-2G1 in the Vivado IP memparts.csv:
+       - Rank..CK width
+       - Memory density..Data widths
+    d. The following were copied from MTA18ASF2G72PZ-2G3 in the Vivado IP memparts.csv:
+       - Memory speed grade: 83
+       - Min period: 833
+       - Max period: 1600
+    e. tCKE: 5000 ps
+       tFAW: 13328 ps
+       tFAW_dlr: 16 tck
+       tMRD: 8 tck
+       tRAS: 33000 ps
+       tRCD: 14160 ps
+       tREFI: 7800000 ps (for -40°C to 85°C)
+       tRFC: 350000 ps (datasheet tRFC1)
+       tRFC_dlr: 110000 ps (datasheet tRFC4)
+       tRP: 14160 ps
+       tRRD_S: 3332 ps
+       tRRD_L: 4900 ps
+       tRRD_dlr: 0
+       tRTP: 7500 ps
+       tWR: 15000 ps
+       tWTR_S: 2500 ps
+       tWTR_L: 7500 ps
+       tXPR: 360 ns
+       tZQCS: 128 tck
+       tZQINIT: 1024 tck
+       cas latency: 17
+       cas write latency: 12 (CWL - Primary Choice 1tCK Preamble)
+
+       Values from MT40A1G4 component datasheet.
+       For tRFC and tRFC_dlr based the selection against the values for other devices.
+    f. tCCD_3ds: 0
+       Since not a 3DS part
+    g. burst length: 8
+       The MIG is limited to this value.
+4. In the ddr4_0 IP configuration under Basic -> Controller Options
+   a. Tick Enable Custom Parts Data File
+   b. For the Custom Parts Data File select the multiple_boards/custom_parts_ddr4_2016_4_and_above.csv created above.
+      Successfully validated
+   c. Change the memory part to MTA18ASF1G72PZ-2G3
+5. On the U200_dma_ddr4_32G block diagram Address Editor edit the base address and range of all the DDR4 channels
+   to be 8G per channel, and a total consecutive address range of 32G.
+   Did that manually since if attempted to un-assign and then automatically assign the addresses:
+   - All but the first channel remained at 8GB range.
+   - The ECC register addresses got changed.
+6. Changing the PCIe revision to 0x04, to identify the different amount of memory.
+7. On the U200_DDR4_channel block diagram change the DDR4 address range from 16G to 8G.
+   Not sure if that was the cause of the above issues trying to automatically assign the updated address range.
+8. After using write_project_tcl noticed the generated create_project.tcl contains a write_ddr4_file_U200_ddr4_channel_ddr4_0_0 procedure
+   which creates an IP file with the contents of custom_parts_ddr4_2016_4_and_above.csv which was loaded.
+
+   The create_project.tcl does contain a reference to the source custom_parts_ddr4_2016_4_and_above.csv, so not sure what happens
+   if the source file gets modified. E.g. does the project then use an outdated MIG configuration for the custom parts?
+9. While the MT40A1G4 component only uses A[15:0] for row addressing, the MIG is still generating the DDR4_adr[16:0] so will use all the
+   address pins used in the constraints.
+
+   The component pin is RAS_n/A16, so dual-use.
+10. Timing failed for setup on 98 endpoints. Worst Negative Slack -0.233 ns
+    Looking at the implemented design, the failing paths span SL0 and SL1.
+    The clock is mmcm_clkout0 which is 300 MHz, sourced from SYSCLK0_300. I.e. for DDR4 channel 0
+
