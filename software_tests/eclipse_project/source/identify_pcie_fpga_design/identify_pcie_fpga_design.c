@@ -1447,6 +1447,7 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                 {
                     /* The addresses are taken from comments in
                      * https://github.com/Xilinx/open-nic-shell/blob/main/src/system_config/system_config_address_map.sv */
+                    const uint32_t qdma_bridge_bar_index = 0;
                     const uint32_t peripherals_bar_index = 2;
                     const size_t sysmon_base_offset               = 0x010000;
                     const size_t sysmon_frame_size                = 0x002000;
@@ -1459,6 +1460,11 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                         0x00C000
                     };
                     const size_t cmac_registers_frame_size        = 0x002000;
+
+                    candidate_design->qdma_present = true;
+                    candidate_design->qdma_bridge_bar = qdma_bridge_bar_index;
+                    candidate_design->qdma_memory_base_address = 0x0;
+                    candidate_design->qdma_memory_size_bytes   = 0x0;
 
                     candidate_design->quad_spi_regs =
                             map_vfio_registers_block (vfio_device, peripherals_bar_index,
