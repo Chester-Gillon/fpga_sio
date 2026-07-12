@@ -1874,6 +1874,12 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                             candidate_design->dma_bridge_memory_base_address = 0;
                             candidate_design->dma_bridge_memory_size_bytes = 16UL * 1024UL * 1024UL * 1024UL;
                             break;
+
+                        case 4:
+                            /* Use all DDR4 channels, configured as 8GB per channel to match the RDIMMs in a AU200A32G */
+                            candidate_design->dma_bridge_memory_base_address = 0;
+                            candidate_design->dma_bridge_memory_size_bytes = 32UL * 1024UL * 1024UL * 1024UL;
+                            break;
                         }
                         candidate_design->user_access =
                                 map_vfio_registers_block (vfio_device, peripherals_bar_index,
