@@ -85,6 +85,10 @@ This is a modified version of U200_dma_ddr4 created by:
 
    The create_project.tcl does contain a reference to the source custom_parts_ddr4_2016_4_and_above.csv, so not sure what happens
    if the source file gets modified. E.g. does the project then use an outdated MIG configuration for the custom parts?
+
+   After performing the implementation, which failed timing, ran write_project_tcl. That time generated create_project.tcl
+   had $origin_dir/U200_dma_ddr4_32G/U200_dma_ddr4_32G.srcs/sources_1/bd/U200_ddr4_channel/ip/U200_ddr4_channel_ddr4_0_0/custom_parts_ddr4_2016_4_and_above.csv
+   as a local file. Manually reverted that change.
 9. While the MT40A1G4 component only uses A[15:0] for row addressing, the MIG is still generating the DDR4_adr[16:0] so will use all the
    address pins used in the constraints.
 
@@ -92,4 +96,19 @@ This is a modified version of U200_dma_ddr4 created by:
 10. Timing failed for setup on 98 endpoints. Worst Negative Slack -0.233 ns
     Looking at the implemented design, the failing paths span SL0 and SL1.
     The clock is mmcm_clkout0 which is 300 MHz, sourced from SYSCLK0_300. I.e. for DDR4 channel 0
+11. Trying a lower memory speed:
+    a. In the ddr4_0 IP configuration:
+       - Untick "Enable Custom Data Parts File"
+       - Change the memory part to MTA18ASF1G72PZ-2G1
+       - Change the Memory Device Interface Speed from 833 to 938 to meet the maximum data rate of the MTA18ASF1G72PZ-2G1 part.
+         This is PC4-2133
+       - Change the Reference Input Clock Speed (ps) to "3325 (299.84MHz)" to get back to the 300 MHz reference clock input.
+         The Reference Input Clock Speed setting changed when the Memory Device Interface Speed was changed.
+    b. The c0_ddr4_ui_clk output from the ddr4_0 block has been reduced from 300 MHz to 266.5 MHz as a result of the lower
+       Memory Device Interface Speed, which could help with timing.
+    c. Remove the following from the Design sources:
+        /home/mr_halfword/fpga_sio/fpga_tests/U200_dma_ddr4_32G/U200_dma_ddr4_32G/U200_dma_ddr4_32G.srcs/sources_1/bd/U200_ddr4_channel/ip/U200_ddr4_channel_ddr4_0_0/custom_parts_ddr4_2016_4_and_above.csv
+        /home/mr_halfword/fpga_sio/multiple_boards/custom_parts_ddr4_2016_4_and_above.csv
+
+    The timing was met.
 
