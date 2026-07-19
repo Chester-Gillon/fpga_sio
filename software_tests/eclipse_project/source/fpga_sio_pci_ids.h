@@ -324,4 +324,10 @@
  * and therefore unable to test. */
 #define FPGA_SIO_SUBDEVICE_ID_LOGSYS_70T_ENUM 0x002F
 
+
+/* The FPGA which uses the DMA/Bridge Subsystem to:
+ * a. Contain a AXI peripheral to read the user access timestamp.
+ * b. Access registers used to read the UltraScale DNA for all SLRs */
+#define FPGA_SIO_SUBDEVICE_ID_U200_SLR_IDS 0x0030
+
 #endif /* SOURCE_FPGA_SIO_PCI_IDS_H_ */

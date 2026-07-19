@@ -232,13 +232,19 @@ static void display_ultrascale_dna (const fpga_design_t *const design)
 {
     uint32_t dna_words[3];
 
-    for (uint32_t dna_word = 0; dna_word < (sizeof (dna_words) / sizeof (dna_words[0])); dna_word++)
+    for (uint32_t slr_index = 0; slr_index < design->num_ultrascale_dna_regs; slr_index++)
     {
-        dna_words[dna_word] = read_reg32 (design->ultrascale_dna_regs, dna_word * sizeof (uint32_t));
-    }
+        if (design->ultrascale_dna_regs[slr_index] != NULL)
+        {
+            for (uint32_t dna_word = 0; dna_word < (sizeof (dna_words) / sizeof (dna_words[0])); dna_word++)
+            {
+                dna_words[dna_word] = read_reg32 (design->ultrascale_dna_regs[slr_index], dna_word * sizeof (uint32_t));
+            }
 
-    /* Order of the words matches that read by JTAG as displayed in the Vivado hardware manager */
-    printf ("  UltraScale DNA: %08X%08X%08X\n", dna_words[0], dna_words[1], dna_words[2]);
+            /* Order of the words matches that read by JTAG as displayed in the Vivado hardware manager */
+            printf ("  UltraScale DNA[%u]: %08X%08X%08X\n", slr_index, dna_words[0], dna_words[1], dna_words[2]);
+        }
+    }
 }
 
 
@@ -285,7 +291,7 @@ int main (int argc, char *argv[])
             format_user_access_timestamp (user_access, formatted_timestamp);
             printf ("  User access build timestamp : %08X - %s\n", user_access, formatted_timestamp);
         }
-        if (design->ultrascale_dna_regs != NULL)
+        if (design->num_ultrascale_dna_regs > 0)
         {
             display_ultrascale_dna (design);
         }

@@ -334,6 +334,11 @@ typedef enum
      * g. Access registers used to read the UltraScale DNA. */
     FPGA_DESIGN_U200_DMA_DDR4,
 
+    /* fpga_tests/U200_slr_ids which uses the DMA/Bridge Subsystem to:
+     * a. Contain a AXI peripheral to read the user access timestamp.
+     * b. Access registers used to read the UltraScale DNA for all SLRs */
+    FPGA_DESIGN_U200_SLR_IDS,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 
@@ -386,6 +391,10 @@ typedef struct
      * 50G ports, the used port numbers will be 0 and 2, since each 50G port uses the data path resources for two ports. */
     bool used_ports[NUM_MRMAC_PORTS];
 } mrmac_block_definition_t;
+
+
+/* The maximum number of SLRs in a device */
+#define MAX_NUM_SLRS 4
 
 
 /* Defines one identified design */
@@ -455,8 +464,11 @@ typedef struct
     uint32_t num_cmac_ports;
     /* Defines the CMAC ports in the design. The number of valid entries is given by num_cmac_ports */
     cmac_port_definition_t cmac_ports[MAX_CMAC_PORTS_PER_DESIGN];
-    /* When non-NULL the base of the mapped registers used to read the UltraScale DNA */
-    uint8_t *ultrascale_dna_regs;
+    /* When non-NULL the base of the mapped registers used to read the UltraScale DNA.
+     * Allows for one DNA register for each SLR, to see if the different DNA registers in multiple SLRs in one device
+     * have different values or not. */
+    uint8_t *ultrascale_dna_regs[MAX_NUM_SLRS];
+    uint32_t num_ultrascale_dna_regs;
     /* Defines if a MRMAC block is present in the design */
     mrmac_block_definition_t mrmac;
     /* For FPGA_DESIGN_LITEFURY_PROJECT0 or FPGA_DESIGN_NITEFURY_PROJECT0 gives the version of the board design */

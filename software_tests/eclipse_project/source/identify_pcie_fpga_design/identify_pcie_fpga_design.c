@@ -73,7 +73,8 @@ const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE] =
     [FPGA_DESIGN_VD100_40G_ETHER] = "VD100_40G_ether",
     [FPGA_DESIGN_XCKU5P_SINGLE_QSFP_DMA_STREAM_LOOPBACK] = "XCKU5P_SINGLE_QSFP_dma_stream_loopback",
     [FPGA_DESIGN_XCKU5P_SINGLE_QSFP_DMA_DDR4] = "XCKU5P_SINGLE_QSFP_dma_ddr4",
-    [FPGA_DESIGN_U200_DMA_DDR4] = "U200_dma_ddr4"
+    [FPGA_DESIGN_U200_DMA_DDR4] = "U200_dma_ddr4",
+    [FPGA_DESIGN_U200_SLR_IDS] = "U200_slr_ids"
 };
 
 
@@ -463,6 +464,14 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_U200_DMA_DDR4,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
+    },
+    [FPGA_DESIGN_U200_SLR_IDS] =
+    {
+        .vendor_id = FPGA_SIO_VENDOR_ID,
+        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+        .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
+        .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_U200_SLR_IDS,
         .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     }
 };
@@ -1271,9 +1280,10 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                                     user_access_base_offset, user_access_frame_size);
                     if (vfio_device->pci_revision_id >= 1)
                     {
-                        candidate_design->ultrascale_dna_regs =
+                        candidate_design->ultrascale_dna_regs[0] =
                                 map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                         ultrascale_dna_base_offset, ultrascale_dna_frame_size);
+                        candidate_design->num_ultrascale_dna_regs = 1;
                     }
                     design_identified = true;
                 }
@@ -1377,9 +1387,10 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
 
                     if (vfio_device->pci_revision_id >= 3)
                     {
-                        candidate_design->ultrascale_dna_regs =
+                        candidate_design->ultrascale_dna_regs[0] =
                                 map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                         ultrascale_dna_base_offset, ultrascale_dna_frame_size);
+                        candidate_design->num_ultrascale_dna_regs = 1;
                     }
 
                     design_identified = true;
@@ -1710,9 +1721,10 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                             port_def->configured_features[CMAC_FEATURE_TX_OTN   ] = false;
                         }
 
-                        candidate_design->ultrascale_dna_regs =
+                        candidate_design->ultrascale_dna_regs[0] =
                                 map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                         ultrascale_dna_base_offset, ultrascale_dna_frame_size);
+                        candidate_design->num_ultrascale_dna_regs = 1;
 
                         design_identified = true;
                     }
@@ -1792,9 +1804,10 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                                         axi_switch_base_offset, axi_switch_frame_size);
                         candidate_design->axi_switch_num_master_ports = 4;
                         candidate_design->axi_switch_num_slave_ports = 4;
-                        candidate_design->ultrascale_dna_regs =
+                        candidate_design->ultrascale_dna_regs[0] =
                                 map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                         ultrascale_dna_base_offset, ultrascale_dna_frame_size);
+                        candidate_design->num_ultrascale_dna_regs = 1;
                         design_identified = true;
                     }
                     break;
@@ -1826,9 +1839,10 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                         candidate_design->user_access =
                                 map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                         user_access_base_offset, user_access_frame_size);
-                        candidate_design->ultrascale_dna_regs =
+                        candidate_design->ultrascale_dna_regs[0] =
                                 map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                         ultrascale_dna_base_offset, ultrascale_dna_frame_size);
+                        candidate_design->num_ultrascale_dna_regs = 1;
                         design_identified = true;
                     }
                     break;
@@ -1890,12 +1904,47 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                         candidate_design->sysmon_regs =
                                 map_vfio_registers_block (vfio_device, peripherals_bar_index, sysmon_base_offset, sysmon_frame_size);
                         candidate_design->num_sysmon_slaves = 2;
-                        candidate_design->ultrascale_dna_regs =
+                        candidate_design->ultrascale_dna_regs[0] =
                                 map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                         ultrascale_dna_base_offset, ultrascale_dna_frame_size);
+                        candidate_design->num_ultrascale_dna_regs = 1;
                         candidate_design->cms_subsystem_present = true;
                         candidate_design->cms_subsystem_bar_index = peripherals_bar_index;
                         candidate_design->cms_subsystem_base_offset = cms_base_offset;
+                        design_identified = true;
+                    }
+                    break;
+
+                case FPGA_DESIGN_U200_SLR_IDS:
+                    {
+                        const uint32_t peripherals_bar_index    = 0;
+                        const uint32_t dma_bridge_bar_index     = 1; /* Due to the peripherals BAR being 32-bit */
+                        const size_t user_access_base_offset    = 0x03000;
+                        const size_t user_access_frame_size     = 0x01000;
+                        const size_t ultrascale_dna_base_offset = 0x00000;
+                        const size_t ultrascale_dna_frame_size  = 0x01000;
+
+                        /* DMA bridge configured for "Memory Mapped" but no actual memory connected.
+                         * The following allows x2x_get_num_channels() to return valid results, but if attempts to actually
+                         * perform DMA will timeout. */
+                        candidate_design->dma_bridge_present = true;
+                        candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                        candidate_design->dma_bridge_memory_base_address = 0;
+                        candidate_design->dma_bridge_memory_size_bytes = 4096;
+
+                        candidate_design->user_access =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                        user_access_base_offset, user_access_frame_size);
+
+                        candidate_design->num_ultrascale_dna_regs = 3;
+                        for (uint32_t slr_index = 0; slr_index < candidate_design->num_ultrascale_dna_regs; slr_index++)
+                        {
+                            candidate_design->ultrascale_dna_regs[slr_index] =
+                                    map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                            ultrascale_dna_base_offset + (slr_index * ultrascale_dna_frame_size),
+                                            ultrascale_dna_frame_size);
+                        }
+
                         design_identified = true;
                     }
                     break;
