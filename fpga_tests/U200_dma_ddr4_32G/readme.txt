@@ -111,4 +111,49 @@ This is a modified version of U200_dma_ddr4 created by:
         /home/mr_halfword/fpga_sio/multiple_boards/custom_parts_ddr4_2016_4_and_above.csv
 
     The timing was met.
+12. Went back to using the MTA18ASF1G72PZ-2G3 custom part with a Memory Device Interface Speed of 833. This is DDR4-2400.
+    Added partitions.xdc with the following, as an initial attempt to avoid the timing issues with the SLR crossings:
+      set_property USER_SLR_ASSIGNMENT SLR0 [get_cells U200_dma_ddr4_32G_i/axi_smc_1/inst/m00_sc2axi]
+
+    Timing wasn't met. Timing failed for setup on 23 endpoints. Worst Negative Slack -0.170 ns.
+    The timing failures are reduced compared to the previous attempt without the additional constraints.
+
+    Loaded the bitstream, which has a "User access build timestamp : CBB4BE09 - 25/07/2026 11:56:09".
+    The MIG status in the debugger was reported as successful.
+    All memory tests passed.
+
+    The timing failures from U200_dma_ddr4_32G_wrapper_timing_summary_routed.rpt have been saved in DDR4-2400_timing_failures.txt,
+    for future analysis.
+
+    Since the memory tests passed, will commit the change, pending seeing if can get the timing to pass.
+
+    The MIG_1 calibration results:
+        Calibration Stage	Status
+        1 - DQS Gate	PASS
+        2 - DQS Gate Sanity Check	PASS
+        3 - Write Leveling	PASS
+        4 - Read Per-Bit Deskew	PASS
+        5 - Read Per-Bit DBI Deskew	SKIP
+        6 - Read DQS Centering (Simple)	PASS
+        7 - Read Sanity Check	PASS
+        8 - Write DQS to DQ Deskew	PASS
+        9 - Write DQS to DM/DBI Deskew	SKIP
+        10 - Write DQS to DQ (Simple)	PASS
+        11 - Write DQS to DM/DBI (Simple)	SKIP
+        12 - Read DQS Centering DBI (Simple)	SKIP
+        13 - Write Latency Calibration	PASS
+        14 - Write Read Sanity Check 0	PASS
+        15 - Read DQS Centering (Complex)	PASS
+        16 - Write Read Sanity Check 1	PASS
+        17 - Read VREF Training	SKIP
+        18 - Write Read Sanity Check 2	SKIP
+        19 - Write DQS to DQ (Complex)	PASS
+        20 - Write DQS to DM/DBI (Complex)	PASS
+        21 - Write Read Sanity Check 3	PASS
+        22 - Write VREF Training	SKIP
+        23 - Write Read Sanity Check 4	SKIP
+        24 - Read DQS Centering Multi Rank Adjustment	SKIP
+        25 - Write Read Sanity Check 5	SKIP
+        26 - Multi Rank Adjustment and Checks	SKIP
+        27 - Write Read Sanity Check 6	SKIP
 

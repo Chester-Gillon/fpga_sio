@@ -1,0 +1,1068 @@
+---------------------------------------------------------------------------------------------------
+From Clock:  mmcm_clkout0
+  To Clock:  mmcm_clkout0
+
+Setup :           23  Failing Endpoints,  Worst Slack       -0.170ns,  Total Violation       -1.667ns
+Hold  :            0  Failing Endpoints,  Worst Slack        0.011ns,  Total Violation        0.000ns
+PW    :            0  Failing Endpoints,  Worst Slack        0.014ns,  Total Violation        0.000ns
+---------------------------------------------------------------------------------------------------
+
+
+Max Delay Paths
+--------------------------------------------------------------------------------------
+Slack (VIOLATED) :        -0.170ns  (required time - arrival time)
+  Source:                 U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/C
+                            (rising edge-triggered cell FDRE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Destination:            U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[47]/D
+                            (rising edge-triggered cell FDRE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Path Group:             mmcm_clkout0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            3.332ns  (mmcm_clkout0 rise@3.332ns - mmcm_clkout0 rise@0.000ns)
+  Data Path Delay:        3.440ns  (logic 0.552ns (16.048%)  route 2.888ns (83.952%))
+  Logic Levels:           8  (LUT3=2 LUT5=1 LUT6=5)
+  Clock Path Skew:        0.224ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.996ns = ( 9.328 - 3.332 ) 
+    Source Clock Delay      (SCD):    5.468ns
+    Clock Pessimism Removal (CPR):    -0.304ns
+  Clock Uncertainty:      0.052ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.077ns
+    Phase Error              (PE):    0.000ns
+  Inter-SLR Compensation: 0.259ns  ((DCD - CCD) * PF)
+    Destination Clock Delay (DCD):    5.996ns
+    Common Clock Delay      (CCD):    4.268ns
+    Prorating Factor         (PF):    0.150
+  Clock Net Delay (Source):      2.616ns (routing 1.112ns, distribution 1.504ns)
+  Clock Net Delay (Destination): 2.739ns (routing 1.011ns, distribution 1.728ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock mmcm_clkout0 rise edge)
+                                                      0.000     0.000 r  
+    AY37                                              0.000     0.000 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.100     0.100    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.593     0.693 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.050     0.743    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     0.743 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.323     1.066    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     1.094 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.612     2.706    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.579 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.824    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.852 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.616     5.468    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/whandshake_d1_reg
+    SLICE_X85Y240        FDRE                                         r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X85Y240        FDRE (Prop_DFF2_SLICEL_C_Q)
+                                                      0.081     5.549 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/Q
+                         net (fo=17, routed)          0.196     5.745    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[4].axi_ctrl_reg/inst_reg_logic_[20].genblk1_18.fi_xor_we_r_reg[7][5]
+    SLICE_X85Y237        LUT3 (Prop_E6LUT_SLICEL_I2_O)
+                                                      0.090     5.835 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[4].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[25]_INST_0_i_5_replica_rewire/O
+                         net (fo=6, routed)           0.102     5.937    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[5]_0_repN_alias
+    SLICE_X85Y236        LUT6 (Prop_G6LUT_SLICEL_I5_O)
+                                                      0.035     5.972 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_4_rewire/O
+                         net (fo=4, routed)           0.105     6.077    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_4_n_0
+    SLICE_X85Y235        LUT6 (Prop_C6LUT_SLICEL_I2_O)
+                                                      0.123     6.200 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_1/O
+                         net (fo=104, routed)         0.211     6.411    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[13].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[8]
+    SLICE_X85Y239        LUT3 (Prop_B6LUT_SLICEL_I1_O)
+                                                      0.036     6.447 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[13].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[26]_INST_0_i_4/O
+                         net (fo=1, routed)           0.083     6.530    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[11].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[26]
+    SLICE_X85Y240        LUT6 (Prop_B6LUT_SLICEL_I3_O)
+                                                      0.051     6.581 f  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[11].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[26]_INST_0_i_3/O
+                         net (fo=1, routed)           0.220     6.801    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[17].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[26]_0
+    SLICE_X89Y240        LUT5 (Prop_B6LUT_SLICEL_I3_O)
+                                                      0.051     6.852 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[17].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[26]_INST_0_rewire/O
+                         net (fo=1, routed)           1.412     8.264    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/s_sc_payld[47]
+    SLR Crossing[0->1]   
+    SLICE_X111Y300       LUT6 (Prop_A6LUT_SLICEL_I5_O)
+                                                      0.050     8.314 r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[47]_INST_0_i_3/O
+                         net (fo=1, routed)           0.509     8.823    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[47]_INST_0_i_3_n_0
+    SLICE_X112Y309       LUT6 (Prop_C6LUT_SLICEL_I5_O)
+                                                      0.035     8.858 r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[47]_INST_0/O
+                         net (fo=1, routed)           0.050     8.908    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_in[47]
+    SLICE_X112Y309       FDRE                                         r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[47]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock mmcm_clkout0 rise edge)
+                                                      3.332     3.332 r  
+    AY37                                              0.000     3.332 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.079     3.411    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.512     3.923 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.040     3.963    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     3.963 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.287     4.250    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     4.274 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.446     5.720    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.350 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.215     6.565    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.589 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.739     9.328    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_clk
+    SLR Crossing[0->1]   
+    SLICE_X112Y309       FDRE                                         r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[47]/C
+                         clock pessimism             -0.304     9.024    
+                         inter-SLR compensation      -0.259     8.765    
+                         clock uncertainty           -0.052     8.713    
+    SLICE_X112Y309       FDRE (Setup_CFF_SLICEL_C_D)
+                                                      0.025     8.738    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[47]
+  -------------------------------------------------------------------
+                         required time                          8.738    
+                         arrival time                          -8.908    
+  -------------------------------------------------------------------
+                         slack                                 -0.170    
+
+Slack (VIOLATED) :        -0.132ns  (required time - arrival time)
+  Source:                 U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_aw_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/dest_hsdata_ff_reg[150]/C
+                            (rising edge-triggered cell FDRE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Destination:            U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[5]/D
+                            (rising edge-triggered cell FDRE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Path Group:             mmcm_clkout0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            3.332ns  (mmcm_clkout0 rise@3.332ns - mmcm_clkout0 rise@0.000ns)
+  Data Path Delay:        2.997ns  (logic 0.354ns (11.811%)  route 2.643ns (88.189%))
+  Logic Levels:           4  (LUT2=1 LUT3=2 LUT4=1)
+  Clock Path Skew:        -0.239ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.605ns = ( 8.937 - 3.332 ) 
+    Source Clock Delay      (SCD):    5.540ns
+    Clock Pessimism Removal (CPR):    -0.304ns
+  Clock Uncertainty:      0.052ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.077ns
+    Phase Error              (PE):    0.000ns
+  Inter-SLR Compensation: 0.201ns  ((DCD - CCD) * PF)
+    Destination Clock Delay (DCD):    5.605ns
+    Common Clock Delay      (CCD):    4.268ns
+    Prorating Factor         (PF):    0.150
+  Clock Net Delay (Source):      2.688ns (routing 1.112ns, distribution 1.576ns)
+  Clock Net Delay (Destination): 2.348ns (routing 1.011ns, distribution 1.337ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock mmcm_clkout0 rise edge)
+                                                      0.000     0.000 r  
+    AY37                                              0.000     0.000 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.100     0.100    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.593     0.693 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.050     0.743    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     0.743 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.323     1.066    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     1.094 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.612     2.706    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.579 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.824    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.852 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.688     5.540    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_aw_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/dest_clk
+    SLR Crossing[0->1]   
+    SLICE_X113Y342       FDRE                                         r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_aw_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/dest_hsdata_ff_reg[150]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X113Y342       FDRE (Prop_DFF2_SLICEM_C_Q)
+                                                      0.080     5.620 r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_aw_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/dest_hsdata_ff_reg[150]/Q
+                         net (fo=2, routed)           0.091     5.711    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_aw_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_normal_area.fifo_node_payld_dout[150]
+    SLICE_X113Y341       LUT3 (Prop_F6LUT_SLICEM_I0_O)
+                                                      0.088     5.799 r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_aw_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/m_sc_send[0]_INST_0/O
+                         net (fo=1, routed)           0.451     6.250    U200_dma_ddr4_32G_i/axi_smc/inst/m00_nodes/m00_aw_node/inst/inst_mi_handler/s_sc_send[0]
+    SLICE_X113Y304       LUT2 (Prop_D6LUT_SLICEM_I0_O)
+                                                      0.051     6.301 r  U200_dma_ddr4_32G_i/axi_smc/inst/m00_nodes/m00_aw_node/inst/inst_mi_handler/m_sc_send[0]_INST_0/O
+                         net (fo=2, routed)           0.043     6.344    U200_dma_ddr4_32G_i/axi_smc/inst/m00_exit_pipeline/m00_exit/inst/exit_inst/s_axi_awvalid
+    SLICE_X113Y304       LUT3 (Prop_E6LUT_SLICEM_I1_O)
+                                                      0.037     6.381 r  U200_dma_ddr4_32G_i/axi_smc/inst/m00_exit_pipeline/m00_exit/inst/exit_inst/m_axi_awvalid_INST_0/O
+                         net (fo=13, routed)          1.797     8.178    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_awvalid
+    SLR Crossing[1->0]   
+    SLICE_X85Y241        LUT4 (Prop_A6LUT_SLICEL_I2_O)
+                                                      0.098     8.276 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr[5]_i_1/O
+                         net (fo=1, routed)           0.261     8.537    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/p_1_in[5]
+    SLICE_X85Y240        FDRE                                         r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[5]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock mmcm_clkout0 rise edge)
+                                                      3.332     3.332 r  
+    AY37                                              0.000     3.332 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.079     3.411    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.512     3.923 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.040     3.963    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     3.963 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.287     4.250    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     4.274 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.446     5.720    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.350 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.215     6.565    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.589 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.348     8.937    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/whandshake_d1_reg
+    SLICE_X85Y240        FDRE                                         r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[5]/C
+                         clock pessimism             -0.304     8.633    
+                         inter-SLR compensation      -0.201     8.432    
+                         clock uncertainty           -0.052     8.380    
+    SLICE_X85Y240        FDRE (Setup_AFF_SLICEL_C_D)
+                                                      0.025     8.405    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[5]
+  -------------------------------------------------------------------
+                         required time                          8.405    
+                         arrival time                          -8.537    
+  -------------------------------------------------------------------
+                         slack                                 -0.132    
+
+Slack (VIOLATED) :        -0.123ns  (required time - arrival time)
+  Source:                 U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/C
+                            (rising edge-triggered cell FDRE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Destination:            U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[35]/D
+                            (rising edge-triggered cell FDRE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Path Group:             mmcm_clkout0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            3.332ns  (mmcm_clkout0 rise@3.332ns - mmcm_clkout0 rise@0.000ns)
+  Data Path Delay:        3.192ns  (logic 0.610ns (19.113%)  route 2.582ns (80.887%))
+  Logic Levels:           7  (LUT3=1 LUT4=1 LUT5=1 LUT6=4)
+  Clock Path Skew:        -0.013ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.759ns = ( 9.091 - 3.332 ) 
+    Source Clock Delay      (SCD):    5.468ns
+    Clock Pessimism Removal (CPR):    -0.304ns
+  Clock Uncertainty:      0.052ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.077ns
+    Phase Error              (PE):    0.000ns
+  Inter-SLR Compensation: 0.224ns  ((DCD - CCD) * PF)
+    Destination Clock Delay (DCD):    5.759ns
+    Common Clock Delay      (CCD):    4.268ns
+    Prorating Factor         (PF):    0.150
+  Clock Net Delay (Source):      2.616ns (routing 1.112ns, distribution 1.504ns)
+  Clock Net Delay (Destination): 2.502ns (routing 1.011ns, distribution 1.491ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock mmcm_clkout0 rise edge)
+                                                      0.000     0.000 r  
+    AY37                                              0.000     0.000 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.100     0.100    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.593     0.693 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.050     0.743    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     0.743 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.323     1.066    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     1.094 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.612     2.706    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.579 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.824    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.852 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.616     5.468    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/whandshake_d1_reg
+    SLICE_X85Y240        FDRE                                         r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X85Y240        FDRE (Prop_DFF2_SLICEL_C_Q)
+                                                      0.081     5.549 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/Q
+                         net (fo=17, routed)          0.196     5.745    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[4].axi_ctrl_reg/inst_reg_logic_[20].genblk1_18.fi_xor_we_r_reg[7][5]
+    SLICE_X85Y237        LUT3 (Prop_E6LUT_SLICEL_I2_O)
+                                                      0.090     5.835 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[4].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[25]_INST_0_i_5_replica_rewire/O
+                         net (fo=6, routed)           0.102     5.937    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[5]_0_repN_alias
+    SLICE_X85Y236        LUT6 (Prop_G6LUT_SLICEL_I5_O)
+                                                      0.035     5.972 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_4_rewire/O
+                         net (fo=4, routed)           0.105     6.077    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_4_n_0
+    SLICE_X85Y235        LUT6 (Prop_C6LUT_SLICEL_I2_O)
+                                                      0.123     6.200 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_1/O
+                         net (fo=104, routed)         0.222     6.421    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[17].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[31]_1
+    SLICE_X84Y234        LUT4 (Prop_F6LUT_SLICEM_I2_O)
+                                                      0.088     6.509 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[17].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[14]_INST_0_i_1/O
+                         net (fo=1, routed)           0.309     6.818    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[17].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[14]_INST_0_i_1_n_0
+    SLICE_X88Y246        LUT5 (Prop_D6LUT_SLICEM_I0_O)
+                                                      0.122     6.940 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[17].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[14]_INST_0/O
+                         net (fo=1, routed)           1.558     8.498    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/s_sc_payld[35]
+    SLR Crossing[0->1]   
+    SLICE_X112Y306       LUT6 (Prop_C6LUT_SLICEL_I5_O)
+                                                      0.035     8.533 r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[35]_INST_0_i_3/O
+                         net (fo=1, routed)           0.041     8.574    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[35]_INST_0_i_3_n_0
+    SLICE_X112Y306       LUT6 (Prop_D6LUT_SLICEL_I5_O)
+                                                      0.036     8.610 r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[35]_INST_0/O
+                         net (fo=1, routed)           0.049     8.659    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_in[35]
+    SLICE_X112Y306       FDRE                                         r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[35]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock mmcm_clkout0 rise edge)
+                                                      3.332     3.332 r  
+    AY37                                              0.000     3.332 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.079     3.411    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.512     3.923 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.040     3.963    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     3.963 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.287     4.250    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     4.274 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.446     5.720    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.350 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.215     6.565    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.589 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.502     9.091    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_clk
+    SLR Crossing[0->1]   
+    SLICE_X112Y306       FDRE                                         r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[35]/C
+                         clock pessimism             -0.304     8.787    
+                         inter-SLR compensation      -0.224     8.563    
+                         clock uncertainty           -0.052     8.511    
+    SLICE_X112Y306       FDRE (Setup_DFF_SLICEL_C_D)
+                                                      0.025     8.536    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[35]
+  -------------------------------------------------------------------
+                         required time                          8.536    
+                         arrival time                          -8.659    
+  -------------------------------------------------------------------
+                         slack                                 -0.123    
+
+Slack (VIOLATED) :        -0.104ns  (required time - arrival time)
+  Source:                 U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/C
+                            (rising edge-triggered cell FDRE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Destination:            U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[23]/D
+                            (rising edge-triggered cell FDRE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Path Group:             mmcm_clkout0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            3.332ns  (mmcm_clkout0 rise@3.332ns - mmcm_clkout0 rise@0.000ns)
+  Data Path Delay:        3.374ns  (logic 0.541ns (16.033%)  route 2.833ns (83.967%))
+  Logic Levels:           7  (LUT3=1 LUT5=1 LUT6=5)
+  Clock Path Skew:        0.225ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.997ns = ( 9.329 - 3.332 ) 
+    Source Clock Delay      (SCD):    5.468ns
+    Clock Pessimism Removal (CPR):    -0.304ns
+  Clock Uncertainty:      0.052ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.077ns
+    Phase Error              (PE):    0.000ns
+  Inter-SLR Compensation: 0.259ns  ((DCD - CCD) * PF)
+    Destination Clock Delay (DCD):    5.997ns
+    Common Clock Delay      (CCD):    4.268ns
+    Prorating Factor         (PF):    0.150
+  Clock Net Delay (Source):      2.616ns (routing 1.112ns, distribution 1.504ns)
+  Clock Net Delay (Destination): 2.740ns (routing 1.011ns, distribution 1.729ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock mmcm_clkout0 rise edge)
+                                                      0.000     0.000 r  
+    AY37                                              0.000     0.000 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.100     0.100    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.593     0.693 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.050     0.743    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     0.743 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.323     1.066    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     1.094 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.612     2.706    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.579 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.824    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.852 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.616     5.468    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/whandshake_d1_reg
+    SLICE_X85Y240        FDRE                                         r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X85Y240        FDRE (Prop_DFF2_SLICEL_C_Q)
+                                                      0.081     5.549 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/Q
+                         net (fo=17, routed)          0.196     5.745    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[4].axi_ctrl_reg/inst_reg_logic_[20].genblk1_18.fi_xor_we_r_reg[7][5]
+    SLICE_X85Y237        LUT3 (Prop_E6LUT_SLICEL_I2_O)
+                                                      0.090     5.835 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[4].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[25]_INST_0_i_5_replica_rewire/O
+                         net (fo=6, routed)           0.102     5.937    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[5]_0_repN_alias
+    SLICE_X85Y236        LUT6 (Prop_G6LUT_SLICEL_I5_O)
+                                                      0.035     5.972 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_4_rewire/O
+                         net (fo=4, routed)           0.105     6.077    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_4_n_0
+    SLICE_X85Y235        LUT6 (Prop_C6LUT_SLICEL_I2_O)
+                                                      0.123     6.200 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_1/O
+                         net (fo=104, routed)         0.242     6.442    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[11].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[25]_1
+    SLICE_X84Y236        LUT6 (Prop_G6LUT_SLICEM_I3_O)
+                                                      0.090     6.532 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[11].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[2]_INST_0_i_2/O
+                         net (fo=1, routed)           0.349     6.881    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[17].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata_2_sn_1
+    SLICE_X88Y244        LUT5 (Prop_D6LUT_SLICEM_I2_O)
+                                                      0.051     6.932 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[17].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[2]_INST_0/O
+                         net (fo=1, routed)           1.699     8.631    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/s_sc_payld[23]
+    SLR Crossing[0->1]   
+    SLICE_X112Y305       LUT6 (Prop_E6LUT_SLICEL_I5_O)
+                                                      0.035     8.666 r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[23]_INST_0_i_3/O
+                         net (fo=1, routed)           0.091     8.757    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[23]_INST_0_i_3_n_0
+    SLICE_X112Y305       LUT6 (Prop_D6LUT_SLICEL_I5_O)
+                                                      0.036     8.793 r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[23]_INST_0/O
+                         net (fo=1, routed)           0.049     8.842    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_in[23]
+    SLICE_X112Y305       FDRE                                         r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[23]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock mmcm_clkout0 rise edge)
+                                                      3.332     3.332 r  
+    AY37                                              0.000     3.332 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.079     3.411    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.512     3.923 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.040     3.963    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     3.963 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.287     4.250    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     4.274 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.446     5.720    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.350 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.215     6.565    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.589 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.740     9.329    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_clk
+    SLR Crossing[0->1]   
+    SLICE_X112Y305       FDRE                                         r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[23]/C
+                         clock pessimism             -0.304     9.025    
+                         inter-SLR compensation      -0.259     8.766    
+                         clock uncertainty           -0.052     8.713    
+    SLICE_X112Y305       FDRE (Setup_DFF_SLICEL_C_D)
+                                                      0.025     8.738    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[23]
+  -------------------------------------------------------------------
+                         required time                          8.738    
+                         arrival time                          -8.842    
+  -------------------------------------------------------------------
+                         slack                                 -0.104    
+
+Slack (VIOLATED) :        -0.097ns  (required time - arrival time)
+  Source:                 U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/C
+                            (rising edge-triggered cell FDRE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Destination:            U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[38]/D
+                            (rising edge-triggered cell FDRE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Path Group:             mmcm_clkout0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            3.332ns  (mmcm_clkout0 rise@3.332ns - mmcm_clkout0 rise@0.000ns)
+  Data Path Delay:        3.166ns  (logic 0.668ns (21.099%)  route 2.498ns (78.901%))
+  Logic Levels:           7  (LUT3=1 LUT6=6)
+  Clock Path Skew:        -0.012ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.760ns = ( 9.092 - 3.332 ) 
+    Source Clock Delay      (SCD):    5.468ns
+    Clock Pessimism Removal (CPR):    -0.304ns
+  Clock Uncertainty:      0.052ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.077ns
+    Phase Error              (PE):    0.000ns
+  Inter-SLR Compensation: 0.224ns  ((DCD - CCD) * PF)
+    Destination Clock Delay (DCD):    5.760ns
+    Common Clock Delay      (CCD):    4.268ns
+    Prorating Factor         (PF):    0.150
+  Clock Net Delay (Source):      2.616ns (routing 1.112ns, distribution 1.504ns)
+  Clock Net Delay (Destination): 2.503ns (routing 1.011ns, distribution 1.492ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock mmcm_clkout0 rise edge)
+                                                      0.000     0.000 r  
+    AY37                                              0.000     0.000 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.100     0.100    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.593     0.693 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.050     0.743    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     0.743 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.323     1.066    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     1.094 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.612     2.706    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.579 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.824    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.852 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.616     5.468    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/whandshake_d1_reg
+    SLICE_X85Y240        FDRE                                         r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X85Y240        FDRE (Prop_DFF2_SLICEL_C_Q)
+                                                      0.081     5.549 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/Q
+                         net (fo=17, routed)          0.196     5.745    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[4].axi_ctrl_reg/inst_reg_logic_[20].genblk1_18.fi_xor_we_r_reg[7][5]
+    SLICE_X85Y237        LUT3 (Prop_E6LUT_SLICEL_I2_O)
+                                                      0.090     5.835 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[4].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[25]_INST_0_i_5_replica_rewire/O
+                         net (fo=6, routed)           0.102     5.937    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[5]_0_repN_alias
+    SLICE_X85Y236        LUT6 (Prop_G6LUT_SLICEL_I5_O)
+                                                      0.035     5.972 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_4_rewire/O
+                         net (fo=4, routed)           0.105     6.077    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_4_n_0
+    SLICE_X85Y235        LUT6 (Prop_C6LUT_SLICEL_I2_O)
+                                                      0.123     6.200 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_1/O
+                         net (fo=104, routed)         0.105     6.305    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[10].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[9]
+    SLICE_X85Y235        LUT6 (Prop_A6LUT_SLICEL_I2_O)
+                                                      0.090     6.395 f  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[10].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[17]_INST_0_i_1/O
+                         net (fo=1, routed)           0.149     6.544    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[10].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[17]_INST_0_i_1_n_0
+    SLICE_X86Y235        LUT6 (Prop_F6LUT_SLICEL_I0_O)
+                                                      0.148     6.692 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[10].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[17]_INST_0/O
+                         net (fo=1, routed)           1.751     8.443    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/s_sc_payld[38]
+    SLR Crossing[0->1]   
+    SLICE_X112Y301       LUT6 (Prop_E6LUT_SLICEL_I5_O)
+                                                      0.051     8.494 r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[38]_INST_0_i_3/O
+                         net (fo=1, routed)           0.042     8.536    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[38]_INST_0_i_3_n_0
+    SLICE_X112Y301       LUT6 (Prop_A6LUT_SLICEL_I5_O)
+                                                      0.050     8.586 r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[38]_INST_0/O
+                         net (fo=1, routed)           0.048     8.634    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_in[38]
+    SLICE_X112Y301       FDRE                                         r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[38]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock mmcm_clkout0 rise edge)
+                                                      3.332     3.332 r  
+    AY37                                              0.000     3.332 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.079     3.411    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.512     3.923 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.040     3.963    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     3.963 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.287     4.250    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     4.274 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.446     5.720    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.350 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.215     6.565    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.589 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.503     9.092    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_clk
+    SLR Crossing[0->1]   
+    SLICE_X112Y301       FDRE                                         r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[38]/C
+                         clock pessimism             -0.304     8.788    
+                         inter-SLR compensation      -0.224     8.564    
+                         clock uncertainty           -0.052     8.512    
+    SLICE_X112Y301       FDRE (Setup_AFF_SLICEL_C_D)
+                                                      0.025     8.537    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[38]
+  -------------------------------------------------------------------
+                         required time                          8.537    
+                         arrival time                          -8.634    
+  -------------------------------------------------------------------
+                         slack                                 -0.097    
+
+Slack (VIOLATED) :        -0.092ns  (required time - arrival time)
+  Source:                 U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/C
+                            (rising edge-triggered cell FDRE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Destination:            U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[44]/D
+                            (rising edge-triggered cell FDRE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Path Group:             mmcm_clkout0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            3.332ns  (mmcm_clkout0 rise@3.332ns - mmcm_clkout0 rise@0.000ns)
+  Data Path Delay:        3.058ns  (logic 0.564ns (18.446%)  route 2.494ns (81.554%))
+  Logic Levels:           7  (LUT3=1 LUT5=1 LUT6=5)
+  Clock Path Skew:        -0.134ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.638ns = ( 8.970 - 3.332 ) 
+    Source Clock Delay      (SCD):    5.468ns
+    Clock Pessimism Removal (CPR):    -0.304ns
+  Clock Uncertainty:      0.052ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.077ns
+    Phase Error              (PE):    0.000ns
+  Inter-SLR Compensation: 0.205ns  ((DCD - CCD) * PF)
+    Destination Clock Delay (DCD):    5.638ns
+    Common Clock Delay      (CCD):    4.268ns
+    Prorating Factor         (PF):    0.150
+  Clock Net Delay (Source):      2.616ns (routing 1.112ns, distribution 1.504ns)
+  Clock Net Delay (Destination): 2.381ns (routing 1.011ns, distribution 1.370ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock mmcm_clkout0 rise edge)
+                                                      0.000     0.000 r  
+    AY37                                              0.000     0.000 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.100     0.100    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.593     0.693 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.050     0.743    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     0.743 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.323     1.066    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     1.094 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.612     2.706    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.579 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.824    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.852 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.616     5.468    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/whandshake_d1_reg
+    SLICE_X85Y240        FDRE                                         r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X85Y240        FDRE (Prop_DFF2_SLICEL_C_Q)
+                                                      0.081     5.549 f  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/Q
+                         net (fo=17, routed)          0.196     5.745    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[4].axi_ctrl_reg/inst_reg_logic_[20].genblk1_18.fi_xor_we_r_reg[7][5]
+    SLICE_X85Y237        LUT3 (Prop_E6LUT_SLICEL_I2_O)
+                                                      0.090     5.835 f  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[4].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[25]_INST_0_i_5_replica_rewire/O
+                         net (fo=6, routed)           0.102     5.937    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[5]_0_repN_alias
+    SLICE_X85Y236        LUT6 (Prop_G6LUT_SLICEL_I5_O)
+                                                      0.035     5.972 f  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_4_rewire/O
+                         net (fo=4, routed)           0.105     6.077    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_4_n_0
+    SLICE_X85Y235        LUT6 (Prop_C6LUT_SLICEL_I2_O)
+                                                      0.123     6.200 f  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_1/O
+                         net (fo=104, routed)         0.232     6.432    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[5].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[24]_4
+    SLICE_X86Y235        LUT5 (Prop_E6LUT_SLICEL_I3_O)
+                                                      0.051     6.483 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[5].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[23]_INST_0_i_2/O
+                         net (fo=1, routed)           0.181     6.664    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[5].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[23]_INST_0_i_2_n_0
+    SLICE_X86Y240        LUT6 (Prop_B6LUT_SLICEL_I2_O)
+                                                      0.098     6.762 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[5].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[23]_INST_0/O
+                         net (fo=1, routed)           1.593     8.355    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/s_sc_payld[44]
+    SLR Crossing[0->1]   
+    SLICE_X101Y340       LUT6 (Prop_D6LUT_SLICEL_I5_O)
+                                                      0.036     8.391 r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[44]_INST_0_i_3/O
+                         net (fo=1, routed)           0.037     8.428    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[44]_INST_0_i_3_n_0
+    SLICE_X101Y340       LUT6 (Prop_A6LUT_SLICEL_I5_O)
+                                                      0.050     8.478 r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[44]_INST_0/O
+                         net (fo=1, routed)           0.048     8.526    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_in[44]
+    SLICE_X101Y340       FDRE                                         r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[44]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock mmcm_clkout0 rise edge)
+                                                      3.332     3.332 r  
+    AY37                                              0.000     3.332 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.079     3.411    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.512     3.923 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.040     3.963    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     3.963 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.287     4.250    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     4.274 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.446     5.720    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.350 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.215     6.565    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.589 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.381     8.970    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_clk
+    SLR Crossing[0->1]   
+    SLICE_X101Y340       FDRE                                         r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[44]/C
+                         clock pessimism             -0.304     8.666    
+                         inter-SLR compensation      -0.205     8.460    
+                         clock uncertainty           -0.052     8.408    
+    SLICE_X101Y340       FDRE (Setup_AFF_SLICEL_C_D)
+                                                      0.025     8.433    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[44]
+  -------------------------------------------------------------------
+                         required time                          8.433    
+                         arrival time                          -8.526    
+  -------------------------------------------------------------------
+                         slack                                 -0.092    
+
+Slack (VIOLATED) :        -0.090ns  (required time - arrival time)
+  Source:                 U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/C
+                            (rising edge-triggered cell FDRE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Destination:            U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[33]/D
+                            (rising edge-triggered cell FDRE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Path Group:             mmcm_clkout0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            3.332ns  (mmcm_clkout0 rise@3.332ns - mmcm_clkout0 rise@0.000ns)
+  Data Path Delay:        3.231ns  (logic 0.652ns (20.180%)  route 2.579ns (79.820%))
+  Logic Levels:           7  (LUT3=1 LUT5=2 LUT6=4)
+  Clock Path Skew:        0.073ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.845ns = ( 9.177 - 3.332 ) 
+    Source Clock Delay      (SCD):    5.468ns
+    Clock Pessimism Removal (CPR):    -0.304ns
+  Clock Uncertainty:      0.052ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.077ns
+    Phase Error              (PE):    0.000ns
+  Inter-SLR Compensation: 0.237ns  ((DCD - CCD) * PF)
+    Destination Clock Delay (DCD):    5.845ns
+    Common Clock Delay      (CCD):    4.268ns
+    Prorating Factor         (PF):    0.150
+  Clock Net Delay (Source):      2.616ns (routing 1.112ns, distribution 1.504ns)
+  Clock Net Delay (Destination): 2.588ns (routing 1.011ns, distribution 1.577ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock mmcm_clkout0 rise edge)
+                                                      0.000     0.000 r  
+    AY37                                              0.000     0.000 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.100     0.100    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.593     0.693 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.050     0.743    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     0.743 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.323     1.066    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     1.094 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.612     2.706    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.579 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.824    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.852 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.616     5.468    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/whandshake_d1_reg
+    SLICE_X85Y240        FDRE                                         r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X85Y240        FDRE (Prop_DFF2_SLICEL_C_Q)
+                                                      0.081     5.549 f  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/Q
+                         net (fo=17, routed)          0.196     5.745    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[4].axi_ctrl_reg/inst_reg_logic_[20].genblk1_18.fi_xor_we_r_reg[7][5]
+    SLICE_X85Y237        LUT3 (Prop_E6LUT_SLICEL_I2_O)
+                                                      0.090     5.835 f  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[4].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[25]_INST_0_i_5_replica_rewire/O
+                         net (fo=6, routed)           0.102     5.937    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[5]_0_repN_alias
+    SLICE_X85Y236        LUT6 (Prop_G6LUT_SLICEL_I5_O)
+                                                      0.035     5.972 f  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_4_rewire/O
+                         net (fo=4, routed)           0.105     6.077    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_4_n_0
+    SLICE_X85Y235        LUT6 (Prop_C6LUT_SLICEL_I2_O)
+                                                      0.123     6.200 f  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_1/O
+                         net (fo=104, routed)         0.353     6.553    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[6].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[6]
+    SLICE_X86Y240        LUT5 (Prop_F6LUT_SLICEL_I1_O)
+                                                      0.148     6.701 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[6].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[12]_INST_0_i_2_rewire/O
+                         net (fo=1, routed)           0.040     6.741    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[17].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata_12_sn_1
+    SLICE_X86Y240        LUT5 (Prop_E6LUT_SLICEL_I2_O)
+                                                      0.090     6.831 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[17].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[12]_INST_0_rewire/O
+                         net (fo=1, routed)           1.693     8.524    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/s_sc_payld[33]
+    SLR Crossing[0->1]   
+    SLICE_X112Y300       LUT6 (Prop_A6LUT_SLICEL_I5_O)
+                                                      0.050     8.574 r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[33]_INST_0_i_3/O
+                         net (fo=1, routed)           0.040     8.614    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[33]_INST_0_i_3_n_0
+    SLICE_X112Y300       LUT6 (Prop_C6LUT_SLICEL_I5_O)
+                                                      0.035     8.649 r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[33]_INST_0/O
+                         net (fo=1, routed)           0.050     8.699    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_in[33]
+    SLICE_X112Y300       FDRE                                         r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[33]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock mmcm_clkout0 rise edge)
+                                                      3.332     3.332 r  
+    AY37                                              0.000     3.332 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.079     3.411    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.512     3.923 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.040     3.963    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     3.963 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.287     4.250    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     4.274 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.446     5.720    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.350 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.215     6.565    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.589 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.588     9.177    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_clk
+    SLR Crossing[0->1]   
+    SLICE_X112Y300       FDRE                                         r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[33]/C
+                         clock pessimism             -0.304     8.873    
+                         inter-SLR compensation      -0.237     8.636    
+                         clock uncertainty           -0.052     8.584    
+    SLICE_X112Y300       FDRE (Setup_CFF_SLICEL_C_D)
+                                                      0.025     8.609    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[33]
+  -------------------------------------------------------------------
+                         required time                          8.609    
+                         arrival time                          -8.699    
+  -------------------------------------------------------------------
+                         slack                                 -0.090    
+
+Slack (VIOLATED) :        -0.085ns  (required time - arrival time)
+  Source:                 U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_ar_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/FSM_onehot_rd_state_reg[0]/C
+                            (rising edge-triggered cell FDSE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Destination:            U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[4]/CE
+                            (rising edge-triggered cell FDRE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Path Group:             mmcm_clkout0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            3.332ns  (mmcm_clkout0 rise@3.332ns - mmcm_clkout0 rise@0.000ns)
+  Data Path Delay:        2.875ns  (logic 0.363ns (12.626%)  route 2.512ns (87.374%))
+  Logic Levels:           4  (LUT2=2 LUT4=2)
+  Clock Path Skew:        -0.236ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.558ns = ( 8.890 - 3.332 ) 
+    Source Clock Delay      (SCD):    5.490ns
+    Clock Pessimism Removal (CPR):    -0.304ns
+  Clock Uncertainty:      0.052ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.077ns
+    Phase Error              (PE):    0.000ns
+  Inter-SLR Compensation: 0.193ns  ((DCD - CCD) * PF)
+    Destination Clock Delay (DCD):    5.558ns
+    Common Clock Delay      (CCD):    4.268ns
+    Prorating Factor         (PF):    0.150
+  Clock Net Delay (Source):      2.638ns (routing 1.112ns, distribution 1.526ns)
+  Clock Net Delay (Destination): 2.301ns (routing 1.011ns, distribution 1.290ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock mmcm_clkout0 rise edge)
+                                                      0.000     0.000 r  
+    AY37                                              0.000     0.000 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.100     0.100    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.593     0.693 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.050     0.743    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     0.743 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.323     1.066    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     1.094 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.612     2.706    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.579 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.824    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.852 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.638     5.490    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_ar_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/m_sc_aclk
+    SLR Crossing[0->1]   
+    SLICE_X114Y330       FDSE                                         r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_ar_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/FSM_onehot_rd_state_reg[0]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X114Y330       FDSE (Prop_BFF_SLICEL_C_Q)
+                                                      0.079     5.569 f  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_ar_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/FSM_onehot_rd_state_reg[0]/Q
+                         net (fo=17, routed)          0.373     5.942    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_ar_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/FSM_onehot_rd_state_reg_n_0_[0]
+    SLICE_X114Y304       LUT2 (Prop_B6LUT_SLICEL_I1_O)
+                                                      0.036     5.978 r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_ar_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/m_sc_send[0]_INST_0_rewire/O
+                         net (fo=2, routed)           0.131     6.109    U200_dma_ddr4_32G_i/axi_smc/inst/m00_nodes/m00_ar_node/inst/inst_mi_handler/s_sc_send[0]
+    SLICE_X114Y305       LUT2 (Prop_A6LUT_SLICEL_I0_O)
+                                                      0.035     6.144 r  U200_dma_ddr4_32G_i/axi_smc/inst/m00_nodes/m00_ar_node/inst/inst_mi_handler/m_sc_send[0]_INST_0_rewire_rewire/O
+                         net (fo=1, routed)           0.669     6.813    U200_dma_ddr4_32G_i/axi_smc/inst/m00_exit_pipeline/m00_exit/inst/exit_inst/s_axi_arvalid
+    SLICE_X91Y304        LUT4 (Prop_E6LUT_SLICEL_I2_O)
+                                                      0.090     6.903 r  U200_dma_ddr4_32G_i/axi_smc/inst/m00_exit_pipeline/m00_exit/inst/exit_inst/m_axi_arvalid_INST_0_rewire/O
+                         net (fo=3, routed)           1.197     8.100    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_arvalid
+    SLR Crossing[1->0]   
+    SLICE_X85Y240        LUT4 (Prop_C6LUT_SLICEL_I2_O)
+                                                      0.123     8.223 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr[9]_i_1/O
+                         net (fo=8, routed)           0.142     8.365    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr[9]_i_1_n_0
+    SLICE_X85Y240        FDRE                                         r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[4]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock mmcm_clkout0 rise edge)
+                                                      3.332     3.332 r  
+    AY37                                              0.000     3.332 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.079     3.411    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.512     3.923 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.040     3.963    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     3.963 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.287     4.250    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     4.274 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.446     5.720    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.350 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.215     6.565    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.589 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.301     8.890    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/whandshake_d1_reg
+    SLICE_X85Y240        FDRE                                         r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[4]/C
+                         clock pessimism             -0.304     8.586    
+                         inter-SLR compensation      -0.193     8.392    
+                         clock uncertainty           -0.052     8.340    
+    SLICE_X85Y240        FDRE (Setup_FFF2_SLICEL_C_CE)
+                                                     -0.060     8.280    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[4]
+  -------------------------------------------------------------------
+                         required time                          8.280    
+                         arrival time                          -8.365    
+  -------------------------------------------------------------------
+                         slack                                 -0.085    
+
+Slack (VIOLATED) :        -0.084ns  (required time - arrival time)
+  Source:                 U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_ar_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/FSM_onehot_rd_state_reg[0]/C
+                            (rising edge-triggered cell FDSE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Destination:            U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[6]/CE
+                            (rising edge-triggered cell FDRE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Path Group:             mmcm_clkout0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            3.332ns  (mmcm_clkout0 rise@3.332ns - mmcm_clkout0 rise@0.000ns)
+  Data Path Delay:        2.875ns  (logic 0.363ns (12.627%)  route 2.512ns (87.373%))
+  Logic Levels:           4  (LUT2=2 LUT4=2)
+  Clock Path Skew:        -0.236ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.558ns = ( 8.890 - 3.332 ) 
+    Source Clock Delay      (SCD):    5.490ns
+    Clock Pessimism Removal (CPR):    -0.304ns
+  Clock Uncertainty:      0.052ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.077ns
+    Phase Error              (PE):    0.000ns
+  Inter-SLR Compensation: 0.193ns  ((DCD - CCD) * PF)
+    Destination Clock Delay (DCD):    5.558ns
+    Common Clock Delay      (CCD):    4.268ns
+    Prorating Factor         (PF):    0.150
+  Clock Net Delay (Source):      2.638ns (routing 1.112ns, distribution 1.526ns)
+  Clock Net Delay (Destination): 2.301ns (routing 1.011ns, distribution 1.290ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock mmcm_clkout0 rise edge)
+                                                      0.000     0.000 r  
+    AY37                                              0.000     0.000 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.100     0.100    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.593     0.693 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.050     0.743    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     0.743 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.323     1.066    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     1.094 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.612     2.706    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.579 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.824    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.852 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.638     5.490    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_ar_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/m_sc_aclk
+    SLR Crossing[0->1]   
+    SLICE_X114Y330       FDSE                                         r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_ar_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/FSM_onehot_rd_state_reg[0]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X114Y330       FDSE (Prop_BFF_SLICEL_C_Q)
+                                                      0.079     5.569 f  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_ar_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/FSM_onehot_rd_state_reg[0]/Q
+                         net (fo=17, routed)          0.373     5.942    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_ar_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/FSM_onehot_rd_state_reg_n_0_[0]
+    SLICE_X114Y304       LUT2 (Prop_B6LUT_SLICEL_I1_O)
+                                                      0.036     5.978 r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_ar_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/m_sc_send[0]_INST_0_rewire/O
+                         net (fo=2, routed)           0.131     6.109    U200_dma_ddr4_32G_i/axi_smc/inst/m00_nodes/m00_ar_node/inst/inst_mi_handler/s_sc_send[0]
+    SLICE_X114Y305       LUT2 (Prop_A6LUT_SLICEL_I0_O)
+                                                      0.035     6.144 r  U200_dma_ddr4_32G_i/axi_smc/inst/m00_nodes/m00_ar_node/inst/inst_mi_handler/m_sc_send[0]_INST_0_rewire_rewire/O
+                         net (fo=1, routed)           0.669     6.813    U200_dma_ddr4_32G_i/axi_smc/inst/m00_exit_pipeline/m00_exit/inst/exit_inst/s_axi_arvalid
+    SLICE_X91Y304        LUT4 (Prop_E6LUT_SLICEL_I2_O)
+                                                      0.090     6.903 r  U200_dma_ddr4_32G_i/axi_smc/inst/m00_exit_pipeline/m00_exit/inst/exit_inst/m_axi_arvalid_INST_0_rewire/O
+                         net (fo=3, routed)           1.197     8.100    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_arvalid
+    SLR Crossing[1->0]   
+    SLICE_X85Y240        LUT4 (Prop_C6LUT_SLICEL_I2_O)
+                                                      0.123     8.223 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr[9]_i_1/O
+                         net (fo=8, routed)           0.142     8.365    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr[9]_i_1_n_0
+    SLICE_X85Y240        FDRE                                         r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[6]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock mmcm_clkout0 rise edge)
+                                                      3.332     3.332 r  
+    AY37                                              0.000     3.332 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.079     3.411    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.512     3.923 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.040     3.963    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     3.963 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.287     4.250    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     4.274 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.446     5.720    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.350 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.215     6.565    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.589 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.301     8.890    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/whandshake_d1_reg
+    SLICE_X85Y240        FDRE                                         r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[6]/C
+                         clock pessimism             -0.304     8.586    
+                         inter-SLR compensation      -0.193     8.392    
+                         clock uncertainty           -0.052     8.340    
+    SLICE_X85Y240        FDRE (Setup_FFF_SLICEL_C_CE)
+                                                     -0.060     8.280    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[6]
+  -------------------------------------------------------------------
+                         required time                          8.280    
+                         arrival time                          -8.365    
+  -------------------------------------------------------------------
+                         slack                                 -0.084    
+
+Slack (VIOLATED) :        -0.072ns  (required time - arrival time)
+  Source:                 U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/C
+                            (rising edge-triggered cell FDRE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Destination:            U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[42]/D
+                            (rising edge-triggered cell FDRE clocked by mmcm_clkout0  {rise@0.000ns fall@1.666ns period=3.332ns})
+  Path Group:             mmcm_clkout0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            3.332ns  (mmcm_clkout0 rise@3.332ns - mmcm_clkout0 rise@0.000ns)
+  Data Path Delay:        3.141ns  (logic 0.525ns (16.715%)  route 2.616ns (83.285%))
+  Logic Levels:           7  (LUT3=2 LUT6=5)
+  Clock Path Skew:        -0.012ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    5.760ns = ( 9.092 - 3.332 ) 
+    Source Clock Delay      (SCD):    5.468ns
+    Clock Pessimism Removal (CPR):    -0.304ns
+  Clock Uncertainty:      0.052ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.077ns
+    Phase Error              (PE):    0.000ns
+  Inter-SLR Compensation: 0.224ns  ((DCD - CCD) * PF)
+    Destination Clock Delay (DCD):    5.760ns
+    Common Clock Delay      (CCD):    4.268ns
+    Prorating Factor         (PF):    0.150
+  Clock Net Delay (Source):      2.616ns (routing 1.112ns, distribution 1.504ns)
+  Clock Net Delay (Destination): 2.503ns (routing 1.011ns, distribution 1.492ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock mmcm_clkout0 rise edge)
+                                                      0.000     0.000 r  
+    AY37                                              0.000     0.000 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.100     0.100    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.593     0.693 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.050     0.743    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     0.743 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.323     1.066    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     1.094 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.612     2.706    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                     -0.127     2.579 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.245     2.824    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.028     2.852 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.616     5.468    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/whandshake_d1_reg
+    SLICE_X85Y240        FDRE                                         r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X85Y240        FDRE (Prop_DFF2_SLICEL_C_Q)
+                                                      0.081     5.549 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[7]/Q
+                         net (fo=17, routed)          0.196     5.745    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[4].axi_ctrl_reg/inst_reg_logic_[20].genblk1_18.fi_xor_we_r_reg[7][5]
+    SLICE_X85Y237        LUT3 (Prop_E6LUT_SLICEL_I2_O)
+                                                      0.090     5.835 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[4].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[25]_INST_0_i_5_replica_rewire/O
+                         net (fo=6, routed)           0.102     5.937    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/addr_reg[5]_0_repN_alias
+    SLICE_X85Y236        LUT6 (Prop_G6LUT_SLICEL_I5_O)
+                                                      0.035     5.972 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_4_rewire/O
+                         net (fo=4, routed)           0.105     6.077    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_4_n_0
+    SLICE_X85Y235        LUT6 (Prop_C6LUT_SLICEL_I2_O)
+                                                      0.123     6.200 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/c0_ddr4_s_axi_ctrl_rdata[22]_INST_0_i_1/O
+                         net (fo=104, routed)         0.337     6.537    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[13].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[8]
+    SLICE_X86Y240        LUT3 (Prop_A6LUT_SLICEL_I1_O)
+                                                      0.035     6.572 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[13].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[21]_INST_0_i_2/O
+                         net (fo=1, routed)           0.218     6.790    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[5].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[21]
+    SLICE_X88Y243        LUT6 (Prop_E6LUT_SLICEM_I4_O)
+                                                      0.091     6.881 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/axi_ctrl_top_0/axi_ctrl_reg_bank_0/inst_reg[5].axi_ctrl_reg/c0_ddr4_s_axi_ctrl_rdata[21]_INST_0/O
+                         net (fo=1, routed)           1.569     8.450    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/s_sc_payld[42]
+    SLR Crossing[0->1]   
+    SLICE_X112Y303       LUT6 (Prop_A6LUT_SLICEL_I5_O)
+                                                      0.035     8.485 r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[42]_INST_0_i_3/O
+                         net (fo=1, routed)           0.040     8.525    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[42]_INST_0_i_3_n_0
+    SLICE_X112Y303       LUT6 (Prop_C6LUT_SLICEL_I5_O)
+                                                      0.035     8.560 r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/r_la_out_swbd/inst/m_sc_payld[42]_INST_0/O
+                         net (fo=1, routed)           0.049     8.609    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_in[42]
+    SLICE_X112Y303       FDRE                                         r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[42]/D
+  -------------------------------------------------------------------    -------------------
+
+                         (clock mmcm_clkout0 rise edge)
+                                                      3.332     3.332 r  
+    AY37                                              0.000     3.332 r  SYSCLK0_300_clk_p (IN)
+                         net (fo=0)                   0.079     3.411    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/I
+    HPIOBDIFFINBUF_X0Y84 DIFFINBUF (Prop_DIFFINBUF_HPIOBDIFFINBUF_DIFF_IN_P_O)
+                                                      0.512     3.923 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/DIFFINBUF_INST/O
+                         net (fo=1, routed)           0.040     3.963    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT
+    AY37                 IBUFCTRL (Prop_IBUFCTRL_HPIOB_M_I_O)
+                                                      0.000     3.963 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/IBUFCTRL_INST/O
+                         net (fo=2, routed)           0.287     4.250    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/sys_clk_in
+    BUFGCE_X0Y95         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     4.274 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/gen_bufg_backbone.u__bufg_backbone/O
+                         net (fo=1, routed)           1.446     5.720    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clk_in
+    MMCM_X0Y2            MMCME4_ADV (Prop_MMCM_CLKIN1_CLKOUT0)
+                                                      0.630     6.350 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst/CLKOUT0
+                         net (fo=1, routed)           0.215     6.565    U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/mmcm_clkout0
+    BUFGCE_X0Y61         BUFGCE (Prop_BUFCE_BUFGCE_I_O)
+                                                      0.024     6.589 r  U200_dma_ddr4_32G_i/U200_ddr4_channel_0/ddr4_0/inst/u_ddr4_infrastructure/u_bufg_divClk/O
+    X3Y4 (CLOCK_ROOT)    net (fo=42587, routed)       2.503     9.092    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_clk
+    SLR Crossing[0->1]   
+    SLICE_X112Y303       FDRE                                         r  U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[42]/C
+                         clock pessimism             -0.304     8.788    
+                         inter-SLR compensation      -0.224     8.564    
+                         clock uncertainty           -0.052     8.512    
+    SLICE_X112Y303       FDRE (Setup_CFF2_SLICEL_C_D)
+                                                      0.025     8.537    U200_dma_ddr4_32G_i/axi_smc/inst/switchboards/i_nodes/i_r_node/inst/inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_reg_fifo_async.inst_reg_fifo_async/gen_xpm_cdc_handshake_array[0].inst_cdc_handshake/src_hsdata_ff_reg[42]
+  -------------------------------------------------------------------
+                         required time                          8.537    
+                         arrival time                          -8.609    
+  -------------------------------------------------------------------
+                         slack                                 -0.072    
+
