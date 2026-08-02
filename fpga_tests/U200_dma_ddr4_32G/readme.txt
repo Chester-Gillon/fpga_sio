@@ -156,4 +156,169 @@ This is a modified version of U200_dma_ddr4 created by:
         25 - Write Read Sanity Check 5	SKIP
         26 - Multi Rank Adjustment and Checks	SKIP
         27 - Write Read Sanity Check 6	SKIP
+13. Looking at the Clocking Advanced Properties of axi_smc_1 which is used to connect the data for the DDR4 channels:
+    - S00_Entry associated clock is aclk1: 250 MHz U200_dma_ddr4_32G_xdma_0_0_axi_aclk
+    - SW0 associated clock is       aclk : 300 MHz U200_ddr4_channel_inst_0_ddr4_0_0_ddr4_ui_clk
+    - M00_Exit associated clock is  aclk : 300 MHz U200_ddr4_channel_inst_0_ddr4_0_0_ddr4_ui_clk
+    - M01_Exit associated clock is  aclk2: 300 MHz U200_ddr4_channel_inst_1_ddr4_0_0_ddr4_ui_clk
+    - M02_Exit associated clock is  aclk3: 300 MHz U200_ddr4_channel_inst_2_ddr4_0_0_ddr4_ui_clk
+    - M03_Exit associated clock is  aclk4: 300 MHz U200_ddr4_channel_inst_3_ddr4_0_0_ddr4_ui_clk
+
+    I.e. the "switcher" SW0 is running at 300 MHz from DDR4 channel 0. That might explain the timing issues on signals between SLRs
+    for DDR4 channel 0.
+
+    On the block diagram, for axi_smc_1 swapped the connection to ack and ack1 so that
+    - aclk is the 250 MHz clock from the XMDA
+    - aclk1 is the 300 MHz clock from DDR channel 0
+
+    After validating, the Clocking Advanced Properties of axi_smc_1 then showed the SW0 is now operating at 250 MHz.
+
+    Timing wasn't met, and was significantly worse than on previous attempts.
+    Is now failing on multiple clocks, for setup, hold and pulse width.
+    Therefore, will not commit the changes.
+
+    ------------------------------------------------------------------------------------------------
+    | Design Timing Summary
+    | ---------------------
+    ------------------------------------------------------------------------------------------------
+
+        WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
+        -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
+         -4.355   -30259.623                  13261               547888       -3.381   -17942.541                   8444               543556       -0.219       -1.000                      11                220404  
+
+14. Looking at the U200_dma_ddr4_32G_wrapper_io_placed.rpt to find the SLR region for different IOs:
+    - DDR4 channel 0: SLR region 0
+    - DDR4 channel 1: SLR region 1
+    - DDR4 channel 2: SLR region 1
+    - DDR4 channel 3: SLR region 2
+    - PCIe          : SLR region 1
+
+   On the axi_smc_1 reordered the clocks to be:
+    - S00_Entry associated clock is ack1 : 250 MHz U200_dma_ddr4_32G_xdma_0_0_axi_aclk
+    - SW0 associated clock is       aclk : 300 MHz U200_ddr4_channel_inst_1_ddr4_0_0_ddr4_ui_clk
+    - M00_Exit associated clock is  aclk2: 300 MHz U200_ddr4_channel_inst_0_ddr4_0_0_ddr4_ui_clk
+    - M01_Exit associated clock is  aclk : 300 MHz U200_ddr4_channel_inst_1_ddr4_0_0_ddr4_ui_clk
+    - M02_Exit associated clock is  aclk3: 300 MHz U200_ddr4_channel_inst_2_ddr4_0_0_ddr4_ui_clk
+    - M03_Exit associated clock is  aclk4: 300 MHz U200_ddr4_channel_inst_3_ddr4_0_0_ddr4_ui_clk
+
+    This is to try running SW0 with a 300 MHz clock from DDR4 channel 1, which is in the same SLR region 1 as the PCIe.
+
+    Timing wasn't met, and was significantly worse than attempts which didn't attempt to change the clocks used in axi_smc_1.
+    Therefore, didn't commit the changes.
+
+        ------------------------------------------------------------------------------------------------
+        | Design Timing Summary
+        | ---------------------
+        ------------------------------------------------------------------------------------------------
+
+            WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
+            -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
+             -0.595     -502.610                   2463               547900        0.002        0.000                      0               543544       -0.146       -0.930                      13                220465  
+
+    The timing failures are on:
+    a. Intra-Clock paths:
+       - mmcm_clkout0   (Setup and Pulse Width)
+       - mmcm_clkout0_1 (Pulse Width)
+       - mmcm_clkout0_2 (Pulse Width)
+       - mmcm_clkout0_3 (Pulse Width)
+    b. Inter-Clock paths:
+       - mmcm_clkout0 to mmcm_clkout0_1 (Setup)
+       - mmcm_clkout0_1 to mmcm_clkout0 (Setup)
+
+    These are all 300 MHz clocks, and derived from reference clocks for each of the memory channels.
+
+15. Tried replacing the "AXI Smart Connect" used for the DDR4 channels with the "AXI Interconnect (Discontinued)".
+    For the configuration options:
+    a. Top Level Settings -> Interconnect Optimization Strategy: Maximize Performance
+    b. Advanced Options -> Interconnect Crossbar Options: Data Width of AXI Crossbar manual 512
+       The automatic setting seemed to be 32-bits.
+
+    Timing wasn't met:
+        ------------------------------------------------------------------------------------------------
+        | Design Timing Summary
+        | ---------------------
+        ------------------------------------------------------------------------------------------------
+
+            WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
+            -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
+             -0.114       -3.106                     77               520975        0.010        0.000                      0               516771       -0.505       -0.505                       1                214505  
+
+        The timing failures are on:
+    a. Intra-Clock paths:
+       - mmcm_clkout0  : Setup
+       - mmcm_clkout0_2: Pulse Width
+
+    Tried using the design, but the memory tests failed with DMA timeouts.
+    Possibly caused by not connecting the reset signals for the AXI Interconnect master ports?
+    Therefore, didn't commit the design.
+
+16. The PG247 (v1.0) SmartConnect v1.0 documentation mentions "Per-channel SLR Pipeline Control" options, to improve timing.
+
+    Went back to the AXI Smart Connect for the DDR4 channels, and on the axi_smc_1 reordered the clocks to be:
+    - S00_Entry associated clock is ack1 : 250 MHz U200_dma_ddr4_32G_xdma_0_0_axi_aclk
+    - SW0 associated clock is       aclk : 300 MHz U200_ddr4_channel_inst_1_ddr4_0_0_ddr4_ui_clk
+    - M00_Exit associated clock is  aclk2: 300 MHz U200_ddr4_channel_inst_0_ddr4_0_0_ddr4_ui_clk
+    - M01_Exit associated clock is  aclk : 300 MHz U200_ddr4_channel_inst_1_ddr4_0_0_ddr4_ui_clk
+    - M02_Exit associated clock is  aclk3: 300 MHz U200_ddr4_channel_inst_2_ddr4_0_0_ddr4_ui_clk
+    - M03_Exit associated clock is  aclk4: 300 MHz U200_ddr4_channel_inst_3_ddr4_0_0_ddr4_ui_clk
+
+    The following were set to 1 on the axi_smc_1 M00_Buffer and M03_Buffer, which should be on SLR crossings:
+    - AR_SLR_PIPE
+    - AW_SLR_PIPE
+    - R_SLR_PIPE
+    - W_SLR_PIPE
+    - B_SLR_PIPE
+
+    Timing wasn't met:
+        ------------------------------------------------------------------------------------------------
+        | Design Timing Summary
+        | ---------------------
+        ------------------------------------------------------------------------------------------------
+
+            WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
+            -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
+             -0.121       -2.519                     51               550745        0.006        0.000                      0               546388        0.000        0.000                       0                223163  
+
+    The setup failures are all on Intra-Clock paths for mmcm_clkout0, which is for DDR4 channel 0.
+    Looking at the Timing, for the 10 worst paths they are all between SLR0 and SLR1.
+
+    Re-added the partitions.xdc constraint file to the project, and populated it with placement for the DDR4 channels 0 and 3 in the axi_smc_1.
+
+    Timing wasn't met:
+    WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
+    -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
+     -0.200       -3.500                     58               550696        0.010        0.000                      0               546340        0.000        0.000                       0                223131  
+
+    The setup failure are all on Intra-Clock paths for mmcm_clkout0, which is for DDR4 channel 0.
+    Looking at the Timing, for the 10 worst paths:
+    a. They are all between SLR0 and SLR1.
+    b. They are actually all for paths on axi_smc, on the AXI control for the DDR4 channel 0 registers.
+
+    axi_smc doesn't have the Advanced Properties enabled on the GUI, since it is for AXI4-Lite which is in low area mode.
+    See https://adaptivesupport.amd.com/s/question/0D54U00008YzzeOSAR/axi-smartconnect-how-to-disable-low-area-mode-of-axi-smartconnet?language=en_US
+
+    On the axi_smc swap the clock connections to be:
+    - aclk  : U200_ddr4_channel_1_ddr4_ui_clk
+    - aclk2 : U200_ddr4_channel_0_ddr4_ui_clk
+
+    Timing wasn't met:
+    WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints     WPWS(ns)     TPWS(ns)  TPWS Failing Endpoints  TPWS Total Endpoints  
+    -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------     --------     --------  ----------------------  --------------------  
+     -2.321     -298.573                    991               550706        0.007        0.000                      0               546350       -0.141       -0.788                      10                223144  
+
+    Used the following to disable the low area mode on axi_smc:
+      set_property -dict [ list CONFIG.ADVANCED_PROPERTIES { __experimental_features__ {disable_low_area_mode 1 }} ] [get_bd_cells axi_smc]
+      validate_bd_design
+
+    The following were set to 1 on the axi_smc M00_Buffer and M03_Buffer, which should be on SLR crossings:
+    - AR_SLR_PIPE
+    - AW_SLR_PIPE
+    - R_SLR_PIPE
+    - W_SLR_PIPE
+    - B_SLR_PIPE
+
+    Updated partitions.xdc to populate it with the placement for axi_smc, as well as axi_smc_1.
+    Used the same pblocks for both the axi_smc and axi_smc_1, since the placement is per SLR.
+
+    Timing was then met.
 
