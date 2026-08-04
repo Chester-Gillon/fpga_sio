@@ -322,3 +322,22 @@ This is a modified version of U200_dma_ddr4 created by:
 
     Timing was then met.
 
+17. To see if setting the PIPE adavanced properties were necessary manually edited the create_project.tcl file to remove the
+    setting of CONFIG.ADVANCED_PROPERTIES for both axi_smc and axi_smc_1
+
+    Built using Viado 2026.1. Timing was met and the memory tests passed.
+
+    There were 14 Critical Warnings of the following form, on axi_smc nodes which didn't exist:
+       [Vivado 12-1433] Expecting a non-empty list of cells to be added to the pblock.  Please verify the correctness of the <cells> argument. 
+       ["/home/mr_halfword/fpga_sio_clean/fpga_tests/U200_dma_ddr4_32G/partitions.xdc":17]
+
+    The nodes didn't exist since with the advanced properties remove from axi_smi, think that the SmartConnect was in Low Area mode.
+
+    Disabled the partitions.xdc, and timing was met. That suggests Vivado 2026.1 is better at getting timing closure than 2025.1 was.
+
+    In 2026.1 the axi_smc configuration GUI has a new option for "Area/Performance Tradeoff", which was initially set to Automatic.
+    Changed from Automatic to High Performance. After validation, than enabled "Show Advanced Properties" in the configuration GUI.
+    After Synthesis the Netlist showed axi_smc has the nodes targeted by partitions.xdc.
+
+    Re-enabled partitions.xdc, and timing was met. The memory tests pass.
+
