@@ -21,3 +21,6 @@ target_link_libraries(vfio_access pci_sysfs_access pci rt)
 
 add_executable (vfio_multi_process_manager "vfio_multi_process_manager.c")
 target_link_libraries (vfio_multi_process_manager vfio_access)
+
+add_executable (vfio_access_keep_open "vfio_access_keep_open.c")
+target_link_libraries (vfio_access_keep_open vfio_access)

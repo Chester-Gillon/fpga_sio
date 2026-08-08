@@ -153,5 +153,6 @@ typedef struct
 
 void read_sysmon_samples (sysmon_device_collection_t *const device_collection, uint8_t *const sysmon_regs, const uint32_t num_sysmon_slaves);
 void display_sysmon_samples (const sysmon_device_collection_t *const device_collection);
+void display_sysmon_temperatures (const sysmon_device_collection_t *const device_collection);
 
 #endif /* XILINX_SYSMON_H_ */

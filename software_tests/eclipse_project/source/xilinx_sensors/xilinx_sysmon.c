@@ -536,3 +536,34 @@ void display_sysmon_samples (const sysmon_device_collection_t *const device_coll
         }
     }
 }
+
+
+/**
+ * @brief Display just the current temperature measurements of the SYSMON samples which have been read.
+ * @param[in] device_collection The samples to display
+ */
+void display_sysmon_temperatures (const sysmon_device_collection_t *const device_collection)
+{
+    for (uint32_t instance = 0; instance < device_collection->num_instances; instance++)
+    {
+        const sysmon_sample_collection_t *const collection = &device_collection->collections[instance];
+
+        for (sysmon_channels_t channel = 0; channel < SYSMON_CHANNEL_ARRAY_SIZE; channel++)
+        {
+            if (channel == SYSMON_CHANNEL_TEMPERATURE)
+            {
+                const sysmon_channel_sample_t *const sample = &collection->samples[channel];
+
+                if (sample->measurement.defined)
+                {
+                    printf ("SYSMON");
+                    if (device_collection->num_instances > 1)
+                    {
+                        printf (" instance %u", instance);
+                    }
+                    printf ("  %s     %7.4f°C\n", sysmon_channel_names[channel], sample->measurement.scaled_value);
+                }
+            }
+        }
+    }
+}

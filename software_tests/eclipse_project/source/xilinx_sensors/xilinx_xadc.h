@@ -124,5 +124,6 @@ typedef struct
 
 void read_xadc_samples (xadc_sample_collection_t *const collection, uint8_t *const xadc_regs);
 void display_xadc_samples (const xadc_sample_collection_t *const collection);
+void display_xadc_temperatures (const xadc_sample_collection_t *const collection);
 
 #endif /* XILINX_XADC_H_ */

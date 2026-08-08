@@ -7,6 +7,7 @@
  *  Can display sensor values for either:
  *  a. Xilinx "Analog-to-Digital Converter (XADC)"
  *  b. Xilinx "UltraScale Architecture System Monitor (SYSMON)"
+ *  c. Xilinx Card Management Solution Subsystem (CMS Subsystem)
  *
  *  This was originally created to just support XADC, with SYSMON support added later. Even though there is some overlap
  *  between XADC and SYSMON there are separate implementations of the code to read and display the samples.

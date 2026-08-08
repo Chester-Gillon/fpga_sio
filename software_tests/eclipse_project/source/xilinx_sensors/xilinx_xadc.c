@@ -413,7 +413,7 @@ static double unpack_xadc_gain_calibration (const uint32_t calibration_reg_value
 
 
 /**
- * @brief Brief the collection of XADC samples which have been read.
+ * @brief Display the collection of XADC samples which have been read.
  * @param[in] collection The collection to display
  */
 void display_xadc_samples (const xadc_sample_collection_t *const collection)
@@ -474,6 +474,27 @@ void display_xadc_samples (const xadc_sample_collection_t *const collection)
                 printf ("      %7.4f%s", sample->max.scaled_value, display_units);
             }
             printf ("\n");
+        }
+    }
+}
+
+
+/**
+ * @brief Display just the current temperature measurements of the XADC samples which have been read.
+ * @param[in] collection The collection to display
+ */
+void display_xadc_temperatures (const xadc_sample_collection_t *const collection)
+{
+    for (xadc_channels_t channel = 0; channel < XADC_CHANNEL_ARRAY_SIZE; channel++)
+    {
+        if (channel == XADC_CHANNEL_TEMPERATURE)
+        {
+            const xadc_channel_sample_t *const sample = &collection->samples[channel];
+
+            if (sample->measurement.defined)
+            {
+                printf ("  %s     %7.4f°C\n", xadc_channel_names[channel], sample->measurement.scaled_value);
+            }
         }
     }
 }

@@ -357,6 +357,7 @@ bool cms_write_qsfp_module_low_speed_io (xilinx_cms_context_t *const context, co
 void cms_display_configuration (const xilinx_cms_context_t *const context);
 void cms_read_sensors (const xilinx_cms_context_t *const context, cms_sensor_collection_t *const collection);
 void cms_display_sensors (const cms_sensor_collection_t *const collection);
+void cms_display_temperatures (const cms_sensor_collection_t *const collection);
 bool cms_i2c_module_block_read (xilinx_cms_context_t *const context, const cms_i2s_addressing_t *const i2c_addressing,
                                 uint8_t data [const CMS_I2C_MODULE_PAGE_LEN]);
 bool cms_i2c_module_byte_read (xilinx_cms_context_t *const context, const cms_i2s_addressing_t *const i2c_addressing,

@@ -1783,6 +1783,25 @@ void cms_display_sensors (const cms_sensor_collection_t *const collection)
 
 
 /**
+ * @brief Display the values of card temperature sensors which are valid
+ * @param[in] collection The sensor values to display
+ */
+void cms_display_temperatures (const cms_sensor_collection_t *const collection)
+{
+    for (cms_sensor_ids_t sensor_id = 0; sensor_id < CMS_SENSOR_ARRAY_SIZE; sensor_id++)
+    {
+        const cms_sensor_values_t *const sensor = &collection->sensors[sensor_id];
+        const cms_sensor_definition_t *const definition = &cms_sensor_definitions[sensor_id];
+
+        if (sensor->valid && (definition->units == CMS_UNITS_CELSIUS))
+        {
+            printf ("  %14s%*u°C\n", definition->name, CMS_VALUE_WIDTH - 1, sensor->instantaneous);
+        }
+    }
+}
+
+
+/**
  * @brief Perform a I2C module block read.
  * @param[in] context Used to access the CMS
  * @param[in] i2c_addressing Select the address to read the block.

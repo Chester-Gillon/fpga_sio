@@ -58,7 +58,7 @@ void vfio_add_pci_device_location_filter (const char *const device_name)
     if (num_pci_device_location_filters < MAX_VFIO_DEVICES)
     {
         vfio_pci_device_location_filter_t *const filter = &vfio_pci_device_location_filters[num_pci_device_location_filters];
-        const int num_values = sscanf (device_name, "%d:%" SCNx8 ":%" SCNx8 ".%" SCNx8 "%c",
+        const int num_values = sscanf (device_name, "%" SCNx32 ":%" SCNx8 ":%" SCNx8 ".%" SCNx8 "%c",
                 &filter->domain, &filter->bus, &filter->dev, &filter->func, &junk);
 
         if (num_values == 4)
