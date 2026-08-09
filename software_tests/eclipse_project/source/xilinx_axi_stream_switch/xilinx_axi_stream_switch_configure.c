@@ -163,6 +163,20 @@ static const device_routing_t default_stream_loopback[FPGA_DESIGN_ARRAY_SIZE] =
              {.enabled = true, .master_port = 2, .slave_port = 2},
              {.enabled = true, .master_port = 3, .slave_port = 3}
         }
+    },
+
+    /* The following for this design sets up AXI stream switch to route between the XDMA streams and the full duplex 100G Ethernet
+     * ports. The AXI stream switch was added to the design to allow testing of looping back the 100G Ethernet ports in hardware. */
+    [FPGA_DESIGN_U200_100G_ETHER_DUPLEX] =
+    {
+        .num_routes = 4,
+        .routes =
+        {
+             {.enabled = true, .master_port = 0, .slave_port = 0},
+             {.enabled = true, .master_port = 1, .slave_port = 1},
+             {.enabled = true, .master_port = 2, .slave_port = 2},
+             {.enabled = true, .master_port = 3, .slave_port = 3}
+        }
     }
 };
 

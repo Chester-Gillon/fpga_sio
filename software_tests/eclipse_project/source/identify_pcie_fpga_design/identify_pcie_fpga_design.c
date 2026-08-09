@@ -1684,6 +1684,8 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                         const size_t quad_spi_frame_size        = 0x02000;
                         const size_t ultrascale_dna_base_offset = 0x08000;
                         const size_t ultrascale_dna_frame_size  = 0x01000;
+                        const size_t axi_switch_base_offset     = 0x09000;
+                        const size_t axi_switch_frame_size      = 0x01000;
                         const size_t cms_base_offset            = 0x40000;
                         const size_t cmac_registers_base_offsets[] =
                         {
@@ -1725,6 +1727,14 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                                 map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                         ultrascale_dna_base_offset, ultrascale_dna_frame_size);
                         candidate_design->num_ultrascale_dna_regs = 1;
+
+                        if (vfio_device->pci_revision_id >= 1)
+                        {
+                            candidate_design->axi_switch_regs = map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                    axi_switch_base_offset, axi_switch_frame_size);
+                            candidate_design->axi_switch_num_master_ports = 4;
+                            candidate_design->axi_switch_num_slave_ports = 4;
+                        }
 
                         design_identified = true;
                     }
