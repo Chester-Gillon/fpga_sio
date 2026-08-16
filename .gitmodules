@@ -1,0 +1,3 @@
+[submodule "xilinx_reference_designs"]
+	path = xilinx_reference_designs
+	url = https://github.com/Chester-Gillon/xilinx_reference_designs
