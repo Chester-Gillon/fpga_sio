@@ -9,6 +9,7 @@
 #include "cmac_register_access.h"
 #include "transfer_timing.h"
 #include "cmac_axi4_lite_registers.h"
+#include "cmac_drp_registers.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -18,7 +19,7 @@
 #define STRINGIFY_HELPER(X) #X
 #define STRINGIFY(X) STRINGIFY_HELPER(X)
 
-/* Define the register offsets and names for the statistics counters in one CMACC port.
+/* Define the register offsets and names for the statistics counters in one CMAC port.
  * CMAC_STAT_COUNTER_DEF is used to set the name to the same as that of the register offsets without the prefix and suffix. */
 #define CMAC_STAT_COUNTER_DEF(name_param) [CMAC_STAT_##name_param] = \
     {.name = STRINGIFY(name_param), \
@@ -163,8 +164,8 @@ static int64_t port_last_sample_tick_times_ns[MAX_VFIO_DEVICES][MAX_CMAC_PORTS_P
 static void cmac_display_status_register (const cmac_port_definition_t *const port_def, const uint32_t reg_offset,
                                           const char *const reg_name)
 {
-    const uint32_t initial_reg_value = read_reg32 (port_def->cmac_regs, reg_offset);
-    const uint32_t subsequent_reg_value = read_reg32 (port_def->cmac_regs, reg_offset);
+    const uint32_t initial_reg_value = read_reg32 (port_def->cmac_control_status_statistics_regs, reg_offset);
+    const uint32_t subsequent_reg_value = read_reg32 (port_def->cmac_control_status_statistics_regs, reg_offset);
 
     if (initial_reg_value == subsequent_reg_value)
     {
@@ -199,16 +200,16 @@ void display_cmac_ports (const fpga_design_t *const design)
     {
         const cmac_port_definition_t *const port_def = &design->cmac_ports[port_index];
 
-        if (port_def->cmac_regs != NULL)
+        if (port_def->cmac_control_status_statistics_regs != NULL)
         {
-            const uint32_t core_mode_reg = read_reg32 (port_def->cmac_regs, CORE_MODE_REG_OFFSET);
+            const uint32_t core_mode_reg = read_reg32 (port_def->cmac_control_status_statistics_regs, CORE_MODE_REG_OFFSET);
             const uint32_t core_mode = vfio_extract_field_u32 (core_mode_reg, CORE_MODE_REG_MASK);
-            const uint32_t core_version_reg = read_reg32 (port_def->cmac_regs, CORE_VERSION_REG_OFFSET);
+            const uint32_t core_version_reg = read_reg32 (port_def->cmac_control_status_statistics_regs, CORE_VERSION_REG_OFFSET);
             const uint32_t core_version_minor = vfio_extract_field_u32 (core_version_reg, CORE_VERSION_REG_MINOR_MASK);
             const uint32_t core_version_major = vfio_extract_field_u32 (core_version_reg, CORE_VERSION_REG_MAJOR_MASK);
 
             snprintf (peripheral_name, sizeof (peripheral_name), "CMAC port %u", port_index);
-            display_design_present_peripheral (design, peripheral_name, port_def->cmac_regs);
+            display_design_present_peripheral (design, peripheral_name, port_def->cmac_control_status_statistics_regs);
             printf ("    Core mode: %s\n", core_mode_names[core_mode]);
             printf ("    Core version: %u.%u\n", core_version_major, core_version_minor);
 
@@ -257,7 +258,7 @@ void cmac_snapshot_port_statistics (fpga_design_t *const design, const uint32_t 
 
     /* Snapshot the statistics counters */
     stats->this_sample_tick_time_ns = get_monotonic_time ();
-    write_reg32 (design->cmac_ports[port_num].cmac_regs, TICK_REG_OFFSET, TICK_REG_TICK_REG_MASK);
+    write_reg32 (design->cmac_ports[port_num].cmac_control_status_statistics_regs, TICK_REG_OFFSET, TICK_REG_TICK_REG_MASK);
 }
 
 
@@ -303,8 +304,8 @@ void cmac_read_port_statistics (cmac_port_statistics_t *const stats)
 
         if (counter_defined)
         {
-            const uint32_t counter_lsb_register = read_reg32 (port_def->cmac_regs, counter_def->lsb_offset);
-            const uint32_t counter_msb_register = read_reg32 (port_def->cmac_regs, counter_def->msb_offset);
+            const uint32_t counter_lsb_register = read_reg32 (port_def->cmac_control_status_statistics_regs, counter_def->lsb_offset);
+            const uint32_t counter_msb_register = read_reg32 (port_def->cmac_control_status_statistics_regs, counter_def->msb_offset);
 
             stats->counter_values[counter_index] = (((uint64_t) counter_msb_register & 0xffff) << 32) | counter_lsb_register;
         }
@@ -445,7 +446,7 @@ fpga_design_t *cmac_port_iterator_next (cmac_port_iterator_t *const iterator, ui
  */
 void cmac_reset_port (fpga_design_t *const design, const uint32_t port_num)
 {
-    uint8_t *const port_regs = design->cmac_ports[port_num].cmac_regs;
+    uint8_t *const port_regs = design->cmac_ports[port_num].cmac_control_status_statistics_regs;
 
     /* Apply reset for 100 microseconds, in the absence of any minimum reset duration in the CMAC documentation */
     const struct timespec reset_duration =
@@ -460,4 +461,114 @@ void cmac_reset_port (fpga_design_t *const design, const uint32_t port_num)
     clock_nanosleep (CLOCK_MONOTONIC, 0, &reset_duration, NULL);
     write_reg32 (port_regs, GT_RESET_REG_OFFSET, 0);
     write_reg32 (port_regs, RESET_REG_OFFSET, 0);
+}
+
+
+/**
+ * @brief Write to a DRP register on a CMAC port
+ * @param[in,out] port Which CMAC port to write to
+ * @param[in] drp_address Which DRP register to write
+ * @param[in] drp_value The DRP register value to write. DRP registers have a maximum of 16 bits.
+ */
+void cmac_drp_write (cmac_port_definition_t *const port, const uint32_t drp_address, const uint32_t drp_value)
+{
+    write_reg32 (port->cmac_drp_regs, drp_address * 4, drp_value & UINT16_MAX);
+}
+
+
+/**
+ * @brief Read from a DRP register on a CMAC port
+ * @param[in] port Which CMAC port to read from
+ * @param[in] drp_address Which DRP register to read
+ * @return The DRP register value read. DRP registers have a maximum of 16 bits.
+ */
+uint32_t cmac_drp_read (const cmac_port_definition_t *const port, const uint32_t drp_address)
+{
+    return read_reg32 (port->cmac_drp_regs, drp_address * 4) & UINT16_MAX;
+}
+
+
+/**
+ * @brief Get the minimum and maximum receive packets lengths for a CMAC port. These lengths include the FCS.
+ * @param[in] port Which CMAC port to get the lengths for
+ * @param[out] rx_min_packet_len The minimum receive packet length
+ * @param[out] rx_max_packet_len The maximum receive packet length
+ */
+void cmac_get_rx_min_max_packet_lens (const cmac_port_definition_t *const port,
+                                      uint32_t *const rx_min_packet_len, uint32_t *const rx_max_packet_len)
+{
+    if (port->cmac_drp_regs != NULL)
+    {
+        /* The design has DRP access, so read the actual configured values */
+        const uint32_t ctl_rx_min_packet_len = cmac_drp_read (port, CMAC_DRP_CTL_RX_MIN_PACKET_LEN_OFFSET);
+        const uint32_t ctl_rx_max_packet_len = cmac_drp_read (port, CMAC_DRP_CTL_RX_MAX_PACKET_LEN_OFFSET);
+
+        *rx_min_packet_len = vfio_extract_field_u32 (ctl_rx_min_packet_len, CMAC_DRP_CTL_RX_MIN_PACKET_LEN_MASK);
+        *rx_max_packet_len = vfio_extract_field_u32 (ctl_rx_max_packet_len, CMAC_DRP_CTL_RX_MAX_PACKET_LEN_MASK);
+    }
+    else
+    {
+        /* The design doesn't have DRP access, so assume default values have been configured */
+        *rx_min_packet_len = 64;
+        *rx_max_packet_len = 9600;
+    }
+}
+
+
+/**
+ * @brief Ensure a CMAC port is enabled for transmission and reception (depending upon the configured features)
+ * @details
+ *   This is required since after reset, including after a VFIO open, the CMAC port will be disabled.
+ *   This function only modifies the CMAC control registers if finds the port is disabled.
+ * @param[in,out] port Which CMAC port to enable
+ */
+void cmac_enable_port (cmac_port_definition_t *const port)
+{
+    uint8_t *const cmac_registers = port->cmac_control_status_statistics_regs;
+
+    /* If RSFEC is disabled, enable it */
+    if (port->configured_features[CMAC_FEATURE_RS_FEC])
+    {
+        uint32_t rsfec_config_enable = read_reg32 (cmac_registers, RSFEC_CONFIG_ENABLE_OFFSET);
+
+        if (port->configured_features[CMAC_FEATURE_PACKET_RX])
+        {
+            if ((rsfec_config_enable & RSFEC_CONFIG_ENABLE_CTL_RX_RSFEC_ENABLE_MASK) == 0)
+            {
+                rsfec_config_enable |= RSFEC_CONFIG_ENABLE_CTL_RX_RSFEC_ENABLE_MASK;
+                write_reg32 (cmac_registers, RSFEC_CONFIG_ENABLE_OFFSET, rsfec_config_enable);
+            }
+        }
+
+        if (port->configured_features[CMAC_FEATURE_PACKET_TX])
+        {
+            if ((rsfec_config_enable & RSFEC_CONFIG_ENABLE_CTL_TX_RSFEC_ENABLE_MASK) == 0)
+            {
+                rsfec_config_enable |= RSFEC_CONFIG_ENABLE_CTL_TX_RSFEC_ENABLE_MASK;
+                write_reg32 (cmac_registers, RSFEC_CONFIG_ENABLE_OFFSET, rsfec_config_enable);
+            }
+        }
+    }
+
+    if (port->configured_features[CMAC_FEATURE_PACKET_TX])
+    {
+        /* If transmit is disabled */
+        uint32_t configuration_tx_reg1 = read_reg32 (cmac_registers, CONFIGURATION_TX_REG1_OFFSET);
+        if ((configuration_tx_reg1 & CONFIGURATION_TX_REG1_CTL_TX_ENABLE_MASK) == 0)
+        {
+            configuration_tx_reg1 |= CONFIGURATION_TX_REG1_CTL_TX_ENABLE_MASK;
+            write_reg32 (cmac_registers, CONFIGURATION_TX_REG1_OFFSET, configuration_tx_reg1);
+        }
+    }
+
+    if (port->configured_features[CMAC_FEATURE_PACKET_RX])
+    {
+        /* If receive is disabled, enable it */
+        uint32_t configuration_rx_reg1 = read_reg32 (cmac_registers, CONFIGURATION_RX_REG1_OFFSET);
+        if ((configuration_rx_reg1 & CONFIGURATION_RX_REG1_CTL_RX_ENABLE_MASK) == 0)
+        {
+            configuration_rx_reg1 |= CONFIGURATION_RX_REG1_CTL_RX_ENABLE_MASK;
+            write_reg32 (cmac_registers, CONFIGURATION_RX_REG1_OFFSET, configuration_rx_reg1);
+        }
+    }
 }

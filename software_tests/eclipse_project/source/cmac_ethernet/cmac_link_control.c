@@ -51,6 +51,10 @@ static void display_cmac_registers (const uint8_t *const cmac_registers)
     const uint32_t core_mode_reg = read_reg32 (cmac_registers, CORE_MODE_REG_OFFSET);
     printf ("core_mode_reg = %u\n", vfio_extract_field_u32 (core_mode_reg, CORE_MODE_REG_MASK));
 
+    const uint32_t configuration_rx_reg1 = read_reg32 (cmac_registers, CONFIGURATION_RX_REG1_OFFSET);
+    printf ("configuration_rx_reg1_ctl_rx_enable_mask = %u\n",
+            vfio_extract_field_u32 (configuration_rx_reg1, CONFIGURATION_RX_REG1_CTL_RX_ENABLE_MASK));
+
     const uint32_t rsfec_config_enable = read_reg32 (cmac_registers, RSFEC_CONFIG_ENABLE_OFFSET);
     printf ("rsfec_config_enable_ctl_rx_rsfec_enable = %u\n",
             vfio_extract_field_u32 (rsfec_config_enable, RSFEC_CONFIG_ENABLE_CTL_RX_RSFEC_ENABLE_MASK));
@@ -74,7 +78,7 @@ int main (int argc, char *argv[])
         for (uint32_t port_index = 0; port_index < design->num_cmac_ports; port_index++)
         {
             const cmac_port_definition_t *const port_def = &design->cmac_ports[port_index];
-            uint8_t *const cmac_registers = port_def->cmac_regs;
+            uint8_t *const cmac_registers = port_def->cmac_control_status_statistics_regs;
 
             if (cmac_registers != NULL)
             {
@@ -119,6 +123,20 @@ int main (int argc, char *argv[])
                         printf ("\nSetting TX_ENABLE\n");
                         configuration_tx_reg1 |= CONFIGURATION_TX_REG1_CTL_TX_ENABLE_MASK;
                         write_reg32 (cmac_registers, CONFIGURATION_TX_REG1_OFFSET, configuration_tx_reg1);
+                        display_cmac_registers (cmac_registers);
+                        keep_open = true;
+                    }
+                }
+
+                if (port_def->configured_features[CMAC_FEATURE_PACKET_RX])
+                {
+                    /* If receive is disabled, enable it and then re-display the registers */
+                    uint32_t configuration_rx_reg1 = read_reg32 (cmac_registers, CONFIGURATION_RX_REG1_OFFSET);
+                    if ((configuration_rx_reg1 & CONFIGURATION_RX_REG1_CTL_RX_ENABLE_MASK) == 0)
+                    {
+                        printf ("\nSetting RX_ENABLE\n");
+                        configuration_rx_reg1 |= CONFIGURATION_RX_REG1_CTL_RX_ENABLE_MASK;
+                        write_reg32 (cmac_registers, CONFIGURATION_RX_REG1_OFFSET, configuration_rx_reg1);
                         display_cmac_registers (cmac_registers);
                         keep_open = true;
                     }

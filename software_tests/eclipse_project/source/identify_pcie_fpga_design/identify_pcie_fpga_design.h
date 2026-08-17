@@ -358,6 +358,10 @@ typedef enum
     CMAC_FEATURE_RS_FEC,
     CMAC_FEATURE_TX_OTN,
 
+    /* While not a feature within the CMAC, indicates if the design allows access to the DRP registers which provide additional
+     * configuration over the control / status / statistics registers. */
+    CMAC_FEATURE_DRP,
+
     CMAC_FEATURE_ARRAY_SIZE
 } cmac_port_configured_features_t;
 
@@ -367,8 +371,12 @@ typedef enum
 #define MAX_CMAC_PORTS_PER_DESIGN 2
 typedef struct
 {
-    /* When non-NULL the base of the mapped registers for the control and statistics of the CMAC */
-    uint8_t *cmac_regs;
+    /* When non-NULL the base of the mapped AXI4-lite registers for the control, status and statistics of the CMAC */
+    uint8_t *cmac_control_status_statistics_regs;
+    /* When non-NULL the base of the mapped registers for the dynamic reconfiguration port (DRP) of the CMAC.
+     * Access to the DRP is via a DRP bridge in which the 16-bit DRP registers are accessed as the least significant 16-bits
+     * of 32-bit accesses from the AXI side of the bridge. Each DRP register is at addresses 4 bytes apart from the AXI side. */
+    uint8_t *cmac_drp_regs;
     /* Which features are configured in the design */
     bool configured_features[CMAC_FEATURE_ARRAY_SIZE];
 } cmac_port_definition_t;

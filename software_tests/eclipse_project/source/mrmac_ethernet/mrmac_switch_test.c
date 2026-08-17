@@ -287,7 +287,7 @@ static double arg_tested_port_mbps = DEFAULT_TESTED_PORT_MBPS;
 /* Command line argument which controls how the test runs:
  * - When false the test runs until requested to stop, and only reports summary information for each test interval.
  * - When true the test runs for a single test interval, recording the transmitted/received frames in memory which are written
- *   to s CSV file at the end of the test interval. */
+ *   to a CSV file at the end of the test interval. */
 static bool arg_frame_debug_enabled = false;
 
 

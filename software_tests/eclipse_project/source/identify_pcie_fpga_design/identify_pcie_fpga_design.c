@@ -1377,12 +1377,14 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     {
                         cmac_port_definition_t *const port_def = &candidate_design->cmac_ports[port_index];
 
-                        port_def->cmac_regs = map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                        port_def->cmac_control_status_statistics_regs = map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                 cmac_registers_base_offsets[port_index], cmac_registers_frame_size);
+                        port_def->cmac_drp_regs = NULL; /* Not implemented in this design */
                         port_def->configured_features[CMAC_FEATURE_PACKET_RX] = false;
                         port_def->configured_features[CMAC_FEATURE_PACKET_TX] = true;
                         port_def->configured_features[CMAC_FEATURE_RS_FEC   ] = true;
                         port_def->configured_features[CMAC_FEATURE_TX_OTN   ] = false;
+                        port_def->configured_features[CMAC_FEATURE_DRP      ] = false;
                     }
 
                     if (vfio_device->pci_revision_id >= 3)
@@ -1492,12 +1494,14 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     {
                         cmac_port_definition_t *const port_def = &candidate_design->cmac_ports[port_index];
 
-                        port_def->cmac_regs = map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                        port_def->cmac_control_status_statistics_regs = map_vfio_registers_block (vfio_device, peripherals_bar_index,
                                 cmac_registers_base_offsets[port_index], cmac_registers_frame_size);
+                        port_def->cmac_drp_regs = NULL; /* Not implemented in this design */
                         port_def->configured_features[CMAC_FEATURE_PACKET_RX] = true;
                         port_def->configured_features[CMAC_FEATURE_PACKET_TX] = true;
                         port_def->configured_features[CMAC_FEATURE_RS_FEC   ] = true;
                         port_def->configured_features[CMAC_FEATURE_TX_OTN   ] = false;
+                        port_def->configured_features[CMAC_FEATURE_DRP      ] = false;
                     }
 
                     design_identified = true;
@@ -1687,12 +1691,18 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                         const size_t axi_switch_base_offset     = 0x09000;
                         const size_t axi_switch_frame_size      = 0x01000;
                         const size_t cms_base_offset            = 0x40000;
-                        const size_t cmac_registers_base_offsets[] =
+                        const size_t cmac_control_status_statistics_registers_base_offsets[] =
                         {
                             0x00000,
                             0x10000
                         };
-                        const size_t cmac_registers_frame_size  = 0x02000;
+                        const size_t cmac_control_status_statistics_registers_frame_size  = 0x02000;
+                        const size_t cmac_drp_registers_base_offsets[] =
+                        {
+                            0x0A000,
+                            0x0B000
+                        };
+                        const size_t cmac_drp_registers_frame_size = 0x1000;
 
                         candidate_design->dma_bridge_present = true;
                         candidate_design->dma_bridge_bar = dma_bridge_bar_index;
@@ -1715,12 +1725,23 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                         {
                             cmac_port_definition_t *const port_def = &candidate_design->cmac_ports[port_index];
 
-                            port_def->cmac_regs = map_vfio_registers_block (vfio_device, peripherals_bar_index,
-                                    cmac_registers_base_offsets[port_index], cmac_registers_frame_size);
+                            port_def->cmac_control_status_statistics_regs = map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                    cmac_control_status_statistics_registers_base_offsets[port_index],
+                                    cmac_control_status_statistics_registers_frame_size);
                             port_def->configured_features[CMAC_FEATURE_PACKET_RX] = true;
                             port_def->configured_features[CMAC_FEATURE_PACKET_TX] = true;
                             port_def->configured_features[CMAC_FEATURE_RS_FEC   ] = true;
                             port_def->configured_features[CMAC_FEATURE_TX_OTN   ] = false;
+                            port_def->configured_features[CMAC_FEATURE_DRP      ] = vfio_device->pci_revision_id >= 2;
+                            if (port_def->configured_features[CMAC_FEATURE_DRP])
+                            {
+                                port_def->cmac_drp_regs = map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                        cmac_drp_registers_base_offsets[port_index], cmac_drp_registers_frame_size);
+                            }
+                            else
+                            {
+                                port_def->cmac_drp_regs = NULL;
+                            }
                         }
 
                         candidate_design->ultrascale_dna_regs[0] =

@@ -13,6 +13,7 @@
 
 #include "cmac_register_access.h"
 #include "cmac_axi4_lite_registers.h"
+#include "cmac_drp_registers.h"
 #include "vfio_bitops.h"
 
 #include <stdlib.h>
@@ -121,6 +122,44 @@ static const cmac_configuration_field_t cmac_configuration_field_definitions[] =
         .offset = GT_LOOPBACK_REG_OFFSET,
         .mask = GT_LOOPBACK_REG_CTL_GT_LOOPBACK_MASK,
         .name = "gt_loopback"
+    },
+
+    /* DRP attributes */
+    {
+        .feature = CMAC_FEATURE_DRP,
+        .offset = CMAC_DRP_CTL_TX_IGNORE_FCS_OFFSET,
+        .mask = CMAC_DRP_CTL_TX_IGNORE_FCS_MASK,
+        .name = "ctl_tx_ignore_fcs"
+    },
+    {
+        .feature = CMAC_FEATURE_DRP,
+        .offset = CMAC_DRP_CTL_TX_FCS_INS_ENABLE_OFFSET,
+        .mask = CMAC_DRP_CTL_TX_FCS_INS_ENABLE_MASK,
+        .name = "ctl_tx_fcs_ins_enable"
+    },
+    {
+        .feature = CMAC_FEATURE_DRP,
+        .offset = CMAC_DRP_CTL_TX_IPG_VALUE_OFFSET,
+        .mask = CMAC_DRP_CTL_TX_IPG_VALUE_MASK,
+        .name = "ctl_tx_ipg_value"
+    },
+    {
+        .feature = CMAC_FEATURE_DRP,
+        .offset = CMAC_DRP_CTL_RX_DELETE_FCS_OFFSET,
+        .mask = CMAC_DRP_CTL_RX_DELETE_FCS_MASK,
+        .name = "ctl_rx_delete_fcs"
+    },
+    {
+        .feature = CMAC_FEATURE_DRP,
+        .offset = CMAC_DRP_CTL_RX_MIN_PACKET_LEN_OFFSET,
+        .mask = CMAC_DRP_CTL_RX_MIN_PACKET_LEN_MASK,
+        .name = "ctl_rx_min_packet_len"
+    },
+    {
+        .feature = CMAC_FEATURE_DRP,
+        .offset = CMAC_DRP_CTL_RX_MAX_PACKET_LEN_OFFSET,
+        .mask = CMAC_DRP_CTL_RX_MAX_PACKET_LEN_MASK,
+        .name = "ctl_rx_max_packet_len"
     }
 };
 
@@ -299,6 +338,45 @@ static void parse_command_line_arguments (int argc, char *argv[])
 
 
 /**
+ * @brief Read one CMAC register, from either control/status/statistics or DRP
+ * @param[in] port Which CMAC port to read from
+ * @param[in] config_field Defines the register to read
+ * @return The register value
+ */
+static uint32_t read_cmac_register (const cmac_port_definition_t *const port, const cmac_configuration_field_t *const config_field)
+{
+    if (config_field->feature == CMAC_FEATURE_DRP)
+    {
+        return cmac_drp_read (port, config_field->offset);
+    }
+    else
+    {
+        return read_reg32 (port->cmac_control_status_statistics_regs, config_field->offset);
+    }
+}
+
+
+/**
+ * @brief Write one CMAC register, to either control/status/statistics or DRP
+ * @param[in,out] port Which CMAC port to write to
+ * @param[in] config_field Defines the register to write
+ * @param[in] register_value The register value to write
+ */
+static void write_cmac_register (cmac_port_definition_t *const port, const cmac_configuration_field_t *const config_field,
+                                 const uint32_t register_value)
+{
+    if (config_field->feature == CMAC_FEATURE_DRP)
+    {
+        cmac_drp_write (port, config_field->offset, register_value);
+    }
+    else
+    {
+        write_reg32 (port->cmac_control_status_statistics_regs, config_field->offset, register_value);
+    }
+}
+
+
+/**
  * @brief Dump the CMAC configuration register fields known by this program
  * @param[in,out] designs The FPGA designs to process.
  */
@@ -322,8 +400,7 @@ static void dump_cmac_config (fpga_designs_t *const designs)
 
             if (field_present)
             {
-                const uint8_t *const port_regs = design->cmac_ports[port_num].cmac_regs;
-                const uint32_t register_value = read_reg32 (port_regs, config_field->offset);
+                const uint32_t register_value = read_cmac_register (&design->cmac_ports[port_num], config_field);
                 const uint32_t field_value = vfio_extract_field_u32 (register_value, config_field->mask);
 
                 printf ("  %s=%u\n", config_field->name, field_value);
@@ -371,7 +448,7 @@ static void modify_cmac_configuration (fpga_designs_t *const designs)
     design = cmac_port_iterator_next (&iterator, &port_num);
     while (design != NULL)
     {
-        uint8_t *const port_regs = design->cmac_ports[port_num].cmac_regs;
+        cmac_port_definition_t *const port = &design->cmac_ports[port_num];
 
         for (uint32_t field_index = 0; field_index < VFIO_NELEMENTS (cmac_configuration_field_definitions); field_index++)
         {
@@ -385,12 +462,12 @@ static void modify_cmac_configuration (fpga_designs_t *const designs)
 
                 if (field_present)
                 {
-                    register_value = read_reg32 (port_regs, config_field->offset);
+                    register_value = read_cmac_register (port, config_field);
                     original_field_value = vfio_extract_field_u32 (register_value, config_field->mask);
                     if (original_field_value != field_modification->value)
                     {
                         vfio_update_field_u32 (&register_value, config_field->mask, field_modification->value);
-                        write_reg32 (port_regs, config_field->offset, register_value);
+                        write_cmac_register (port, config_field, register_value);
                         printf ("Design %s device %s port %u field %s changed from %u -> %u\n",
                                 fpga_design_names[design->design_id], design->vfio_device->device_name, port_num,
                                 config_field->name, original_field_value, field_modification->value);

@@ -205,6 +205,11 @@ void cmac_port_iterator_initialise (cmac_port_iterator_t *const iterator, fpga_d
                                     const uint32_t port_num_filter, const bool port_num_filter_specified);
 fpga_design_t *cmac_port_iterator_next (cmac_port_iterator_t *const iterator, uint32_t *const port_num);
 void cmac_reset_port (fpga_design_t *const design, const uint32_t port_num);
+void cmac_drp_write (cmac_port_definition_t *const port, const uint32_t drp_address, const uint32_t drp_value);
+uint32_t cmac_drp_read (const cmac_port_definition_t *const port, const uint32_t drp_address);
+void cmac_get_rx_min_max_packet_lens (const cmac_port_definition_t *const port,
+                                      uint32_t *const rx_min_packet_len, uint32_t *const rx_max_packet_len);
+void cmac_enable_port (cmac_port_definition_t *const port);
 
 
 #endif /* CMAC_REGISTER_ACCESS_H_ */
