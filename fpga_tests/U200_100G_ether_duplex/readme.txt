@@ -45,3 +45,13 @@ has:
    Yes, indeed, if we have a design or TCL that can reproduce these warnings, with that we can help further. Can this be shared, please?
    In general port width mismatch related warnings can be safely ignored as the width depends on master/slave it is connected to.
 
+
+2. Changes in PCIe Revision 02
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Added a drp_bridge to access the DRP interface in the CMAC ports:
+a. Offset 0xA000 is the CMAC port 0 DRP.
+b. Offset 0xB000 is the CMAC port 1 DRP.
+
+Added the DRP interfaces to be able to access the CTL_RX_MIN_PACKET_LEN and CTL_RX_MAX_PACKET_LEN attributes.
+
