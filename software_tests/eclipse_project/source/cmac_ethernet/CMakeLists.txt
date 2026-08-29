@@ -33,3 +33,7 @@ target_link_libraries (cmac_configuration cmac_register_access identify_pcie_fpg
 add_executable (cmac_loopback_test "cmac_loopback_test.c")
 target_link_libraries (cmac_loopback_test cmac_register_access xilinx_axi_stream_switch_configure xilinx_axi_stream_switch
                                           identify_pcie_fpga_design xilinx_dma_bridge_transfers transfer_timing vfio_access)
+
+add_executable (cmac_switch_test "cmac_switch_test.c")
+target_link_libraries (cmac_switch_test cmac_register_access xilinx_axi_stream_switch_configure xilinx_axi_stream_switch
+                                        identify_pcie_fpga_design xilinx_dma_bridge_transfers transfer_timing vfio_access m pthread)
