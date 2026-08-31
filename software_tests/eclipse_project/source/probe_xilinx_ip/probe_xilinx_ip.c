@@ -16,6 +16,7 @@
  */
 
 #include "vfio_access.h"
+#include "vfio_bitops.h"
 
 #include <stdlib.h>
 #include <stdbool.h>
@@ -460,17 +461,26 @@ int main (int argc, char *argv[])
     parse_command_line_arguments (argc, argv);
 
     /* Select to filter by vendor only */
-    const vfio_pci_device_identity_filter_t filter =
+    const vfio_pci_device_identity_filter_t filters[] =
     {
-        .vendor_id = FPGA_SIO_VENDOR_ID,
-        .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
-        .subsystem_vendor_id = VFIO_PCI_DEVICE_FILTER_ANY,
-        .subsystem_device_id = VFIO_PCI_DEVICE_FILTER_ANY,
-        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE /* Since are matching by vendor only, and don't attempt DMA */
+        {
+            .vendor_id = FPGA_SIO_VENDOR_ID,
+            .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+            .subsystem_vendor_id = VFIO_PCI_DEVICE_FILTER_ANY,
+            .subsystem_device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+            .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE /* Since are matching by vendor only, and don't attempt DMA */
+        },
+        {
+            .vendor_id = 0x10b5, /* For FPGA_DESIGN_XCKU5P_SINGLE_QSFP_PLX_ENUM */
+            .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+            .subsystem_vendor_id = VFIO_PCI_DEVICE_FILTER_ANY,
+            .subsystem_device_id = VFIO_PCI_DEVICE_FILTER_ANY,
+            .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_NONE /* Since are matching by vendor only, and don't attempt DMA */
+        }
     };
 
     /* Open the FPGA devices which have an IOMMU group assigned */
-    open_vfio_devices_matching_filter (&vfio_devices, 1, &filter);
+    open_vfio_devices_matching_filter (&vfio_devices, VFIO_NELEMENTS (filters), filters);
 
     /* Probe the VFIO devices */
     for (uint32_t device_index = 0; device_index < vfio_devices.num_devices; device_index++)
