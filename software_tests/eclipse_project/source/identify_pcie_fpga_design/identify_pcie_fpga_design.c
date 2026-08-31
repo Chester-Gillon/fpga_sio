@@ -74,7 +74,8 @@ const char *const fpga_design_names[FPGA_DESIGN_ARRAY_SIZE] =
     [FPGA_DESIGN_XCKU5P_SINGLE_QSFP_DMA_STREAM_LOOPBACK] = "XCKU5P_SINGLE_QSFP_dma_stream_loopback",
     [FPGA_DESIGN_XCKU5P_SINGLE_QSFP_DMA_DDR4] = "XCKU5P_SINGLE_QSFP_dma_ddr4",
     [FPGA_DESIGN_U200_DMA_DDR4] = "U200_dma_ddr4",
-    [FPGA_DESIGN_U200_SLR_IDS] = "U200_slr_ids"
+    [FPGA_DESIGN_U200_SLR_IDS] = "U200_slr_ids",
+    [FPGA_DESIGN_XCKU5P_SINGLE_QSFP_PLX_ENUM] = "XCKU5P_SINGLE_QSFP_PLX_enum"
 };
 
 
@@ -472,6 +473,14 @@ static const vfio_pci_device_identity_filter_t fpga_design_pci_filters[FPGA_DESI
         .device_id = VFIO_PCI_DEVICE_FILTER_ANY,
         .subsystem_vendor_id = FPGA_SIO_SUBVENDOR_ID,
         .subsystem_device_id = FPGA_SIO_SUBDEVICE_ID_U200_SLR_IDS,
+        .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
+    },
+    [FPGA_DESIGN_XCKU5P_SINGLE_QSFP_PLX_ENUM] =
+    {
+        .vendor_id = 0x10b5,
+        .device_id = 0x9056,
+        .subsystem_vendor_id = 0x10b5,
+        .subsystem_device_id = 0x3198,
         .dma_capability = VFIO_DEVICE_DMA_CAPABILITY_A64
     }
 };
@@ -1977,6 +1986,38 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                         }
 
                         design_identified = true;
+                    }
+                    break;
+
+                case FPGA_DESIGN_XCKU5P_SINGLE_QSFP_PLX_ENUM:
+                    {
+                        const uint32_t peripherals_bar_index    = 0;
+                        const uint32_t dma_bridge_bar_index     = 1; /* Due to the peripherals BAR being 32-bit */
+                        const size_t user_access_base_offset    = 0x0000;
+                        const size_t user_access_frame_size     = 0x1000;
+                        const size_t sysmon_base_offset         = 0x1000;
+                        const size_t sysmon_frame_size          = 0x1000;
+                        const size_t dma_control_base_offset = 0x0;
+                        const size_t dma_control_frame_size = 0x10000;
+
+                        candidate_design->dma_bridge_present = true;
+                        candidate_design->dma_bridge_bar = dma_bridge_bar_index;
+                        candidate_design->dma_bridge_memory_base_address = 0;
+                        candidate_design->dma_bridge_memory_size_bytes = 0; /* DMA bridge configured for "AXI Stream" */
+
+                        candidate_design->user_access =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                        user_access_base_offset, user_access_frame_size);
+                        candidate_design->sysmon_regs =
+                                map_vfio_registers_block (vfio_device, peripherals_bar_index, sysmon_base_offset, sysmon_frame_size);
+                        candidate_design->num_sysmon_slaves = 0;
+
+                        /* Since the design re-uses the identity of a General Standards SIO4BX2 card, validate that BAR 1 with the
+                         * DMA bridge registers is present. The SIO4BX2 doesn't have BAR 1. */
+                        const uint8_t *const dma_control_mapped_registers =
+                                map_vfio_registers_block (vfio_device, candidate_design->dma_bridge_bar,
+                                        dma_control_base_offset, dma_control_frame_size);
+                        design_identified = dma_control_mapped_registers != NULL;
                     }
                     break;
 

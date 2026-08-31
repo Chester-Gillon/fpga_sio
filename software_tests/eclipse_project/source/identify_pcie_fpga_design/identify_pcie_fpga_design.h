@@ -339,6 +339,14 @@ typedef enum
      * b. Access registers used to read the UltraScale DNA for all SLRs */
     FPGA_DESIGN_U200_SLR_IDS,
 
+    /* fpga_tests/XCKU5P_SINGLE_QSFP_PLX_enum which uses the DMA/Bridge Subsystem to:
+     * a. Contain a AXI peripheral to read the user access timestamp.
+     * b. AAccess the SYSMON (internal sensors only).
+     * c. Loopback between the XMDA streams.
+     * d. Have PCIe identities which match the General Standards SIO4BX2 card, to test binding a signed Windows driver
+     *    to the design to try accessing under Windows. */
+    FPGA_DESIGN_XCKU5P_SINGLE_QSFP_PLX_ENUM,
+
     FPGA_DESIGN_ARRAY_SIZE
 } fpga_design_id_t;
 
