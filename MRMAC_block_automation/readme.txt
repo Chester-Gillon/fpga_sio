@@ -21,7 +21,7 @@ dual_10G:
   Static configuration with two 10G ports and no FEC, the same as used in fpga_tests/VD100_10G_ether_dual.
 
 dual_10G_fec:
-  Static configuration with four 10G ports. Selected:
+  Static configuration with two 10G ports. Selected:
   - MRMAC Configuration Preset: Start from Scratch
   - MRMAC Mode: MAC+PCS+FEC
   - MRMAC Data Rate: Mixed/Custom
@@ -467,4 +467,82 @@ Looking at the single_100G generated product:
 - CTL_FEC_MODE_0 = 4'b1000, which is "IEEE 802.3 RS(528,514) FEC", which matches the configuration in the GUI.
 - CTL_RX_FEC_TRANSCODE_CLAUSE49_0 = "FALSE", which is expected as per PG314
 - CTL_TX_FEC_FOUR_LANE_PMD = "TRUE", which is expected as per PG314
+
+
+3. Investigating if any change in behaviour with Vivado 2026.1
+==============================================================
+
+The previous tests were performed using Vivado 2025.2 with xcvm1102-sfva784-2LP-e-L or xcve2302-sfva784-1LP-e-S parts which
+were available in the no-cost license.
+
+With Vivado 2026.1 the only Versal part available with the no-cost licence is the xcv80-lsva4737-2MHP-e-S in a Alveo V80.
+
+For the dual_10G_fec_V80 project, selected the same as dual_10G_fec:
+  Static configuration with two 10G ports. Selected:
+  - Tick ""Use Legacy GT Wizard in Example Design". Get the tool tip:
+      "This option is now deprecated and will be removed in is 2026.2"
+  - MRMAC Configuration Preset: Start from Scratch
+  - MRMAC Mode: MAC+PCS+FEC
+  - MRMAC Data Rate: Mixed/Custom
+  - Ports 0 and 1 Data Rate: 10GE
+  - Ports 2 and 3 Data Rate: N/U
+  - AXI Datapath Interface: Independent 32b Non-Segmented
+  - FEC Slice 0 and 1 Mode: 10G (IEEE 802.3 CL74) - Fire(2112 2080)
+  - FEC Slice 2 and 3 Mode: FEC Disabled (Bypass) 
+
+Checking for FEC related parameters in the generated MRMAC_block_automation_mrmac_0_0_wrapper.v file for the Vivado 2026.2 project:
+$ grep parameter ./dual_10G_fec_V80/MRMAC_block_automation/MRMAC_block_automation.gen/sources_1/bd/MRMAC_block_automation/ip/MRMAC_block_automation_mrmac_0_0/mrmac_v3_2_2/MRMAC_block_automation_mrmac_0_0_wrapper.v|grep FEC
+     parameter integer NUM_100G_FEC_ONLY_PORTS = 0,
+     parameter integer NUM_100G_MAC_PCS_NOFEC_PORTS = 0,
+     parameter integer NUM_100G_MAC_PCS_WITH_FEC_PORTS = 0,        
+     parameter integer NUM_50G_FEC_ONLY_PORTS = 0,
+     parameter integer NUM_50G_MAC_PCS_NOFEC_PORTS = 0,
+     parameter integer NUM_50G_MAC_PCS_WITH_FEC_PORTS = 0,          
+     parameter integer NUM_40G_MAC_PCS_NOFEC_PORTS = 0,
+     parameter integer NUM_40G_MAC_PCS_WITH_FEC_PORTS = 0,         
+     parameter integer NUM_25G_FEC_ONLY_PORTS = 0,
+     parameter integer NUM_25G_MAC_PCS_NOFEC_PORTS = 0,
+     parameter integer NUM_25G_MAC_PCS_WITH_FEC_PORTS = 0,          
+     parameter integer NUM_10G_MAC_PCS_NOFEC_PORTS = 0,
+     parameter integer NUM_10G_MAC_PCS_WITH_FEC_PORTS = 2,    
+  parameter [3:0] CTL_FEC_MODE_0 = 4'h0,
+  parameter [3:0] CTL_FEC_MODE_1 = 4'h0,
+  parameter [3:0] CTL_FEC_MODE_2 = 4'h0,
+  parameter [3:0] CTL_FEC_MODE_3 = 4'h0,
+  parameter CTL_RX_FEC_ALIGNMENT_BYPASS_0 = "FALSE",
+  parameter CTL_RX_FEC_ALIGNMENT_BYPASS_1 = "FALSE",
+  parameter CTL_RX_FEC_ALIGNMENT_BYPASS_2 = "FALSE",
+  parameter CTL_RX_FEC_ALIGNMENT_BYPASS_3 = "FALSE",
+  parameter CTL_RX_FEC_BYPASS_CORRECTION_0 = "FALSE",
+  parameter CTL_RX_FEC_BYPASS_CORRECTION_1 = "FALSE",
+  parameter CTL_RX_FEC_BYPASS_CORRECTION_2 = "FALSE",
+  parameter CTL_RX_FEC_BYPASS_CORRECTION_3 = "FALSE",
+  parameter CTL_RX_FEC_BYPASS_INDICATION_0 = "FALSE",
+  parameter CTL_RX_FEC_BYPASS_INDICATION_1 = "FALSE",
+  parameter CTL_RX_FEC_BYPASS_INDICATION_2 = "FALSE",
+  parameter CTL_RX_FEC_BYPASS_INDICATION_3 = "FALSE",
+  parameter CTL_RX_FEC_CDC_BYPASS_01 = "FALSE",
+  parameter CTL_RX_FEC_CDC_BYPASS_23 = "FALSE",
+  parameter CTL_RX_FEC_ERRIND_MODE = "FALSE",
+  parameter CTL_RX_FEC_TRANSCODE_BYPASS_0 = "FALSE",
+  parameter CTL_RX_FEC_TRANSCODE_BYPASS_1 = "FALSE",
+  parameter CTL_RX_FEC_TRANSCODE_BYPASS_2 = "FALSE",
+  parameter CTL_RX_FEC_TRANSCODE_BYPASS_3 = "FALSE",
+  parameter CTL_RX_FEC_TRANSCODE_CLAUSE49_0 = "FALSE",
+  parameter CTL_RX_FEC_TRANSCODE_CLAUSE49_1 = "FALSE",
+  parameter CTL_RX_FEC_TRANSCODE_CLAUSE49_2 = "FALSE",
+  parameter CTL_RX_FEC_TRANSCODE_CLAUSE49_3 = "FALSE",
+  parameter CTL_TX_FEC_FOUR_LANE_PMD = "FALSE",
+  parameter CTL_TX_FEC_TRANSCODE_BYPASS_0 = "FALSE",
+  parameter CTL_TX_FEC_TRANSCODE_BYPASS_1 = "FALSE",
+  parameter CTL_TX_FEC_TRANSCODE_BYPASS_2 = "FALSE",
+  parameter CTL_TX_FEC_TRANSCODE_BYPASS_3 = "FALSE",
+  parameter CTL_TX_PTP_RSFEC_COMP_EN_0 = "FALSE",
+  parameter CTL_TX_PTP_RSFEC_COMP_EN_1 = "FALSE",
+  parameter CTL_TX_PTP_RSFEC_COMP_EN_2 = "FALSE",
+  parameter CTL_TX_PTP_RSFEC_COMP_EN_3 = "FALSE",
+
+Where the above is exactly the same as for the dual_10G_fec project created using Vivado 2025.2
+
+Therefore, Vivado 2026.2 hasn't changed the behaviour.
 
