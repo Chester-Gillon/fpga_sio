@@ -284,3 +284,22 @@ For the MRMAC configuration and connectivity:
 
    Therefore, space to increase on-board packet buffering if suffer from packet loss during testing.
 
+7.  Changes in PCIe Revision 01
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Added an AXI4 Stream Switch for the Ethernet packet streams.
+
+Slave switch ports:
+0: XDMA H2C_0
+1: XDMA H2C_1
+2: 10G port 0 receive
+3: 10G port 1 receive
+
+Master switch ports:
+0: 10G port 0 transmit
+1: 10G port 1 transmit
+2: XDMA C2H_0
+3: XDMA C2H_1
+
+Switch control registers at offset 0x12000.
+
