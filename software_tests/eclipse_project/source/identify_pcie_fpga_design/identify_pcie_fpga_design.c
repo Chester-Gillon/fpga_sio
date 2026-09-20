@@ -1620,10 +1620,12 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                     {
                         const uint32_t peripherals_bar_index = 0;
                         const uint32_t dma_bridge_bar_index = 2;
-                        const size_t mrmac_base_offset    = 0x00000;
-                        const size_t mrmac_frame_size     = 0x10000;
-                        const size_t iic_base_offset      = 0x11000;
-                        const size_t iic_frame_size       = 0x01000;
+                        const size_t mrmac_base_offset      = 0x00000;
+                        const size_t mrmac_frame_size       = 0x10000;
+                        const size_t iic_base_offset        = 0x11000;
+                        const size_t iic_frame_size         = 0x01000;
+                        const size_t axi_switch_base_offset = 0x12000;
+                        const size_t axi_switch_frame_size  = 0x01000;
 
                         candidate_design->mrmac.regs =
                                 map_vfio_registers_block (vfio_device, peripherals_bar_index, mrmac_base_offset, mrmac_frame_size);
@@ -1636,6 +1638,15 @@ void identify_pcie_fpga_designs (fpga_designs_t *const designs)
                         candidate_design->dma_bridge_present = true;
                         candidate_design->dma_bridge_bar = dma_bridge_bar_index;
                         candidate_design->dma_bridge_memory_size_bytes = 0; /* DMA bridge configured for "AXI Stream" */
+
+                        if (vfio_device->pci_revision_id >= 1)
+                        {
+                            candidate_design->axi_switch_regs = map_vfio_registers_block (vfio_device, peripherals_bar_index,
+                                    axi_switch_base_offset, axi_switch_frame_size);
+                            candidate_design->axi_switch_num_master_ports = 4;
+                            candidate_design->axi_switch_num_slave_ports = 4;
+                        }
+
                         design_identified = true;
                     }
                     break;

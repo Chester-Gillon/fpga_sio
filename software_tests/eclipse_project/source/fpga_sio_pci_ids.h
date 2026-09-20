@@ -252,7 +252,8 @@
 /* The FPGA which uses the DMA/Bridge Subsystem to:
  * a. XDMA access to two AXI4 streams connected to 10 GbE ports in MRMAC.
  * b. GPIOs for SFP Tx Enable signals.
- * c. AXI IIC Bus Interface to SFP1 (board only connects the I2C interface to the SFP1 module). */
+ * c. AXI IIC Bus Interface to SFP1 (board only connects the I2C interface to the SFP1 module).
+ * d. AXI4-Stream Switch with register based routing to connect between the XDMA and MRMAC ports. */
 #define FPGA_SIO_SUBDEVICE_ID_VD100_10G_ETHER_DUAL 0x0026
 
 
@@ -275,7 +276,8 @@
  * c. The CMS subsystem for management of the QSFP ports.
  * d. Access the SYSMON on all 3 SLRs (internal sensors only).
  * e. Access a Quad SPI connected to the FPGA configuration flash.
- * f. Access registers used to read the UltraScale DNA. */
+ * f. Access registers used to read the UltraScale DNA.
+ * g. AXI4-Stream Switch with register based routing to connect between the XDMA and CMAC ports. */
 #define FPGA_SIO_SUBDEVICE_ID_U200_100G_ETHER_DUPLEX 0x0029
 
 /* The FPGA which uses the QDMA Subsystem to:

@@ -179,6 +179,20 @@ static const device_routing_t default_stream_loopback[FPGA_DESIGN_ARRAY_SIZE] =
         }
     },
 
+    /* The following for this design sets up AXI stream switch to route between the XDMA streams and the full duplex 10G Ethernet
+     * ports. The AXI stream switch was added to the design to allow testing of looping back the 10G Ethernet ports in hardware. */
+    [FPGA_DESIGN_VD100_10G_ETHER_DUAL] =
+    {
+        .num_routes = 4,
+        .routes =
+        {
+             {.enabled = true, .master_port = 0, .slave_port = 0},
+             {.enabled = true, .master_port = 1, .slave_port = 1},
+             {.enabled = true, .master_port = 2, .slave_port = 2},
+             {.enabled = true, .master_port = 3, .slave_port = 3}
+        }
+    },
+
     [FPGA_DESIGN_XCKU5P_SINGLE_QSFP_PLX_ENUM] =
     {
         .num_routes = 1,

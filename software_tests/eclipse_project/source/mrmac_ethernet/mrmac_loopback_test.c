@@ -14,6 +14,7 @@
 
 #include "identify_pcie_fpga_design.h"
 #include "xilinx_dma_bridge_transfers.h"
+#include "xilinx_axi_stream_switch_configure.h"
 #include "mrmac_register_access.h"
 
 #include <stdlib.h>
@@ -94,6 +95,8 @@ typedef struct
     /* Used to perform XMDA transfers for Ethernet transmission / reception */
     x2x_transfer_context_t h2c_transfer;
     x2x_transfer_context_t c2h_transfer;
+    /* The configured AXI stream switch routing within the design, if any a AXI stream switch is used */
+    device_routing_t routing;
 } loopback_test_context_t;
 
 
@@ -306,6 +309,14 @@ static void open_mrmac_device (loopback_test_context_t *const context)
         .data_mapping = &context->c2h_data_mapping,
         .overall_success = &context->xdma_overall_success
     };
+
+    /* If the design contains an AXI stream switch between the XDMA and MRAC data ports, set the default routing if no specific
+     * routing has already been configured. That is allow the XMDA to be connected to the MRMAC data ports, to allow for actual
+     * packet transmission and reception by this program. */
+    if (context->mrmac_design->axi_switch_regs != NULL)
+    {
+        configure_routing_for_device (context->mrmac_design, &context->routing);
+    }
 
     /* Create read/write mapping for DMA descriptors */
     const size_t descriptors_allocation_size = x2x_get_descriptor_allocation_size (&h2c_transfer_configuration) +
