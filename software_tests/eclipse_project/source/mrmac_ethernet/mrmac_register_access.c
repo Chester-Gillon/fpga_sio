@@ -815,3 +815,308 @@ void mrmac_display_port_statistics (const mrmac_port_statistics_t *const stats)
         }
     }
 }
+
+
+/**
+ * @brief Append one MRMAC port to a collection of ports waiting to be ready to receive
+ * @param[in,out] collection The collection to append to
+ * @param[in] design The design which contains the MRMAC port to append
+ * @param[in] port_num Which MRMAC port in the design to append
+ */
+void mrmac_append_port_awaiting_ready (mrmac_ports_ready_to_receive_t *const collection,
+                                       fpga_design_t *const design, const uint32_t port_num)
+{
+    uint32_t num_lanes = 0;
+    mrmac_port_ready_to_receive_t *const port = &collection->ports[collection->num_ports];
+
+    port->design = design;
+    port->port_num = port_num;
+    port->num_ready_history_entries = 0;
+    uint8_t *const port_regs = &port->design->mrmac.regs[port->port_num * MRMAC_PORT_REGS_FRAME_SIZE];
+
+    /* Read the statically configured rate from the MRMAC.
+     * There is no support in the FPGA user logic nor this software for dynamic rate configuration. */
+    const uint32_t mode_reg = read_reg32 (port_regs, MRMAC_MODE_REG_OFFSET);
+    const uint32_t port_data_rate = vfio_extract_field_u32 (mode_reg, MRMAC_CTL_DATA_RATE_MASK);
+
+    switch (port_data_rate)
+    {
+    case MRMAC_CTL_DATA_RATE_10GE:
+        port->rate_gbps = 10;
+        num_lanes = 1;
+        break;
+
+    case MRMAC_CTL_DATA_RATE_25GE:
+        port->rate_gbps = 25;
+        num_lanes = 1;
+        break;
+
+    case MRMAC_CTL_DATA_RATE_40GE:
+        port->rate_gbps = 40;
+        num_lanes = 4;
+        break;
+
+    case MRMAC_CTL_DATA_RATE_50GE:
+        port->rate_gbps = 50;
+        num_lanes = 2;
+        break;
+
+    case MRMAC_CTL_DATA_RATE_100GE:
+        port->rate_gbps = 100;
+        num_lanes = 4;
+        break;
+
+    default:
+        printf ("Error: Unknown port_data_rate encoding 0x%x\n", port_data_rate);
+        exit (EXIT_FAILURE);
+    }
+
+    /* Determine the rx status register value which indicates if the link is ready to receive */
+    port->rx_link_ready_status_value = MRMAC_STAT_RX_STATUS_MASK | MRMAC_STAT_RX_BLOCK_LOCK_MASK;
+    if (num_lanes > 1)
+    {
+        /* The Rx Aligned and Rx Synced bits are only applicable when more than one lane is use. */
+        port->rx_link_ready_status_value |= MRMAC_STAT_RX_ALIGNED_MASK | MRMAC_STAT_RX_SYNCED_MASK;
+    }
+
+    port->ready_to_receive = false;
+
+    collection->num_ports++;
+}
+
+
+/**
+ * @brief Initialise the collection of MRMAC ports to await to be ready to receive, using all selected by an iterator.
+ * @param[out] collection The collection to initialise
+ * @param[in,out] iterator Used to obtain all MRMAC ports to add to the collection
+ */
+void mrmac_append_ports_awaiting_ready (mrmac_ports_ready_to_receive_t *const collection, mrmac_port_iterator_t *const iterator)
+{
+    fpga_design_t *design;
+    uint32_t port_num;
+
+    memset (collection, 0, sizeof (*collection));
+    design = mrmac_port_iterator_next (iterator, &port_num);
+    while ((design != NULL) && (collection->num_ports < VFIO_NELEMENTS (collection->ports)))
+    {
+        mrmac_append_port_awaiting_ready (collection, design, port_num);
+        design = mrmac_port_iterator_next (iterator, &port_num);
+    }
+}
+
+
+/**
+ * @brief Called to check if a collect of MRMAC ports is ready to receive
+ * @details
+ *   This can change the transmit control Enable / Sent RFI / Send Idle bits as part of making the link ready to receive.
+ *   The reason for changing the transmit control registers bits in the function is that there is no logic in the FPGA designs
+ *   to sequence getting the link ready to receive.
+ *
+ *   Intended to be called continuously until returns true, indicating all ports are ready to receive.
+ *   A hold-off delay is included when returns false.
+ * @param[in,out] collection The collection of ports to wait to be ready to receive
+ * @return Returns true when all ports in the collection are ready to receive
+ */
+bool mrmac_check_for_ports_ready (mrmac_ports_ready_to_receive_t *const collection)
+{
+    uint32_t port_index;
+    const int64_t now = get_monotonic_time ();
+
+    /* Check each port, to see if they are ready to receive */
+    for (port_index = 0; port_index < collection->num_ports; port_index++)
+    {
+        mrmac_port_ready_to_receive_t *const port = &collection->ports[port_index];
+        uint8_t *const port_regs = &port->design->mrmac.regs[port->port_num * MRMAC_PORT_REGS_FRAME_SIZE];
+        const uint32_t rx_status = read_reg32 (port_regs, MRMAC_STAT_RX_STATUS_REG1_OFFSET);
+        const uint32_t rx_rt_status = read_reg32 (port_regs, MRMAC_STAT_RX_RT_STATUS_REG1_OFFSET);
+        const uint32_t current_tx_configuration = read_reg32 (port_regs, MRMAC_CONFIGURATION_TX_REG1_OFFSET);
+        uint32_t updated_tx_configuration = current_tx_configuration;
+
+        /* Determine what to set the transmit control Enable / Sent RFI / Send Idle bits based upon the ready to receive status */
+        if ((rx_status == port->rx_link_ready_status_value) && (rx_rt_status == port->rx_link_ready_status_value))
+        {
+            /* When the link is ready to receive, allow transmission of packets */
+            port->ready_to_receive = true;
+            updated_tx_configuration |= MRMAC_CTL_TX_ENABLE;
+            updated_tx_configuration &= ~MRMAC_CTL_TX_SEND_RFI;
+            updated_tx_configuration &= ~MRMAC_CTL_TX_SEND_IDLE;
+        }
+        /* @todo Original attempt to always use MRMAC_STAT_RX_STATUS_MASK. Seems more unreliable.
+         *
+        else if ((rx_status & MRMAC_STAT_RX_STATUS_MASK) == 0)
+        */
+        else if (((port->rx_link_ready_status_value & MRMAC_STAT_RX_ALIGNED_MASK) != 0) &&
+                 ((rx_status & MRMAC_STAT_RX_ALIGNED_MASK) == 0                       )   )
+        {
+            /* Only send Remote Fault Indication when the local receiver is not aligned.
+             *
+             * @todo The description of MRMAC_CTL_TX_SEND_RFI contains:
+             *         "This bit should be set to 1 until the RX path is fully aligned and is ready to accept data from the link partner."
+             *
+             *       However, the MRMAC_STAT_RX_ALIGNED_MASK status bit is only applicable to port configurations which use more
+             *       than one lane (i.e. 40G, 50G or 100G). Therefore, this section is never executed if only one lane is used.
+             *
+             *       This seems unreliable when using 10GBASE-R optics to a ConnectX-5. Can get stuck with rx_status=0x00000180
+             *       if the ConnexctX-5 is already up at the point try and reset the MRMAC end. More investigation required.
+             *
+             *       Did try and check if the MRMAC_STAT_RX_STATUS_MASK the bit is zero, since the description of this status bit contains:
+             *         "A value of 1 indicates the PCS is aligned and not in hi_ber state.
+             *          Corresponds to MDIO register bit 3.32.12 as defined in Clause 82.3."
+             *
+             *       https://www.ieee802.org/3/ak/public/jan03/WP2p0_cls45.pdf defines MDIO register bit 3.32.12 as:
+             *         "When read as a one, bit 3.32.12 indicates that the PCS is in a fully operational state. When read as a zero, bit
+             *          3.32.12 indicates that the PCS is not fully operational. This bit is a reflection of the state of the PCS_status
+             *          variable defined in 49.2.14.1."
+             *
+             *       See also https://chrisjhart.com/Ethernet-Local-Fault-and-Remote-Fault/
+             */
+            updated_tx_configuration &= ~MRMAC_CTL_TX_ENABLE;
+            updated_tx_configuration |= MRMAC_CTL_TX_SEND_RFI;
+            updated_tx_configuration &= ~MRMAC_CTL_TX_SEND_IDLE;
+        }
+        else if ((rx_status & MRMAC_STAT_RX_REMOTE_FAULT_MASK) != 0)
+        {
+            /* Only send idles when are receiving Remote Fault Indication from the link partner */
+            updated_tx_configuration &= ~MRMAC_CTL_TX_ENABLE;
+            updated_tx_configuration &= ~MRMAC_CTL_TX_SEND_RFI;
+            updated_tx_configuration |= MRMAC_CTL_TX_SEND_IDLE;
+        }
+        else
+        {
+            /* Leave the transmit configuration unchanged; the test which sets ready_to_receive will update the transmit configuration
+             * to allow packets to be transmitted. */
+        }
+
+        if (!port->ready_to_receive)
+        {
+            port->last_not_ready_time = now;
+        }
+
+        if (rx_status != port->rx_link_ready_status_value)
+        {
+            /* Write to latched status to clear error indications */
+            write_reg32 (port_regs, MRMAC_STAT_RX_STATUS_REG1_OFFSET, UINT32_MAX);
+        }
+
+        if (updated_tx_configuration != current_tx_configuration)
+        {
+            /* Write the updated transmit configuration */
+            write_reg32 (port_regs, MRMAC_CONFIGURATION_TX_REG1_OFFSET, updated_tx_configuration);
+        }
+
+        bool append_port_history;
+
+        if (port->num_ready_history_entries == VFIO_NELEMENTS (port->ready_history))
+        {
+            /* No space for additional history */
+            append_port_history = false;
+        }
+        else if (port->num_ready_history_entries == 0)
+        {
+            /* Initial history event */
+            append_port_history = true;
+        }
+        else
+        {
+            /* Detect if a history change to append.
+             * The real-time status isn't compared since sometimes observed a real-time status bit such as MRMAC_STAT_RX_BAD_CODEMASK
+             * toggle when latched version didn't (the latched version always indicated an error). */
+            const mrmac_port_ready_history_t *const previous_history = &port->ready_history[port->num_ready_history_entries - 1];
+            append_port_history = (rx_status != previous_history->rx_status) ||
+                    (updated_tx_configuration != previous_history->tx_configuration);
+        }
+
+        if (append_port_history)
+        {
+            mrmac_port_ready_history_t *const new_history = &port->ready_history[port->num_ready_history_entries];
+
+            new_history->monotonic_time = now;
+            new_history->rx_status = rx_status;
+            new_history->rx_rt_status = rx_rt_status;
+            new_history->tx_configuration = updated_tx_configuration;
+            port->num_ready_history_entries++;
+        }
+    }
+
+    /* Determine if all ports are now ready */
+    uint32_t num_ports_ready = 0;
+    for (port_index = 0; port_index < collection->num_ports; port_index++)
+    {
+        if (collection->ports[port_index].ready_to_receive)
+        {
+            num_ports_ready++;
+        }
+    }
+    const bool all_ports_ready = num_ports_ready == collection->num_ports;
+
+    /* When not all ports ready, delay before a further retry */
+    if (!all_ports_ready)
+    {
+        const struct timespec hold_off =
+        {
+            .tv_sec = 0,
+            .tv_nsec = 1000000 /* 1 millisecond */
+        };
+
+        clock_nanosleep (CLOCK_MONOTONIC, 0, &hold_off, NULL);
+    }
+
+    return all_ports_ready;
+}
+
+
+/**
+ * @brief Display information populated by mrmac_check_for_ports_ready() about if the ports are ready to receive
+ * @details
+ *   Designed to be called after either mrmac_check_for_ports_ready() indicates all ports are ready to receive, or the caller
+ *   aborted waiting.
+ *   Displays the relative time of the register changes with millisecond resolution, since mrmac_check_for_ports_ready() inserts
+ *   a millisecond hold-off delay if the ports are not ready.
+ * @param[in] collection The collection of ports to display information for.
+ */
+void mrmac_display_if_ports_ready (const mrmac_ports_ready_to_receive_t *const collection)
+{
+    uint32_t port_index;
+    uint32_t history_index;
+
+    for (port_index = 0; port_index < collection->num_ports; port_index++)
+    {
+        const mrmac_port_ready_to_receive_t *const port = &collection->ports[port_index];
+
+        /* Display the summary of if the port is ready to receive */
+        if (port->ready_to_receive)
+        {
+            if (port->num_ready_history_entries == 1)
+            {
+                printf ("%s Port %u ready at %u Gb/s without having to wait\n",
+                        fpga_design_names[port->design->design_id], port->port_num, port->rate_gbps);
+            }
+            else
+            {
+                const double port_wait_delay_secs =
+                        ((double) (port->ready_history[port->num_ready_history_entries - 1].monotonic_time -
+                                port->ready_history[0].monotonic_time)) / 1E9;
+
+                printf ("%s Port %u ready at %u Gb/s after waiting %.3f secs\n",
+                        fpga_design_names[port->design->design_id], port->port_num, port->rate_gbps, port_wait_delay_secs);
+            }
+        }
+        else
+        {
+            const double port_wait_delay_secs = ((double) (port->last_not_ready_time - port->ready_history[0].monotonic_time)) / 1E9;
+
+            printf ("%s Port %u not ready after waiting %.3f secs\n",
+                    fpga_design_names[port->design->design_id], port->port_num, port_wait_delay_secs);
+        }
+
+        /* Display the history of changes to registers while waiting for the link to be ready */
+        for (history_index = 0; history_index < port->num_ready_history_entries; history_index++)
+        {
+            const mrmac_port_ready_history_t *const history = &port->ready_history[history_index];
+            const double relative_time_secs = ((double) (history->monotonic_time - port->ready_history[0].monotonic_time)) / 1E9;
+
+            printf ("  [%2u] %6.3f secs: rx_status=0x%08x rx_rt_status=0x%08x tx_configuration=0x%08x\n",
+                    history_index, relative_time_secs, history->rx_status, history->rx_rt_status, history->tx_configuration);
+        }
+    }
+}

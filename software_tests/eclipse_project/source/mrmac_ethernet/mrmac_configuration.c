@@ -23,6 +23,7 @@
 #include <stdio.h>
 
 #include <getopt.h>
+#include <signal.h>
 
 
 /* Command line argument, which when sets causes the configuration values to be displayed */
@@ -30,6 +31,9 @@ static int arg_dump_config;
 
 /* Command line argument, when when set causes the MRMAC port to be reset */
 static int arg_reset_port;
+
+/* Command line argument, when when set waits for the MRMAC ports to be ready to receive */
+static int arg_wait_ready;
 
 /* Optional command line argument which allow to operate on only a specific MRMAC port */
 static uint32_t arg_port_num;
@@ -44,8 +48,22 @@ static const struct option command_line_options[] =
     {"port", required_argument, NULL, 0},
     {"dump", no_argument, &arg_dump_config, 1},
     {"reset", no_argument, &arg_reset_port, 1},
+    {"wait_ready", no_argument, &arg_wait_ready, 1},
     {NULL, 0, NULL, 0}
 };
+
+
+/* Set true in a signal handler when Ctrl-C is used to request aborting waits for ports ready */
+static volatile bool abort_awaiting_ports_ready;
+
+/**
+ * @brief Signal handler to request to abort waiting for the ports to be ready
+ * @param[in] sig Not used
+ */
+static void abort_awaiting_ports_ready_handler (const int sig)
+{
+    abort_awaiting_ports_ready = true;
+}
 
 
 /**
@@ -164,6 +182,8 @@ static void display_usage (void)
     printf ("--dump Display all configuration fields\n");
     printf ("--reset Reset the MRMAC port at the end of the program\n");
     printf ("    A PCIe Hot Reset on VFIO open/close may perform a reset without this\n");
+    printf ("--wait_ready\n");
+    printf ("  Wait for ports to be ready to receive at the end of the program (after any reset)\n");
     printf ("field_name=<value>\n");
     printf ("  Modify a configuration field. The available fields are:\n");
     for (uint32_t field_index = 0; field_index < VFIO_NELEMENTS (mrmac_configuration_field_definitions); field_index++)
@@ -428,6 +448,54 @@ static void modify_mrmac_configuration (fpga_designs_t *const designs)
 }
 
 
+/**
+ * @brief Wait for the MRMAC ports to be ready to receive
+ * @param[in,out] designs The FPGA designs to process.
+ */
+static void await_mrmac_ports_ready (fpga_designs_t *const designs)
+{
+    mrmac_port_iterator_t iterator;
+    mrmac_ports_ready_to_receive_t ready_to_receive;
+    bool all_ports_ready;
+    struct sigaction action;
+    int rc;
+
+    /* Initialise the collection of ports to which wait to be ready to receive, based upon any filters specified by the command line
+     * arguments */
+    mrmac_port_iterator_initialise (&iterator, designs, arg_port_num, arg_port_num_specified);
+    mrmac_append_ports_awaiting_ready (&ready_to_receive, &iterator);
+
+    /* Indicate are now waiting */
+    memset (&action, 0, sizeof (action));
+    action.sa_handler = abort_awaiting_ports_ready_handler;
+    action.sa_flags = SA_RESTART;
+    rc = sigaction (SIGINT, &action, NULL);
+    if (rc == 0)
+    {
+        printf ("Waiting for %u ports to be ready to receive. Press Ctrl-C to abort.\n", ready_to_receive.num_ports);
+    }
+    else
+    {
+        printf ("sigaction() failed\n");
+        exit (EXIT_FAILURE);
+    }
+
+    /* Wait until all ports are ready to receive, or the user has requested to abort */
+    do
+    {
+        all_ports_ready = mrmac_check_for_ports_ready (&ready_to_receive);
+    } while (!all_ports_ready && !abort_awaiting_ports_ready);
+
+    if (abort_awaiting_ports_ready)
+    {
+        printf ("\n");
+    }
+
+    /* Display diagnostics about the ports being ready to receive (user might have aborted waiting) */
+    mrmac_display_if_ports_ready (&ready_to_receive);
+}
+
+
 int main (int argc, char *argv[])
 {
     fpga_designs_t designs;
@@ -458,6 +526,11 @@ int main (int argc, char *argv[])
     if (arg_dump_config)
     {
         dump_mrmac_config (&designs);
+    }
+
+    if (arg_wait_ready)
+    {
+        await_mrmac_ports_ready (&designs);
     }
 
     close_pcie_fpga_designs (&designs);

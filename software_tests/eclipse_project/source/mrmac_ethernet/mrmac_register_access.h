@@ -170,6 +170,10 @@ typedef enum
 #define MRMAC_STAT_SATURATED_VALUE ((1ULL << MRMAC_STAT_NUM_BITS) - 1ULL)
 
 
+/* The maximum number of MMMAC ports over all designs */
+#define MMMAC_MAX_TOTAL_PORTS (MAX_VFIO_DEVICES * NUM_MRMAC_PORTS)
+
+
 /* Defines one statistic counter */
 typedef struct
 {
@@ -221,6 +225,57 @@ typedef struct
 } mrmac_port_iterator_t;
 
 
+/* Contains one entry for the history of changes waiting for a port becoming ready to receive */
+typedef struct
+{
+    /* The monotonic time at which this history item was seen */
+    int64_t monotonic_time;
+    /* The latched receive status register */
+    uint32_t rx_status;
+    /* The real-time receive status register */
+    uint32_t rx_rt_status;
+    /* The transmit configuration register. May be modified while the link is not ready to receive in order send idles or
+     * Remote Fault Indication words to the link partner. */
+    uint32_t tx_configuration;
+} mrmac_port_ready_history_t;
+
+
+/* Used to track the state for waiting for one MRMAC port being ready to receive */
+#define MRMAC_MAX_PORT_READY_HISTORY_ENTRIES 50
+typedef struct
+{
+    /* Which design this port is in */
+    fpga_design_t *design;
+    /* Which MRMAC port number in the design this port is in */
+    uint32_t port_num;
+    /* The port rate */
+    uint32_t rate_gbps;
+    /* The rx status register value which indicates if the link is ready to receive */
+    uint32_t rx_link_ready_status_value;
+    /* Set true when this port is ready to receive */
+    bool ready_to_receive;
+    /* The number of populated entries in ready_history[] */
+    uint32_t num_ready_history_entries;
+    /* The history of changes waiting for the port to be ready to receive.
+     * Valid indices are in the range [0..num_ready_history_entries-1] */
+    mrmac_port_ready_history_t ready_history[MRMAC_MAX_PORT_READY_HISTORY_ENTRIES];
+    /* The last monotonic time at which the port was not ready.
+     * Needed in case abort before the port is ready to receive, to know how long spent waiting. */
+    int64_t last_not_ready_time;
+} mrmac_port_ready_to_receive_t;
+
+
+/* Collect of MRMAC ports for which are waiting to be ready to receive */
+typedef struct
+{
+    /* The number of MRMAC ports in the collection */
+    uint32_t num_ports;
+    /* The MRMAC ports which are waiting to be ready to receive.
+     * Number of valid entries is [0..num_ports-1] */
+    mrmac_port_ready_to_receive_t ports[MMMAC_MAX_TOTAL_PORTS];
+} mrmac_ports_ready_to_receive_t;
+
+
 extern const char *const mrmac_port_data_rate_names[];
 extern const uint32_t mrmac_num_port_data_rate_names;
 extern const char *const mrmac_axi4_stream_mode_names[][MRMAC_CTL_DATA_RATE_ARRAY_SIZE];
@@ -240,5 +295,10 @@ void mrmac_reset_port (fpga_design_t *const design, const uint32_t port_num);
 void mrmac_snapshot_port_statistics (fpga_design_t *const design, const uint32_t port_num, mrmac_port_statistics_t *const stats);
 void mrmac_read_port_statistics (mrmac_port_statistics_t *const stats);
 void mrmac_display_port_statistics (const mrmac_port_statistics_t *const stats);
+void mrmac_append_port_awaiting_ready (mrmac_ports_ready_to_receive_t *const collection,
+                                       fpga_design_t *const design, const uint32_t port_num);
+void mrmac_append_ports_awaiting_ready (mrmac_ports_ready_to_receive_t *const collection, mrmac_port_iterator_t *const iterator);
+bool mrmac_check_for_ports_ready (mrmac_ports_ready_to_receive_t *const collection);
+void mrmac_display_if_ports_ready (const mrmac_ports_ready_to_receive_t *const collection);
 
 #endif /* MRMAC_REGISTER_ACCESS_H_ */
