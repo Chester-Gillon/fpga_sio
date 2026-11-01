@@ -151,6 +151,54 @@ static const mrmac_configuration_field_t mrmac_configuration_field_definitions[]
         .mask = MRMAC_TICK_REG_MODE_SEL,
         .name = "tick_reg_mode_sel",
         .get_field_enumeration = NULL
+    },
+
+    /* For testing Ethernet FCS generation in software */
+    {
+        .offset = MRMAC_CONFIGURATION_TX_REG1_OFFSET,
+        .mask = MRMAC_CTL_TX_FCS_INS_ENABLE,
+        .name = "ctl_tx_fcs_ins_enable",
+        .get_field_enumeration = NULL
+    },
+
+    /* For testing checking FCS in software */
+    {
+        .offset = MRMAC_CONFIGURATION_RX_REG1_OFFSET,
+        .mask = MRMAC_CTL_RX_DELETE_FCS,
+        .name = "ctl_rx_delete_fcs",
+        .get_field_enumeration = NULL
+    },
+
+    /* For debugging control of waiting for a port to be ready to receive */
+    {
+        .offset = MRMAC_CONFIGURATION_TX_REG1_OFFSET,
+        .mask = MRMAC_CTL_TX_ENABLE,
+        .name = "ctl_tx_enable",
+        .get_field_enumeration = NULL
+    },
+    {
+        .offset = MRMAC_CONFIGURATION_TX_REG1_OFFSET,
+        .mask = MRMAC_CTL_TX_SEND_LFI,
+        .name = "ctl_tx_send_lfi",
+        .get_field_enumeration = NULL,
+    },
+    {
+        .offset = MRMAC_CONFIGURATION_TX_REG1_OFFSET,
+        .mask = MRMAC_CTL_TX_SEND_RFI,
+        .name = "ctl_tx_send_rfi",
+        .get_field_enumeration = NULL,
+    },
+    {
+        .offset = MRMAC_CONFIGURATION_TX_REG1_OFFSET,
+        .mask = MRMAC_CTL_TX_SEND_IDLE,
+        .name = "ctl_tx_send_idle",
+        .get_field_enumeration = NULL
+    },
+    {
+        .offset = MRMAC_CONFIGURATION_RX_REG1_OFFSET,
+        .mask = MRMAC_CTL_RX_PROCESS_LFI,
+        .name = "ctl_rx_process_lfi",
+        .get_field_enumeration = NULL
     }
 };
 

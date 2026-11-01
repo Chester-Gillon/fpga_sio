@@ -93,59 +93,7 @@
 #define MRMAC_TICK_REG_MODE_SEL VFIO_BIT (30) /* RW DRP Tick Reg mode Select */
 
 
-#define MRMAC_CONFIGURATION_RX_MTU_OFFSET 0x0014
-
-/* Port Minimum Packet Length . Any packet shorter than the default value of 64 (decimal) is considered to be undersized.
- * The value of this register must be less than or equal to the value of CTL_RX_MAX_PACKET_LEN[14:0]. */
-#define MRMAC_CTL_RX_MIN_PACKET_LEN_MASK VFIO_GENMASK_U32 (7, 0) /* RW DRP */
-
-/* Port Maximum Packet Length. Any packet longer than this value is considered to be oversized.
- * The allowed value for this register can range from 64 to 16,383. */
-#define MRMAC_CTL_RX_MAX_PACKET_LEN_MASK VFIO_GENMASK_U32 (30, 16) /* RW DRP */
-
-
-/* For requesting a software statistics sample tick */
-#define MRMAC_TICK_REG_OFFSET 0x002C
-#define MRMAC_TICK_REG VFIO_BIT (0) /* RW  Port Tick Register.
-                                           Writing a 1 to the Tick bit will trigger a snapshot of all the Statistics counters into
-                                           their readable registers.
-                                           The bit self-clears, thus only a single write is required by the user input. */
-
-
-#define MRMAC_FEC_CONFIGURATION_REG1_OFFSET 0x00D0
-
-#define MRMAC_CTL_FEC_MODE_MASK VFIO_GENMASK_U32 (3, 0) /* RW DRP Port FEC operating mode.
-                                                           For details please refer PG314 Table 6: FEC Operating Modes.
-                                                           Haven't defined the values for this, since the meaning depends upon
-                                                           the port data rate*/
-#define MRMAC_CTL_FEC_MODE_ARRAY_SIZE 16
-#define MRMAC_CTL_RX_FEC_BYPASS_INDICATION VFIO_BIT (4) /* RW DRP Port RSFEC Bypass Indication. Set to ‘1’ to bypass error indication. */
-#define MRMAC_CTL_RX_FEC_BYPASS_CORRECTION VFIO_BIT (5) /* RW DRP Port RSFEC Bypass Correction. RS-FEC correction enable. */
-#define MRMAC_CTL_RX_FEC_TRANSCODE_CLAUSE49 VFIO_BIT (6) /* RW DRP Port RSFEC transcode caluse49.
-                                                            This flag should be set to 1 for modes which require Clause 49 transcoding
-                                                            (25GE, 50GE, Fibre Channel) and set to 0 for modes which require
-                                                            Clause 82 transcoding (100GE). */
-#define MRMAC_CTL_RX_FEC_ALIGNMENT_BYPASS VFIO_BIT (7) /* RW DRP Port RSFEC alignment Bypass */
-#define MRMAC_CTL_TX_FEC_TRANSCODE_BYPASS VFIO_BIT (8) /* RW DRP Port RSFEC tx transcode Bypass. Transcoder bypass mode enable. */
-#define MRMAC_CTL_RX_FEC_TRANSCODE_BYPASS VFIO_BIT (9) /* RW DRP Port RSFEC rx transcode Bypass. Transcoder bypass mode enable */
-#define MRMAC_CTL_RX_FEC_CDC_BYPASS VFIO_BIT (10) /* RW DRP Port RSFEC CDC Bypass.
-                                                     It determines whether the CDC buffers in the FEC alignment logic are enabled (0)
-                                                     or bypassed (1). By default, they are enabled. If CDC has already been performed
-                                                     outside the FEC (e.g. using the GT elastic buffers, or in the fabric) then the
-                                                     clock inputs for all the lanes will be identical (same frequency and phase) and
-                                                     the CDC buffers can safely be bypassed which reduces latency (by ~12ns or so).
-                                                     Otherwise, if each lane has its own recovered clock then the buffers should be
-                                                     enabled. This applies to all multi-lane RS-FEC modes, i.e. 50G and 100G,
-                                                     including FlexO. It’s ignored in 10G, 25G and 40G configurations. */
-#define MRMAC_CTL_RX_FEC_ERRIND_MODE VFIO_BIT (11) /* RW DRP Port RSFEC error ind mode.
-                                                      RS-FEC error indication mode (1=IEEE compliant mode,
-                                                       0=allow simultaneous correction and indication bypass) */
-#define MRMAC_CTL_TX_FEC_FOUR_LANE_PMD VFIO_BIT (12) /* RW DRP Port RSFEC tx four lane PMD.
-                                                        This needs to set to 1 for 100CAUI-4 with RSFEC (it should be set to 0
-                                                        100GAUI-2 and other modes). */
-
-
-#define MRMAC_CONFIGURATION_TX_REG1_OFFSET 0x100C
+#define MRMAC_CONFIGURATION_TX_REG1_OFFSET 0x000C
 
 #define MRMAC_CTL_TX_ENABLE VFIO_BIT (0) /* Port TX Enable.
                                             This bit is used to enable the transmission of data when set to 1.
@@ -208,6 +156,100 @@
 #define MRMAC_CTL_TX_FLEXIF_INPUT_ENABLE VFIO_BIT (27) /* Port TX Flex Interface input enable.
                                                           A value of 1 enables Flex I/F input for the TX direction (disabling the
                                                           AXI4-Stream input interface) */
+
+
+#define MRMAC_CONFIGURATION_RX_REG1_OFFSET 0x0010
+
+#define MRMAC_CTL_RX_ENABLE VFIO_BIT (0) /* Port RX Enable.
+                                            For normal operation, this input must be set to 1.
+                                            When this input is set to 0, after the RX completes the reception of the current packet
+                                            (if any), it stops receiving packets by keeping the PCS from decoding incoming data.
+                                            In this mode, there are no statistics reported and the AXI4-S interface is idle. */
+#define MRMAC_CTL_RX_DELETE_FCS VFIO_BIT (1) /* Port Enable FCS removal by the RX core.
+                                                1 : MRMAC core deletes the FCS of the incoming packet.
+                                                0 : MRMAC core does not remove the FCS of the incoming packet.
+
+                                                FCS is not deleted for packets that are less than or equal to 8 bytes long. */
+#define MRMAC_CTL_RX_IGNORE_FCS VFIO_BIT (2) /* Port 0 Enable FCS error checking at the user interface by the RX core.
+                                                If this bit is set to 0, a packet received with an FCS error is sent with the core flags
+                                                an FCS error.
+                                                If this bit is set to 1, the core does not flag an FCS error at the user interface. */
+#define MRMAC_CTL_RX_PROCESS_LFI VFIO_BIT (3) /* Port Enable RX process LFI.
+                                                 1 : The MRMAC RX core will expect and process LF control codes coming in from the SerDes.
+                                                 0 : The MRMAC RX core ignores LFI control codes coming in from the SerDes.
+
+                                                 Note: If an LFI condition is detected, the core will stop receiving packets until the
+                                                 LFI is cleared. Packets in progress will be terminated and an error will be indicated
+                                                 on the AXI4-S. A START block must be received before packets are received again. */
+#define MRMAC_CTL_RX_CHECK_SFD VFIO_BIT (4) /* Port Enable RX check SFD.
+                                               When set to 1 MRMAC core checks the start of frame Delimiter of received frame. */
+#define MRMAC_CTL_RX_CHECK_PREAMBLE VFIO_BIT (5) /* Port Enable RX check Preamble.
+                                                    When set to 1 MRMAC core checks the preamble of received frame. */
+#define MRMAC_CTL_RX_TEST_PATTERN VFIO_BIT (6) /* Port Test pattern checking enable for the RX core.
+                                                  A value of 1 enables test mode as defined in Clause 49. Corresponds to MDIO register
+                                                  bit 3.42.2 as defined in Clause 45. Checks for scrambled idle pattern. */
+#define MRMAC_CTL_RX_TEST_PATTERN_ENABLE VFIO_BIT (7) /* Port Test pattern enable for the RX core.
+                                                         A value of 1 enables test mode.
+                                                         Corresponds to MDIO register bit 3.42.2 as defined in Clause 45. */
+#define MRMAC_CTL_RX_DATA_PATTERN_SELECT VFIO_BIT (8) /* Port RX Data pattern select.
+                                                         Corresponds to MDIO register bit 3.42.0 as defined in Clause 45. */
+#define MRMAC_CTL_RX_FLEXIF_SELECT VFIO_GENMASK_U32 (13,10) /* Port Flex Interface Receive Operating Modes.
+                                                               For details please refer Table 8: Flex Interface Receive Operating Modes */
+#define MRMAC_CTL_RX_FLEXIF_INPUT_ENABLE VFIO_BIT (14) /* Port RX Flex Interface input enable.
+                                                          A value of 1 enables Flex I/F input for the RX direction
+                                                          (disabling the AXI4-Stream input interface) */
+
+
+#define MRMAC_CONFIGURATION_RX_MTU_OFFSET 0x0014
+
+/* Port Minimum Packet Length . Any packet shorter than the default value of 64 (decimal) is considered to be undersized.
+ * The value of this register must be less than or equal to the value of CTL_RX_MAX_PACKET_LEN[14:0]. */
+#define MRMAC_CTL_RX_MIN_PACKET_LEN_MASK VFIO_GENMASK_U32 (7, 0) /* RW DRP */
+
+/* Port Maximum Packet Length. Any packet longer than this value is considered to be oversized.
+ * The allowed value for this register can range from 64 to 16,383. */
+#define MRMAC_CTL_RX_MAX_PACKET_LEN_MASK VFIO_GENMASK_U32 (30, 16) /* RW DRP */
+
+
+/* For requesting a software statistics sample tick */
+#define MRMAC_TICK_REG_OFFSET 0x002C
+#define MRMAC_TICK_REG VFIO_BIT (0) /* RW  Port Tick Register.
+                                           Writing a 1 to the Tick bit will trigger a snapshot of all the Statistics counters into
+                                           their readable registers.
+                                           The bit self-clears, thus only a single write is required by the user input. */
+
+
+#define MRMAC_FEC_CONFIGURATION_REG1_OFFSET 0x00D0
+
+#define MRMAC_CTL_FEC_MODE_MASK VFIO_GENMASK_U32 (3, 0) /* RW DRP Port FEC operating mode.
+                                                           For details please refer PG314 Table 6: FEC Operating Modes.
+                                                           Haven't defined the values for this, since the meaning depends upon
+                                                           the port data rate*/
+#define MRMAC_CTL_FEC_MODE_ARRAY_SIZE 16
+#define MRMAC_CTL_RX_FEC_BYPASS_INDICATION VFIO_BIT (4) /* RW DRP Port RSFEC Bypass Indication. Set to ‘1’ to bypass error indication. */
+#define MRMAC_CTL_RX_FEC_BYPASS_CORRECTION VFIO_BIT (5) /* RW DRP Port RSFEC Bypass Correction. RS-FEC correction enable. */
+#define MRMAC_CTL_RX_FEC_TRANSCODE_CLAUSE49 VFIO_BIT (6) /* RW DRP Port RSFEC transcode caluse49.
+                                                            This flag should be set to 1 for modes which require Clause 49 transcoding
+                                                            (25GE, 50GE, Fibre Channel) and set to 0 for modes which require
+                                                            Clause 82 transcoding (100GE). */
+#define MRMAC_CTL_RX_FEC_ALIGNMENT_BYPASS VFIO_BIT (7) /* RW DRP Port RSFEC alignment Bypass */
+#define MRMAC_CTL_TX_FEC_TRANSCODE_BYPASS VFIO_BIT (8) /* RW DRP Port RSFEC tx transcode Bypass. Transcoder bypass mode enable. */
+#define MRMAC_CTL_RX_FEC_TRANSCODE_BYPASS VFIO_BIT (9) /* RW DRP Port RSFEC rx transcode Bypass. Transcoder bypass mode enable */
+#define MRMAC_CTL_RX_FEC_CDC_BYPASS VFIO_BIT (10) /* RW DRP Port RSFEC CDC Bypass.
+                                                     It determines whether the CDC buffers in the FEC alignment logic are enabled (0)
+                                                     or bypassed (1). By default, they are enabled. If CDC has already been performed
+                                                     outside the FEC (e.g. using the GT elastic buffers, or in the fabric) then the
+                                                     clock inputs for all the lanes will be identical (same frequency and phase) and
+                                                     the CDC buffers can safely be bypassed which reduces latency (by ~12ns or so).
+                                                     Otherwise, if each lane has its own recovered clock then the buffers should be
+                                                     enabled. This applies to all multi-lane RS-FEC modes, i.e. 50G and 100G,
+                                                     including FlexO. It’s ignored in 10G, 25G and 40G configurations. */
+#define MRMAC_CTL_RX_FEC_ERRIND_MODE VFIO_BIT (11) /* RW DRP Port RSFEC error ind mode.
+                                                      RS-FEC error indication mode (1=IEEE compliant mode,
+                                                       0=allow simultaneous correction and indication bypass) */
+#define MRMAC_CTL_TX_FEC_FOUR_LANE_PMD VFIO_BIT (12) /* RW DRP Port RSFEC tx four lane PMD.
+                                                        This needs to set to 1 for 100CAUI-4 with RSFEC (it should be set to 0
+                                                        100GAUI-2 and other modes). */
 
 
 /* Transmit status registers:
