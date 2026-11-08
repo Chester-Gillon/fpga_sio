@@ -10,6 +10,7 @@
 
 #include "mrmac_axi4_lite_registers.h"
 #include "identify_pcie_fpga_design.h"
+#include "ethernet_fcs.h"
 
 
 /* The statistics counters maintained by the MRMAC for one port.
@@ -276,6 +277,23 @@ typedef struct
 } mrmac_ports_ready_to_receive_t;
 
 
+/* Controls if software is used to perform Ethernet FCS calculations, depending upon how the MRMAC is configured.
+ * In normal use:
+ * a. The MRMAC inserts the FCS on transmission.
+ * b. The MRMAC deletes the FCS from received frames.
+ *
+ * This structure is used to allow testing of software performing FCS calculations, enabled according to the MRMAC configuration. */
+typedef struct
+{
+    /* When true software inserts the transmitted FCS */
+    bool insert_tx_fcs;
+    /* When true the software verifies the received FCS */
+    bool verify_rx_fcs;
+    /* The context for calculating the FCS */
+    ethernet_fcs_context_t fcs_context;
+} mrmac_software_fcs_t;
+
+
 extern const char *const mrmac_port_data_rate_names[];
 extern const uint32_t mrmac_num_port_data_rate_names;
 extern const char *const mrmac_axi4_stream_mode_names[][MRMAC_CTL_DATA_RATE_ARRAY_SIZE];
@@ -300,5 +318,11 @@ void mrmac_append_port_awaiting_ready (mrmac_ports_ready_to_receive_t *const col
 void mrmac_append_ports_awaiting_ready (mrmac_ports_ready_to_receive_t *const collection, mrmac_port_iterator_t *const iterator);
 bool mrmac_check_for_ports_ready (mrmac_ports_ready_to_receive_t *const collection);
 void mrmac_display_if_ports_ready (const mrmac_ports_ready_to_receive_t *const collection);
+void mrmac_software_fcs_initialise (mrmac_software_fcs_t *const software_fcs,
+                                    const uint8_t *const mrmac_tx_port_regs, const uint8_t *const mrmac_rx_port_regs);
+bool mrmac_software_fcs_verify (mrmac_software_fcs_t *const software_fcs, const void *const rx_frame, size_t *const transfer_len,
+                                uint32_t *const expected_fcs, uint32_t *const actual_fcs);
+size_t mrmac_software_fcs_get_tx_transfer_len (const mrmac_software_fcs_t *const software_fcs, const size_t packet_len_excluding_fcs);
+void mrmac_software_fcs_insert (mrmac_software_fcs_t *const software_fcs, void *const tx_frame, const size_t packet_len_excluding_fcs);
 
 #endif /* MRMAC_REGISTER_ACCESS_H_ */

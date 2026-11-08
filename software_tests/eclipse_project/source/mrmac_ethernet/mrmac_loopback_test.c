@@ -97,6 +97,8 @@ typedef struct
     x2x_transfer_context_t c2h_transfer;
     /* The configured AXI stream switch routing within the design, if any a AXI stream switch is used */
     device_routing_t routing;
+    /* Used to perform software FCS calculations, depending upon the MRMAC configuration */
+    mrmac_software_fcs_t software_fcs;
 } loopback_test_context_t;
 
 
@@ -252,6 +254,7 @@ static void open_mrmac_device (loopback_test_context_t *const context)
     context->mrmac_tx_port_regs = &context->mrmac_design->mrmac.regs[arg_mrmac_tx_port_num * MRMAC_PORT_REGS_FRAME_SIZE];
     context->mrmac_rx_port_regs = &context->mrmac_design->mrmac.regs[arg_mrmac_rx_port_num * MRMAC_PORT_REGS_FRAME_SIZE];
     context->xdma_overall_success = true;
+    mrmac_software_fcs_initialise (&context->software_fcs, context->mrmac_tx_port_regs, context->mrmac_rx_port_regs);
 
     if (arg_mrmac_tx_port_num == arg_mrmac_rx_port_num)
     {
@@ -557,6 +560,7 @@ static void sequence_mrmac_loopback_test (loopback_test_context_t *const context
             fpga_design_names[context->mrmac_design->design_id],
             arg_mrmac_tx_port_num, arg_mrmac_rx_port_num,
             (rx_max_packet_len - rx_min_packet_len) + 1, rx_min_packet_len, rx_max_packet_len);
+    printf ("insert_tx_fcs=%d verify_rx_fcs=%d\n", context->software_fcs.insert_tx_fcs, context->software_fcs.verify_rx_fcs);
 
     /* Start statistics collection for the test. The counter values collected here are before the test and the values
      * will be be overwritten at the end without being used. */
@@ -579,8 +583,9 @@ static void sequence_mrmac_loopback_test (loopback_test_context_t *const context
          * - Ethertype "802.1 Local Experimental 1", since an arbitrary payload.
          * - Payload is just an incrementing byte value. */
         const uint64_t host_buffer_offset = tx_buffer_index * vfio_align_cache_line_size (sizeof (test_ethernet_frame_t));
+        const size_t packet_len_for_transfer = mrmac_software_fcs_get_tx_transfer_len (&context->software_fcs, packet_len_excluding_fcs);
         test_ethernet_frame_t *const tx_frame =
-                x2x_populate_stream_transfer (&context->h2c_transfer, packet_len_excluding_fcs, host_buffer_offset);
+                x2x_populate_stream_transfer (&context->h2c_transfer, packet_len_for_transfer, host_buffer_offset);
         memcpy (tx_frame->destination_mac_addr, destination_mac_addr, sizeof (tx_frame->destination_mac_addr));
         memcpy (tx_frame->source_mac_addr, source_mac_addr, sizeof (tx_frame->source_mac_addr));
         tx_frame->ether_type = htons (ETH_P_802_EX1);
@@ -588,6 +593,10 @@ static void sequence_mrmac_loopback_test (loopback_test_context_t *const context
         {
             tx_frame->test_payload[payload_index] = test_pattern++;
         }
+
+        /* Perform optional insertion of FCS */
+        mrmac_software_fcs_insert (&context->software_fcs, tx_frame, packet_len_excluding_fcs);
+
         x2x_start_populated_descriptors (&context->h2c_transfer);
 
         /* Wait for the frame transmit and loopback receive to complete. A transfer timeout has been enabled */
@@ -607,6 +616,12 @@ static void sequence_mrmac_loopback_test (loopback_test_context_t *const context
 
         if (context->xdma_overall_success)
         {
+            /* Perform optional verification of FCS */
+            uint32_t expected_fcs;
+            uint32_t actual_fcs;
+            const bool fcs_incorrect =
+                    mrmac_software_fcs_verify (&context->software_fcs, rx_frame, &transfer_len, &expected_fcs, &actual_fcs);
+
             /* Check the expected receive frame is a copy of the transmit frame */
             if (!end_of_packet)
             {
@@ -617,6 +632,11 @@ static void sequence_mrmac_loopback_test (loopback_test_context_t *const context
             else if (transfer_len != packet_len_excluding_fcs)
             {
                 x2x_record_failure (&context->c2h_transfer, "Rx transfer_len=%zu, expected %zu", transfer_len, packet_len_excluding_fcs);
+            }
+            else if (fcs_incorrect)
+            {
+                x2x_record_failure (&context->c2h_transfer, "Rx transfer_len=%zu actual_fcs=0x%08x expected_fcs=0x%08x",
+                        transfer_len, actual_fcs, expected_fcs);
             }
             else if (memcmp (tx_frame, rx_frame, packet_len_excluding_fcs) != 0)
             {

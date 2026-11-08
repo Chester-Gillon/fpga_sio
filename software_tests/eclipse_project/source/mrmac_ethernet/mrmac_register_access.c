@@ -1120,3 +1120,136 @@ void mrmac_display_if_ports_ready (const mrmac_ports_ready_to_receive_t *const c
         }
     }
 }
+
+
+/**
+ * @brief Initialise if software is used to perform Ethernet FCS calculations for MRMAC ports
+ * @param[out] software_fcs The initialised context
+ * @param[in] If non-NULL the registers of the MRMAC transmit port used, to determine if the MRMAC is configured to insert the FCS.
+ * @param[in] If non-NULL the registers of the MRMAC receive port used, to determine if the MRMAC is configured to delete the FCS.
+ */
+void mrmac_software_fcs_initialise (mrmac_software_fcs_t *const software_fcs,
+                                    const uint8_t *const mrmac_tx_port_regs, const uint8_t *const mrmac_rx_port_regs)
+{
+    memset (software_fcs, 0, sizeof (*software_fcs));
+    ethernet_fcs_initialise (&software_fcs->fcs_context);
+    software_fcs->insert_tx_fcs = false;
+    software_fcs->verify_rx_fcs = false;
+
+    /* Enable software insertion of transmit FCS when not enabled in the MRMAC */
+    if (mrmac_tx_port_regs != NULL)
+    {
+        const uint32_t configuration_tx_reg1 = read_reg32 (mrmac_tx_port_regs, MRMAC_CONFIGURATION_TX_REG1_OFFSET);
+
+        software_fcs->insert_tx_fcs = (configuration_tx_reg1 & MRMAC_CTL_TX_FCS_INS_ENABLE) == 0u;
+    }
+
+    /* Enable software verification of received FCS when not deleted by the MRMAC */
+    if (mrmac_rx_port_regs != NULL)
+    {
+        const uint32_t configuration_rx_reg1 = read_reg32 (mrmac_rx_port_regs, MRMAC_CONFIGURATION_RX_REG1_OFFSET);
+
+        software_fcs->verify_rx_fcs = (configuration_rx_reg1 & MRMAC_CTL_RX_DELETE_FCS) == 0u;
+    }
+}
+
+
+/**
+ * @brief When possible, verify the FCS in a received Ethernet frame
+ * @param[in,out] software_fcs The MRMAC receive port specific context for verifying the received FCS.
+ * @param[in] rx_frame The received frame to verify
+ * @param[in,out] transfer_len The number of bytes in the received frame.
+ *                             When software verification is enabled:
+ *                             - On entry includes the FCS at the end of the frame.
+ *                             - On exit has been reduced to remove the FCS, since has been processed by this function.
+ *
+ *                             When software verification is disabled not modified.
+ * @param[out] expected_fcs When the FCS is verified, the expected FCS calculated by software.
+ * @param[out] actual_fcs When the FCS is verified, the actual FCS at the end of the received frame.
+ * @return Returns true when the verified FCS is incorrect
+ */
+bool mrmac_software_fcs_verify (mrmac_software_fcs_t *const software_fcs, const void *const rx_frame, size_t *const transfer_len,
+                                uint32_t *const expected_fcs, uint32_t *const actual_fcs)
+{
+    bool fcs_invalid;
+
+    /* Set default outputs */
+    *expected_fcs = UINT32_MAX;
+    *actual_fcs = UINT32_MAX;
+
+    if (software_fcs->verify_rx_fcs)
+    {
+        if ((*transfer_len) <= sizeof (uint32_t))
+        {
+            /* Transfer length is too short to contain a FCS, so indicate incorrect */
+            fcs_invalid = true;
+        }
+        else
+        {
+            /* The received frame contains a FCS at the end */
+            const uint8_t *const rx_frame_bytes = rx_frame;
+            const size_t frame_length_excluding_fcs = (*transfer_len) - sizeof (uint32_t);
+
+            /* Save the actual FCS at the end of the received frame */
+            memcpy (actual_fcs, &rx_frame_bytes[frame_length_excluding_fcs], sizeof (uint32_t));
+
+            /* Calculate the expected FCS from the data in the received frame */
+            *expected_fcs = ethernet_fcs_calculate (rx_frame, frame_length_excluding_fcs);
+
+            /* Verify the FCS at the end of the received frame in software */
+            fcs_invalid = (*expected_fcs) != (*actual_fcs);
+
+            /* This function has checked the FCS, so remove it from the frame processed by the caller */
+            *transfer_len = frame_length_excluding_fcs;
+        }
+    }
+    else
+    {
+        /* The MRMAC has deleted the FCS from the received frame, so the software is unable to verify it.
+         * @todo The MRMAC has an error indication for the frame, but in current XDMA based designs the error indication
+         *       isn't made available to the software. */
+        fcs_invalid = false;
+    }
+
+    return fcs_invalid;
+}
+
+
+/**
+ * @brief Get the length of a frame for transmission by the MRMAC, according to if the software inserts the FCS or not.
+ * @param[in] software_fcs The MRMAC transmit port specific context for inserting the transmitted FCS.
+ * @param[in] packet_len_excluding_fcs The length of the frame excluding the FCS.
+ * @return The length of the frame sent to the MRMAC, which depends upon if the software is inserting the FCS.
+ */
+size_t mrmac_software_fcs_get_tx_transfer_len (const mrmac_software_fcs_t *const software_fcs, const size_t packet_len_excluding_fcs)
+{
+    if (software_fcs->insert_tx_fcs)
+    {
+        /* Allow space for the software to insert the FCS to the transmitted frame */
+        return packet_len_excluding_fcs + sizeof (uint32_t);
+    }
+    else
+    {
+        /* The MRMAC inserts the FCS */
+        return packet_len_excluding_fcs;
+    }
+}
+
+
+/**
+ * @brief Insert the FCS for a frame, ready for transmission.
+ * @details This is only done when enabled. It is a no-op if the MRMAC has been configured to insert the FCS.
+ * @param[in] software_fcs The MRMAC transmit port specific context for inserting the transmitted FCS.
+ * @param[in,out] tx_frame The frame to insert the FCS in
+ * @param[in] packet_len_excluding_fcs The length of the frame excluding the FCS. This is the length over which the FCS is calculated.
+ */
+void mrmac_software_fcs_insert (mrmac_software_fcs_t *const software_fcs, void *const tx_frame, const size_t packet_len_excluding_fcs)
+{
+    if (software_fcs->insert_tx_fcs)
+    {
+        uint8_t *const tx_frame_bytes = tx_frame;
+        const uint32_t actual_crc = ethernet_fcs_calculate (tx_frame, packet_len_excluding_fcs);
+
+        memcpy (&tx_frame_bytes[packet_len_excluding_fcs], &actual_crc, sizeof (uint32_t));
+    }
+}
