@@ -560,7 +560,9 @@ static void sequence_mrmac_loopback_test (loopback_test_context_t *const context
             fpga_design_names[context->mrmac_design->design_id],
             arg_mrmac_tx_port_num, arg_mrmac_rx_port_num,
             (rx_max_packet_len - rx_min_packet_len) + 1, rx_min_packet_len, rx_max_packet_len);
-    printf ("insert_tx_fcs=%d verify_rx_fcs=%d\n", context->software_fcs.insert_tx_fcs, context->software_fcs.verify_rx_fcs);
+    printf ("insert_tx_fcs=%d verify_rx_fcs=%d FCS implementation=%s\n",
+            context->software_fcs.insert_tx_fcs, context->software_fcs.verify_rx_fcs,
+            ethernet_fcs_implementation_names[context->software_fcs.fcs_context.implementation]);
 
     /* Start statistics collection for the test. The counter values collected here are before the test and the values
      * will be be overwritten at the end without being used. */

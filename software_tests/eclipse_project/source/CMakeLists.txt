@@ -110,6 +110,16 @@ if (EXISTS ${XILINX_EMBEDDEDSW_ROOT})
     include_directories("${PROJECT_SOURCE_DIR}/xilinx_embeddedsw")
 endif()
 
+# If there is Intel opeAPI IPP installed enable it for calculating Ethernet CRCs.
+set (INTEL_IPP_ROOT "/opt/intel/oneapi/ipp/latest")
+set (HAVE_INTEL_IPP FALSE)
+if (EXISTS ${INTEL_IPP_ROOT})
+    set (HAVE_INTEL_IPP TRUE)
+    add_definitions (-DHAVE_INTEL_IPP)
+    include_directories(${INTEL_IPP_ROOT}/include)
+    link_directories(${INTEL_IPP_ROOT}/lib)
+endif()
+
 include_directories("${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}/vfio_access")
 include_directories("${PROJECT_SOURCE_DIR}/xilinx_dma_bridge_for_pcie")

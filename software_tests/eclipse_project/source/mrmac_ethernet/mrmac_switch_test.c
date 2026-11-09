@@ -2344,6 +2344,8 @@ int main (int argc, char *argv[])
     console_printf ("Max packet len (excluding FCS) = %u\n", arg_max_packet_len_excluding_fcs);
     console_printf ("Insert transmit FCS = %s\n", tx_rx_thread_context->software_fcs.insert_tx_fcs ? "Yes" : "No");
     console_printf ("Verify receive FCS = %s\n", tx_rx_thread_context->software_fcs.verify_rx_fcs ? "Yes" : "No");
+    console_printf ("FCS implementation = %s\n",
+            ethernet_fcs_implementation_names[tx_rx_thread_context->software_fcs.fcs_context.implementation]);
 
     /* Create the transmit_receive_thread */
     pthread_t tx_rx_thread_handle;

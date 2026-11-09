@@ -1194,7 +1194,7 @@ bool mrmac_software_fcs_verify (mrmac_software_fcs_t *const software_fcs, const 
             memcpy (actual_fcs, &rx_frame_bytes[frame_length_excluding_fcs], sizeof (uint32_t));
 
             /* Calculate the expected FCS from the data in the received frame */
-            *expected_fcs = ethernet_fcs_calculate (rx_frame, frame_length_excluding_fcs);
+            *expected_fcs = ethernet_fcs_calculate (&software_fcs->fcs_context, rx_frame, frame_length_excluding_fcs);
 
             /* Verify the FCS at the end of the received frame in software */
             fcs_invalid = (*expected_fcs) != (*actual_fcs);
@@ -1248,7 +1248,7 @@ void mrmac_software_fcs_insert (mrmac_software_fcs_t *const software_fcs, void *
     if (software_fcs->insert_tx_fcs)
     {
         uint8_t *const tx_frame_bytes = tx_frame;
-        const uint32_t actual_crc = ethernet_fcs_calculate (tx_frame, packet_len_excluding_fcs);
+        const uint32_t actual_crc = ethernet_fcs_calculate (&software_fcs->fcs_context, tx_frame, packet_len_excluding_fcs);
 
         memcpy (&tx_frame_bytes[packet_len_excluding_fcs], &actual_crc, sizeof (uint32_t));
     }

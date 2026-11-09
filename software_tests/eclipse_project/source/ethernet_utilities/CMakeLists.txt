@@ -6,3 +6,10 @@
 project (ethernet_utilities C)
 
 add_library (ethernet_fcs "ethernet_fcs.c")
+
+# Set dependent libraries to reduce duplication in target_link_libraries() of the executables
+if (HAVE_INTEL_IPP)
+    target_link_libraries (ethernet_fcs ippdc ippcore z)
+else()
+    target_link_libraries (ethernet_fcs z)
+endif()
