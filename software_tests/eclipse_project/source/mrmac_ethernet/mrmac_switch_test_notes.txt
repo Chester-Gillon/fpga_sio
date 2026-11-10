@@ -805,3 +805,1759 @@ Source  Destination ports --->
 Total test intervals with failures = 0
 Max pending rx frames = 49 out of 1656
 
+
+7. Test different packets sizes and software FCS implementations
+----------------------------------------------------------------
+
+For this the VD100_10G_ether_dual design was connected to a T1700G-28TQ switch:
+a. VD100 port 0 connected to switch port 27 via 10G DAC cable.
+b. 10G DAC cable between switch ports 25 and 26.
+c. Switch port VLAN configuration:
+   - Port 25 untagged member of VLAN 1025
+   - Port 26 untagged member of VLAN 1026
+   - Ports 27 and 28 tagged members of VLAN 1025-1026
+
+Attempted to use the full duplex 10G bandwidth on the MRMAC port connected to the switch, by requesting 5000M on each of the
+two switch ports under test.
+
+This running on:
+a. CPU 12th Gen Intel(R) Core(TM) i3-12100 
+b. CPU has avx2 instructions, debugging shows /opt/intel/oneapi/ipp/2026.1/lib/libippdcl9.so.12.1 loaded.
+   From https://www.intel.com/content/www/us/en/developer/articles/technical/understanding-cpu-optimized-code-used-in-intel-ipp.html
+   the l9 means "Optimized for processors with Intel® Advanced Vector Extensions 2 (Intel AVX2)"
+c. AlmaLinux 10.2, with Kernel 6.12.0-211.74.1.el10_2.x86_64
+d. Single DDR5 16GB 4400 MT/s 64-bit DIMM
+
+Summary is:
+a. No failures during the test.
+b. The C implementation of the FCS calculation slowed down the data rate, whereas the ZLIB and IPP implementations still allowed
+   the full 10G bandwidth to be achieved.
+
+7.1. Investigation into max jumbo frame supported by the T1700G-28TQ switch
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Port Config for the switch:
+- The allowed Jumbos size is shown as 1518-9216 bytes
+- Has Jumbo set to 9216 bytes (i.e. maximum supported by the switch)
+
+Ran the switch test with the MRMAC set to the defaults:
+- ctl_rx_max_packet_len=9600
+- ctl_tx_fcs_ins_enable=1
+- ctl_rx_delete_fcs=1
+
+The switch test used frame sizes 9212-9218 bytes (excluding FCS). The test reported some failures:
+$ mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000 -f 9212:9218
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T150204_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 9212
+Max packet len (excluding FCS) = 9218
+Insert transmit FCS = No
+Verify receive FCS = No
+FCS implementation = IPP
+Press Ctrl-C to stop test at end of next test interval
+
+15:02:16.921
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352985         966377              0              0              0              0         386550       135298.5        5000.09
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   S
+    26  S 
+Total test intervals with failures = 1 : last failure NOW
+^C
+15:02:26.921
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352955         966397              0              0              0              0         386558       135295.5        4999.98
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   S
+    26  S 
+Total test intervals with failures = 2 : last failure NOW
+
+VD100_10G_ether_dual port 0 statistics (over 20.000 secs):
+  TX_CYCLE_COUNT           :     12890638669
+  TX_TOTAL_PACKETS         :         2705886
+  TX_TOTAL_GOOD_PACKETS    :         2705886
+  TX_TOTAL_BYTES           :     24945566664
+  TX_TOTAL_GOOD_BYTES      :     24945563032
+  TX_PACKET_LARGE          :         2705886
+  TX_UNICAST               :         2705886
+  TX_VLAN                  :         2705886
+  RX_CYCLE_COUNT           :     12890723881
+  RX_TOTAL_PACKETS         :         1932774
+  RX_TOTAL_GOOD_PACKETS    :         1932774
+  RX_TOTAL_BYTES           :     17816310734
+  RX_TOTAL_GOOD_BYTES      :     17816310734
+  RX_PACKET_LARGE          :         1932774
+  RX_UNICAST               :         1932774
+  RX_VLAN                  :         1932774
+Max pending rx frames = 31 out of 1656
+
+The *_per_packet_len_linux.csv file shows:
+- Packet lens 9212-9616 received OK.
+- Packet lens 9217-9218 all missed.
+
+Which confirms 9216 bytes excluding FCS is the maximum size supported by the switch.
+
+Cleared the switch port statistics and re-ran switch test with only a packet size of 9217.
+
+MRMAC statistics were:
+VD100_10G_ether_dual port 0 statistics (over 20.000 secs):
+  TX_CYCLE_COUNT           :     12890642550
+  TX_TOTAL_PACKETS         :         2705309
+  TX_TOTAL_GOOD_PACKETS    :         2705309
+  TX_TOTAL_BYTES           :     24945656417
+  TX_TOTAL_GOOD_BYTES      :     24945654289
+  TX_PACKET_LARGE          :         2705309
+  TX_UNICAST               :         2705309
+  TX_VLAN                  :         2705309
+  RX_CYCLE_COUNT           :     12890725140
+
+Switch statistics showed only non-zero values was Received Bytes on port 27 (connected to MRMAC) as 24945949361
+
+MRMAC statistics says 2705309 packets transmitted, and 2705309*(9217+4) = 24945654289 which is the TX_TOTAL_GOOD_BYTES
+in the MRMAC statistics.
+
+The switch statistics show 295072, which is 32 frames of 9217 bytes + 4 byte FCS, more bytes received than that sent in the MRMAC 
+statistics, but maybe just different reporting intervals.
+
+7.2. No software FCS
+~~~~~~~~~~~~~~~~~~~~
+
+Since the FCS is handled by the MRMAC, just with the loopback test with no forcing the software FCS implementation.
+
+With 1518 non-Jumbo packet size:
+$ mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000 
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T183837_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 1518
+Max packet len (excluding FCS) = 1518
+Insert transmit FCS = No
+Verify receive FCS = No
+FCS implementation = IPP
+Press Ctrl-C to stop test at end of next test interval
+
+18:38:49.396
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8096861        8096766              0              0              0              0              0       809686.1        4994.14
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+18:38:59.396
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8103428        8103427              0              0              0              0              0       810342.8        4998.19
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+18:39:09.396
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8101377        8101377              0              0              0              0              0       810137.7        4996.93
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 30.000 secs):
+  TX_CYCLE_COUNT           :     19335955051
+  TX_TOTAL_PACKETS         :        24301582
+  TX_TOTAL_GOOD_PACKETS    :        24301582
+  TX_TOTAL_BYTES           :     36987008916
+  TX_TOTAL_GOOD_BYTES      :     36987007804
+  TX_PACKET_1519_1522_BYTES:        24301582
+  TX_UNICAST               :        24301582
+  TX_VLAN                  :        24301582
+  RX_CYCLE_COUNT           :     19336079163
+  RX_TOTAL_PACKETS         :        24301578
+  RX_TOTAL_GOOD_PACKETS    :        24301578
+  RX_TOTAL_BYTES           :     36987002004
+  RX_TOTAL_GOOD_BYTES      :     36987001716
+  RX_PACKET_1519_1522_BYTES:        24301578
+  RX_UNICAST               :        24301578
+  RX_VLAN                  :        24301578
+Max pending rx frames = 49 out of 1656
+
+With maximum packet size:
+$ mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000 -f 9216:9216
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T184030_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 9216
+Max packet len (excluding FCS) = 9216
+Insert transmit FCS = No
+Verify receive FCS = No
+FCS implementation = IPP
+Press Ctrl-C to stop test at end of next test interval
+
+18:40:42.802
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352832        1352775              0              0              0              0              0       135283.2        5000.07
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+18:40:52.802
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352813        1352812              0              0              0              0              0       135281.3        5000.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+18:41:02.802
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352760        1352761              0              0              0              0              0       135276.0        4999.80
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 30.000 secs):
+  TX_CYCLE_COUNT           :     19335953826
+  TX_TOTAL_PACKETS         :         4058351
+  TX_TOTAL_GOOD_PACKETS    :         4058351
+  TX_TOTAL_BYTES           :     37418002548
+  TX_TOTAL_GOOD_BYTES      :     37417996220
+  TX_PACKET_LARGE          :         4058351
+  TX_UNICAST               :         4058351
+  TX_VLAN                  :         4058351
+  RX_CYCLE_COUNT           :     19336078419
+  RX_TOTAL_PACKETS         :         4058349
+  RX_TOTAL_GOOD_PACKETS    :         4058349
+  RX_TOTAL_BYTES           :     37417980156
+  RX_TOTAL_GOOD_BYTES      :     37417977780
+  RX_PACKET_LARGE          :         4058349
+  RX_UNICAST               :         4058349
+  RX_VLAN                  :         4058349
+Max pending rx frames = 30 out of 1656
+
+7.3. Software inserts FCS on transmission
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Change MRMAC configuration to disable the MRMAC inserting the FCS on transmission:
+$ mrmac_ethernet/mrmac_configuration ctl_rx_delete_fcs=1 ctl_tx_fcs_ins_enable=0
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 0 field ctl_tx_fcs_ins_enable changed from 1 -> 0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 0 field ctl_rx_delete_fcs value unchanged at value 1
+Design VD100_10G_ether_dual device 0000:01:00.0 port 1 field ctl_tx_fcs_ins_enable changed from 1 -> 0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 1 field ctl_rx_delete_fcs value unchanged at value 1
+
+Test all implementations with 1518 non-Jumbo packet size:
+$ (ETHERNET_FCS_IMPLEMENTATION=C mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T191919_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 1518
+Max packet len (excluding FCS) = 1518
+Insert transmit FCS = Yes
+Verify receive FCS = No
+FCS implementation = C
+Press Ctrl-C to stop test at end of next test interval
+
+19:19:32.001
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       306736         306734              0              0              0              0              0        30673.5         189.19
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+19:19:42.001
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       307361         307361              0              0              0              0              0        30736.1         189.58
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+19:19:52.001
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       306436         306436              0              0              0              0              0        30643.6         189.01
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 30.000 secs):
+  TX_CYCLE_COUNT           :     19335983160
+  TX_TOTAL_PACKETS         :          920533
+  TX_TOTAL_GOOD_PACKETS    :          920533
+  TX_TOTAL_BYTES           :      1401051226
+  TX_TOTAL_GOOD_BYTES      :      1401051226
+  TX_PACKET_1519_1522_BYTES:          920533
+  TX_UNICAST               :          920533
+  TX_VLAN                  :          920533
+  RX_CYCLE_COUNT           :     19336107411
+  RX_TOTAL_PACKETS         :          920532
+  RX_TOTAL_GOOD_PACKETS    :          920532
+  RX_TOTAL_BYTES           :      1401049704
+  RX_TOTAL_GOOD_BYTES      :      1401049704
+  RX_PACKET_1519_1522_BYTES:          920532
+  RX_UNICAST               :          920532
+  RX_VLAN                  :          920532
+Max pending rx frames = 1 out of 1656
+
+$ (ETHERNET_FCS_IMPLEMENTATION=ZLIB mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T192021_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 1518
+Max packet len (excluding FCS) = 1518
+Insert transmit FCS = Yes
+Verify receive FCS = No
+FCS implementation = ZLIB
+Press Ctrl-C to stop test at end of next test interval
+
+19:20:33.939
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8103942        8103847              0              0              0              0              0       810394.2        4998.51
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+19:20:43.939
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8103620        8103620              0              0              0              0              0       810362.0        4998.31
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+19:20:53.939
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8104729        8104729              0              0              0              0              0       810472.9        4999.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+19:21:03.939
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8099839        8099838              0              0              0              0              0       809983.9        4995.98
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 40.000 secs):
+  TX_CYCLE_COUNT           :     25781271775
+  TX_TOTAL_PACKETS         :        32412046
+  TX_TOTAL_GOOD_PACKETS    :        32412046
+  TX_TOTAL_BYTES           :     49331134164
+  TX_TOTAL_GOOD_BYTES      :     49331134012
+  TX_PACKET_1519_1522_BYTES:        32412046
+  TX_UNICAST               :        32412046
+  TX_VLAN                  :        32412046
+  RX_CYCLE_COUNT           :     25781438198
+  RX_TOTAL_PACKETS         :        32412041
+  RX_TOTAL_GOOD_PACKETS    :        32412041
+  RX_TOTAL_BYTES           :     49331127274
+  RX_TOTAL_GOOD_BYTES      :     49331126402
+  RX_PACKET_1519_1522_BYTES:        32412041
+  RX_UNICAST               :        32412041
+  RX_VLAN                  :        32412041
+Max pending rx frames = 49 out of 1656
+
+$ (ETHERNET_FCS_IMPLEMENTATION=IPP mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T192132_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 1518
+Max packet len (excluding FCS) = 1518
+Insert transmit FCS = Yes
+Verify receive FCS = No
+FCS implementation = IPP
+Press Ctrl-C to stop test at end of next test interval
+
+19:21:44.359
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8102638        8102546              0              0              0              0              0       810263.4        4997.70
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+19:21:54.359
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8103213        8103209              0              0              0              0              0       810321.6        4998.06
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+19:22:04.359
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8101850        8101850              0              0              0              0              0       810185.0        4997.22
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 30.000 secs):
+  TX_CYCLE_COUNT           :     19335955228
+  TX_TOTAL_PACKETS         :        24307616
+  TX_TOTAL_GOOD_PACKETS    :        24307616
+  TX_TOTAL_BYTES           :     36996192800
+  TX_TOTAL_GOOD_BYTES      :     36996191552
+  TX_PACKET_1519_1522_BYTES:        24307616
+  TX_UNICAST               :        24307616
+  TX_VLAN                  :        24307616
+  RX_CYCLE_COUNT           :     19336080496
+  RX_TOTAL_PACKETS         :        24307612
+  RX_TOTAL_GOOD_PACKETS    :        24307612
+  RX_TOTAL_BYTES           :     36996185904
+  RX_TOTAL_GOOD_BYTES      :     36996185464
+  RX_PACKET_1519_1522_BYTES:        24307612
+  RX_UNICAST               :        24307612
+  RX_VLAN                  :        24307612
+Max pending rx frames = 49 out of 1656
+
+Test all implementations with 9216 max Jumbo packet size:
+$ (ETHERNET_FCS_IMPLEMENTATION=C mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000 -f 9216:9216)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T192327_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 9216
+Max packet len (excluding FCS) = 9216
+Insert transmit FCS = Yes
+Verify receive FCS = No
+FCS implementation = C
+Press Ctrl-C to stop test at end of next test interval
+
+19:23:40.011
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+        51006          51004              0              0              0              0              0         5100.5         188.52
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+19:23:50.011
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+        50838          50838              0              0              0              0              0         5083.8         187.90
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+19:24:00.011
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+        50752          50752              0              0              0              0              0         5075.2         187.58
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 30.000 secs):
+  TX_CYCLE_COUNT           :     19336179260
+  TX_TOTAL_PACKETS         :          152595
+  TX_TOTAL_GOOD_PACKETS    :          152595
+  TX_TOTAL_BYTES           :      1406925900
+  TX_TOTAL_GOOD_BYTES      :      1406925900
+  TX_PACKET_LARGE          :          152595
+  TX_UNICAST               :          152595
+  TX_VLAN                  :          152595
+  RX_CYCLE_COUNT           :     19336304680
+  RX_TOTAL_PACKETS         :          152595
+  RX_TOTAL_GOOD_PACKETS    :          152595
+  RX_TOTAL_BYTES           :      1406925900
+  RX_TOTAL_GOOD_BYTES      :      1406925900
+  RX_PACKET_LARGE          :          152595
+  RX_UNICAST               :          152595
+  RX_VLAN                  :          152595
+Max pending rx frames = 1 out of 1656
+
+$ (ETHERNET_FCS_IMPLEMENTATION=ZLIB mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000 -f 9216:9216)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T192430_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 9216
+Max packet len (excluding FCS) = 9216
+Insert transmit FCS = Yes
+Verify receive FCS = No
+FCS implementation = ZLIB
+Press Ctrl-C to stop test at end of next test interval
+
+19:24:42.747
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352810        1352752              0              0              0              0              0       135281.0        4999.99
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+19:24:52.747
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352811        1352812              0              0              0              0              0       135281.1        4999.99
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+19:25:02.747
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352813        1352812              0              0              0              0              0       135281.3        5000.00
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 30.000 secs):
+  TX_CYCLE_COUNT           :     19335957824
+  TX_TOTAL_PACKETS         :         4058380
+  TX_TOTAL_GOOD_PACKETS    :         4058380
+  TX_TOTAL_BYTES           :     37418264792
+  TX_TOTAL_GOOD_BYTES      :     37418263600
+  TX_PACKET_LARGE          :         4058380
+  TX_UNICAST               :         4058380
+  TX_VLAN                  :         4058380
+  RX_CYCLE_COUNT           :     19336083469
+  RX_TOTAL_PACKETS         :         4058377
+  RX_TOTAL_GOOD_PACKETS    :         4058377
+  RX_TOTAL_BYTES           :     37418242436
+  RX_TOTAL_GOOD_BYTES      :     37418235940
+  RX_PACKET_LARGE          :         4058377
+  RX_UNICAST               :         4058377
+  RX_VLAN                  :         4058377
+Max pending rx frames = 30 out of 1656
+
+$ (ETHERNET_FCS_IMPLEMENTATION=IPP mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000 -f 9216:9216)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T192535_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 9216
+Max packet len (excluding FCS) = 9216
+Insert transmit FCS = Yes
+Verify receive FCS = No
+FCS implementation = IPP
+Press Ctrl-C to stop test at end of next test interval
+
+19:25:47.529
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352839        1352781              0              0              0              0              0       135283.9        5000.09
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+19:25:57.529
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352808        1352809              0              0              0              0              0       135280.8        4999.98
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+19:26:07.529
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352812        1352811              0              0              0              0              0       135281.2        4999.99
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 30.000 secs):
+  TX_CYCLE_COUNT           :     19335957924
+  TX_TOTAL_PACKETS         :         4058405
+  TX_TOTAL_GOOD_PACKETS    :         4058405
+  TX_TOTAL_BYTES           :     37418497380
+  TX_TOTAL_GOOD_BYTES      :     37418494100
+  TX_PACKET_LARGE          :         4058405
+  TX_UNICAST               :         4058405
+  TX_VLAN                  :         4058405
+  RX_CYCLE_COUNT           :     19336083730
+  RX_TOTAL_PACKETS         :         4058402
+  RX_TOTAL_GOOD_PACKETS    :         4058402
+  RX_TOTAL_BYTES           :     37418475032
+  RX_TOTAL_GOOD_BYTES      :     37418466440
+  RX_PACKET_LARGE          :         4058402
+  RX_UNICAST               :         4058402
+  RX_VLAN                  :         4058402
+Max pending rx frames = 30 out of 1656
+
+7.4. Software checks FCS on reception
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Change MRMAC configuration to disable the MRMAC deleting the FCS on reception:
+$ mrmac_ethernet/mrmac_configuration ctl_rx_delete_fcs=0 ctl_tx_fcs_ins_enable=1
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 0 field ctl_tx_fcs_ins_enable changed from 0 -> 1
+Design VD100_10G_ether_dual device 0000:01:00.0 port 0 field ctl_rx_delete_fcs changed from 1 -> 0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 1 field ctl_tx_fcs_ins_enable changed from 0 -> 1
+Design VD100_10G_ether_dual device 0000:01:00.0 port 1 field ctl_rx_delete_fcs changed from 1 -> 0
+
+Test all implementations with 1518 non-Jumbo packet size:
+$ (ETHERNET_FCS_IMPLEMENTATION=C mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T214121_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 1518
+Max packet len (excluding FCS) = 1518
+Insert transmit FCS = No
+Verify receive FCS = Yes
+FCS implementation = C
+Press Ctrl-C to stop test at end of next test interval
+
+21:41:33.234
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       293785         293783              0              0              0              0              0        29377.2         181.20
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+21:41:43.234
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       307538         307538              0              0              0              0              0        30753.7         189.69
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+21:41:53.234
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       307870         307870              0              0              0              0              0        30787.9         189.90
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 30.000 secs):
+  TX_CYCLE_COUNT           :     19336057411
+  TX_TOTAL_PACKETS         :          909193
+  TX_TOTAL_GOOD_PACKETS    :          909193
+  TX_TOTAL_BYTES           :      1383791746
+  TX_TOTAL_GOOD_BYTES      :      1383791746
+  TX_PACKET_1519_1522_BYTES:          909193
+  TX_UNICAST               :          909193
+  TX_VLAN                  :          909193
+  RX_CYCLE_COUNT           :     19336181822
+  RX_TOTAL_PACKETS         :          909191
+  RX_TOTAL_GOOD_PACKETS    :          909191
+  RX_TOTAL_BYTES           :      1383788702
+  RX_TOTAL_GOOD_BYTES      :      1383788702
+  RX_PACKET_1519_1522_BYTES:          909191
+  RX_UNICAST               :          909191
+  RX_VLAN                  :          909191
+Max pending rx frames = 11 out of 1656
+
+$ (ETHERNET_FCS_IMPLEMENTATION=ZLIB mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T214213_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 1518
+Max packet len (excluding FCS) = 1518
+Insert transmit FCS = No
+Verify receive FCS = Yes
+FCS implementation = ZLIB
+Press Ctrl-C to stop test at end of next test interval
+
+21:42:25.922
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8099930        8099834              0              0              0              0              0       809993.0        4996.04
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+21:42:35.922
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8098056        8098056              0              0              0              0              0       809805.6        4994.88
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+21:42:45.922
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8102585        8102586              0              0              0              0              0       810258.5        4997.67
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 30.000 secs):
+  TX_CYCLE_COUNT           :     19335954987
+  TX_TOTAL_PACKETS         :        24300487
+  TX_TOTAL_GOOD_PACKETS    :        24300487
+  TX_TOTAL_BYTES           :     36985342110
+  TX_TOTAL_GOOD_BYTES      :     36985341214
+  TX_PACKET_1519_1522_BYTES:        24300487
+  TX_UNICAST               :        24300487
+  TX_VLAN                  :        24300487
+  RX_CYCLE_COUNT           :     19336079816
+  RX_TOTAL_PACKETS         :        24300483
+  RX_TOTAL_GOOD_PACKETS    :        24300483
+  RX_TOTAL_BYTES           :     36985335214
+  RX_TOTAL_GOOD_BYTES      :     36985335126
+  RX_PACKET_1519_1522_BYTES:        24300483
+  RX_UNICAST               :        24300483
+  RX_VLAN                  :        24300483
+Max pending rx frames = 49 out of 1656
+
+$ (ETHERNET_FCS_IMPLEMENTATION=IPP mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T214309_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 1518
+Max packet len (excluding FCS) = 1518
+Insert transmit FCS = No
+Verify receive FCS = Yes
+FCS implementation = IPP
+Press Ctrl-C to stop test at end of next test interval
+
+21:43:21.204
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8098016        8097920              0              0              0              0              0       809801.6        4994.86
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+21:43:31.204
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8102214        8102214              0              0              0              0              0       810221.4        4997.45
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+21:43:41.204
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8105243        8105243              0              0              0              0              0       810524.3        4999.31
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 30.000 secs):
+  TX_CYCLE_COUNT           :     19335955121
+  TX_TOTAL_PACKETS         :        24305389
+  TX_TOTAL_GOOD_PACKETS    :        24305389
+  TX_TOTAL_BYTES           :     36992802130
+  TX_TOTAL_GOOD_BYTES      :     36992802058
+  TX_PACKET_1519_1522_BYTES:        24305389
+  TX_UNICAST               :        24305389
+  TX_VLAN                  :        24305389
+  RX_CYCLE_COUNT           :     19336080302
+  RX_TOTAL_PACKETS         :        24305384
+  RX_TOTAL_GOOD_PACKETS    :        24305384
+  RX_TOTAL_BYTES           :     36992795248
+  RX_TOTAL_GOOD_BYTES      :     36992794448
+  RX_PACKET_1519_1522_BYTES:        24305384
+  RX_UNICAST               :        24305384
+  RX_VLAN                  :        24305384
+Max pending rx frames = 49 out of 1656
+
+Test all implementations with 9216 max Jumbo packet size:
+$ (ETHERNET_FCS_IMPLEMENTATION=C mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000 -f 9216:9216)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T214440_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 9216
+Max packet len (excluding FCS) = 9216
+Insert transmit FCS = No
+Verify receive FCS = Yes
+FCS implementation = C
+Press Ctrl-C to stop test at end of next test interval
+
+21:44:52.200
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+        50551          50549              0              0              0              0              0         5052.5         186.74
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+21:45:02.199
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+        49996          49996              0              0              0              0              0         5000.0         184.80
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+21:45:12.198
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+        49619          49619              0              0              0              0              0         4962.5         183.41
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 30.003 secs):
+  TX_CYCLE_COUNT           :     19337977329
+  TX_TOTAL_PACKETS         :          150164
+  TX_TOTAL_GOOD_PACKETS    :          150164
+  TX_TOTAL_BYTES           :      1384512080
+  TX_TOTAL_GOOD_BYTES      :      1384512080
+  TX_PACKET_LARGE          :          150164
+  TX_UNICAST               :          150164
+  TX_VLAN                  :          150164
+  RX_CYCLE_COUNT           :     19338102979
+  RX_TOTAL_PACKETS         :          150164
+  RX_TOTAL_GOOD_PACKETS    :          150164
+  RX_TOTAL_BYTES           :      1384512080
+  RX_TOTAL_GOOD_BYTES      :      1384512080
+  RX_PACKET_LARGE          :          150164
+  RX_UNICAST               :          150164
+  RX_VLAN                  :          150164
+Max pending rx frames = 17 out of 1656
+
+$ (ETHERNET_FCS_IMPLEMENTATION=ZLIB mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000 -f 9216:9216)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T214537_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 9216
+Max packet len (excluding FCS) = 9216
+Insert transmit FCS = No
+Verify receive FCS = Yes
+FCS implementation = ZLIB
+Press Ctrl-C to stop test at end of next test interval
+
+21:45:49.219
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352768        1352710              0              0              0              0              0       135276.8        4999.83
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+21:45:59.219
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352724        1352725              0              0              0              0              0       135272.4        4999.67
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+21:46:09.219
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352728        1352727              0              0              0              0              0       135272.8        4999.68
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 30.000 secs):
+  TX_CYCLE_COUNT           :     19335956737
+  TX_TOTAL_PACKETS         :         4058166
+  TX_TOTAL_GOOD_PACKETS    :         4058166
+  TX_TOTAL_BYTES           :     37416292472
+  TX_TOTAL_GOOD_BYTES      :     37416290520
+  TX_PACKET_LARGE          :         4058166
+  TX_UNICAST               :         4058166
+  TX_VLAN                  :         4058166
+  RX_CYCLE_COUNT           :     19336082559
+  RX_TOTAL_PACKETS         :         4058163
+  RX_TOTAL_GOOD_PACKETS    :         4058163
+  RX_TOTAL_BYTES           :     37416270124
+  RX_TOTAL_GOOD_BYTES      :     37416262860
+  RX_PACKET_LARGE          :         4058163
+  RX_UNICAST               :         4058163
+  RX_VLAN                  :         4058163
+Max pending rx frames = 30 out of 1656
+
+$ (ETHERNET_FCS_IMPLEMENTATION=IPP mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000 -f 9216:9216)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T214634_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 9216
+Max packet len (excluding FCS) = 9216
+Insert transmit FCS = No
+Verify receive FCS = Yes
+FCS implementation = IPP
+Press Ctrl-C to stop test at end of next test interval
+
+21:46:46.981
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352805        1352747              0              0              0              0              0       135280.5        4999.97
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+21:46:56.981
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352716        1352717              0              0              0              0              0       135271.6        4999.64
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+21:47:06.981
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352750        1352749              0              0              0              0              0       135275.0        4999.76
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 30.000 secs):
+  TX_CYCLE_COUNT           :     19335957443
+  TX_TOTAL_PACKETS         :         4058217
+  TX_TOTAL_GOOD_PACKETS    :         4058217
+  TX_TOTAL_BYTES           :     37416763724
+  TX_TOTAL_GOOD_BYTES      :     37416760740
+  TX_PACKET_LARGE          :         4058217
+  TX_UNICAST               :         4058217
+  TX_VLAN                  :         4058217
+  RX_CYCLE_COUNT           :     19336083499
+  RX_TOTAL_PACKETS         :         4058214
+  RX_TOTAL_GOOD_PACKETS    :         4058214
+  RX_TOTAL_BYTES           :     37416741352
+  RX_TOTAL_GOOD_BYTES      :     37416733080
+  RX_PACKET_LARGE          :         4058214
+  RX_UNICAST               :         4058214
+  RX_VLAN                  :         4058214
+Max pending rx frames = 30 out of 1656
+
+7.5. Software inserts FCS on transmission and checks FCS on reception
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Change MRMAC configuration to disable the MRMAC inserting FCS on transmission and deleting the FCS on reception:
+$ mrmac_ethernet/mrmac_configuration ctl_rx_delete_fcs=0 ctl_tx_fcs_ins_enable=0
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 0 field ctl_tx_fcs_ins_enable changed from 1 -> 0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 0 field ctl_rx_delete_fcs value unchanged at value 0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 1 field ctl_tx_fcs_ins_enable changed from 1 -> 0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 1 field ctl_rx_delete_fcs value unchanged at value 0
+
+Test all implementations with 1518 non-Jumbo packet size:
+$ (ETHERNET_FCS_IMPLEMENTATION=C mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T214914_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 1518
+Max packet len (excluding FCS) = 1518
+Insert transmit FCS = Yes
+Verify receive FCS = Yes
+FCS implementation = C
+Press Ctrl-C to stop test at end of next test interval
+
+21:49:26.418
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       157236         157234              0              0              0              0              0        15723.5          96.98
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+21:49:36.418
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       157229         157230              0              0              0              0              0        15722.9          96.98
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+21:49:46.418
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+       156765         156764              0              0              0              0              0        15676.4          96.69
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 30.000 secs):
+  TX_CYCLE_COUNT           :     19336016102
+  TX_TOTAL_PACKETS         :          471230
+  TX_TOTAL_GOOD_PACKETS    :          471230
+  TX_TOTAL_BYTES           :       717212060
+  TX_TOTAL_GOOD_BYTES      :       717212060
+  TX_PACKET_1519_1522_BYTES:          471230
+  TX_UNICAST               :          471230
+  TX_VLAN                  :          471230
+  RX_CYCLE_COUNT           :     19336141953
+  RX_TOTAL_PACKETS         :          471229
+  RX_TOTAL_GOOD_PACKETS    :          471229
+  RX_TOTAL_BYTES           :       717210538
+  RX_TOTAL_GOOD_BYTES      :       717210538
+  RX_PACKET_1519_1522_BYTES:          471229
+  RX_UNICAST               :          471229
+  RX_VLAN                  :          471229
+Max pending rx frames = 1 out of 1656
+
+$ (ETHERNET_FCS_IMPLEMENTATION=ZLIB mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T215010_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 1518
+Max packet len (excluding FCS) = 1518
+Insert transmit FCS = Yes
+Verify receive FCS = Yes
+FCS implementation = ZLIB
+Press Ctrl-C to stop test at end of next test interval
+
+21:50:22.721
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8101905        8101810              0              0              0              0              0       810190.5        4997.25
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+21:50:32.721
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8099990        8099990              0              0              0              0              0       809999.0        4996.07
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+21:50:42.721
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8102069        8102069              0              0              0              0              0       810206.9        4997.36
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 30.000 secs):
+  TX_CYCLE_COUNT           :     19335958947
+  TX_TOTAL_PACKETS         :        24303880
+  TX_TOTAL_GOOD_PACKETS    :        24303880
+  TX_TOTAL_BYTES           :     36990506368
+  TX_TOTAL_GOOD_BYTES      :     36990505360
+  TX_PACKET_1519_1522_BYTES:        24303880
+  TX_UNICAST               :        24303880
+  TX_VLAN                  :        24303880
+  RX_CYCLE_COUNT           :     19336084950
+  RX_TOTAL_PACKETS         :        24303876
+  RX_TOTAL_GOOD_PACKETS    :        24303876
+  RX_TOTAL_BYTES           :     36990499448
+  RX_TOTAL_GOOD_BYTES      :     36990499272
+  RX_PACKET_1519_1522_BYTES:        24303876
+  RX_UNICAST               :        24303876
+  RX_VLAN                  :        24303876
+Max pending rx frames = 49 out of 1656
+
+$ (ETHERNET_FCS_IMPLEMENTATION=IPP mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T215110_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 1518
+Max packet len (excluding FCS) = 1518
+Insert transmit FCS = Yes
+Verify receive FCS = Yes
+FCS implementation = IPP
+Press Ctrl-C to stop test at end of next test interval
+
+21:51:22.698
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8102652        8102556              0              0              0              0              0       810265.2        4997.72
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+21:51:32.698
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8099318        8099318              0              0              0              0              0       809931.7        4995.66
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+21:51:42.698
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      8103670        8103671              0              0              0              0              0       810367.1        4998.34
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 30.000 secs):
+  TX_CYCLE_COUNT           :     19335958920
+  TX_TOTAL_PACKETS         :        24305556
+  TX_TOTAL_GOOD_PACKETS    :        24305556
+  TX_TOTAL_BYTES           :     36993057136
+  TX_TOTAL_GOOD_BYTES      :     36993056232
+  TX_PACKET_1519_1522_BYTES:        24305556
+  TX_UNICAST               :        24305556
+  TX_VLAN                  :        24305556
+  RX_CYCLE_COUNT           :     19336085178
+  RX_TOTAL_PACKETS         :        24305552
+  RX_TOTAL_GOOD_PACKETS    :        24305552
+  RX_TOTAL_BYTES           :     36993050224
+  RX_TOTAL_GOOD_BYTES      :     36993050144
+  RX_PACKET_1519_1522_BYTES:        24305552
+  RX_UNICAST               :        24305552
+  RX_VLAN                  :        24305552
+Max pending rx frames = 49 out of 1656
+
+Test all implementations with 9216 max Jumbo packet size:
+$ (ETHERNET_FCS_IMPLEMENTATION=C mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000 -f 9216:9216)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T215240_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 9216
+Max packet len (excluding FCS) = 9216
+Insert transmit FCS = Yes
+Verify receive FCS = Yes
+FCS implementation = C
+Press Ctrl-C to stop test at end of next test interval
+
+21:52:52.980
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+        24723          24722              0              0              0              0              0         2472.3          91.38
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+21:53:02.980
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+        24590          24590              0              0              0              0              0         2459.0          90.89
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+21:53:12.980
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+        25180          25180              0              0              0              0              0         2518.0          93.06
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 30.001 secs):
+  TX_CYCLE_COUNT           :     19336412348
+  TX_TOTAL_PACKETS         :           74492
+  TX_TOTAL_GOOD_PACKETS    :           74492
+  TX_TOTAL_BYTES           :       686816240
+  TX_TOTAL_GOOD_BYTES      :       686816240
+  TX_PACKET_LARGE          :           74492
+  TX_UNICAST               :           74492
+  TX_VLAN                  :           74492
+  RX_CYCLE_COUNT           :     19336538709
+  RX_TOTAL_PACKETS         :           74492
+  RX_TOTAL_GOOD_PACKETS    :           74492
+  RX_TOTAL_BYTES           :       686816240
+  RX_TOTAL_GOOD_BYTES      :       686816240
+  RX_PACKET_LARGE          :           74492
+  RX_UNICAST               :           74492
+  RX_VLAN                  :           74492
+Max pending rx frames = 1 out of 1656
+
+$ (ETHERNET_FCS_IMPLEMENTATION=ZLIB mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000 -f 9216:9216)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T215341_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 9216
+Max packet len (excluding FCS) = 9216
+Insert transmit FCS = Yes
+Verify receive FCS = Yes
+FCS implementation = ZLIB
+Press Ctrl-C to stop test at end of next test interval
+
+21:53:53.459
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352652        1352594              0              0              0              0              0       135265.2        4999.40
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+21:54:03.459
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352769        1352770              0              0              0              0              0       135276.9        4999.83
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+21:54:13.459
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352741        1352741              0              0              0              0              0       135274.1        4999.73
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 30.000 secs):
+  TX_CYCLE_COUNT           :     19335959137
+  TX_TOTAL_PACKETS         :         4058108
+  TX_TOTAL_GOOD_PACKETS    :         4058108
+  TX_TOTAL_BYTES           :     37415762376
+  TX_TOTAL_GOOD_BYTES      :     37415755760
+  TX_PACKET_LARGE          :         4058108
+  TX_UNICAST               :         4058108
+  TX_VLAN                  :         4058108
+  RX_CYCLE_COUNT           :     19336085666
+  RX_TOTAL_PACKETS         :         4058106
+  RX_TOTAL_GOOD_PACKETS    :         4058106
+  RX_TOTAL_BYTES           :     37415740000
+  RX_TOTAL_GOOD_BYTES      :     37415737320
+  RX_PACKET_LARGE          :         4058106
+  RX_UNICAST               :         4058106
+  RX_VLAN                  :         4058106
+Max pending rx frames = 30 out of 1656
+
+$ (ETHERNET_FCS_IMPLEMENTATION=IPP mrmac_ethernet/mrmac_switch_test -n 0 -p 25-26 -r 5000 -f 9216:9216)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive. Press Ctrl-C to abort.
+Waiting 2 seconds after link came up for switch to accept packets (latched rx_status initial 0x000001C0 last 0x00000003)
+Bit rate on interface to injection switch = 10000 (Mbps)
+Requested bit rate to be generated on each switch port under test = 5000.00 (Mbps)
+Not limiting frame rate, as bit-rate on interface to injection switch doesn't exceed the total across all switch ports under test
+Tx Inter Packet Gap = 12
+Writing per-port counts to 20261110T215438_per_port_counts_linux.csv
+Using design VD100_10G_ether_dual device 0000:01:00.0 Tx port 0 Rx port 0
+Test interval = 10 (secs)
+Frame debug enabled = No
+Expect MRMAC loopback = No
+Disable MRMAC port statistics = No
+Min packet len (excluding FCS) = 9216
+Max packet len (excluding FCS) = 9216
+Insert transmit FCS = Yes
+Verify receive FCS = Yes
+FCS implementation = IPP
+Press Ctrl-C to stop test at end of next test interval
+
+21:54:50.427
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352768        1352711              0              0              0              0              0       135276.8        4999.83
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+21:55:00.427
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352699        1352699              0              0              0              0              0       135269.9        4999.58
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+^C
+21:55:10.427
+      Tx Test        Rx Test  Rx Unexpected     Rx Flooded     Rx Bad FCS       Rx Other  missed frames   tx rate (Hz)  per port Mbps
+      1352704        1352703              0              0              0              0              0       135270.4        4999.59
+
+Summary of missed frames : '.' none missed 'S' some missed 'A' all missed
+Source  Destination ports --->
+  port  22
+        56
+    25   .
+    26  . 
+Total test intervals with failures = 0
+
+VD100_10G_ether_dual port 0 statistics (over 30.000 secs):
+  TX_CYCLE_COUNT           :     19335959259
+  TX_TOTAL_PACKETS         :         4058117
+  TX_TOTAL_GOOD_PACKETS    :         4058117
+  TX_TOTAL_BYTES           :     37415843340
+  TX_TOTAL_GOOD_BYTES      :     37415838740
+  TX_PACKET_LARGE          :         4058117
+  TX_UNICAST               :         4058117
+  TX_VLAN                  :         4058117
+  RX_CYCLE_COUNT           :     19336085927
+  RX_TOTAL_PACKETS         :         4058115
+  RX_TOTAL_GOOD_PACKETS    :         4058115
+  RX_TOTAL_BYTES           :     37415820956
+  RX_TOTAL_GOOD_BYTES      :     37415820300
+  RX_PACKET_LARGE          :         4058115
+  RX_UNICAST               :         4058115
+  RX_VLAN                  :         4058115
+Max pending rx frames = 30 out of 1656
+

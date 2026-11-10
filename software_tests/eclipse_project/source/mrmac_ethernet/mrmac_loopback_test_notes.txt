@@ -1,7 +1,7 @@
 1. VD100_10G_ether_dual with FEC disabled, external loopback, default MTU
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The external loopback is via a pair of AXS85-192-M3 10G base-SR transeivers, with a multi-mode fibre.
+The external loopback is via a pair of AXS85-192-M3 10G base-SR transceivers, with a multi-mode fibre.
 
 FEC left disabled which is the default after loading the bitstream.
 
@@ -676,5 +676,586 @@ VD100_10G_ether_dual port 1 statistics (over 1.016 secs):
   RX_PACKET_LARGE          :           23552
   RX_UNICAST               :           32704
 Total byte including FCS: 536852512
+Loopback test: PASS
+
+
+6. VD100_10G_ether_dual, DAC cable loopback testing software FCS options
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Start with VD100_10G_ether_dual loaded and DAC cable loopback in order to test the handling of the software FCS options:
+a. All tests pass.
+b. FCS implementation using C is slower than ZLIB or IPP.
+
+6.1. No software FCS
+~~~~~~~~~~~~~~~~~~~~
+
+Since the FCS is handled by the MRMAC, just with the loopback test with no forcing the software FCS implementation:
+$ mrmac_ethernet/mrmac_loopback_test -n 1:0
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive.
+Link ready at 10 Gb/s (latched rx_status initial 0x00000180 last 0x00000003)
+Testing VD100_10G_ether_dual Tx port 1 Rx Port 0 with 9537 packet lengths (including FCS) from 64 to 9600 bytes
+insert_tx_fcs=0 verify_rx_fcs=0 FCS implementation=IPP
+VD100_10G_ether_dual port 1 statistics (over 0.110 secs):
+  TX_CYCLE_COUNT           :        70910243
+  TX_TOTAL_PACKETS         :            9537
+  TX_TOTAL_GOOD_PACKETS    :            9537
+  TX_TOTAL_BYTES           :        46082784
+  TX_TOTAL_GOOD_BYTES      :        46082784
+  TX_PACKET_64_BYTES       :               1
+  TX_PACKET_65_127_BYTES   :              63
+  TX_PACKET_128_255_BYTES  :             128
+  TX_PACKET_256_511_BYTES  :             256
+  TX_PACKET_512_1023_BYTES :             512
+  TX_PACKET_1024_1518_BYTES:             495
+  TX_PACKET_1519_1522_BYTES:               4
+  TX_PACKET_1523_1548_BYTES:              26
+  TX_PACKET_1549_2047_BYTES:             499
+  TX_PACKET_2048_4095_BYTES:            2048
+  TX_PACKET_4096_8191_BYTES:            4096
+  TX_PACKET_8192_9215_BYTES:            1024
+  TX_PACKET_LARGE          :             385
+  TX_UNICAST               :            9537
+  RX_CYCLE_COUNT           :        70910242
+VD100_10G_ether_dual port 0 statistics (over 0.110 secs):
+  TX_CYCLE_COUNT           :        70909660
+  RX_CYCLE_COUNT           :        70909659
+  RX_TOTAL_PACKETS         :            9537
+  RX_TOTAL_GOOD_PACKETS    :            9537
+  RX_TOTAL_BYTES           :        46082784
+  RX_TOTAL_GOOD_BYTES      :        46082784
+  RX_PACKET_64_BYTES       :               1
+  RX_PACKET_65_127_BYTES   :              63
+  RX_PACKET_128_255_BYTES  :             128
+  RX_PACKET_256_511_BYTES  :             256
+  RX_PACKET_512_1023_BYTES :             512
+  RX_PACKET_1024_1518_BYTES:             495
+  RX_PACKET_1519_1522_BYTES:               4
+  RX_PACKET_1523_1548_BYTES:              26
+  RX_PACKET_1549_2047_BYTES:             499
+  RX_PACKET_2048_4095_BYTES:            2048
+  RX_PACKET_4096_8191_BYTES:            4096
+  RX_PACKET_8192_9215_BYTES:            1024
+  RX_PACKET_LARGE          :             385
+  RX_UNICAST               :            9537
+Total byte including FCS: 46082784
+Loopback test: PASS
+
+6.2. Software inserts FCS on transmission
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Change MRMAC configuration to disable the MRMAC inserting the FCS on transmission:
+$ mrmac_ethernet/mrmac_configuration ctl_rx_delete_fcs=1 ctl_tx_fcs_ins_enable=0
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 0 field ctl_tx_fcs_ins_enable changed from 1 -> 0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 0 field ctl_rx_delete_fcs value unchanged at value 1
+Design VD100_10G_ether_dual device 0000:01:00.0 port 1 field ctl_tx_fcs_ins_enable changed from 1 -> 0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 1 field ctl_rx_delete_fcs value unchanged at value 1
+
+Run the loopback tests will all combinations of software FCS implementation:
+$ (ETHERNET_FCS_IMPLEMENTATION=C mrmac_ethernet/mrmac_loopback_test -n 1:0)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive.
+Link ready at 10 Gb/s (latched rx_status initial 0x00000180 last 0x00000003)
+Testing VD100_10G_ether_dual Tx port 1 Rx Port 0 with 9537 packet lengths (including FCS) from 64 to 9600 bytes
+insert_tx_fcs=1 verify_rx_fcs=0 FCS implementation=C
+VD100_10G_ether_dual port 1 statistics (over 1.103 secs):
+  TX_CYCLE_COUNT           :       710828317
+  TX_TOTAL_PACKETS         :            9537
+  TX_TOTAL_GOOD_PACKETS    :            9537
+  TX_TOTAL_BYTES           :        46082784
+  TX_TOTAL_GOOD_BYTES      :        46082784
+  TX_PACKET_64_BYTES       :               1
+  TX_PACKET_65_127_BYTES   :              63
+  TX_PACKET_128_255_BYTES  :             128
+  TX_PACKET_256_511_BYTES  :             256
+  TX_PACKET_512_1023_BYTES :             512
+  TX_PACKET_1024_1518_BYTES:             495
+  TX_PACKET_1519_1522_BYTES:               4
+  TX_PACKET_1523_1548_BYTES:              26
+  TX_PACKET_1549_2047_BYTES:             499
+  TX_PACKET_2048_4095_BYTES:            2048
+  TX_PACKET_4096_8191_BYTES:            4096
+  TX_PACKET_8192_9215_BYTES:            1024
+  TX_PACKET_LARGE          :             385
+  TX_UNICAST               :            9537
+  RX_CYCLE_COUNT           :       710828318
+VD100_10G_ether_dual port 0 statistics (over 1.103 secs):
+  TX_CYCLE_COUNT           :       710828031
+  RX_CYCLE_COUNT           :       710828032
+  RX_TOTAL_PACKETS         :            9537
+  RX_TOTAL_GOOD_PACKETS    :            9537
+  RX_TOTAL_BYTES           :        46082784
+  RX_TOTAL_GOOD_BYTES      :        46082784
+  RX_PACKET_64_BYTES       :               1
+  RX_PACKET_65_127_BYTES   :              63
+  RX_PACKET_128_255_BYTES  :             128
+  RX_PACKET_256_511_BYTES  :             256
+  RX_PACKET_512_1023_BYTES :             512
+  RX_PACKET_1024_1518_BYTES:             495
+  RX_PACKET_1519_1522_BYTES:               4
+  RX_PACKET_1523_1548_BYTES:              26
+  RX_PACKET_1549_2047_BYTES:             499
+  RX_PACKET_2048_4095_BYTES:            2048
+  RX_PACKET_4096_8191_BYTES:            4096
+  RX_PACKET_8192_9215_BYTES:            1024
+  RX_PACKET_LARGE          :             385
+  RX_UNICAST               :            9537
+Total byte including FCS: 46082784
+Loopback test: PASS
+
+$ (ETHERNET_FCS_IMPLEMENTATION=ZLIB mrmac_ethernet/mrmac_loopback_test -n 1:0)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive.
+Link ready at 10 Gb/s (latched rx_status initial 0x00000180 last 0x00000003)
+Testing VD100_10G_ether_dual Tx port 1 Rx Port 0 with 9537 packet lengths (including FCS) from 64 to 9600 bytes
+insert_tx_fcs=1 verify_rx_fcs=0 FCS implementation=ZLIB
+VD100_10G_ether_dual port 1 statistics (over 0.112 secs):
+  TX_CYCLE_COUNT           :        71977321
+  TX_TOTAL_PACKETS         :            9537
+  TX_TOTAL_GOOD_PACKETS    :            9537
+  TX_TOTAL_BYTES           :        46082784
+  TX_TOTAL_GOOD_BYTES      :        46082784
+  TX_PACKET_64_BYTES       :               1
+  TX_PACKET_65_127_BYTES   :              63
+  TX_PACKET_128_255_BYTES  :             128
+  TX_PACKET_256_511_BYTES  :             256
+  TX_PACKET_512_1023_BYTES :             512
+  TX_PACKET_1024_1518_BYTES:             495
+  TX_PACKET_1519_1522_BYTES:               4
+  TX_PACKET_1523_1548_BYTES:              26
+  TX_PACKET_1549_2047_BYTES:             499
+  TX_PACKET_2048_4095_BYTES:            2048
+  TX_PACKET_4096_8191_BYTES:            4096
+  TX_PACKET_8192_9215_BYTES:            1024
+  TX_PACKET_LARGE          :             385
+  TX_UNICAST               :            9537
+  RX_CYCLE_COUNT           :        71977321
+VD100_10G_ether_dual port 0 statistics (over 0.112 secs):
+  TX_CYCLE_COUNT           :        71977030
+  RX_CYCLE_COUNT           :        71977030
+  RX_TOTAL_PACKETS         :            9537
+  RX_TOTAL_GOOD_PACKETS    :            9537
+  RX_TOTAL_BYTES           :        46082784
+  RX_TOTAL_GOOD_BYTES      :        46082784
+  RX_PACKET_64_BYTES       :               1
+  RX_PACKET_65_127_BYTES   :              63
+  RX_PACKET_128_255_BYTES  :             128
+  RX_PACKET_256_511_BYTES  :             256
+  RX_PACKET_512_1023_BYTES :             512
+  RX_PACKET_1024_1518_BYTES:             495
+  RX_PACKET_1519_1522_BYTES:               4
+  RX_PACKET_1523_1548_BYTES:              26
+  RX_PACKET_1549_2047_BYTES:             499
+  RX_PACKET_2048_4095_BYTES:            2048
+  RX_PACKET_4096_8191_BYTES:            4096
+  RX_PACKET_8192_9215_BYTES:            1024
+  RX_PACKET_LARGE          :             385
+  RX_UNICAST               :            9537
+Total byte including FCS: 46082784
+Loopback test: PASS
+
+$ (ETHERNET_FCS_IMPLEMENTATION=IPP mrmac_ethernet/mrmac_loopback_test -n 1:0)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive.
+Link ready at 10 Gb/s (latched rx_status initial 0x00000180 last 0x00000003)
+Testing VD100_10G_ether_dual Tx port 1 Rx Port 0 with 9537 packet lengths (including FCS) from 64 to 9600 bytes
+insert_tx_fcs=1 verify_rx_fcs=0 FCS implementation=IPP
+VD100_10G_ether_dual port 1 statistics (over 0.109 secs):
+  TX_CYCLE_COUNT           :        70537263
+  TX_TOTAL_PACKETS         :            9537
+  TX_TOTAL_GOOD_PACKETS    :            9537
+  TX_TOTAL_BYTES           :        46082784
+  TX_TOTAL_GOOD_BYTES      :        46082784
+  TX_PACKET_64_BYTES       :               1
+  TX_PACKET_65_127_BYTES   :              63
+  TX_PACKET_128_255_BYTES  :             128
+  TX_PACKET_256_511_BYTES  :             256
+  TX_PACKET_512_1023_BYTES :             512
+  TX_PACKET_1024_1518_BYTES:             495
+  TX_PACKET_1519_1522_BYTES:               4
+  TX_PACKET_1523_1548_BYTES:              26
+  TX_PACKET_1549_2047_BYTES:             499
+  TX_PACKET_2048_4095_BYTES:            2048
+  TX_PACKET_4096_8191_BYTES:            4096
+  TX_PACKET_8192_9215_BYTES:            1024
+  TX_PACKET_LARGE          :             385
+  TX_UNICAST               :            9537
+  RX_CYCLE_COUNT           :        70537263
+VD100_10G_ether_dual port 0 statistics (over 0.109 secs):
+  TX_CYCLE_COUNT           :        70537143
+  RX_CYCLE_COUNT           :        70537142
+  RX_TOTAL_PACKETS         :            9537
+  RX_TOTAL_GOOD_PACKETS    :            9537
+  RX_TOTAL_BYTES           :        46082784
+  RX_TOTAL_GOOD_BYTES      :        46082784
+  RX_PACKET_64_BYTES       :               1
+  RX_PACKET_65_127_BYTES   :              63
+  RX_PACKET_128_255_BYTES  :             128
+  RX_PACKET_256_511_BYTES  :             256
+  RX_PACKET_512_1023_BYTES :             512
+  RX_PACKET_1024_1518_BYTES:             495
+  RX_PACKET_1519_1522_BYTES:               4
+  RX_PACKET_1523_1548_BYTES:              26
+  RX_PACKET_1549_2047_BYTES:             499
+  RX_PACKET_2048_4095_BYTES:            2048
+  RX_PACKET_4096_8191_BYTES:            4096
+  RX_PACKET_8192_9215_BYTES:            1024
+  RX_PACKET_LARGE          :             385
+  RX_UNICAST               :            9537
+Total byte including FCS: 46082784
+Loopback test: PASS
+
+6.3. Software checks FCS on reception
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Change MRMAC configuration to disable the MRMAC deleting the FCS on reception:
+$ mrmac_ethernet/mrmac_configuration ctl_rx_delete_fcs=0 ctl_tx_fcs_ins_enable=1
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 0 field ctl_tx_fcs_ins_enable changed from 0 -> 1
+Design VD100_10G_ether_dual device 0000:01:00.0 port 0 field ctl_rx_delete_fcs changed from 1 -> 0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 1 field ctl_tx_fcs_ins_enable changed from 0 -> 1
+Design VD100_10G_ether_dual device 0000:01:00.0 port 1 field ctl_rx_delete_fcs changed from 1 -> 0
+
+Run the loopback tests will all combinations of software FCS implementation:
+$ (ETHERNET_FCS_IMPLEMENTATION=C mrmac_ethernet/mrmac_loopback_test -n 1:0)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive.
+Link ready at 10 Gb/s (latched rx_status initial 0x00000180 last 0x00000003)
+Testing VD100_10G_ether_dual Tx port 1 Rx Port 0 with 9537 packet lengths (including FCS) from 64 to 9600 bytes
+insert_tx_fcs=0 verify_rx_fcs=1 FCS implementation=C
+VD100_10G_ether_dual port 1 statistics (over 1.095 secs):
+  TX_CYCLE_COUNT           :       706054755
+  TX_TOTAL_PACKETS         :            9537
+  TX_TOTAL_GOOD_PACKETS    :            9537
+  TX_TOTAL_BYTES           :        46082784
+  TX_TOTAL_GOOD_BYTES      :        46082784
+  TX_PACKET_64_BYTES       :               1
+  TX_PACKET_65_127_BYTES   :              63
+  TX_PACKET_128_255_BYTES  :             128
+  TX_PACKET_256_511_BYTES  :             256
+  TX_PACKET_512_1023_BYTES :             512
+  TX_PACKET_1024_1518_BYTES:             495
+  TX_PACKET_1519_1522_BYTES:               4
+  TX_PACKET_1523_1548_BYTES:              26
+  TX_PACKET_1549_2047_BYTES:             499
+  TX_PACKET_2048_4095_BYTES:            2048
+  TX_PACKET_4096_8191_BYTES:            4096
+  TX_PACKET_8192_9215_BYTES:            1024
+  TX_PACKET_LARGE          :             385
+  TX_UNICAST               :            9537
+  RX_CYCLE_COUNT           :       706054754
+VD100_10G_ether_dual port 0 statistics (over 1.095 secs):
+  TX_CYCLE_COUNT           :       706054510
+  RX_CYCLE_COUNT           :       706054509
+  RX_TOTAL_PACKETS         :            9537
+  RX_TOTAL_GOOD_PACKETS    :            9537
+  RX_TOTAL_BYTES           :        46082784
+  RX_TOTAL_GOOD_BYTES      :        46082784
+  RX_PACKET_64_BYTES       :               1
+  RX_PACKET_65_127_BYTES   :              63
+  RX_PACKET_128_255_BYTES  :             128
+  RX_PACKET_256_511_BYTES  :             256
+  RX_PACKET_512_1023_BYTES :             512
+  RX_PACKET_1024_1518_BYTES:             495
+  RX_PACKET_1519_1522_BYTES:               4
+  RX_PACKET_1523_1548_BYTES:              26
+  RX_PACKET_1549_2047_BYTES:             499
+  RX_PACKET_2048_4095_BYTES:            2048
+  RX_PACKET_4096_8191_BYTES:            4096
+  RX_PACKET_8192_9215_BYTES:            1024
+  RX_PACKET_LARGE          :             385
+  RX_UNICAST               :            9537
+Total byte including FCS: 46082784
+Loopback test: PASS
+
+$ (ETHERNET_FCS_IMPLEMENTATION=ZLIB mrmac_ethernet/mrmac_loopback_test -n 1:0)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive.
+Link ready at 10 Gb/s (latched rx_status initial 0x00000180 last 0x00000003)
+Testing VD100_10G_ether_dual Tx port 1 Rx Port 0 with 9537 packet lengths (including FCS) from 64 to 9600 bytes
+insert_tx_fcs=0 verify_rx_fcs=1 FCS implementation=ZLIB
+VD100_10G_ether_dual port 1 statistics (over 0.109 secs):
+  TX_CYCLE_COUNT           :        70500831
+  TX_TOTAL_PACKETS         :            9537
+  TX_TOTAL_GOOD_PACKETS    :            9537
+  TX_TOTAL_BYTES           :        46082784
+  TX_TOTAL_GOOD_BYTES      :        46082784
+  TX_PACKET_64_BYTES       :               1
+  TX_PACKET_65_127_BYTES   :              63
+  TX_PACKET_128_255_BYTES  :             128
+  TX_PACKET_256_511_BYTES  :             256
+  TX_PACKET_512_1023_BYTES :             512
+  TX_PACKET_1024_1518_BYTES:             495
+  TX_PACKET_1519_1522_BYTES:               4
+  TX_PACKET_1523_1548_BYTES:              26
+  TX_PACKET_1549_2047_BYTES:             499
+  TX_PACKET_2048_4095_BYTES:            2048
+  TX_PACKET_4096_8191_BYTES:            4096
+  TX_PACKET_8192_9215_BYTES:            1024
+  TX_PACKET_LARGE          :             385
+  TX_UNICAST               :            9537
+  RX_CYCLE_COUNT           :        70500832
+VD100_10G_ether_dual port 0 statistics (over 0.109 secs):
+  TX_CYCLE_COUNT           :        70500576
+  RX_CYCLE_COUNT           :        70500576
+  RX_TOTAL_PACKETS         :            9537
+  RX_TOTAL_GOOD_PACKETS    :            9537
+  RX_TOTAL_BYTES           :        46082784
+  RX_TOTAL_GOOD_BYTES      :        46082784
+  RX_PACKET_64_BYTES       :               1
+  RX_PACKET_65_127_BYTES   :              63
+  RX_PACKET_128_255_BYTES  :             128
+  RX_PACKET_256_511_BYTES  :             256
+  RX_PACKET_512_1023_BYTES :             512
+  RX_PACKET_1024_1518_BYTES:             495
+  RX_PACKET_1519_1522_BYTES:               4
+  RX_PACKET_1523_1548_BYTES:              26
+  RX_PACKET_1549_2047_BYTES:             499
+  RX_PACKET_2048_4095_BYTES:            2048
+  RX_PACKET_4096_8191_BYTES:            4096
+  RX_PACKET_8192_9215_BYTES:            1024
+  RX_PACKET_LARGE          :             385
+  RX_UNICAST               :            9537
+Total byte including FCS: 46082784
+Loopback test: PASS
+
+$ (ETHERNET_FCS_IMPLEMENTATION=IPP mrmac_ethernet/mrmac_loopback_test -n 1:0)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive.
+Link ready at 10 Gb/s (latched rx_status initial 0x00000180 last 0x00000003)
+Testing VD100_10G_ether_dual Tx port 1 Rx Port 0 with 9537 packet lengths (including FCS) from 64 to 9600 bytes
+insert_tx_fcs=0 verify_rx_fcs=1 FCS implementation=IPP
+VD100_10G_ether_dual port 1 statistics (over 0.113 secs):
+  TX_CYCLE_COUNT           :        72632446
+  TX_TOTAL_PACKETS         :            9537
+  TX_TOTAL_GOOD_PACKETS    :            9537
+  TX_TOTAL_BYTES           :        46082784
+  TX_TOTAL_GOOD_BYTES      :        46082784
+  TX_PACKET_64_BYTES       :               1
+  TX_PACKET_65_127_BYTES   :              63
+  TX_PACKET_128_255_BYTES  :             128
+  TX_PACKET_256_511_BYTES  :             256
+  TX_PACKET_512_1023_BYTES :             512
+  TX_PACKET_1024_1518_BYTES:             495
+  TX_PACKET_1519_1522_BYTES:               4
+  TX_PACKET_1523_1548_BYTES:              26
+  TX_PACKET_1549_2047_BYTES:             499
+  TX_PACKET_2048_4095_BYTES:            2048
+  TX_PACKET_4096_8191_BYTES:            4096
+  TX_PACKET_8192_9215_BYTES:            1024
+  TX_PACKET_LARGE          :             385
+  TX_UNICAST               :            9537
+  RX_CYCLE_COUNT           :        72632445
+VD100_10G_ether_dual port 0 statistics (over 0.113 secs):
+  TX_CYCLE_COUNT           :        72632201
+  RX_CYCLE_COUNT           :        72632200
+  RX_TOTAL_PACKETS         :            9537
+  RX_TOTAL_GOOD_PACKETS    :            9537
+  RX_TOTAL_BYTES           :        46082784
+  RX_TOTAL_GOOD_BYTES      :        46082784
+  RX_PACKET_64_BYTES       :               1
+  RX_PACKET_65_127_BYTES   :              63
+  RX_PACKET_128_255_BYTES  :             128
+  RX_PACKET_256_511_BYTES  :             256
+  RX_PACKET_512_1023_BYTES :             512
+  RX_PACKET_1024_1518_BYTES:             495
+  RX_PACKET_1519_1522_BYTES:               4
+  RX_PACKET_1523_1548_BYTES:              26
+  RX_PACKET_1549_2047_BYTES:             499
+  RX_PACKET_2048_4095_BYTES:            2048
+  RX_PACKET_4096_8191_BYTES:            4096
+  RX_PACKET_8192_9215_BYTES:            1024
+  RX_PACKET_LARGE          :             385
+  RX_UNICAST               :            9537
+Total byte including FCS: 46082784
+Loopback test: PASS
+
+6.4. Software inserts FCS on transmission and checks FCS on reception
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Change MRMAC configuration to disable the MRMAC inserting FCS on transmission and deleting the FCS on reception:
+$ mrmac_ethernet/mrmac_configuration ctl_rx_delete_fcs=0 ctl_tx_fcs_ins_enable=0
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 0 field ctl_tx_fcs_ins_enable changed from 1 -> 0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 0 field ctl_rx_delete_fcs value unchanged at value 0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 1 field ctl_tx_fcs_ins_enable changed from 1 -> 0
+Design VD100_10G_ether_dual device 0000:01:00.0 port 1 field ctl_rx_delete_fcs value unchanged at value 0
+
+Run the loopback tests will all combinations of software FCS implementation:
+$ (ETHERNET_FCS_IMPLEMENTATION=C mrmac_ethernet/mrmac_loopback_test -n 1:0)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive.
+Link ready at 10 Gb/s (latched rx_status initial 0x00000180 last 0x00000003)
+Testing VD100_10G_ether_dual Tx port 1 Rx Port 0 with 9537 packet lengths (including FCS) from 64 to 9600 bytes
+insert_tx_fcs=1 verify_rx_fcs=1 FCS implementation=C
+VD100_10G_ether_dual port 1 statistics (over 1.982 secs):
+  TX_CYCLE_COUNT           :      1277226660
+  TX_TOTAL_PACKETS         :            9537
+  TX_TOTAL_GOOD_PACKETS    :            9537
+  TX_TOTAL_BYTES           :        46082784
+  TX_TOTAL_GOOD_BYTES      :        46082784
+  TX_PACKET_64_BYTES       :               1
+  TX_PACKET_65_127_BYTES   :              63
+  TX_PACKET_128_255_BYTES  :             128
+  TX_PACKET_256_511_BYTES  :             256
+  TX_PACKET_512_1023_BYTES :             512
+  TX_PACKET_1024_1518_BYTES:             495
+  TX_PACKET_1519_1522_BYTES:               4
+  TX_PACKET_1523_1548_BYTES:              26
+  TX_PACKET_1549_2047_BYTES:             499
+  TX_PACKET_2048_4095_BYTES:            2048
+  TX_PACKET_4096_8191_BYTES:            4096
+  TX_PACKET_8192_9215_BYTES:            1024
+  TX_PACKET_LARGE          :             385
+  TX_UNICAST               :            9537
+  RX_CYCLE_COUNT           :      1277226661
+VD100_10G_ether_dual port 0 statistics (over 1.982 secs):
+  TX_CYCLE_COUNT           :      1277226411
+  RX_CYCLE_COUNT           :      1277226411
+  RX_TOTAL_PACKETS         :            9537
+  RX_TOTAL_GOOD_PACKETS    :            9537
+  RX_TOTAL_BYTES           :        46082784
+  RX_TOTAL_GOOD_BYTES      :        46082784
+  RX_PACKET_64_BYTES       :               1
+  RX_PACKET_65_127_BYTES   :              63
+  RX_PACKET_128_255_BYTES  :             128
+  RX_PACKET_256_511_BYTES  :             256
+  RX_PACKET_512_1023_BYTES :             512
+  RX_PACKET_1024_1518_BYTES:             495
+  RX_PACKET_1519_1522_BYTES:               4
+  RX_PACKET_1523_1548_BYTES:              26
+  RX_PACKET_1549_2047_BYTES:             499
+  RX_PACKET_2048_4095_BYTES:            2048
+  RX_PACKET_4096_8191_BYTES:            4096
+  RX_PACKET_8192_9215_BYTES:            1024
+  RX_PACKET_LARGE          :             385
+  RX_UNICAST               :            9537
+Total byte including FCS: 46082784
+Loopback test: PASS
+
+$ (ETHERNET_FCS_IMPLEMENTATION=ZLIB mrmac_ethernet/mrmac_loopback_test -n 1:0)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive.
+Link ready at 10 Gb/s (latched rx_status initial 0x00000180 last 0x00000003)
+Testing VD100_10G_ether_dual Tx port 1 Rx Port 0 with 9537 packet lengths (including FCS) from 64 to 9600 bytes
+insert_tx_fcs=1 verify_rx_fcs=1 FCS implementation=ZLIB
+VD100_10G_ether_dual port 1 statistics (over 0.114 secs):
+  TX_CYCLE_COUNT           :        73264443
+  TX_TOTAL_PACKETS         :            9537
+  TX_TOTAL_GOOD_PACKETS    :            9537
+  TX_TOTAL_BYTES           :        46082784
+  TX_TOTAL_GOOD_BYTES      :        46082784
+  TX_PACKET_64_BYTES       :               1
+  TX_PACKET_65_127_BYTES   :              63
+  TX_PACKET_128_255_BYTES  :             128
+  TX_PACKET_256_511_BYTES  :             256
+  TX_PACKET_512_1023_BYTES :             512
+  TX_PACKET_1024_1518_BYTES:             495
+  TX_PACKET_1519_1522_BYTES:               4
+  TX_PACKET_1523_1548_BYTES:              26
+  TX_PACKET_1549_2047_BYTES:             499
+  TX_PACKET_2048_4095_BYTES:            2048
+  TX_PACKET_4096_8191_BYTES:            4096
+  TX_PACKET_8192_9215_BYTES:            1024
+  TX_PACKET_LARGE          :             385
+  TX_UNICAST               :            9537
+  RX_CYCLE_COUNT           :        73264443
+VD100_10G_ether_dual port 0 statistics (over 0.114 secs):
+  TX_CYCLE_COUNT           :        73264279
+  RX_CYCLE_COUNT           :        73264278
+  RX_TOTAL_PACKETS         :            9537
+  RX_TOTAL_GOOD_PACKETS    :            9537
+  RX_TOTAL_BYTES           :        46082784
+  RX_TOTAL_GOOD_BYTES      :        46082784
+  RX_PACKET_64_BYTES       :               1
+  RX_PACKET_65_127_BYTES   :              63
+  RX_PACKET_128_255_BYTES  :             128
+  RX_PACKET_256_511_BYTES  :             256
+  RX_PACKET_512_1023_BYTES :             512
+  RX_PACKET_1024_1518_BYTES:             495
+  RX_PACKET_1519_1522_BYTES:               4
+  RX_PACKET_1523_1548_BYTES:              26
+  RX_PACKET_1549_2047_BYTES:             499
+  RX_PACKET_2048_4095_BYTES:            2048
+  RX_PACKET_4096_8191_BYTES:            4096
+  RX_PACKET_8192_9215_BYTES:            1024
+  RX_PACKET_LARGE          :             385
+  RX_UNICAST               :            9537
+Total byte including FCS: 46082784
+Loopback test: PASS
+
+$ (ETHERNET_FCS_IMPLEMENTATION=IPP mrmac_ethernet/mrmac_loopback_test -n 1:0)
+Opening device 0000:01:00.0 (10ee:b044) with IOMMU group 13
+Enabled bus master for 0000:01:00.0
+Device 0000:01:00.0 design VD100_10G_ether_dual routes updated
+Waiting to link to be ready to receive.
+Link ready at 10 Gb/s (latched rx_status initial 0x00000180 last 0x00000003)
+Testing VD100_10G_ether_dual Tx port 1 Rx Port 0 with 9537 packet lengths (including FCS) from 64 to 9600 bytes
+insert_tx_fcs=1 verify_rx_fcs=1 FCS implementation=IPP
+VD100_10G_ether_dual port 1 statistics (over 0.111 secs):
+  TX_CYCLE_COUNT           :        71534280
+  TX_TOTAL_PACKETS         :            9537
+  TX_TOTAL_GOOD_PACKETS    :            9537
+  TX_TOTAL_BYTES           :        46082784
+  TX_TOTAL_GOOD_BYTES      :        46082784
+  TX_PACKET_64_BYTES       :               1
+  TX_PACKET_65_127_BYTES   :              63
+  TX_PACKET_128_255_BYTES  :             128
+  TX_PACKET_256_511_BYTES  :             256
+  TX_PACKET_512_1023_BYTES :             512
+  TX_PACKET_1024_1518_BYTES:             495
+  TX_PACKET_1519_1522_BYTES:               4
+  TX_PACKET_1523_1548_BYTES:              26
+  TX_PACKET_1549_2047_BYTES:             499
+  TX_PACKET_2048_4095_BYTES:            2048
+  TX_PACKET_4096_8191_BYTES:            4096
+  TX_PACKET_8192_9215_BYTES:            1024
+  TX_PACKET_LARGE          :             385
+  TX_UNICAST               :            9537
+  RX_CYCLE_COUNT           :        71534281
+VD100_10G_ether_dual port 0 statistics (over 0.111 secs):
+  TX_CYCLE_COUNT           :        71534055
+  RX_CYCLE_COUNT           :        71534056
+  RX_TOTAL_PACKETS         :            9537
+  RX_TOTAL_GOOD_PACKETS    :            9537
+  RX_TOTAL_BYTES           :        46082784
+  RX_TOTAL_GOOD_BYTES      :        46082784
+  RX_PACKET_64_BYTES       :               1
+  RX_PACKET_65_127_BYTES   :              63
+  RX_PACKET_128_255_BYTES  :             128
+  RX_PACKET_256_511_BYTES  :             256
+  RX_PACKET_512_1023_BYTES :             512
+  RX_PACKET_1024_1518_BYTES:             495
+  RX_PACKET_1519_1522_BYTES:               4
+  RX_PACKET_1523_1548_BYTES:              26
+  RX_PACKET_1549_2047_BYTES:             499
+  RX_PACKET_2048_4095_BYTES:            2048
+  RX_PACKET_4096_8191_BYTES:            4096
+  RX_PACKET_8192_9215_BYTES:            1024
+  RX_PACKET_LARGE          :             385
+  RX_UNICAST               :            9537
+Total byte including FCS: 46082784
 Loopback test: PASS
 
