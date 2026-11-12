@@ -1125,8 +1125,10 @@ void mrmac_display_if_ports_ready (const mrmac_ports_ready_to_receive_t *const c
 /**
  * @brief Initialise if software is used to perform Ethernet FCS calculations for MRMAC ports
  * @param[out] software_fcs The initialised context
- * @param[in] If non-NULL the registers of the MRMAC transmit port used, to determine if the MRMAC is configured to insert the FCS.
- * @param[in] If non-NULL the registers of the MRMAC receive port used, to determine if the MRMAC is configured to delete the FCS.
+ * @param[in] mrmac_tx_port_regs If non-NULL the registers of the MRMAC transmit port used, to determine if the MRMAC is configured
+ *                               to insert the FCS.
+ * @param[in] mrmac_rx_port_regs If non-NULL the registers of the MRMAC receive port used, to determine if the MRMAC is configured
+ *                               to delete the FCS.
  */
 void mrmac_software_fcs_initialise (mrmac_software_fcs_t *const software_fcs,
                                     const uint8_t *const mrmac_tx_port_regs, const uint8_t *const mrmac_rx_port_regs)

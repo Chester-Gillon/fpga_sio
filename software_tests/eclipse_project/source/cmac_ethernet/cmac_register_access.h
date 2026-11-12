@@ -9,6 +9,7 @@
 #define CMAC_REGISTER_ACCESS_H_
 
 #include "identify_pcie_fpga_design.h"
+#include "ethernet_fcs.h"
 
 
 /* The statistics counters maintained by the CMAC for one port. */
@@ -194,6 +195,23 @@ typedef struct
 } cmac_port_iterator_t;
 
 
+/* Controls if software is used to perform Ethernet FCS calculations, depending upon how the CMAC is configured.
+ * In normal use:
+ * a. The CMAC inserts the FCS on transmission.
+ * b. The CMAC deletes the FCS from received frames.
+ *
+ * This structure is used to allow testing of software performing FCS calculations, enabled according to the CMAC configuration. */
+typedef struct
+{
+    /* When true software inserts the transmitted FCS */
+    bool insert_tx_fcs;
+    /* When true the software verifies the received FCS */
+    bool verify_rx_fcs;
+    /* The context for calculating the FCS */
+    ethernet_fcs_context_t fcs_context;
+} cmac_software_fcs_t;
+
+
 extern const cmac_statistics_counter_definition_t cmac_statistics_counter_definitions[CMAC_STAT_ARRAY_SIZE];
 
 
@@ -210,6 +228,12 @@ uint32_t cmac_drp_read (const cmac_port_definition_t *const port, const uint32_t
 void cmac_get_rx_min_max_packet_lens (const cmac_port_definition_t *const port,
                                       uint32_t *const rx_min_packet_len, uint32_t *const rx_max_packet_len);
 void cmac_enable_port (cmac_port_definition_t *const port);
+void cmac_software_fcs_initialise (cmac_software_fcs_t *const software_fcs,
+                                   const cmac_port_definition_t *const cmac_tx_port, const cmac_port_definition_t *const cmac_rx_port);
+bool cmac_software_fcs_verify (cmac_software_fcs_t *const software_fcs, const void *const rx_frame, size_t *const transfer_len,
+                               uint32_t *const expected_fcs, uint32_t *const actual_fcs);
+size_t cmac_software_fcs_get_tx_transfer_len (const cmac_software_fcs_t *const software_fcs, const size_t packet_len_excluding_fcs);
+void cmac_software_fcs_insert (cmac_software_fcs_t *const software_fcs, void *const tx_frame, const size_t packet_len_excluding_fcs);
 
 
 #endif /* CMAC_REGISTER_ACCESS_H_ */

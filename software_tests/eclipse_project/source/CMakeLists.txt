@@ -111,7 +111,9 @@ if (EXISTS ${XILINX_EMBEDDEDSW_ROOT})
 endif()
 
 # If there is Intel opeAPI IPP installed enable it for calculating Ethernet CRCs.
-set (INTEL_IPP_ROOT "/opt/intel/oneapi/ipp/latest")
+# @todo Use 2026.0 since that is compatible with the glibc 2.28 installed by AlmaLinux 8.10
+#       Whereas the later 2026.2 has a dependency on glibc 2.34.
+set (INTEL_IPP_ROOT "/opt/intel/oneapi/ipp/2026.0")
 set (HAVE_INTEL_IPP FALSE)
 if (EXISTS ${INTEL_IPP_ROOT})
     set (HAVE_INTEL_IPP TRUE)

@@ -25,15 +25,15 @@ add_executable (cmac_link_control "cmac_link_control.c")
 target_link_libraries (cmac_link_control identify_pcie_fpga_design vfio_access)
 
 add_executable (cmac_statistics "cmac_statistics.c")
-target_link_libraries (cmac_statistics cmac_register_access identify_pcie_fpga_design transfer_timing vfio_access)
+target_link_libraries (cmac_statistics cmac_register_access ethernet_fcs identify_pcie_fpga_design transfer_timing vfio_access)
 
 add_executable (cmac_configuration "cmac_configuration.c")
-target_link_libraries (cmac_configuration cmac_register_access identify_pcie_fpga_design transfer_timing vfio_access)
+target_link_libraries (cmac_configuration cmac_register_access ethernet_fcs identify_pcie_fpga_design transfer_timing vfio_access)
 
 add_executable (cmac_loopback_test "cmac_loopback_test.c")
-target_link_libraries (cmac_loopback_test cmac_register_access xilinx_axi_stream_switch_configure xilinx_axi_stream_switch
+target_link_libraries (cmac_loopback_test cmac_register_access ethernet_fcs xilinx_axi_stream_switch_configure xilinx_axi_stream_switch
                                           identify_pcie_fpga_design xilinx_dma_bridge_transfers transfer_timing vfio_access)
 
 add_executable (cmac_switch_test "cmac_switch_test.c")
-target_link_libraries (cmac_switch_test cmac_register_access xilinx_axi_stream_switch_configure xilinx_axi_stream_switch
+target_link_libraries (cmac_switch_test cmac_register_access ethernet_fcs xilinx_axi_stream_switch_configure xilinx_axi_stream_switch
                                         identify_pcie_fpga_design xilinx_dma_bridge_transfers transfer_timing vfio_access m pthread)
