@@ -1885,7 +1885,7 @@ static void *transmit_receive_thread (void *arg)
                  *
                  * @todo This logic was added in the original version of the program where ethercat_frame_t was less than a jumbo
                  *       frame. When added support for variable length frames, ethercat_frame_t was increased to the maximum
-                 *       frame which which MRAC can receive. Therefore, should no longer be possible for this condition to occur.
+                 *       frame which which MRMAC can receive. Therefore, should no longer be possible for this condition to occur.
                  *       Also, if one frame did get split across multiple receive buffers the software verification of the FCS
                  *       would fail - since identify_frame() would only see the initial part of the frame. */
                 context->rx_frame_record.len += rx_transfer_len;
@@ -1903,7 +1903,8 @@ static void *transmit_receive_thread (void *arg)
             if (rx_end_of_packet)
             {
                 /* When have received the end of one packet, handle the frame */
-                if (context->rx_frame_record.frame_type != FRAME_RECORD_RX_OTHER)
+                if ((context->rx_frame_record.frame_type != FRAME_RECORD_RX_OTHER) &&
+                    (context->rx_frame_record.frame_type != FRAME_RECORD_RX_BAD_FCS))
                 {
                     handle_pending_rx_frame (context, &context->rx_frame_record);
                 }
